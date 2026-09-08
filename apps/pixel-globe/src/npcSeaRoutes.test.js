@@ -1,3 +1,5 @@
+import { greatCircleDistanceKm } from "./worldDistance.js";
+import { parsePortSailingDistances } from "./portSailingDistances.js";
 import { purchaseShipyardUpgrade } from "./shipyards.js";
 import { fundWorldEconomyShipyard } from "./economy.js";
 import { shipyardMaterialStockTargets, snapshotWorldShipyards, restoreWorldShipyards, registerShipyardTradeIn, advanceWorldShipyards } from "./shipyards.js";
@@ -33,7 +35,7 @@ import {
   configureNpcRouteEncounter,
   createNpcShipSnapshotCache,
   createNpcSeaRouteSimulationRestorePlan,
-  createNpcSeaRouteSystem,
+  createNpcSeaRouteSystem as createRuntimeNpcSeaRouteSystem,
   createNpcSeaRouteStrategicSnapshotPlan,
   damageNpcShip,
   expandNpcCapitalNavalReserve,
@@ -502,12 +504,12 @@ test("saved Niger routes aimed beyond Timbuktu are replanned on restore", (t) =>
 
 test("a founded American colony joins a Spanish ocean-going circuit", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
-  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const colony = {
     ...port(99, "Veracruz", "Mexico", "mesoamerican", 19.17, -96.13, 2400, "spain"),
     settlementType: "city",
     npcInterregionalTradeExcluded: true
   };
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, sailingCatalogPorts: [...PORTS, colony], startMinute: 0, economy });
   const added = addNpcSeaRoutePort(routes, colony);
   const circuitShip = routes.ships.find((ship) => (
     ship.nationalCircuitFactionId === "spain" &&
@@ -618,7 +620,7 @@ test("a developed village becomes a city in NPC sea routes", () => {
     "japan"
   ));
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
-  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, sailingCatalogPorts: [...PORTS, village], startMinute: 0, economy });
   addNpcSeaRoutePort(routes, village);
   const city = { ...village, settlementType: "city", population: 2400 };
 
@@ -3679,4 +3681,86 @@ test("earmarked and commissioned supply captains never turn pirate", async () =>
     }
     assert.equal(ship.role, NPC_ROLE_MERCHANT);
   }
+});
+
+// Synthetic test ports describe unobstructed coasts. Tests for barriers override
+// the matrix explicitly; production always supplies the generated world bake.
+function createNpcSeaRouteSystem(options) {
+  const ports = options.sailingCatalogPorts || options.ports;
+  const portSailingDistances = parsePortSailingDistances({
+    format: "pixel-globe-port-sailing-distances", version: 3, subdivisions: 8,
+    earthCacheVersion: "test", referenceWeatherDay: 215,
+    endpoints: ports.map(port => ({ tileId: port.tileId, name: port.city, kind: "port" })),
+    distancesKm: ports.map(a => ports.map(b => a.tileId === b.tileId ? 0 : Math.max(1, Math.round(greatCircleDistanceKm(a, b)))))
+  });
+  return createRuntimeNpcSeaRouteSystem({ portSailingDistances, ...options });
+}
+
+test("supply captains choose the shortest complete sailing trip and exclude unreachable suppliers", () => {
+  for (const blocked of [false, true]) {
+    const economy = createWorldEconomy({ ports: PORTS, startMinute: 0, seedKey: "supply-distance" });
+    const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, seedKey: "supply-distance" });
+    const home = PORTS[0];
+    const yard = fundWorldEconomyShipyard(economy, home, { investedMinute: 0, seedCapital: 100000,
+      materialContributions: { timber: 20, iron: 12, "naval-stores": 10 } });
+    const ship = routes.ships.find(entry => entry.role === NPC_ROLE_MERCHANT &&
+      entry.factionId === home.factionId && entry.currentPort.cityId === home.cityId);
+    ship.plan = { origin: ship.currentPort, destination: ship.currentPort, startMinute: 0, endMinute: 1,
+      segments: [{ kind: "wait", startMinute: 0, endMinute: 1 }] };
+    ship.cargo = {}; ship.cargoCost = {}; ship.cargoOrigins = {};
+    yard.materialInventory = { ...shipyardMaterialStockTargets(yard), iron: 0 };
+    yard.prepaidMaterialInventory = Object.fromEntries(Object.keys(yard.materialInventory).map(id => [id, 0]));
+    yard.upgrades.opportunities["supply-ship"].availableMinute = 0;
+    updateShipyardSupplyOffers(routes, 0);
+    purchaseShipyardUpgrade(yard, { doubloons: 100000 }, "supply-ship", 0);
+    // Seville is geographically closer. This fixture puts a long sailing detour
+    // before it; Genova is the shorter voyage unless that water route is closed.
+    routes.portSailingDistances = structuredClone(routes.portSailingDistances);
+    const matrix = routes.portSailingDistances.distancesKm;
+    for (let i = 1; i < PORTS.length; i++) matrix[0][i] = matrix[i][0] = 3000;
+    matrix[0][1] = matrix[1][0] = 1900;
+    matrix[0][2] = matrix[2][0] = blocked ? null : 400;
+    updateNpcSeaRouteEvents(routes, 1, [ship.id]);
+    assert.equal(ship.plan.destination.cityId, PORTS[blocked ? 1 : 2].cityId);
+  }
+});
+
+test("a commission cannot hire a captain across a long water detour", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0, seedKey: "supply-hire-distance" });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, seedKey: "supply-hire-distance" });
+  const home = PORTS[0];
+  const yard = fundWorldEconomyShipyard(economy, home, { investedMinute: 0, seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 } });
+  const ship = routes.ships.find(entry => entry.role === NPC_ROLE_MERCHANT && entry.factionId === home.factionId);
+  routes.ships = [ship]; routes.shipById = new Map([[ship.id, ship]]);
+  ship.currentPort = routes.ports.find(port => port.cityId === PORTS[1].cityId);
+  ship.plan = { origin: ship.currentPort, destination: ship.currentPort, startMinute: 0, endMinute: 1440,
+    segments: [{ kind: "wait", startMinute: 0, endMinute: 1440 }] };
+  yard.upgrades.opportunities["supply-ship"].availableMinute = 0;
+  routes.portSailingDistances = structuredClone(routes.portSailingDistances);
+  routes.portSailingDistances.distancesKm[0][1] = routes.portSailingDistances.distancesKm[1][0] = 2000;
+  assert.equal(updateShipyardSupplyOffers(routes, 0), false);
+  assert.equal(yard.upgrades.supplyCandidateShipId, null);
+  routes.portSailingDistances.distancesKm[0][1] = routes.portSailingDistances.distancesKm[1][0] = 500;
+  assert.equal(updateShipyardSupplyOffers(routes, 0), true);
+  assert.equal(yard.upgrades.supplyCandidateShipId, ship.id);
+});
+
+test("NPC fleets reject missing sailing catalogs at construction", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  assert.throws(() => createRuntimeNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy }),
+    /sailing distances have not been parsed/);
+});
+
+test("national circuits order ports by baked sailing distance", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const original = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const portSailingDistances = structuredClone(original.portSailingDistances);
+  // Lisbon is the hub. Make Malacca the first sailing stop despite Goa being
+  // geographically closer, without changing any port's position or identity.
+  portSailingDistances.distancesKm[0][4] = portSailingDistances.distancesKm[4][0] = 19000;
+  portSailingDistances.distancesKm[0][6] = portSailingDistances.distancesKm[6][0] = 1000;
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, portSailingDistances });
+  const circuit = routes.ships.find(ship => ship.nationalCircuitFactionId === "portugal");
+  assert.deepEqual(circuit.nationalCircuitCityIds, [PORTS[0].cityId, PORTS[6].cityId, PORTS[4].cityId]);
 });

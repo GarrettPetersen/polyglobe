@@ -1,3 +1,4 @@
+import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -95,7 +96,7 @@ for (const capital of [
 
 test("passenger missions spawn as persistent medium-distance offers", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const offer = passengerOfferForCity(state, LISBON, [LISBON, PORTO, ISTANBUL], {
+  const offer = passengerOfferForCity(state, LISBON, [LISBON, PORTO, ISTANBUL], { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     simMinute: 0,
     destinationCityId: ISTANBUL.cityId,
@@ -112,7 +113,7 @@ test("passenger missions spawn as persistent medium-distance offers", () => {
   assert.equal(pendingPassengerOfferForCity(state, LISBON), offer);
 
   markPassengerOfferSeen(state, offer);
-  assert.equal(passengerOfferForCity(state, LISBON, [LISBON, PORTO, ISTANBUL], {
+  assert.equal(passengerOfferForCity(state, LISBON, [LISBON, PORTO, ISTANBUL], { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     simMinute: 0
   }), offer);
@@ -122,7 +123,7 @@ test("passenger missions spawn as persistent medium-distance offers", () => {
 test("declined passengers release their port slot for a later spawn period", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const ports = [LISBON, ISTANBUL, LONDON];
-  const first = passengerOfferForCity(state, LISBON, ports, {
+  const first = passengerOfferForCity(state, LISBON, ports, { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     simMinute: 0,
     destinationCityId: ISTANBUL.cityId
@@ -130,13 +131,13 @@ test("declined passengers release their port slot for a later spawn period", () 
 
   declinePassengerOffer(state, first, { simMinute: 0 });
   assert.equal(pendingPassengerOfferForCity(state, LISBON), null);
-  assert.equal(passengerOfferForCity(state, LISBON, ports, {
+  assert.equal(passengerOfferForCity(state, LISBON, ports, { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     simMinute: 0,
     destinationCityId: ISTANBUL.cityId
   }), null);
 
-  const later = passengerOfferForCity(state, LISBON, ports, {
+  const later = passengerOfferForCity(state, LISBON, ports, { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     simMinute: PASSENGER_ROLL_PERIOD_MINUTES,
     destinationCityId: LONDON.cityId
@@ -147,7 +148,7 @@ test("declined passengers release their port slot for a later spawn period", () 
 
 test("Baghdad participates in ordinary city work", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const offer = passengerOfferForCity(state, BAGHDAD, [BAGHDAD, ISTANBUL], {
+  const offer = passengerOfferForCity(state, BAGHDAD, [BAGHDAD, ISTANBUL], { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     simMinute: 0,
     destinationCityId: ISTANBUL.cityId,
@@ -167,7 +168,7 @@ test("patron passengers mention closed roads only on the same landmass", () => {
     sameLandmassState,
     lisbon,
     [lisbon, istanbul],
-    {
+    { sailingDistanceKm: testSailingDistanceKm,
       spawnChance: 1,
       simMinute: 0,
       destinationCityId: istanbul.cityId,
@@ -182,7 +183,7 @@ test("patron passengers mention closed roads only on the same landmass", () => {
     separateLandmassState,
     lisbon,
     [lisbon, london],
-    {
+    { sailingDistanceKm: testSailingDistanceKm,
       spawnChance: 1,
       simMinute: 0,
       destinationCityId: london.cityId,
@@ -296,7 +297,7 @@ test("pirate hideouts never generate ordinary travel missions", () => {
 
   assert.deepEqual(previews.get(hideout.cityId), []);
   assert.equal(sampledDistance, false);
-  assert.equal(passengerOfferForCity(state, hideout, [ACEH, JEDDAH], {
+  assert.equal(passengerOfferForCity(state, hideout, [ACEH, JEDDAH], { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     hajjScenarioChance: 1,
     simMinute: 0
@@ -356,7 +357,7 @@ test("Hajj return passengers can only name Muslim communities as home", () => {
 
 test("accepting and completing passenger passage pays fare and clears pending offer", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const offer = passengerOfferForCity(state, LISBON, [LISBON, LONDON, GOA], {
+  const offer = passengerOfferForCity(state, LISBON, [LISBON, LONDON, GOA], { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     simMinute: 0,
     destinationCityId: LONDON.cityId,
@@ -391,7 +392,7 @@ test("one passenger and one package delivery can travel aboard together", () => 
     expressions: [{ id: "neutral" }, { id: "happy" }],
     skillIds: ["master-chef"]
   });
-  const passenger = passengerOfferForCity(state, LISBON, [LISBON, LONDON, GOA], {
+  const passenger = passengerOfferForCity(state, LISBON, [LISBON, LONDON, GOA], { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     simMinute: 0,
     destinationCityId: LONDON.cityId,
@@ -399,7 +400,7 @@ test("one passenger and one package delivery can travel aboard together", () => 
   });
   acceptQuest(state, passenger);
 
-  const delivery = deliveryOfferForCity(state, LISBON, [LISBON, PORTO], {
+  const delivery = deliveryOfferForCity(state, LISBON, [LISBON, PORTO], { sailingDistanceKm: testSailingDistanceKm,
     simMinute: 0,
     spawnChance: 1
   });
@@ -453,12 +454,12 @@ test("passenger destinations reject local hops and intercontinental extremes", (
   const shortState = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const longState = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
 
-  assert.equal(passengerOfferForCity(shortState, LISBON, [LISBON, PORTO], {
+  assert.equal(passengerOfferForCity(shortState, LISBON, [LISBON, PORTO], { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     simMinute: 0,
     destinationCityId: PORTO.cityId
   }), null);
-  assert.equal(passengerOfferForCity(longState, BEIJING, [BEIJING, HAVANA, NAGASAKI], {
+  assert.equal(passengerOfferForCity(longState, BEIJING, [BEIJING, HAVANA, NAGASAKI], { sailingDistanceKm: testSailingDistanceKm,
     spawnChance: 1,
     simMinute: 0,
     destinationCityId: HAVANA.cityId
@@ -509,7 +510,7 @@ test("a friendly envoy negotiates abroad and is paid only after returning home",
   const originStanding = factionReputation(state, "portugal");
   const targetStanding = factionReputation(state, "england");
   const startingDoubloons = state.doubloons;
-  const offer = envoyOfferForCapital(state, LISBON, [LISBON, LONDON, ISTANBUL], {
+  const offer = envoyOfferForCapital(state, LISBON, [LISBON, LONDON, ISTANBUL], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: "friendly-envoy",
     destinationCityId: LONDON.cityId,
@@ -547,7 +548,7 @@ test("a friendly envoy negotiates abroad and is paid only after returning home",
 test("a special envoy from the player capital opens a sovereign market during negotiations", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const startingDoubloons = state.doubloons;
-  const offer = envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], {
+  const offer = envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     relationBetween: diplomacyBetween,
     simMinute: 0,
@@ -589,8 +590,8 @@ test("the Ming trade-opening embassy cannot bypass the envoy spawn roll", () => 
     createCharacter: () => ({ id: "envoy:thomas-moreton", name: "Thomas Moreton" })
   };
 
-  assert.equal(envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], context), null);
-  assert.equal(envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], {
+  assert.equal(envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], { sailingDistanceKm: testSailingDistanceKm, ...(context) }), null);
+  assert.equal(envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], { sailingDistanceKm: testSailingDistanceKm,
     ...context,
     envoySpawnChance: 1
   }), null);
@@ -598,7 +599,7 @@ test("the Ming trade-opening embassy cannot bypass the envoy spawn roll", () => 
 
 test("trade-opening envoys cover Joseon licenses and the Spanish Indies monopoly", () => {
   const englishState = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const joseonOffer = envoyOfferForCapital(englishState, LONDON, [LONDON, SEOUL], {
+  const joseonOffer = envoyOfferForCapital(englishState, LONDON, [LONDON, SEOUL], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     relationBetween: diplomacyBetween,
     simMinute: 0
@@ -623,7 +624,7 @@ test("trade-opening envoys cover Joseon licenses and the Spanish Indies monopoly
     MING_TRADE_POLICY_ID,
     "portugal"
   );
-  const indiesOffer = envoyOfferForCapital(portugueseState, LISBON, [LISBON, SEVILLE], {
+  const indiesOffer = envoyOfferForCapital(portugueseState, LISBON, [LISBON, SEVILLE], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     relationBetween: diplomacyBetween,
     simMinute: 0
@@ -635,7 +636,7 @@ test("trade-opening envoys cover Joseon licenses and the Spanish Indies monopoly
 test("a hostile envoy worsens relations and the player's standing with the foreign court", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const targetStanding = factionReputation(state, "england");
-  const offer = envoyOfferForCapital(state, LISBON, [LISBON, LONDON], {
+  const offer = envoyOfferForCapital(state, LISBON, [LISBON, LONDON], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: "hostile-envoy",
     destinationTileId: LONDON.tileId,
@@ -678,7 +679,7 @@ test("an embassy's home court keeps admitting its captain after the mission turn
   const state = createGameState({ cargoCapacity: 20, playerCharacter: ottomanCaptain });
   state.relations.diplomacy.overrides["ottoman|utrecht"] = "neutral";
   const ports = [utrecht, ISTANBUL];
-  const offer = envoyOfferForCapital(state, utrecht, ports, {
+  const offer = envoyOfferForCapital(state, utrecht, ports, { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: "hostile-envoy",
     destinationCityId: ISTANBUL.cityId,
@@ -705,7 +706,7 @@ test("a hostile envoy expels a resident settlement when its host turns hostile",
     cargoCapacity: 20,
     playerCharacter: { ...PLAYER, nationalityId: "venice" }
   });
-  const offer = envoyOfferForCapital(state, VENICE, [VENICE, VENETIAN_ISTANBUL], {
+  const offer = envoyOfferForCapital(state, VENICE, [VENICE, VENETIAN_ISTANBUL], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: "hostile-envoy",
     destinationCityId: VENETIAN_ISTANBUL.cityId,
@@ -736,7 +737,7 @@ test("a hostile envoy expels a resident settlement when its host turns hostile",
 
 test("an envoy can claim seven days of passage from either participating nation", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const offer = envoyOfferForCapital(state, LISBON, [LISBON, LONDON], {
+  const offer = envoyOfferForCapital(state, LISBON, [LISBON, LONDON], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: "hostile-envoy",
     destinationCityId: LONDON.cityId,
@@ -776,3 +777,25 @@ function port(tileId, city, country, cityType, factionId, lat, lon) {
     lon
   };
 }
+
+test("passenger eligibility and fares use sailing distance rather than proximity", () => {
+  function offer(distanceKm) {
+    const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+    return passengerOfferForCity(state, LISBON, [LISBON, PORTO], {
+      sailingDistanceKm: () => distanceKm,
+      destinationCityId: PORTO.cityId, scenarioId: "family-letter", spawnChance: 1, simMinute: 0
+    });
+  }
+  // These ports are too close geographically for a medium-distance mission.
+  const shorter = offer(1200), longer = offer(2400);
+  assert.equal(shorter.distanceKm, 1200);
+  assert.equal(longer.distanceKm, 2400);
+  assert.ok(longer.reward > shorter.reward);
+  assert.equal(offer(null), null, "unreachable ports do not create offers");
+  assert.equal(offer(5000), null, "long sailing detours obey the mission distance limit");
+  assert.throws(() => offer(NaN), /Invalid port sailing distance/);
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  assert.throws(() => passengerOfferForCity(state, LISBON, [LISBON, PORTO], {
+    destinationCityId: PORTO.cityId, scenarioId: "family-letter", spawnChance: 1, simMinute: 0
+  }), /requires a sailing-distance resolver|require a sailing-distance resolver/);
+});

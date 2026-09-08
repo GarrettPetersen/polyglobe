@@ -5043,6 +5043,7 @@ async function main() {
   if (CAPTURE_SCENARIO) applyCaptureDiplomacy(gameState, CAPTURE_SCENARIO.diplomacy);
   reconcileForeignSettlementPolitics();
   npcSeaRoutes = createNpcSeaRouteSystem({
+    portSailingDistances,
     ports: portCities,
     startMinute: weatherClockMinutes,
     economy: worldEconomy,
@@ -17605,6 +17606,7 @@ function createSavedVoyageEconomy(simulationMinute, seedKey) {
 
 function createSavedVoyageNpcRoutes(simulationMinute, restoredGameState) {
   return createNpcSeaRouteSystem({
+    portSailingDistances,
     ports: portCities,
     startMinute: simulationMinute,
     economy: worldEconomy,
@@ -23158,7 +23160,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     });
   }
   wokouHuntMissionOfferForCity(gameState, cityCall, accessiblePorts, { simMinute });
-  deliveryOfferForCity(gameState, cityCall, accessiblePorts, { simMinute });
+  deliveryOfferForCity(gameState, cityCall, accessiblePorts, { simMinute, sailingDistanceKm: sailingDistanceBetweenPorts });
   const openDeliveryMission = !needsLoadout &&
     deliveryMissionShouldOpenOnArrival(gameState, cityCall, accessiblePorts);
   const vikingLongshipOffer = maybeSpawnVikingLongshipQuest(gameState, cityCall, { simMinute });

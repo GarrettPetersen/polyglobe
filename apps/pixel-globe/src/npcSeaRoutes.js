@@ -1,3 +1,4 @@
+import { portSailingDistanceKm } from "./portSailingDistances.js";
 import { commissionedShipyard, reservedSupplyShipyard, invalidateSupplyCommissionIndex } from "./shipyardUpgrades.js";
 import { settlementTypeForCity } from "./settlementTypes.js";
 import {
@@ -507,6 +508,7 @@ export const NPC_SHIP_SLUGS = Object.freeze([...new Set([
 
 export function createNpcSeaRouteSystem({
   ports,
+  portSailingDistances,
   startMinute,
   economy,
   fishState = null,
@@ -552,6 +554,9 @@ export function createNpcSeaRouteSystem({
     throw new Error(`NPC sea routes need at least 8 usable ports, got ${usablePorts.length}`);
   }
 
+  // Validate the route catalog before constructing any active fleets. The bake
+  // is portable data, so workers use exactly the same distances as the main thread.
+  for (const port of usablePorts) portSailingDistanceKm(portSailingDistances, port, usablePorts[0]);
   const laneNodes = new Map(LANE_NODES.map((node) => [node.id, node]));
   const baseEdges = pruneUninhabitedRiverTails(
     buildDirectedLaneEdges(laneNodes),
@@ -560,6 +565,7 @@ export function createNpcSeaRouteSystem({
   const routeComponentByAnchorId = buildRouteAnchorComponents(laneNodes, baseEdges);
   const system = {
     ports: usablePorts,
+    portSailingDistances,
     seedKey,
     economy,
     laneNodes,
@@ -615,6 +621,7 @@ export function addNpcSeaRoutePort(system, port) {
   if (normalized.routeAnchors.length === 0) {
     throw new Error(`NPC route port has no sea-lane anchors: ${portName(port)}`);
   }
+  portSailingDistanceKm(system.portSailingDistances, normalized, system.ports[0]);
   system.ports.push(normalized);
   system.routeCache.clear();
   system.edgeCostCache.clear();
@@ -2327,8 +2334,10 @@ export function orderNpcPortResponse(system, {
       !ship.encounter && !ship.portResponse && !ship.capitalNavalReserveSlotId &&
       !shipHasCombatGrace(ship)
     ))
+    .filter(ship => portSailingDistanceKm(system.portSailingDistances, ship.currentPort, target) !== null)
     .sort((a, b) => (
-      distanceKm(a.currentPort, target) - distanceKm(b.currentPort, target) ||
+      portSailingDistanceKm(system.portSailingDistances, a.currentPort, target) -
+      portSailingDistanceKm(system.portSailingDistances, b.currentPort, target) ||
       a.id.localeCompare(b.id)
     ))[0] || null;
   if (unassigned) {
@@ -2354,8 +2363,10 @@ export function orderNpcPortResponse(system, {
       ship.factionId === factionId && ship.role === NPC_ROLE_WARSHIP && ship.portResponse &&
       ship.portResponse.targetCityId !== targetCityId
     ))
+    .filter(ship => portSailingDistanceKm(system.portSailingDistances, ship.currentPort, target) !== null)
     .sort((a, b) => (
-      distanceKm(a.currentPort, target) - distanceKm(b.currentPort, target) ||
+      portSailingDistanceKm(system.portSailingDistances, a.currentPort, target) -
+      portSailingDistanceKm(system.portSailingDistances, b.currentPort, target) ||
       a.id.localeCompare(b.id)
     ))[0] || null;
   if (!retasked) {
@@ -3637,7 +3648,7 @@ function buildNationalPortCircuitSpecs(system) {
   for (const [factionId, factionPorts] of [...portsByFactionId].sort(([a], [b]) => a.localeCompare(b))) {
     const networkGroups = connectedNationalPortGroups(system, factionPorts);
     for (const networkPorts of networkGroups) {
-      if (!nationalPortGroupNeedsOceanCircuit(networkPorts)) continue;
+      if (!nationalPortGroupNeedsOceanCircuit(system, networkPorts)) continue;
       const hub = chooseNationalCircuitHub(networkPorts, factionId);
       const remotePorts = networkPorts
         .filter((port) => port.cityId !== hub.cityId)
@@ -3646,7 +3657,7 @@ function buildNationalPortCircuitSpecs(system) {
       const groupKey = requireCityId(hub, "National circuit hub");
       for (let offset = 0; offset < remotePorts.length; offset += remotePortsPerCircuit) {
         const chunk = remotePorts.slice(offset, offset + remotePortsPerCircuit);
-        const orderedPorts = nearestNeighborPortOrder(hub, chunk);
+        const orderedPorts = nearestNeighborPortOrder(system, hub, chunk);
         const circuitIndex = Math.floor(offset / remotePortsPerCircuit);
         specs.push(Object.freeze({
           id: `national-circuit:${factionId}:${groupKey}:${circuitIndex}`,
@@ -3671,7 +3682,8 @@ function connectedNationalPortGroups(system, factionPorts) {
       const current = pending.pop();
       group.push(current);
       for (const candidate of [...ungrouped]) {
-        if (!npcPortsShareRouteNetwork(system, current, candidate)) continue;
+        if (!npcPortsShareRouteNetwork(system, current, candidate) ||
+            portSailingDistanceKm(system.portSailingDistances, current, candidate) === null) continue;
         ungrouped.delete(candidate);
         pending.push(candidate);
       }
@@ -3681,12 +3693,12 @@ function connectedNationalPortGroups(system, factionPorts) {
   return groups;
 }
 
-function nationalPortGroupNeedsOceanCircuit(ports) {
+function nationalPortGroupNeedsOceanCircuit(system, ports) {
   if (ports.length < 2) return false;
   if (new Set(ports.map((port) => port.routeRegion)).size > 1) return true;
   for (let left = 0; left < ports.length; left++) {
     for (let right = left + 1; right < ports.length; right++) {
-      if (distanceKm(ports[left], ports[right]) >= NATIONAL_CIRCUIT_MIN_SPAN_KM) return true;
+      if (portSailingDistanceKm(system.portSailingDistances, ports[left], ports[right]) >= NATIONAL_CIRCUIT_MIN_SPAN_KM) return true;
     }
   }
   return false;
@@ -3700,13 +3712,14 @@ function chooseNationalCircuitHub(ports, factionId) {
   ))[0];
 }
 
-function nearestNeighborPortOrder(hub, remotePorts) {
+function nearestNeighborPortOrder(system, hub, remotePorts) {
   const ordered = [hub];
   const remaining = new Set(remotePorts);
   while (remaining.size > 0) {
     const current = ordered[ordered.length - 1];
     const next = [...remaining].sort((a, b) => (
-      distanceKm(current, a) - distanceKm(current, b) || a.cityId.localeCompare(b.cityId)
+      portSailingDistanceKm(system.portSailingDistances, current, a) -
+      portSailingDistanceKm(system.portSailingDistances, current, b) || a.cityId.localeCompare(b.cityId)
     ))[0];
     ordered.push(next);
     remaining.delete(next);
@@ -3725,10 +3738,12 @@ function chooseExistingNationalCircuitShip(system, spec) {
       !ship.encounter &&
       ship.replaceOnSink !== false &&
       npcShipSupportsFleetMode(ship.slug, "interregional") &&
-      npcPortsShareRouteNetwork(system, ship.currentPort, hub)
+      npcPortsShareRouteNetwork(system, ship.currentPort, hub) &&
+      portSailingDistanceKm(system.portSailingDistances, ship.currentPort, hub) !== null
     ))
     .sort((a, b) => (
-      distanceKm(a.currentPort, hub) - distanceKm(b.currentPort, hub) ||
+      portSailingDistanceKm(system.portSailingDistances, a.currentPort, hub) -
+      portSailingDistanceKm(system.portSailingDistances, b.currentPort, hub) ||
       a.id.localeCompare(b.id)
     ))[0] || null;
 }
@@ -4171,7 +4186,7 @@ function npcShipyardPurchaserForSale(system, origin, sale) {
 function chooseNpcReplacementPort(system, ship) {
   if (ship.role === NPC_ROLE_PIRATE) {
     const hideouts = [...system.pirateHideouts].sort((a, b) => (
-      distanceKm(ship.currentPort, a) - distanceKm(ship.currentPort, b) || a.tileId - b.tileId
+      npcTravelDistanceKm(system, ship.currentPort, a) - npcTravelDistanceKm(system, ship.currentPort, b) || a.tileId - b.tileId
     ));
     if (hideouts.length > 0) return hideouts[0];
   }
@@ -4204,7 +4219,7 @@ function npcReplacementPortScore(system, port, ship) {
     requireCityId(port, "NPC replacement shipyard")
   );
   const shipbuilding = (yard?.wealthScale || 0.5) + (shipyardHasAdvancedFacilities(yard) ? 1.2 : 0);
-  const distancePenalty = distanceKm(ship.currentPort, port) / 5000;
+  const distancePenalty = npcTravelDistanceKm(system, ship.currentPort, port) / 5000;
   const variation = hashUnit(
     `${ship.id}|${requireCityId(port, "NPC replacement port")}|replacement-port`
   ) * 0.2;
@@ -4674,17 +4689,17 @@ function chooseNpcDestination(system, ship, origin) {
     .filter((port) => !shipHasCombatGrace(ship) || npcPortIsSafeForShip(system, ship, port))
     .filter((port) => !npcNeedsFriendlyTradePort(ship) || npcMerchantCanTradeAtPort(system, ship, port))
     .filter((port) => profileSpec.mode === "regional"
-      ? profileSpec.portPredicate(port) && distanceKm(origin, port) >= NPC_MIN_TRIP_DISTANCE_KM
+      ? profileSpec.portPredicate(port) && npcTravelDistanceKm(system, origin, port) >= NPC_MIN_TRIP_DISTANCE_KM
       : !port.npcInterregionalTradeExcluded &&
         port.routeRegion !== origin.routeRegion &&
-        longRangePairAllowed(origin, port))
+        longRangePairAllowed(system, origin, port))
     .map((port) => ({
       port,
       economicScore: npcDestinationEconomicScore(system, ship, origin, port)
     }))
     .sort((a, b) => (
       b.economicScore - a.economicScore ||
-      destinationRank(origin, a.port, seed) - destinationRank(origin, b.port, seed)
+      destinationRank(system, origin, a.port, seed) - destinationRank(system, origin, b.port, seed)
     ));
   if (candidates.length === 0) {
     throw new Error(`No NPC destination candidates for ${ship.id} from ${portName(origin)}`);
@@ -4700,8 +4715,8 @@ function chooseConnectedEncounterPatrolDestination(system, ship, origin) {
     .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
     .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
     .sort((a, b) => (
-      distanceKm(origin, a) - distanceKm(origin, b) ||
-      destinationRank(origin, a, seed) - destinationRank(origin, b, seed)
+      npcTravelDistanceKm(system, origin, a) - npcTravelDistanceKm(system, origin, b) ||
+      destinationRank(system, origin, a, seed) - destinationRank(system, origin, b, seed)
     ));
   if (candidates.length === 0) {
     throw new Error(`No connected encounter patrol for ${ship.id} from ${portName(origin)}`);
@@ -4743,7 +4758,7 @@ function capitalNavalReservePatrolPort(system, ship, origin) {
     throw new Error(`Capital naval reserve ${ship.id} has no patrol port from ${portName(origin)}`);
   }
   return [...candidates].sort((a, b) => (
-    distanceKm(origin, a) - distanceKm(origin, b) || a.tileId - b.tileId
+    npcTravelDistanceKm(system, origin, a) - npcTravelDistanceKm(system, origin, b) || a.tileId - b.tileId
   ))[0];
 }
 
@@ -4766,7 +4781,7 @@ function chooseNationalCircuitDestination(system, ship, origin) {
     throw new Error(`NPC ship ${ship.id} cannot return to its national port circuit`);
   }
   return reachable.sort((a, b) => (
-    distanceKm(origin, a) - distanceKm(origin, b) || a.tileId - b.tileId
+    npcTravelDistanceKm(system, origin, a) - npcTravelDistanceKm(system, origin, b) || a.tileId - b.tileId
   ))[0];
 }
 
@@ -4788,7 +4803,7 @@ function chooseWhalerDestination(system, ship, origin) {
   const seed = hashString32(`${ship.seed}|${routeLocationIdentity(origin)}|whaling-ground`);
   return grounds.sort((a, b) => (
     distanceKm(origin, a) - distanceKm(origin, b) ||
-    destinationRank(origin, a, seed) - destinationRank(origin, b, seed)
+    destinationRank(system, origin, a, seed) - destinationRank(system, origin, b, seed)
   ))[0];
 }
 
@@ -4809,7 +4824,7 @@ function chooseWhalerSalePort(system, ship, origin) {
     }))
     .sort((a, b) => (
       b.score - a.score ||
-      destinationRank(origin, a.port, seed) - destinationRank(origin, b.port, seed)
+      destinationRank(system, origin, a.port, seed) - destinationRank(system, origin, b.port, seed)
     ));
   if (candidates.length === 0) {
     throw new Error(`No whale-blubber sale port candidates for ${ship.id} from ${portName(origin)}`);
@@ -4837,7 +4852,7 @@ function chooseFishermanFishingGround(system, ship, origin) {
     .filter(Boolean)
     .sort((a, b) => (
       b.score - a.score ||
-      destinationRank(origin, a.ground, seed) - destinationRank(origin, b.ground, seed)
+      destinationRank(system, origin, a.ground, seed) - destinationRank(system, origin, b.ground, seed)
     ));
   return candidates[0]?.ground || null;
 }
@@ -4893,7 +4908,7 @@ function chooseFishermanSalePort(system, ship, origin, quantity) {
     }))
     .sort((a, b) => (
       b.score - a.score ||
-      destinationRank(origin, a.port, seed) - destinationRank(origin, b.port, seed)
+      destinationRank(system, origin, a.port, seed) - destinationRank(system, origin, b.port, seed)
     ));
   if (candidates.length === 0) {
     throw new Error(`No fisherman sale port candidates for ${ship.id} from ${portName(origin)}`);
@@ -4903,7 +4918,7 @@ function chooseFishermanSalePort(system, ship, origin, quantity) {
 
 function fishermanSalePortScore(system, origin, port, quantity) {
   const saleValue = quotePortPurchase(system.economy, port, NPC_FISH_GOOD_ID, quantity);
-  const travelCost = distanceKm(origin, port) * FISHING_GROUND_TRAVEL_COST_PER_KM;
+  const travelCost = npcTravelDistanceKm(system, origin, port) * FISHING_GROUND_TRAVEL_COST_PER_KM;
   const routePreference = port.routeRegion === "europe" ? 24 : 0;
   return saleValue + routePreference - travelCost;
 }
@@ -5024,10 +5039,10 @@ function pirateShouldVisitHideout(ship) {
 
 function choosePirateHideoutDestination(system, ship, origin) {
   const candidates = system.pirateHideouts
-    .filter((port) => !samePort(port, origin))
+    .filter((port) => !samePort(port, origin) && npcPortsShareRouteNetwork(system, origin, port))
     .sort((a, b) => (
-      distanceKm(origin, a) - distanceKm(origin, b) ||
-      destinationRank(origin, a, ship.seed) - destinationRank(origin, b, ship.seed)
+      npcTravelDistanceKm(system, origin, a) - npcTravelDistanceKm(system, origin, b) ||
+      destinationRank(system, origin, a, ship.seed) - destinationRank(system, origin, b, ship.seed)
     ));
   if (candidates.length === 0) throw new Error(`No pirate hideout destination for ${ship.id}`);
   return candidates[0];
@@ -5081,11 +5096,11 @@ function shipHasCombatGrace(ship) {
 }
 
 function npcDestinationEconomicScore(system, ship, origin, destination) {
-  const distancePenalty = 1 + distanceKm(origin, destination) / 1400;
+  const distancePenalty = 1 + npcTravelDistanceKm(system, origin, destination) / 1400;
   if (ship.role !== NPC_ROLE_MERCHANT) {
     const targetDistance = ship.role === NPC_ROLE_WARSHIP ? 850 : 1250;
-    const patrolFit = 1 / (1 + Math.abs(distanceKm(origin, destination) - targetDistance));
-    const variation = destinationRank(origin, destination, ship.seed) / 0xffffffff;
+    const patrolFit = 1 / (1 + Math.abs(npcTravelDistanceKm(system, origin, destination) - targetDistance));
+    const variation = destinationRank(system, origin, destination, ship.seed) / 0xffffffff;
     const expansionPriority = ship.role === NPC_ROLE_WARSHIP &&
       system.relationBetween(ship.factionId, destination.factionId) === DIPLOMACY_WAR
       ? factionExpansionTargetPriority(
@@ -5610,11 +5625,11 @@ function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute
       profileSpec.portPredicate(port) ||
       npcRoutePointsShareAnchor(origin, port)
     ))
-    .filter((port) => port.routeRegion === origin.routeRegion || distanceKm(origin, port) <= NPC_ROUTE_HOP_MAX_KM)
+    .filter((port) => port.routeRegion === origin.routeRegion || npcTravelDistanceKm(system, origin, port) <= NPC_ROUTE_HOP_MAX_KM)
     .map((port) => ({
       port,
-      distance: distanceKm(origin, port),
-      towardFinal: distanceKm(port, desiredDestination)
+      distance: npcTravelDistanceKm(system, origin, port),
+      towardFinal: npcTravelDistanceKm(system, port, desiredDestination)
     }))
     .filter((item) => item.distance >= NPC_MIN_TRIP_DISTANCE_KM && item.distance <= NPC_ROUTE_HOP_MAX_KM)
     .sort((a, b) => a.towardFinal - b.towardFinal || a.distance - b.distance)
@@ -5999,6 +6014,8 @@ function npcPortsShareRouteNetwork(system, origin, destination) {
   if (!Array.isArray(destination?.routeAnchors) || destination.routeAnchors.length === 0) {
     throw new Error(`NPC route destination has no anchors: ${portName(destination)}`);
   }
+  if (!isOpenWaterRouteLocation(origin) && !isOpenWaterRouteLocation(destination) &&
+      portSailingDistanceKm(system.portSailingDistances, origin, destination) === null) return false;
   for (const originAnchorId of origin.routeAnchors) {
     const originComponentId = system.routeComponentByAnchorId.get(originAnchorId);
     if (originComponentId === undefined) {
@@ -6161,15 +6178,28 @@ function addExpectedFleetOrigins(weights, pool, shipCount) {
   }
 }
 
-function destinationRank(origin, candidate, seed) {
-  const distance = distanceKm(origin, candidate);
+function isOpenWaterRouteLocation(location) {
+  return location.isFishingGround === true || location.isWhalingGround === true || isSavedEncounterPoint(location);
+}
+
+function npcTravelDistanceKm(system, origin, destination) {
+  if (isOpenWaterRouteLocation(origin) || isOpenWaterRouteLocation(destination)) {
+    // Fishing, whaling and encounter positions have no entry in the port bake.
+    return distanceKm(origin, destination);
+  }
+  const sailingKm = portSailingDistanceKm(system.portSailingDistances, origin, destination);
+  return sailingKm === null ? Infinity : sailingKm;
+}
+
+function destinationRank(system, origin, candidate, seed) {
+  const distance = npcTravelDistanceKm(system, origin, candidate);
   const ideal = origin.routeRegion === candidate.routeRegion ? 1150 : 7400;
   const populationBoost = Math.log10(Math.max(10, candidate.population || 10)) * -80;
   const jitter = hashString32(`${seed}|${routeLocationIdentity(candidate)}`) % 500;
   return Math.abs(distance - ideal) + populationBoost + jitter;
 }
 
-function longRangePairAllowed(a, b) {
+function longRangePairAllowed(system, a, b) {
   const pair = new Set([a.routeRegion, b.routeRegion]);
   if (pair.has("east-asia") && pair.has("europe")) return true;
   if (pair.has("south-asia") && pair.has("europe")) return true;
@@ -6178,7 +6208,7 @@ function longRangePairAllowed(a, b) {
   if (pair.has("africa") && pair.has("europe")) return true;
   if (pair.has("east-asia") && pair.has("indian-ocean")) return true;
   if (pair.has("east-asia") && pair.has("polynesia")) return true;
-  return distanceKm(a, b) > 2800;
+  return npcTravelDistanceKm(system, a, b) > 2800;
 }
 
 function isAnyUsablePort(port) {
@@ -6738,6 +6768,18 @@ function hashUnit(value) {
 }
 
 
+// These are lengths along an already chosen sailing path, not shortcuts
+// between ports. Open-water positions are not endpoints in the port bake.
+function remainingNpcVoyageDistanceKm(ship, minute) {
+  let remainingKm = 0;
+  for (const segment of ship.plan?.segments || []) {
+    if (segment.kind === "wait" || segment.endMinute <= minute) continue;
+    const fraction = Math.min(1, (segment.endMinute - minute) / (segment.endMinute - segment.startMinute));
+    remainingKm += distanceKm(segment.from, segment.to) * fraction;
+  }
+  return remainingKm;
+}
+
 // Hiring never rebases a ship's current voyage. An existing merchant finishes
 // that leg before following the yard's instructions; newly built hulls depart
 // their actual sale port, with no seeded journey progress.
@@ -6756,17 +6798,25 @@ export function updateShipyardSupplyOffers(system, minute) {
       !reservedSupplyShipyard(system.economy.shipyards, ship.id) &&
       npcPortsShareRouteNetwork(system, ship.currentPort, home))
       .map((ship) => {
-        const snapshot = npcShipSnapshot(ship, npcEffectiveClock(ship, minute));
-        const position = snapshot?.routeVector ? vectorToLatLon(snapshot.routeVector) : ship.currentPort;
-        return { ship, distanceKm: distanceKm(position, home) };
+        // The captain must finish the current voyage before joining the yard.
+        // Count the remaining routed legs, then the baked trip from that port.
+        const arrivalPort = ship.plan?.destination || ship.currentPort;
+        const approachKm = portSailingDistanceKm(system.portSailingDistances, arrivalPort, home);
+        return { ship, distanceKm: approachKm === null ? Infinity : approachKm +
+          remainingNpcVoyageDistanceKm(ship, npcEffectiveClock(ship, minute)) };
       }).filter((entry) => entry.distanceKm <= 600)
       .sort((a, b) => a.distanceKm - b.distanceKm || a.ship.id.localeCompare(b.ship.id));
     let ship = candidates[0]?.ship || null;
     if (!ship) {
-      for (const sale of npcShipyardSales(system.economy.shipyards)) {
-        const origin = system.ports.find((port) => port.cityId === sale.portId);
-        if (!origin || sale.factionId !== home.factionId || distanceKm(origin, home) > 600 ||
-            !npcPortsShareRouteNetwork(system, origin, home)) continue;
+      const sales = npcShipyardSales(system.economy.shipyards).map((sale) => ({
+        sale, origin: system.ports.find((port) => port.cityId === sale.portId)
+      })).filter(({ sale, origin }) => origin && sale.factionId === home.factionId &&
+        npcPortsShareRouteNetwork(system, origin, home))
+        .map(({ sale, origin }) => ({ sale, origin,
+          distanceKm: portSailingDistanceKm(system.portSailingDistances, origin, home) }))
+        .filter(entry => entry.distanceKm !== null && entry.distanceKm <= 600)
+        .sort((a, b) => a.distanceKm - b.distanceKm || a.sale.id.localeCompare(b.sale.id));
+      for (const { sale, origin } of sales) {
         const profileSpec = FLEET_PROFILES.find((profile) => profile.portPredicate(origin) &&
           npcShipSupportsFleetMode(sale.shipSlug, profile.mode) &&
           profileSlugsForRole(profile, NPC_ROLE_MERCHANT, sale.factionId).includes(sale.shipSlug));
@@ -6813,8 +6863,14 @@ function assignShipyardSupplyPlan(system, ship, yard, minute) {
       .sort((a, b) => b.missing - a.missing || b.stockpileMissing - a.stockpileMissing || a.goodId.localeCompare(b.goodId));
     const suppliers = system.ports.filter((port) => npcRoutePortAcceptsTraffic(port) &&
       port.cityId !== home.cityId && npcPortsShareRouteNetwork(system, origin, port) &&
-      npcPortsShareRouteNetwork(system, port, home) && distanceKm(port, home) <= 2000)
-      .sort((a, b) => distanceKm(a, home) - distanceKm(b, home) || a.cityId.localeCompare(b.cityId));
+      npcPortsShareRouteNetwork(system, port, home))
+      .map(port => ({ port,
+        outboundKm: portSailingDistanceKm(system.portSailingDistances, origin, port),
+        homewardKm: portSailingDistanceKm(system.portSailingDistances, port, home) }))
+      .filter(entry => entry.outboundKm !== null && entry.homewardKm !== null && entry.homewardKm <= 2000)
+      .sort((a, b) => (a.outboundKm + a.homewardKm) - (b.outboundKm + b.homewardKm) ||
+        a.port.cityId.localeCompare(b.port.cityId))
+      .map(entry => entry.port);
     for (const need of needs) {
       const supplier = suppliers.find((port) => {
         if (!supplyTradePermitted(system, ship, port, home, need.goodId)) return false;

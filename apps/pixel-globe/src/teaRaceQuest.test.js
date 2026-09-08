@@ -1,3 +1,4 @@
+import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -51,11 +52,11 @@ test("the new-tea race opens only to lawful foreign traders during the spring cr
   const spring = gameMinuteForDate(1522, 4, 15);
   const winter = gameMinuteForDate(1522, 12, 1);
 
-  assert.equal(teaRaceOfferForCity(state, GUANGZHOU, PORTS, { simMinute: spring }), null);
+  assert.equal(teaRaceOfferForCity(state, GUANGZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: spring }), null);
   openSovereignTradeToFaction(state, MING_TRADE_POLICY_ID, "england");
-  assert.equal(teaRaceOfferForCity(state, GUANGZHOU, PORTS, { simMinute: winter }), null);
+  assert.equal(teaRaceOfferForCity(state, GUANGZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: winter }), null);
 
-  const offer = teaRaceOfferForCity(state, GUANGZHOU, PORTS, { simMinute: spring });
+  const offer = teaRaceOfferForCity(state, GUANGZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: spring });
   assert.equal(offer.id, "tea-race-1522");
   assert.equal(offer.destinationName, "London");
   assert.equal(offer.teaRaceCompetitors.length, 5);
@@ -65,7 +66,7 @@ test("the new-tea race opens only to lawful foreign traders during the spring cr
 test("the race carries entrusted tea and pays first and later finishers differently", () => {
   const firstState = raceStateWithOpenTrade();
   const spring = gameMinuteForDate(1522, 4, 15);
-  const firstOffer = deliveryOfferForCity(firstState, GUANGZHOU, PORTS, { simMinute: spring });
+  const firstOffer = deliveryOfferForCity(firstState, GUANGZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: spring });
   assert.equal(isTeaRaceQuest(firstOffer), true);
   acceptQuest(firstState, firstOffer, { simMinute: spring });
   assert.equal(firstState.cargo.tea, TEA_RACE_CARGO_QUANTITY);
@@ -81,7 +82,7 @@ test("the race carries entrusted tea and pays first and later finishers differen
   assert.equal(firstState.cargo.tea, undefined);
 
   const laterState = raceStateWithOpenTrade();
-  const laterOffer = deliveryOfferForCity(laterState, FUZHOU, PORTS, { simMinute: spring });
+  const laterOffer = deliveryOfferForCity(laterState, FUZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: spring });
   acceptQuest(laterState, laterOffer, { simMinute: spring });
   recordTeaRacePlayerArrival(laterState, laterOffer.id, {
     simMinute: spring + 102,
@@ -96,7 +97,7 @@ test("the race carries entrusted tea and pays first and later finishers differen
 test("a stored tea-race offer becomes disabled if later cargo fills its hold", () => {
   const state = raceStateWithOpenTrade();
   const spring = gameMinuteForDate(1522, 4, 15);
-  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, { simMinute: spring });
+  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: spring });
   state.cargo.tea = cargoFree(state);
   const economy = createWorldEconomy({ ports: PORTS, startMinute: spring });
   const session = createPortDialogueSession(GUANGZHOU, { initialNodeId: "quest" });
@@ -129,7 +130,7 @@ test("selling personal tea is allowed but entrusted tea fails that year's race",
   const state = raceStateWithOpenTrade();
   const spring = gameMinuteForDate(1522, 4, 15);
   state.cargo.tea = 3;
-  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, { simMinute: spring });
+  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: spring });
   acceptQuest(state, offer, { simMinute: spring });
 
   assert.equal(questCargoSaleTheftStatus(state, "tea", 3), null);
@@ -140,13 +141,13 @@ test("selling personal tea is allowed but entrusted tea fails that year's race",
   recordTeaRaceTheft(state, theft, { simMinute: spring + 10 });
   assert.equal(state.memory.quests.failed[offer.id].reason, "tea-race-theft");
   assert.equal(factionReputation(state, "ming"), standingBefore - 40);
-  assert.equal(teaRaceOfferForCity(state, FUZHOU, PORTS, { simMinute: spring + 20 }), null);
+  assert.equal(teaRaceOfferForCity(state, FUZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: spring + 20 }), null);
 });
 
 test("the market warns before an entrusted tea sale and lets the captain cancel", () => {
   const state = raceStateWithOpenTrade();
   const spring = gameMinuteForDate(1522, 4, 15);
-  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, { simMinute: spring });
+  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: spring });
   acceptQuest(state, offer, { simMinute: spring });
   const economy = createWorldEconomy({ ports: [GUANGZHOU], startMinute: spring });
   const session = createPortDialogueSession(GUANGZHOU, { initialNodeId: "market", marketMode: "sell" });
@@ -181,7 +182,7 @@ test("the first-crop race can return next year but never twice in one season", (
   const state = raceStateWithOpenTrade();
   const firstSpring = gameMinuteForDate(1522, 4, 15);
   const nextSpring = gameMinuteForDate(1523, 4, 15);
-  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, { simMinute: firstSpring });
+  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: firstSpring });
   acceptQuest(state, offer, { simMinute: firstSpring });
   recordTeaRacePlayerArrival(state, offer.id, {
     simMinute: firstSpring + 100,
@@ -190,11 +191,11 @@ test("the first-crop race can return next year but never twice in one season", (
   });
   completeQuest(state, LONDON, { simMinute: firstSpring + 100 });
 
-  assert.equal(deliveryOfferForCity(state, FUZHOU, PORTS, {
+  assert.equal(deliveryOfferForCity(state, FUZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm,
     simMinute: firstSpring + 200,
     spawnChance: 0
   }), null);
-  const next = deliveryOfferForCity(state, FUZHOU, PORTS, {
+  const next = deliveryOfferForCity(state, FUZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm,
     simMinute: nextSpring,
     spawnChance: 0
   });
@@ -204,7 +205,7 @@ test("the first-crop race can return next year but never twice in one season", (
 test("tea race waypoints follow every active competitor and omit retired ships", () => {
   const state = raceStateWithOpenTrade();
   const spring = gameMinuteForDate(1522, 4, 15);
-  const quest = deliveryOfferForCity(state, GUANGZHOU, PORTS, { simMinute: spring });
+  const quest = deliveryOfferForCity(state, GUANGZHOU, PORTS, { sailingDistanceKm: testSailingDistanceKm, simMinute: spring });
   acceptQuest(state, quest, { simMinute: spring });
   const active = state.memory.quests.active;
 

@@ -11,7 +11,7 @@ import {
   DIPLOMACY_WAR,
   factionById
 } from "./factions.js";
-import { greatCircleDistanceKm } from "./worldDistance.js";
+import { travelSailingDistanceKm as passengerTravelDistanceKm } from "./travelSailingDistance.js";
 import { rulerAtMinute } from "./rulers.js";
 import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
 import {
@@ -125,7 +125,7 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
   const existing = pendingOrdinaryPassengerOfferForCity(state, city);
   if (existing) return existing;
 
-  const eastAsianPlan = eastAsianMissionPlanForCity(state, city, portCities);
+  const eastAsianPlan = eastAsianMissionPlanForCity(state, city, portCities, context);
   if (eastAsianPlan) {
     const quest = buildEastAsianPassengerQuest(eastAsianPlan);
     if (!passengerOfferWasDeclinedThisPeriod(quests, quest, context.simMinute)) {
@@ -188,7 +188,7 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
   const spawnChance = passengerSpawnChance(context.spawnChance);
   if (spawnChance < 1 && seededFraction(`${rollKey}|passenger`) >= spawnChance) return null;
 
-  const distanceKm = specialPlan?.distanceKm ?? greatCircleDistanceKm(city, destination);
+  const distanceKm = specialPlan?.distanceKm ?? passengerTravelDistanceKm(city, destination, context);
   const scenario = specialPlan?.scenario || choosePassengerScenario(
     `${rollKey}|${cityKey(destination)}`,
     context
@@ -248,7 +248,7 @@ export function travelMissionOfferForCity(state, city, portCities, context = {})
   const existing = pendingOrdinaryPassengerOfferForCity(state, city);
   if (existing || quests.passengerActive) return existing;
   if (quests.active && quests.active.kind !== "delivery") return null;
-  if (eastAsianMissionPlanForCity(state, city, portCities)) {
+  if (eastAsianMissionPlanForCity(state, city, portCities, context)) {
     return passengerOfferForCity(state, city, portCities, context);
   }
   if (city?.isFactionCapital) {
@@ -280,7 +280,8 @@ export function imperialElectionOfferForCity(state, city, portCities, context = 
   );
   if (!plan) return null;
   const period = passengerRollPeriod(context.simMinute);
-  const distanceKm = greatCircleDistanceKm(city, plan.destination);
+  const distanceKm = passengerTravelDistanceKm(city, plan.destination, context);
+  if (distanceKm === null) return null;
   const reward = 320 + Math.round(distanceKm / 20);
   const quest = buildEnvoyQuest(
     city,
@@ -350,10 +351,10 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
   if (spawnChance < 1 && seededFraction(`${rollKey}|spawn`) >= spawnChance) return null;
 
   const tradeAccessTarget = context.envoyKind === undefined || context.envoyKind === "friendly-envoy"
-    ? tradeAccessOpeningTarget(state, city, portCities, context.simMinute ?? 0)
+    ? tradeAccessOpeningTarget(state, city, portCities, context)
     : null;
   if (tradeAccessTarget) {
-    const distanceKm = greatCircleDistanceKm(city, tradeAccessTarget.port);
+    const distanceKm = passengerTravelDistanceKm(city, tradeAccessTarget.port, context);
     const quest = buildEnvoyQuest(
       city,
       tradeAccessTarget.port,
@@ -379,11 +380,13 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
       (context.envoyKind === undefined && tributeEligible && seededFraction(`${diplomaticSeed}|tribute`) < 0.45)) &&
       tributeEligible) {
     const destination = tributePlan.destination;
+    const distanceKm = passengerTravelDistanceKm(city, destination, context);
+    if (distanceKm === null) return null;
     const quest = buildEnvoyQuest(
       city,
       destination,
       TRIBUTE_ENVOY_QUEST_KIND,
-      greatCircleDistanceKm(city, destination),
+      distanceKm,
       period,
       context.simMinute ?? 0,
       {
@@ -404,12 +407,14 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
       (context.envoyKind === undefined && statusPlan && seededFraction(`${diplomaticSeed}|status`) < 0.22)) &&
       statusPlan) {
     const destination = statusPlan.destination;
+    const distanceKm = passengerTravelDistanceKm(city, destination, context);
+    if (distanceKm === null) return null;
     const { destination: _destination, ...statusProposal } = statusPlan;
     const quest = buildEnvoyQuest(
       city,
       destination,
       STATUS_ENVOY_QUEST_KIND,
-      greatCircleDistanceKm(city, destination),
+      distanceKm,
       period,
       context.simMinute ?? 0,
       { statusProposal }
@@ -423,11 +428,13 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
       (context.envoyKind === undefined && courtPlan && seededFraction(`${diplomaticSeed}|court`) < 0.55)) &&
       courtPlan) {
     const destination = courtPlan.destination;
+    const distanceKm = passengerTravelDistanceKm(city, destination, context);
+    if (distanceKm === null) return null;
     const quest = buildEnvoyQuest(
       city,
       destination,
       COURT_ENVOY_QUEST_KIND,
-      greatCircleDistanceKm(city, destination),
+      distanceKm,
       period,
       context.simMinute ?? 0,
       {
@@ -448,7 +455,7 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
   const missionKind = chooseEnvoyKind(`${rollKey}|kind`, context.envoyKind);
   const destination = chooseEnvoyDestination(city, portCities, missionKind, context);
   if (!destination) return null;
-  const distanceKm = greatCircleDistanceKm(city, destination);
+  const distanceKm = passengerTravelDistanceKm(city, destination, context);
   const quest = buildEnvoyQuest(city, destination, missionKind, distanceKm, period, context.simMinute ?? 0);
   attachEnvoyCharacter(quest, city, destination, context);
   quests.passengerOffers[originKey] = quest;
@@ -717,7 +724,8 @@ function diplomaticEnvoyDialogueText(kind, origin, target, reward, seed, originR
   return envoyDialogueText(kind, origin, target, reward, seed, originRuler, targetRuler);
 }
 
-function tradeAccessOpeningTarget(state, origin, portCities, simMinute) {
+function tradeAccessOpeningTarget(state, origin, portCities, context) {
+  const simMinute = context.simMinute ?? 0;
   const playerFactionId = state.playerCharacter?.nationalityId || null;
   if (!playerFactionId || origin.factionId !== playerFactionId) return null;
   const candidates = SOVEREIGN_TRADE_ACCESS_POLICIES
@@ -739,8 +747,9 @@ function tradeAccessOpeningTarget(state, origin, portCities, simMinute) {
     .filter((candidate) => candidate.port)
     .map((candidate) => ({
       ...candidate,
-      distanceKm: greatCircleDistanceKm(origin, candidate.port)
+      distanceKm: passengerTravelDistanceKm(origin, candidate.port, context)
     }))
+    .filter(candidate => candidate.distanceKm !== null)
     .sort((left, right) => (
       left.distanceKm - right.distanceKm || left.policy.id.localeCompare(right.policy.id)
     ));
@@ -1100,7 +1109,7 @@ function chooseEnvoyDestination(origin, portCities, missionKind, context) {
     .filter((port) => Number.isFinite(port.lat) && Number.isFinite(port.lon))
     .map((port) => ({
       port,
-      distanceKm: greatCircleDistanceKm(origin, port),
+      distanceKm: passengerTravelDistanceKm(origin, port, context),
       relation: context.relationBetween(origin.factionId, port.factionId)
     }))
     .filter(({ distanceKm }) => passengerDistanceIsMedium(distanceKm))
@@ -1124,12 +1133,12 @@ function choosePassengerDestination(origin, portCities, context) {
   if (context.destinationCityId !== undefined) {
     const destination = portCities.find((port) => port.cityId === context.destinationCityId) || null;
     if (!destination) return null;
-    return passengerDistanceIsMedium(greatCircleDistanceKm(origin, destination)) ? destination : null;
+    return passengerDistanceIsMedium(passengerTravelDistanceKm(origin, destination, context)) ? destination : null;
   }
   const candidates = portCities
     .filter((port) => port.cityId !== origin.cityId)
     .filter((port) => Number.isFinite(port.lat) && Number.isFinite(port.lon))
-    .map((port) => ({ port, distanceKm: greatCircleDistanceKm(origin, port) }))
+    .map((port) => ({ port, distanceKm: passengerTravelDistanceKm(origin, port, context) }))
     .filter(({ distanceKm }) => passengerDistanceIsMedium(distanceKm));
   if (candidates.length === 0) return null;
   const seed = `${cityKey(origin)}|${passengerRollPeriod(context.simMinute)}|destination`;
@@ -1203,13 +1212,6 @@ function hajjReturnPassengerPlan(origin, portCities, context, rollKey) {
     passengerReligionId: selected.passengerReligionId,
     scenario: HAJJ_RETURN_PASSENGER_SCENARIO
   };
-}
-
-function passengerTravelDistanceKm(origin, destination, context) {
-  if (typeof context.sailingDistanceKm === "function") {
-    return context.sailingDistanceKm(origin, destination);
-  }
-  return greatCircleDistanceKm(origin, destination);
 }
 
 function destinationScore(seed, port, distanceKm) {

@@ -1,3 +1,4 @@
+import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -54,7 +55,7 @@ const AYUTTHAYA = Object.freeze({
 test("a trusted subject can carry sealed tribute without consuming it", () => {
   const state = stateFor("joseon", 40);
   adjustFactionReputation(state, "joseon", 40 - factionReputation(state, "joseon"));
-  const offer = envoyOfferForCapital(state, SEOUL, [SEOUL, BEIJING], {
+  const offer = envoyOfferForCapital(state, SEOUL, [SEOUL, BEIJING], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: TRIBUTE_ENVOY_QUEST_KIND,
     relationBetween: (a, b) => diplomacyBetweenForState(state, a, b),
@@ -82,7 +83,7 @@ test("a trusted subject can carry sealed tribute without consuming it", () => {
 test("a stored tribute offer becomes disabled if later cargo fills its hold", () => {
   const state = stateFor("joseon", 40);
   adjustFactionReputation(state, "joseon", 40 - factionReputation(state, "joseon"));
-  const offer = envoyOfferForCapital(state, SEOUL, [SEOUL, BEIJING], {
+  const offer = envoyOfferForCapital(state, SEOUL, [SEOUL, BEIJING], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: TRIBUTE_ENVOY_QUEST_KIND,
     relationBetween: (a, b) => diplomacyBetweenForState(state, a, b),
@@ -125,7 +126,7 @@ test("Asian tributaries without a distinctive court cargo carry rice", () => {
 test("selling personal stock is allowed but selling sealed tribute fails the mission", () => {
   const state = stateFor("joseon", 40);
   adjustFactionReputation(state, "joseon", 40 - factionReputation(state, "joseon"));
-  const offer = envoyOfferForCapital(state, SEOUL, [SEOUL, BEIJING], {
+  const offer = envoyOfferForCapital(state, SEOUL, [SEOUL, BEIJING], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: TRIBUTE_ENVOY_QUEST_KIND,
     relationBetween: (a, b) => diplomacyBetweenForState(state, a, b),
@@ -149,7 +150,7 @@ test("selling personal stock is allowed but selling sealed tribute fails the mis
 test("the market warns before selling sealed tribute and cancellation leaves it intact", () => {
   const state = stateFor("joseon", 40);
   adjustFactionReputation(state, "joseon", 40 - factionReputation(state, "joseon"));
-  const offer = envoyOfferForCapital(state, SEOUL, [SEOUL, BEIJING], {
+  const offer = envoyOfferForCapital(state, SEOUL, [SEOUL, BEIJING], { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: TRIBUTE_ENVOY_QUEST_KIND,
     relationBetween: (a, b) => diplomacyBetweenForState(state, a, b),
@@ -188,7 +189,7 @@ test("the market warns before selling sealed tribute and cancellation leaves it 
 test("status embassies let rulers decide whether constitutional ties change", () => {
   const state = stateFor("ming", 40);
   const ports = [BEIJING, NINGBO, NANJING, SEOUL, NAHA];
-  const offer = envoyOfferForCapital(state, BEIJING, ports, {
+  const offer = envoyOfferForCapital(state, BEIJING, ports, { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: STATUS_ENVOY_QUEST_KIND,
     relationBetween: (a, b) => diplomacyBetweenForState(state, a, b),
@@ -224,7 +225,7 @@ test("Ming court commissions carry the pending imperial policy and suspend its a
   state.relations.courts.nextActionMinute = 0;
   const opened = advanceGamePolitics(state, 0, { portCities: ports });
   assert.equal(opened.courtMattersOpened.length, 1);
-  const offer = envoyOfferForCapital(state, BEIJING, ports, {
+  const offer = envoyOfferForCapital(state, BEIJING, ports, { sailingDistanceKm: testSailingDistanceKm,
     envoySpawnChance: 1,
     envoyKind: COURT_ENVOY_QUEST_KIND,
     relationBetween: (a, b) => diplomacyBetweenForState(state, a, b),

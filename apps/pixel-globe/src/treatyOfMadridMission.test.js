@@ -1,3 +1,4 @@
+import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -61,8 +62,8 @@ const AFTER_PAVIA = gameMinuteForDate(1525, 3, 1);
 test("Treaty of Madrid offers appear on both sides after the historical Pavia outcome", () => {
   const state = gameState();
   const context = missionContext(state);
-  const french = passengerOfferForCity(state, BORDEAUX, PORTS, context);
-  const imperial = passengerOfferForCity(state, SEVILLE, PORTS, context);
+  const french = passengerOfferForCity(state, BORDEAUX, PORTS, { sailingDistanceKm: testSailingDistanceKm, ...(context) });
+  const imperial = passengerOfferForCity(state, SEVILLE, PORTS, { sailingDistanceKm: testSailingDistanceKm, ...(context) });
 
   assert.equal(isTreatyOfMadridQuest(french), true);
   assert.equal(isTreatyOfMadridQuest(imperial), true);
@@ -81,9 +82,9 @@ test("Treaty of Madrid offers appear on both sides after the historical Pavia ou
 test("accepting one Treaty of Madrid side withdraws every competing offer", () => {
   const state = gameState();
   const context = missionContext(state);
-  const french = passengerOfferForCity(state, BORDEAUX, PORTS, context);
-  passengerOfferForCity(state, SEVILLE, PORTS, context);
-  passengerOfferForCity(state, GENT, PORTS, context);
+  const french = passengerOfferForCity(state, BORDEAUX, PORTS, { sailingDistanceKm: testSailingDistanceKm, ...(context) });
+  passengerOfferForCity(state, SEVILLE, PORTS, { sailingDistanceKm: testSailingDistanceKm, ...(context) });
+  passengerOfferForCity(state, GENT, PORTS, { sailingDistanceKm: testSailingDistanceKm, ...(context) });
 
   acceptQuest(state, french, { simMinute: AFTER_PAVIA });
 
@@ -93,12 +94,12 @@ test("accepting one Treaty of Madrid side withdraws every competing offer", () =
     false
   );
   assert.deepEqual(shipTravelerManifest(state), [{ kind: "envoy", count: 2 }]);
-  assert.equal(passengerOfferForCity(state, SEVILLE, PORTS, context), null);
+  assert.equal(passengerOfferForCity(state, SEVILLE, PORTS, { sailingDistanceKm: testSailingDistanceKm, ...(context) }), null);
 });
 
 test("Treaty dialogue asks the captain to carry the delegation, not dictate terms", () => {
   const state = gameState();
-  const french = passengerOfferForCity(state, BORDEAUX, PORTS, missionContext(state));
+  const french = passengerOfferForCity(state, BORDEAUX, PORTS, { sailingDistanceKm: testSailingDistanceKm, ...(missionContext(state)) });
   const offerSession = createPassengerDialogueSession(BORDEAUX, french);
   const offer = passengerDialogueView(offerSession, BORDEAUX, french, state);
   assert.match(offer.options[0].label, /^Carry delegation to Barcelona/);
@@ -124,7 +125,7 @@ test("Treaty dialogue asks the captain to carry the delegation, not dictate term
 
 test("the Treaty delegation negotiates, returns, frees Francis, and ends both wars", () => {
   const state = gameState();
-  const french = passengerOfferForCity(state, BORDEAUX, PORTS, missionContext(state));
+  const french = passengerOfferForCity(state, BORDEAUX, PORTS, { sailingDistanceKm: testSailingDistanceKm, ...(missionContext(state)) });
   acceptQuest(state, french, { simMinute: AFTER_PAVIA });
 
   const negotiation = negotiateEnvoyQuest(state, BARCELONA, {
@@ -152,7 +153,7 @@ test("the Treaty delegation negotiates, returns, frees Francis, and ends both wa
 
 test("the Imperial delegation can complete the same treaty from the opposite side", () => {
   const state = gameState();
-  const imperial = passengerOfferForCity(state, SEVILLE, PORTS, missionContext(state));
+  const imperial = passengerOfferForCity(state, SEVILLE, PORTS, { sailingDistanceKm: testSailingDistanceKm, ...(missionContext(state)) });
   acceptQuest(state, imperial, { simMinute: AFTER_PAVIA });
 
   const negotiation = negotiateEnvoyQuest(state, BORDEAUX, {
@@ -176,14 +177,14 @@ test("the Imperial delegation can complete the same treaty from the opposite sid
 
 test("Treaty offers do not appear before Pavia or when Milan is not Imperial", () => {
   const before = gameState();
-  assert.equal(passengerOfferForCity(before, BORDEAUX, PORTS, {
+  assert.equal(passengerOfferForCity(before, BORDEAUX, PORTS, { sailingDistanceKm: testSailingDistanceKm,
     ...missionContext(before),
     simMinute: gameMinuteForDate(1525, 2, 23)
   }), null);
 
   const alternate = gameState();
   const worldState = historicalWorldState(alternate, { ...MILAN, factionId: "france" });
-  assert.equal(passengerOfferForCity(alternate, BORDEAUX, PORTS, {
+  assert.equal(passengerOfferForCity(alternate, BORDEAUX, PORTS, { sailingDistanceKm: testSailingDistanceKm,
     ...missionContext(alternate),
     historicalWorldState: worldState
   }), null);

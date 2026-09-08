@@ -1944,7 +1944,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
     return questCargoSaleWarningView(session, gameState);
   }
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
-  if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
+  if (session.nodeId === "quest") return questView(session, city, gameState, portCities, context);
   if (session.nodeId === "capture-petition") {
     return captureCommissionPetitionView(session, city, gameState, portCities, context);
   }
@@ -2250,6 +2250,7 @@ export function selectPortDialogueAction(
     if (action.nodeId === "quest" && rootActionOrigin) {
       session.questReturnNodeId = session.nodeId === "inn-drink" ? "inn-drink" : "root";
       deliveryOfferForCity(gameState, city, portCities, {
+        sailingDistanceKm: context.sailingDistanceKm,
         simMinute: context.simMinute ?? 0
       });
     }
@@ -8432,7 +8433,7 @@ function cargoView(session, city, gameState) {
   };
 }
 
-function questView(session, city, gameState, portCities) {
+function questView(session, city, gameState, portCities, context) {
   const returnNodeId = session.questReturnNodeId || session.nextPortNodeId || "root";
   const backLabel = returnNodeId === "inn-drink" ? "Back to inn" : "Back";
   const questState = questStateForCity(gameState, city, portCities);
@@ -8492,6 +8493,7 @@ function questView(session, city, gameState, portCities) {
       !questState.quest.onboarding &&
       !isTeaRaceQuest(questState.quest)
       ? deliveryWorkOptionsForCity(city, portCities, {
+          sailingDistanceKm: context.sailingDistanceKm,
           offerPeriod: questState.quest.offerPeriod
         })
       : [questState.quest];

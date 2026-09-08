@@ -1,4 +1,4 @@
-import { greatCircleDistanceKm } from "./worldDistance.js";
+import { travelSailingDistanceKm } from "./travelSailingDistance.js";
 import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
 import {
   CANONICAL_PORTS,
@@ -89,16 +89,16 @@ const FIXED_MISSIONS = Object.freeze([
   })
 ]);
 
-export function eastAsianMissionPlanForCity(state, city, portCities) {
+export function eastAsianMissionPlanForCity(state, city, portCities, context) {
   assertOfferContext(state, city, portCities);
   const quests = state.memory.quests;
-  const ningboPlan = ningboMissionPlan(quests, city, portCities);
+  const ningboPlan = ningboMissionPlan(quests, city, portCities, context);
   if (ningboPlan) return ningboPlan;
   for (const definition of FIXED_MISSIONS) {
     if (missionAlreadyResolved(quests, definition.id)) continue;
     if (!portMatches(city, definition.originRef, definition.originFactionId)) continue;
     const destination = requireCanonicalPort(portCities, definition.destinationRef, definition.id);
-    return freezePlan(definition, city, destination, portCities);
+    return freezePlan(definition, city, destination, portCities, context);
   }
   return null;
 }
@@ -422,7 +422,7 @@ export function eastAsianMissionDialogue(plan) {
   });
 }
 
-function ningboMissionPlan(quests, city, portCities) {
+function ningboMissionPlan(quests, city, portCities, context) {
   if (!NINGBO_FACTIONS.includes(city.factionId) || city.isFactionCapital !== true) return null;
   if (missionAlreadyResolved(quests, EAST_ASIAN_MISSION_NINGBO)) return null;
   const destination = requireCanonicalPort(
@@ -449,10 +449,12 @@ function ningboMissionPlan(quests, city, portCities) {
     requiresOutcome: true,
     startingFactionId: city.factionId,
     delegationOrigins: Object.freeze(delegationOrigins)
-  }), city, destination);
+  }), city, destination, portCities, context);
 }
 
-function freezePlan(definition, origin, destination, portCities = null) {
+function freezePlan(definition, origin, destination, portCities, context) {
+  const distanceKm = travelSailingDistanceKm(origin, destination, context);
+  if (distanceKm === null) return null;
   const itinerary = definition.itineraryRefs
     ? definition.itineraryRefs.map((reference) => requireCanonicalPort(
       portCities,
@@ -466,7 +468,7 @@ function freezePlan(definition, origin, destination, portCities = null) {
     destinationName: displayName(destination),
     origin,
     destination,
-    distanceKm: Math.round(greatCircleDistanceKm(origin, destination)),
+    distanceKm: Math.round(distanceKm),
     ...(itinerary ? { itinerary: Object.freeze(itinerary) } : {})
   });
 }

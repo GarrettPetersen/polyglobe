@@ -1,3 +1,4 @@
+import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -141,7 +142,7 @@ test("the Ningbo race is not offered after either delegation loses its capital",
   assert.equal(
     eastAsianMissionPlanForCity(state, SAKAI, PORTS.map((city) => (
       city.tileId === YAMAGUCHI.tileId ? capturedYamaguchi : city
-    ))),
+    )), { sailingDistanceKm: testSailingDistanceKm }),
     null
   );
 });
@@ -509,7 +510,7 @@ test("the strongest East Asian commissions move their political context into the
 });
 
 function offer(state, city) {
-  return passengerOfferForCity(state, city, PORTS, {
+  return passengerOfferForCity(state, city, PORTS, { sailingDistanceKm: testSailingDistanceKm,
     simMinute: 0,
     createCharacter: ({ scenario }) => ({
       id: `passenger-${city.tileId}`,

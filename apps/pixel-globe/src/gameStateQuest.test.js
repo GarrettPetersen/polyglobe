@@ -1,3 +1,4 @@
+import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import { createPortDialogueSession, portDialogueView, selectPortDialogueAction } from "./dialogueSystem.js";
 import { dialogueOptionIconId } from "./gameIcons.js";
 import assert from "node:assert/strict";
@@ -91,7 +92,7 @@ function putEnglandAtWarWithFrance(state) {
 }
 
 test("official delivery work stays inside the same faction and region", () => {
-  const quest = deliveryWorkOptionsForCity(LISBON, [LISBON, PORTO, GOA, CADIZ])
+  const quest = deliveryWorkOptionsForCity(LISBON, [LISBON, PORTO, GOA, CADIZ], { sailingDistanceKm: testSailingDistanceKm })
     .find(({ scenarioId }) => scenarioId === "sealed-packet");
 
   assert.ok(quest);
@@ -107,7 +108,7 @@ test("fragmented regions offer official, merchant, and private courier work", ()
   const sakai = port(22, "Sakai", "Japan", "east-asian", "ouchi", 34.57, 135.48);
   const hakata = port(23, "Hakata", "Japan", "east-asian", "shoni", 33.59, 130.4);
   const ports = [kyoto, osaka, sakai, hakata];
-  const work = deliveryWorkOptionsForCity(kyoto, ports, { offerPeriod: 7 });
+  const work = deliveryWorkOptionsForCity(kyoto, ports, { sailingDistanceKm: testSailingDistanceKm, offerPeriod: 7 });
   const official = work.find(({ scenarioId }) => scenarioId === "sealed-packet");
   const privateLetter = work.find(({ scenarioId }) => scenarioId === "private-correspondence");
 
@@ -123,7 +124,7 @@ test("fragmented regions offer official, merchant, and private courier work", ()
 test("a one-port polity can offer cross-border work inside its region", () => {
   const kyoto = port(20, "Kyoto", "Japan", "east-asian", "hosokawa", 35.01, 135.77);
   const sakai = port(22, "Sakai", "Japan", "east-asian", "ouchi", 34.57, 135.48);
-  const quest = deliveryQuestForCity(kyoto, [kyoto, sakai], { offerPeriod: 0 });
+  const quest = deliveryQuestForCity(kyoto, [kyoto, sakai], { sailingDistanceKm: testSailingDistanceKm, offerPeriod: 0 });
 
   assert.ok(quest);
   assert.notEqual(quest.scenarioId, "sealed-packet");
@@ -138,7 +139,7 @@ test("new captains receive four guaranteed nearby courier jobs with varied purpo
   let origin = LISBON;
 
   for (let index = 0; index < ONBOARDING_DELIVERY_COUNT; index++) {
-    const offer = deliveryOfferForCity(state, origin, ports, {
+    const offer = deliveryOfferForCity(state, origin, ports, { sailingDistanceKm: testSailingDistanceKm,
       simMinute: index * DELIVERY_ROLL_PERIOD_MINUTES
     });
     assert.ok(offer, `onboarding offer ${index + 1}`);
@@ -156,7 +157,7 @@ test("new captains receive four guaranteed nearby courier jobs with varied purpo
 
   assert.deepEqual(scenarioIds, ONBOARDING_DELIVERY_SCENARIOS.map((scenario) => scenario.id));
   assert.equal(state.memory.quests.onboardingDeliveriesCompleted, ONBOARDING_DELIVERY_COUNT);
-  assert.equal(deliveryOfferForCity(state, origin, ports, {
+  assert.equal(deliveryOfferForCity(state, origin, ports, { sailingDistanceKm: testSailingDistanceKm,
     simMinute: ONBOARDING_DELIVERY_COUNT * DELIVERY_ROLL_PERIOD_MINUTES,
     spawnChance: 0
   }), null);
@@ -167,7 +168,7 @@ test("established saves do not restart the new-captain courier sequence", () => 
   delete state.memory.quests.onboardingDeliveriesCompleted;
   state.activePlaySeconds = 30 * 60;
 
-  assert.equal(deliveryOfferForCity(state, LISBON, [LISBON, PORTO], {
+  assert.equal(deliveryOfferForCity(state, LISBON, [LISBON, PORTO], { sailingDistanceKm: testSailingDistanceKm,
     simMinute: 0,
     spawnChance: 0
   }), null);
@@ -177,7 +178,7 @@ test("established saves do not restart the new-captain courier sequence", () => 
 test("ports without any regional destination offer no delivery quest", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
 
-  assert.equal(deliveryQuestForCity(DOVER, [DOVER, LISBON, PORTO]), null);
+  assert.equal(deliveryQuestForCity(DOVER, [DOVER, LISBON, PORTO], { sailingDistanceKm: testSailingDistanceKm }), null);
   assert.deepEqual(questStateForCity(state, DOVER, [DOVER, LISBON, PORTO]), {
     kind: "unavailable",
     quest: null
@@ -189,16 +190,16 @@ test("delivery work must spawn before the factor can offer it", () => {
   const ports = [LISBON, PORTO, GOA, CADIZ];
 
   assert.deepEqual(questStateForCity(state, LISBON, ports), { kind: "unavailable", quest: null });
-  assert.equal(deliveryOfferForCity(state, LISBON, ports, { simMinute: 0, spawnChance: 0 }), null);
-  assert.equal(deliveryOfferForCity(state, LISBON, ports, { simMinute: 1, spawnChance: 1 }), null);
+  assert.equal(deliveryOfferForCity(state, LISBON, ports, { sailingDistanceKm: testSailingDistanceKm, simMinute: 0, spawnChance: 0 }), null);
+  assert.equal(deliveryOfferForCity(state, LISBON, ports, { sailingDistanceKm: testSailingDistanceKm, simMinute: 1, spawnChance: 1 }), null);
 
-  const offer = deliveryOfferForCity(state, LISBON, ports, {
+  const offer = deliveryOfferForCity(state, LISBON, ports, { sailingDistanceKm: testSailingDistanceKm,
     simMinute: DELIVERY_ROLL_PERIOD_MINUTES,
     spawnChance: 1
   });
   assert.equal(offer.kind, "delivery");
   assert.equal(questStateForCity(state, LISBON, ports).quest, offer);
-  assert.equal(deliveryOfferForCity(state, LISBON, ports, {
+  assert.equal(deliveryOfferForCity(state, LISBON, ports, { sailingDistanceKm: testSailingDistanceKm,
     simMinute: DELIVERY_ROLL_PERIOD_MINUTES,
     spawnChance: 0
   }), offer);
@@ -206,7 +207,7 @@ test("delivery work must spawn before the factor can offer it", () => {
 
 test("completed package deliveries increase faction standing", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO, GOA, CADIZ]);
+  const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO, GOA, CADIZ], { sailingDistanceKm: testSailingDistanceKm });
   const before = factionReputation(state, "portugal");
 
   acceptQuest(state, quest);
@@ -313,7 +314,7 @@ test("saved jobs rebind through an explicit coastal-port migration", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const oldLisbon = { ...LISBON, tileId: 101 };
   const oldPorto = { ...PORTO, tileId: 202 };
-  const quest = deliveryQuestForCity(oldLisbon, [oldLisbon, oldPorto]);
+  const quest = deliveryQuestForCity(oldLisbon, [oldLisbon, oldPorto], { sailingDistanceKm: testSailingDistanceKm });
   acceptQuest(state, quest);
 
   assert.equal(reconcileQuestPortTiles(state, [LISBON, PORTO], {
@@ -336,7 +337,7 @@ test("Scioto access preserves Chillicothe missions and already assigned Wendat d
   const wendat = canonicalTestCity("wendat village|canada", 1002);
   for (const destination of [chillicothe, wendat]) {
     const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-    acceptQuest(state, deliveryQuestForCity(LISBON, [LISBON, PORTO]));
+    acceptQuest(state, deliveryQuestForCity(LISBON, [LISBON, PORTO], { sailingDistanceKm: testSailingDistanceKm }));
     Object.assign(state.memory.quests.active, {
       destinationCityId: destination.cityId,
       destinationTileId: destination.tileId,
@@ -357,7 +358,7 @@ test("every saved inland sailing reference moves to its canonical maritime gatew
     const inland = canonicalTestCity(inlandCityId, 1000 + index);
     const gateway = canonicalTestCity(gatewayCityId, 2000 + index);
     const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-    const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO]);
+    const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO], { sailingDistanceKm: testSailingDistanceKm });
     acceptQuest(state, quest);
     Object.assign(state.memory.quests.active, {
       destinationCityId: inland.cityId,
@@ -409,7 +410,7 @@ test("saved Dienne jobs and home histories follow the corrected city without cha
   const djenne = { ...PORTO, cityId: oldCityId, city: "Djenne", displayCity: "Djenne",
     country: "Mali", factionId: "songhai", lat: 13.90556, lon: -4.555, tileId: 162642 };
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  acceptQuest(state, deliveryQuestForCity(LISBON, [LISBON, PORTO]));
+  acceptQuest(state, deliveryQuestForCity(LISBON, [LISBON, PORTO], { sailingDistanceKm: testSailingDistanceKm }));
   Object.assign(state.memory.quests.active, {
     destinationCityId: oldCityId, destinationTileId: 636087,
     destinationName: "Dienne", destinationCountry: "Senegal", destinationKey: oldCityId
@@ -448,7 +449,7 @@ test("a legacy port mapping wins when its old tile is now another canonical port
   );
   const currentMakian = { ...oldMakian, tileId: 366359 };
   const currentTernate = { ...oldTernate, tileId: 366292 };
-  acceptQuest(state, deliveryQuestForCity(oldTernate, [oldTernate, oldMakian]));
+  acceptQuest(state, deliveryQuestForCity(oldTernate, [oldTernate, oldMakian], { sailingDistanceKm: testSailingDistanceKm }));
 
   assert.equal(reconcileQuestPortTiles(state, [currentTernate, currentTidore, currentMakian], {
     legacyPortTileIds: PRE_NORTH_MALUKU_PORT_TILE_IDS
@@ -492,7 +493,7 @@ test("saved port references follow canonical identities without guessing from di
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const oldLisbon = { ...LISBON, tileId: 101 };
   const oldPorto = { ...PORTO, tileId: 202 };
-  acceptQuest(state, deliveryQuestForCity(oldLisbon, [oldLisbon, oldPorto]));
+  acceptQuest(state, deliveryQuestForCity(oldLisbon, [oldLisbon, oldPorto], { sailingDistanceKm: testSailingDistanceKm }));
 
   assert.equal(reconcileQuestPortTiles(state, [LISBON, PORTO]), 2);
   assert.equal(state.memory.quests.active.originTileId, LISBON.tileId);
@@ -557,7 +558,7 @@ test("constitutional conquest history is reconciled by its event kind rather tha
 
 test("stable city identities absorb city renames without stranding active work", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO]);
+  const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO], { sailingDistanceKm: testSailingDistanceKm });
   acceptQuest(state, quest);
   const renamedPorto = { ...PORTO, displayCity: "Portus Cale", factionId: "spain" };
 
@@ -1527,10 +1528,23 @@ test("independent capture warrants require an actual nearby foothold and can be 
   assert.equal(pendingCapturePortMissionOfferForCity(state, LONDON), null);
   assert.equal(state.memory.quests.active, null);
   assert.equal(capturePortMissionOfferForCity(state, LONDON, ports, reachable), null, "Declining must not immediately regenerate the warrant");
-  const delivery = deliveryOfferForCity(state, LONDON, [LONDON, DOVER], { simMinute: 0, spawnChance: 1 });
+  const delivery = deliveryOfferForCity(state, LONDON, [LONDON, DOVER], { sailingDistanceKm: testSailingDistanceKm, simMinute: 0, spawnChance: 1 });
   assert.ok(delivery, "Declining must restore ordinary inn job generation");
   assert.equal(questStateForCity(state, LONDON, [LONDON, DOVER]).quest.id, delivery.id);
   acceptQuest(state, delivery);
   assert.equal(state.memory.quests.active.id, delivery.id);
   assert.throws(() => declineCaptureCommission(state, LONDON, offer.id), /No pending/);
+});
+
+test("onboarding delivery picks the shortest reachable sailing trip", () => {
+  const fartherPort = { ...PORTO, cityId: "test-farther|portugal", tileId: 9876,
+    city: "Farther", lat: PORTO.lat + 5 };
+  const ports = [LISBON, PORTO, fartherPort];
+  const quest = deliveryQuestForCity(LISBON, ports, { onboardingIndex: 0,
+    sailingDistanceKm: (_origin, target) => target.cityId === PORTO.cityId ? 1200 : 400 });
+  assert.equal(quest.destinationCityId, fartherPort.cityId);
+  assert.equal(quest.distanceKm, 400);
+  const disconnected = deliveryQuestForCity(LISBON, ports, { onboardingIndex: 0,
+    sailingDistanceKm: () => null });
+  assert.equal(disconnected, null);
 });

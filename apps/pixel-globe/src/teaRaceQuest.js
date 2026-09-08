@@ -5,7 +5,6 @@ import {
   portMatchesCanonicalReference
 } from "./canonicalPorts.js";
 import { TEA_GOOD_ID, tradeGoodById } from "./economy.js";
-import { greatCircleDistanceKm } from "./worldDistance.js";
 
 export const TEA_RACE_QUEST_KIND = "tea-race";
 export const TEA_RACE_CARGO_QUANTITY = 10;
@@ -49,12 +48,14 @@ export function isTeaRaceSourcePort(city) {
 }
 
 export function createTeaRaceQuest({
+  distanceKm,
   origin,
   destination,
   originKey,
   destinationKey,
   simMinute
 }) {
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0) throw new Error("Tea race requires a positive sailing distance");
   if (!isTeaRaceSourcePort(origin)) {
     throw new Error(`Tea race requires a Ming tea port: ${portName(origin)}`);
   }
@@ -88,7 +89,7 @@ export function createTeaRaceQuest({
     destinationTileId: destination.tileId,
     destinationName: portName(destination),
     destinationCountry: destination.country || "",
-    distanceKm: Math.round(greatCircleDistanceKm(origin, destination)),
+    distanceKm: Math.round(distanceKm),
     cargoLabel: "ten sealed chests of new spring tea",
     teaRaceCargoRequirements: Object.freeze([
       Object.freeze({ goodId: TEA_GOOD_ID, quantity: TEA_RACE_CARGO_QUANTITY })

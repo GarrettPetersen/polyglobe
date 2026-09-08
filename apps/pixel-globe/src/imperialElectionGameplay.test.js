@@ -1,3 +1,4 @@
+import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -87,7 +88,7 @@ test("the elected King of the Romans succeeds Charles, then a later Emperor's de
 test("an election creates an elector's transport commission without granting the captain a vote", () => {
   const state = createGameState({ cargoCapacity: 20 });
   advanceImperialConstitution(state.relations.imperial, IMPERIAL_ELECTION_CONVENED_MINUTE);
-  const offers = travelMissionOffersForCity(state, PRAGUE, [PRAGUE, COLOGNE], {
+  const offers = travelMissionOffersForCity(state, PRAGUE, [PRAGUE, COLOGNE], { sailingDistanceKm: testSailingDistanceKm,
     simMinute: IMPERIAL_ELECTION_CONVENED_MINUTE,
     spawnChance: 0,
     envoySpawnChance: 0,

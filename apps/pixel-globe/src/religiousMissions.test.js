@@ -1,3 +1,4 @@
+import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -177,7 +178,7 @@ test("the September Testament offer does not consume an ordinary passenger offer
     scenarioId: "patron-papers",
     destinationCityId: destinations[0].cityId,
     simMinute: 0,
-    sailingDistanceKm: () => 700,
+    sailingDistanceKm: () => 1200,
     portFactorReligionId: () => "roman-catholic",
     createCharacter: ({ scenario }) => ({
       id: `passenger:${scenario.id}`,
@@ -185,12 +186,12 @@ test("the September Testament offer does not consume an ordinary passenger offer
     })
   };
 
-  const ordinary = passengerOfferForCity(state, origin, [origin, ...destinations], context);
+  const ordinary = passengerOfferForCity(state, origin, [origin, ...destinations], { sailingDistanceKm: testSailingDistanceKm, ...(context) });
   const testament = septemberTestamentOfferForCity(
     state,
     origin,
     [origin, ...destinations],
-    context
+    { sailingDistanceKm: testSailingDistanceKm, ...(context) }
   );
   const offers = pendingPassengerOffersForCity(state, origin);
 
@@ -204,14 +205,14 @@ test("the September Testament offer does not consume an ordinary passenger offer
     state,
     origin,
     [origin, ...destinations],
-    context
+    { sailingDistanceKm: testSailingDistanceKm, ...(context) }
   ), null);
 
   const laterTestament = septemberTestamentOfferForCity(
     state,
     origin,
     [origin, ...destinations],
-    { ...context, simMinute: PASSENGER_ROLL_PERIOD_MINUTES }
+    { sailingDistanceKm: testSailingDistanceKm, ...context, simMinute: PASSENGER_ROLL_PERIOD_MINUTES }
   );
   acceptQuest(state, laterTestament, { simMinute: PASSENGER_ROLL_PERIOD_MINUTES });
   assert.equal(state.memory.quests.passengerActive.id, laterTestament.id);

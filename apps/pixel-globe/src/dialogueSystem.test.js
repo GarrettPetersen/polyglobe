@@ -1,3 +1,4 @@
+import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import { grantPersonalTradePass } from "./sovereignTradeAccess.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -5369,10 +5370,10 @@ test("a displayed package job remains the exact action selected from a multi-off
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.memory.quests.onboardingDeliveriesCompleted = ONBOARDING_DELIVERY_COUNT;
-  deliveryOfferForCity(gameState, lisbon, ports, { spawnChance: 1, simMinute: 0 });
+  deliveryOfferForCity(gameState, lisbon, ports, { sailingDistanceKm: testSailingDistanceKm, spawnChance: 1, simMinute: 0 });
   const session = createPortDialogueSession(lisbon, { initialNodeId: "quest" });
 
-  const view = portDialogueView(session, lisbon, gameState, economy, ports);
+  const view = portDialogueView(session, lisbon, gameState, economy, ports, { sailingDistanceKm: testSailingDistanceKm });
 
   const offers = view.options.filter((entry) => entry.action.type === "accept-quest");
   assert.equal(offers.length, 3);
@@ -5425,7 +5426,7 @@ test("a rumor queued before an active delivery cannot trap Back in a quest self-
   const ports = [istanbul, athens];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
-  deliveryOfferForCity(gameState, istanbul, ports, { spawnChance: 1, simMinute: 0 });
+  deliveryOfferForCity(gameState, istanbul, ports, { sailingDistanceKm: testSailingDistanceKm, spawnChance: 1, simMinute: 0 });
   acceptQuest(gameState, questStateForCity(gameState, istanbul, ports).quest);
   const session = createPortDialogueSession(istanbul, {
     initialNodeId: "greeting",
@@ -5508,7 +5509,7 @@ test("a first-click island dispatch acceptance persists through delivery", () =>
   const ports = [tidore, makian, gane];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
-  const offer = deliveryOfferForCity(gameState, tidore, ports, { spawnChance: 1, simMinute: 0 });
+  const offer = deliveryOfferForCity(gameState, tidore, ports, { sailingDistanceKm: testSailingDistanceKm, spawnChance: 1, simMinute: 0 });
   assert.equal(offer.cargoLabel, "harbor dispatch");
 
   const originSession = createPortDialogueSession(tidore, { initialNodeId: "quest" });
@@ -8017,7 +8018,7 @@ test("an active package mission opens its factor before the port menu", () => {
   };
   const ports = [origin, destination, unrelated];
   const gameState = createGameState({ cargoCapacity: 20 });
-  deliveryOfferForCity(gameState, origin, ports, { spawnChance: 1, simMinute: 0 });
+  deliveryOfferForCity(gameState, origin, ports, { sailingDistanceKm: testSailingDistanceKm, spawnChance: 1, simMinute: 0 });
   const available = questStateForCity(gameState, origin, ports);
   assert.equal(available.kind, "available");
   assert.equal(deliveryMissionShouldOpenOnArrival(gameState, origin, ports), true);
@@ -8066,7 +8067,7 @@ test("completing an arrival delivery proceeds to the required loadout", () => {
   };
   const ports = [origin, destination];
   const gameState = createGameState({ cargoCapacity: 20 });
-  deliveryOfferForCity(gameState, origin, ports, { spawnChance: 1, simMinute: 0 });
+  deliveryOfferForCity(gameState, origin, ports, { sailingDistanceKm: testSailingDistanceKm, spawnChance: 1, simMinute: 0 });
   const quest = questStateForCity(gameState, origin, ports).quest;
   acceptQuest(gameState, quest);
   const economy = createWorldEconomy({ ports, startMinute: 0 });
@@ -8118,7 +8119,7 @@ test("completing a packet does not silently roll another job before work is requ
   const ports = [origin, destination];
   const gameState = createGameState({ cargoCapacity: 20 });
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  deliveryOfferForCity(gameState, origin, ports, { spawnChance: 1, simMinute: 0 });
+  deliveryOfferForCity(gameState, origin, ports, { sailingDistanceKm: testSailingDistanceKm, spawnChance: 1, simMinute: 0 });
   acceptQuest(gameState, questStateForCity(gameState, origin, ports).quest);
   const session = createPortArrivalDialogueSession(destination, {
     openDeliveryMission: true
@@ -8145,6 +8146,7 @@ test("completing a packet does not silently roll another job before work is requ
   const root = portDialogueView(session, destination, gameState, economy, ports);
   const workIndex = root.options.findIndex((entry) => entry.label === "Ask about work");
   selectPortDialogueOption(session, destination, gameState, economy, ports, workIndex, {
+    sailingDistanceKm: testSailingDistanceKm,
     simMinute: 0
   });
   assert.equal(session.nodeId, "quest");

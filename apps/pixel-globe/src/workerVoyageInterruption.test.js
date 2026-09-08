@@ -62,7 +62,7 @@ test("real worker sales survive save/reload at every incremental main-thread app
 test("current regional fishing voyages survive reload without being relocated", async () => {
   const { createNpcSeaRouteSystem, snapshotNpcSeaRouteSystem, restoreNpcSeaRouteSystem } = await import("./npcSeaRoutes.js");
   const voyage = createWorkerVoyage();
-  const routes = createNpcSeaRouteSystem({ ports: voyage.npcSeaRoutes.ports, economy: voyage.worldEconomy,
+  const routes = createNpcSeaRouteSystem({ portSailingDistances: voyage.npcSeaRoutes.portSailingDistances, ports: voyage.npcSeaRoutes.ports, economy: voyage.worldEconomy,
     startMinute: 0, seedKey: "worker-interruption" });
   const saved = JSON.parse(JSON.stringify(snapshotNpcSeaRouteSystem(routes)));
   restoreNpcSeaRouteSystem(routes, saved, { economy: voyage.worldEconomy });

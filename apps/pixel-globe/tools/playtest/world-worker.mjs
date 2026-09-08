@@ -1,3 +1,4 @@
+import { parsePortSailingDistances } from "../../src/portSailingDistances.js";
 import { shipyardUpgradeOffers } from "../../src/shipyardUpgrades.js";
 import { PORT_CATALOG_VERSION } from "../../src/portCatalogMigration.js";
 import { initialCampaignCities } from "./world-catalog.mjs";
@@ -19,6 +20,7 @@ import { FACTIONS } from "../../src/factions.js";
 import { registerShipyardTradeIn, purchaseShipyardUpgrade } from "../../src/shipyards.js";
 import { snapshotPlayerShipyards, restorePlayerShipyardSnapshot } from "../../src/playerShipyardPersistence.js";
 
+const portSailingDistances = parsePortSailingDistances(JSON.parse(readFileSync(new URL("../../public/assets/data/port-sailing-distances.json", import.meta.url))));
 const scenes = new Map(JSON.parse(readFileSync(new URL("../../city-visualizer/data/cities.json", import.meta.url))).cities.map(city => [city.id, city]));
 const initialCatalog = initialCampaignCities();
 const initialPortIds = new Set(initialCatalog.ports.map(port => port.cityId));
@@ -44,7 +46,7 @@ export function createWorkerVoyage(seed = "worker-interruption", { startMinute =
   applyPortConquestOwnership(gameState.memory.conquest, cities);
   fisheryForHabitat(gameState, { tileId: 1, kind: "lake", lat: -1, lon: 33 }, startMinute);
   const worldEconomy = economy.createWorldEconomy({ ports: cities, shipyardPorts: ports.filter(p => p.services.shipyard), startMinute, seedKey: seed });
-  const npcSeaRoutes = fleet.createNpcSeaRouteSystem({ ports, economy: worldEconomy, startMinute, seedKey: seed, fishState: gameState, whaleMemory: gameState.memory.whales, fishingGroundIsNavigable: () => true,
+  const npcSeaRoutes = fleet.createNpcSeaRouteSystem({ portSailingDistances, ports, economy: worldEconomy, startMinute, seedKey: seed, fishState: gameState, whaleMemory: gameState.memory.whales, fishingGroundIsNavigable: () => true,
     relationBetween: (a, b) => diplomacyBetweenForState(gameState, a, b),
     sovereignTradeOpenToFaction: (id, factionId) => sovereignTradeOpenToFaction(gameState, id, factionId) });
   const landTradeSystem = land.createLandTradeSystem({ roads, cities, economy: worldEconomy, startMinute, seedKey: seed });

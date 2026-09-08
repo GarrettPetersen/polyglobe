@@ -9,7 +9,7 @@ import { historicalEventOccurred } from "./historicalGossip.js";
 import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
 import { gameMinuteForDate } from "./rulers.js";
 import { adjustSovereignAuthority } from "./sovereignAuthority.js";
-import { greatCircleDistanceKm } from "./worldDistance.js";
+import { travelSailingDistanceKm } from "./travelSailingDistance.js";
 import { makeDiplomaticPeace, worldDiplomacyBetween } from "./worldDiplomacy.js";
 
 export const TREATY_OF_MADRID_MISSION_ID = "treaty-of-madrid";
@@ -53,7 +53,9 @@ export function treatyOfMadridMissionPlanForCity(state, city, portCities, contex
   }
   const target = preferredTreatyTarget(side, portCities);
   if (!target) return null;
-  const distanceKm = Math.round(greatCircleDistanceKm(city, target));
+  const sailingKm = travelSailingDistanceKm(city, target, context);
+  if (sailingKm === null) return null;
+  const distanceKm = Math.round(sailingKm);
   return Object.freeze({
     id: TREATY_OF_MADRID_MISSION_ID,
     side,

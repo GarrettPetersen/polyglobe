@@ -3,7 +3,7 @@ import {
   religionCandidatesForHome
 } from "./characterReligion.js";
 import { CANONICAL_PORTS, portMatchesCanonicalReference } from "./canonicalPorts.js";
-import { greatCircleDistanceKm } from "./worldDistance.js";
+import { travelSailingDistanceKm as passengerTravelDistanceKm } from "./travelSailingDistance.js";
 
 export const RELIGIOUS_PASSENGER_SCENARIO_CHANCE = 0.45;
 export const RELIGIOUS_PASSENGER_MIN_DISTANCE_KM = 250;
@@ -727,13 +727,6 @@ function religionIdsAtPort(port) {
   } catch {
     return [];
   }
-}
-
-function passengerTravelDistanceKm(origin, destination, context) {
-  if (typeof context.sailingDistanceKm === "function") {
-    return context.sailingDistanceKm(origin, destination);
-  }
-  return greatCircleDistanceKm(origin, destination);
 }
 
 function destinationScore(mission, destination, distanceKm, rollKey) {

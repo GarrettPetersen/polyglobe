@@ -121,7 +121,7 @@ import {
   createTravelerGroup
 } from "./travelerKinds.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
-import { greatCircleDistanceKm } from "./worldDistance.js";
+import { travelSailingDistanceKm } from "./travelSailingDistance.js";
 import {
   BASIC_FISHING_NET_ID,
   fishingNetById
@@ -6844,7 +6844,8 @@ function requiredPortMemory(state, city) {
 
 export function deliveryQuestForCity(city, portCities, {
   offerPeriod = 0,
-  onboardingIndex = null
+  onboardingIndex = null,
+  sailingDistanceKm
 } = {}) {
   assertDeliveryOfferPeriod(offerPeriod);
   if (onboardingIndex !== null &&
@@ -6854,12 +6855,12 @@ export function deliveryQuestForCity(city, portCities, {
   }
   if (onboardingIndex !== null) {
     const scenario = ONBOARDING_DELIVERY_SCENARIOS[onboardingIndex];
-    const candidates = deliveryCandidatePools(city, portCities)[
+    const candidates = deliveryCandidatePools(city, portCities, sailingDistanceKm)[
       DELIVERY_ROUTE_POLICY.SAME_FACTION_REGION
     ];
     if (candidates.length === 0) return null;
     const destination = [...candidates].sort((a, b) => (
-      greatCircleDistanceKm(city, a) - greatCircleDistanceKm(city, b) ||
+      travelSailingDistanceKm(city, a, { sailingDistanceKm }) - travelSailingDistanceKm(city, b, { sailingDistanceKm }) ||
       cityKey(a).localeCompare(cityKey(b))
     ))[0];
     return createDeliveryCommissionQuest({
@@ -6867,19 +6868,20 @@ export function deliveryQuestForCity(city, portCities, {
       destination,
       scenario,
       offerPeriod,
-      onboardingIndex
+      onboardingIndex,
+      sailingDistanceKm
     });
   }
-  const workOptions = deliveryWorkOptionsForCity(city, portCities, { offerPeriod });
+  const workOptions = deliveryWorkOptionsForCity(city, portCities, { offerPeriod, sailingDistanceKm });
   if (workOptions.length === 0) return null;
   return workOptions[
     hashString32(`delivery-scenario|${cityKey(city)}|${offerPeriod}`) % workOptions.length
   ];
 }
 
-export function deliveryWorkOptionsForCity(city, portCities, { offerPeriod = 0 } = {}) {
+export function deliveryWorkOptionsForCity(city, portCities, { offerPeriod = 0, sailingDistanceKm } = {}) {
   assertDeliveryOfferPeriod(offerPeriod);
-  const candidatePools = deliveryCandidatePools(city, portCities);
+  const candidatePools = deliveryCandidatePools(city, portCities, sailingDistanceKm);
   return DELIVERY_COMMISSION_SCENARIOS
     .filter((scenario) => candidatePools[scenario.routePolicyId].length > 0)
     .map((scenario) => {
@@ -6887,7 +6889,7 @@ export function deliveryWorkOptionsForCity(city, portCities, { offerPeriod = 0 }
       const destination = candidates[
         hashString32(`delivery|${scenario.id}|${cityKey(city)}|${offerPeriod}`) % candidates.length
       ];
-      return createDeliveryCommissionQuest({ city, destination, scenario, offerPeriod });
+      return createDeliveryCommissionQuest({ city, destination, scenario, offerPeriod, sailingDistanceKm });
     });
 }
 
@@ -6896,7 +6898,8 @@ function createDeliveryCommissionQuest({
   destination,
   scenario,
   offerPeriod,
-  onboardingIndex = null
+  onboardingIndex = null,
+  sailingDistanceKm
 }) {
   const factionId = deliveryFactionId(city);
   const regionKey = deliveryRegionKey(city);
@@ -6907,7 +6910,7 @@ function createDeliveryCommissionQuest({
   const reward = 65 + (hashString32(
     `reward|${scenario.id}|${cityKey(city)}|${cityKey(destination)}|${offerPeriod}`
   ) % 96) + (onboarding ? 50 : scenario.rewardBonus);
-  const distanceKm = Math.round(greatCircleDistanceKm(city, destination));
+  const distanceKm = Math.round(travelSailingDistanceKm(city, destination, { sailingDistanceKm }));
   const offerLead = onboarding
     ? scenario.offer
     : scenario.offer({ destinationName: cityLabel(destination) });
@@ -6950,7 +6953,7 @@ function assertDeliveryOfferPeriod(offerPeriod) {
   }
 }
 
-function deliveryCandidatePools(city, portCities) {
+function deliveryCandidatePools(city, portCities, sailingDistanceKm) {
   if (!Array.isArray(portCities)) throw new Error("Delivery work requires a port catalog");
   const originCityId = cityKey(city);
   const factionId = deliveryFactionId(city);
@@ -6964,7 +6967,7 @@ function deliveryCandidatePools(city, portCities) {
   for (const port of portCities) {
     if (cityKey(port) === originCityId || deliveryRegionKey(port) !== regionKey) continue;
     const destinationFactionId = deliveryFactionId(port);
-    if (!destinationFactionId) continue;
+    if (!destinationFactionId || travelSailingDistanceKm(city, port, { sailingDistanceKm }) === null) continue;
     pools[DELIVERY_ROUTE_POLICY.REGIONAL].push(port);
     pools[destinationFactionId === factionId
       ? DELIVERY_ROUTE_POLICY.SAME_FACTION_REGION
@@ -7887,7 +7890,7 @@ export function deliveryOfferForCity(state, city, portCities, context = {}) {
   const onboardingIndex = quests.onboardingDeliveriesCompleted < ONBOARDING_DELIVERY_COUNT
     ? quests.onboardingDeliveriesCompleted
     : null;
-  const candidate = deliveryQuestForCity(city, portCities, { offerPeriod, onboardingIndex });
+  const candidate = deliveryQuestForCity(city, portCities, { offerPeriod, onboardingIndex, sailingDistanceKm: context.sailingDistanceKm });
   if (!candidate) return null;
 
   const rollKey = `${candidate.originKey}|${offerPeriod}`;
@@ -7942,7 +7945,10 @@ export function teaRaceOfferForCity(state, city, portCities, context = {}) {
     return null;
   }
   if (cargoFree(state) < TEA_RACE_CARGO_QUANTITY) return null;
+  const distanceKm = travelSailingDistanceKm(city, destination, context);
+  if (distanceKm === null) return null;
   const offer = createTeaRaceQuest({
+    distanceKm,
     origin: city,
     destination,
     originKey: cityKey(city),
