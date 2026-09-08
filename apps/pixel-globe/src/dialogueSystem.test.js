@@ -8740,3 +8740,62 @@ test("both market modes show the current finite specie including an empty treasu
     }
   }
 });
+
+test("capture petitions name the blocking delivery and ignore the separate envoy passage", () => {
+  const city = { cityId: "london|united kingdom", tileId: 804, city: "London", country: "United Kingdom",
+    factionId: "england", cityType: "northern-european", population: 12000,
+    isFactionCapital: true, capitalOfFactionId: "england", character: { name: "Thomas Ward", role: "harbour-master" } };
+  const state = createGameState({ cargoCapacity: 20 });
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  state.memory.quests.envoyActive = { id: "envoy-return", kind: "friendly-envoy", destinationName: "Istanbul" };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "city-menu" });
+  session.cityMenuLocationId = "authority";
+  const petition = () => portDialogueView(session, city, state, economy, [city]).options
+    .find(({ action }) => action.nodeId === "capture-petition");
+  assert.equal(petition().disabled, false);
+  state.memory.quests.active = { id: "gelibolu-package", kind: "delivery", destinationName: "Gelibolu" };
+  assert.equal(petition().disabled, true);
+  assert.match(petition().disabledReason, /package to Gelibolu/);
+  assert.doesNotMatch(petition().disabledReason, /passenger|Istanbul/);
+  const beforeBlockedClick = structuredClone(state);
+  const blockedView = portDialogueView(session, city, state, economy, [city]);
+  selectPortDialogueOption(session, city, state, economy, [city],
+    blockedView.options.findIndex(({ action }) => action.nodeId === "capture-petition"));
+  assert.deepEqual(state, beforeBlockedClick);
+  assert.equal(session.nodeId, "city-menu");
+  state.memory.quests.active = null;
+  state.memory.quests.passengerActive = { id: "passenger-gao", kind: "passenger", destinationName: "Gao" };
+  assert.match(petition().disabledReason, /passenger.*Gao/);
+  state.memory.quests.passengerActive = null;
+  assert.equal(petition().disabled, false);
+});
+
+test("repeated buying and selling never resolve unrelated shipyard rumours", () => {
+  const city = { cityId: "porto|portugal", tileId: 12, city: "Porto", country: "Portugal",
+    cityType: "mediterranean", population: 50000,
+    character: { name: "Ines Carvalho", role: "harbour-master", personalityId: "vigilant" } };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const state = createGameState({ cargoCapacity: 200 });
+  state.doubloons = 1000000;
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "buy" });
+  const context = { simMinute: 123,
+    get nearestShipyardListing() { assert.fail("market queried worldwide shipyard stock"); },
+    get shipyardRumor() { assert.fail("market queried shipyard rumours"); } };
+  for (let click = 0; click < 20; click++) {
+    session.marketMode = "buy";
+    let view = portDialogueView(session, city, state, economy, [city], context);
+    const purchase = view.options.find(option => option.action.type === "buy" && !option.disabled);
+    assert.ok(purchase);
+    const bought = selectPortDialogueAction(session, city, state, economy, [city], purchase, context);
+    assert.ok(bought.marketPurchase);
+    session.marketMode = "sell";
+    view = portDialogueView(session, city, state, economy, [city], context);
+    const sale = view.options.find(option => option.action.type === "sell" &&
+      option.action.goodId === purchase.action.goodId && !option.disabled);
+    assert.ok(sale);
+    const sold = selectPortDialogueAction(session, city, state, economy, [city], sale, context);
+    assert.ok(sold.marketSale);
+    assert.equal(state.accounts.ledger.at(-1).simMinute, 123);
+  }
+});

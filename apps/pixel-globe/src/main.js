@@ -24883,7 +24883,8 @@ function updatePortAssault(nowMs) {
       assault.eventCursor += 1;
     }
   }
-  if (!assault.completionApplied && elapsedMs >= assault.battle.durationMs + 1400) {
+  if (!assault.completionApplied && elapsedMs >= assault.battle.durationMs +
+      (assault.battle.finalShipHitPoints === 0 ? SHIP_SINK_EFFECT_DURATION_MS + 400 : 1400)) {
     assault.completionApplied = true;
     completePlayerPortAssault(assault.cityCall, assault.status, assault.battle);
   }
@@ -27916,21 +27917,21 @@ function portDialogueContext() {
     shipyard,
     shipyardSupplyStatus: shipyard ? playerShipyardSupplyStatusText(shipyard) : null,
     sailingDistanceKm: sailingDistanceBetweenPorts,
-    nearestShipyardListing: city && !questOnlyColony
+    get nearestShipyardListing() { return city && !questOnlyColony
       ? nearestShipyardListingForPort(
         worldEconomy.shipyards,
         city,
         sailingDistanceBetweenPorts,
         mediterraneanDemoVoyageIsActive() ? demoAccessiblePortIds : undefined
       )
-      : null,
+      : null; },
     portEntryStatus: city ? portEntryStatus(gameState, city, simMinute) : null,
     portRecoveryStatus: city && !questOnlyColony
       ? shoreBatteryRecoveryStatus(ensureShoreBatteryState(city), simMinute)
       : null,
     portConquestStatus: city && !questOnlyColony ? playerPortConquestStatus(city) : null,
     portAttackStatus: city && !questOnlyColony ? playerPortAttackStatus(gameState, city) : null,
-    shipyardRumor: city && !questOnlyColony
+    get shipyardRumor() { return city && !questOnlyColony
       ? shipyardRumorForPort(
         worldEconomy.shipyards,
         city,
@@ -27938,7 +27939,7 @@ function portDialogueContext() {
         undefined,
         mediterraneanDemoVoyageIsActive() ? demoAccessiblePortIds : undefined
       )
-      : null,
+      : null; },
     passengerOffer: passengerOffers[0] || null,
     passengerOffers,
     innDialogue: city ? portInnDialogue({
@@ -32847,6 +32848,7 @@ function shipIsInFreshWater() {
   return shipCanRefillFreshWater({
     navigationKind: navigation.kind,
     waterTileId,
+    oceanSurface: earthById[ship.tileId]?.t === "water",
     frozen: freshwaterIceAtWorldTile(waterTileId),
     freshwaterSurface: Boolean(freshWaterSurfaceMask?.[waterTileId]),
     saltwaterPassageTileIds: SALTWATER_PASSAGE_TILE_IDS

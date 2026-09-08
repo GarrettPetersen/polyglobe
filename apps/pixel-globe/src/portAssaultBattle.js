@@ -751,6 +751,8 @@ export function portAssaultPresentationAt(battle, elapsedMs) {
     outcome: elapsedMs >= battle.durationMs ? battle.outcome : null,
     shipHitPoints: portAssaultShipHitPointsAt(battle, elapsedMs),
     shipMaxHitPoints: battle.maxShipHitPoints,
+    shipSunkAtMs: battle.events.find(event => event.type === "ship-hit" && event.shipHitPoints === 0)?.timeMs ?? null,
+    lastShipHitAtMs: battle.events.findLast(event => event.type === "ship-hit" && event.timeMs <= elapsedMs)?.timeMs ?? null,
     units: Object.freeze(units),
     events: Object.freeze(battle.events.filter((event) => (
       event.timeMs > elapsedMs - eventPresentationDurationMs(event) && event.timeMs <= elapsedMs
@@ -809,7 +811,7 @@ function eventPresentationDurationMs(event) {
   if (["splash", "dock-land", "death"].includes(type)) return 500;
   if (["attack", "hit"].includes(type)) return 360;
   if (type === "block") return 220;
-  if (type === "ship-hit") return PORT_ASSAULT_SHIP_IMPACT_SHAKE_DURATION_MS;
+  if (type === "ship-hit") return 1200;
   return PORT_ASSAULT_STEP_MS;
 }
 

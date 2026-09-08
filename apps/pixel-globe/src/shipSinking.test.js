@@ -7,7 +7,8 @@ import {
   createShipSinkEffect,
   shipSinkDepthByte,
   shipSinkEffectComplete,
-  shipSinkFrame
+  shipSinkFrame,
+  shipSinkPose
 } from "./shipSinking.js";
 
 function testPixels(frameSize = 8) {
@@ -82,9 +83,7 @@ test("remaining hull pixels descend while model-low pixels submerge and fade fir
   assert.ok(submerged.some((pixel) => pixel.alpha < 0.75));
   assert.ok(dry.every((pixel) => pixel.alpha === 1));
 
-  const lowest = late.hullPixels.reduce((best, pixel) => pixel.sinkHeight < best.sinkHeight ? pixel : best);
-  const highest = late.hullPixels.reduce((best, pixel) => pixel.sinkHeight > best.sinkHeight ? pixel : best);
-  assert.ok(lowest.alpha < highest.alpha);
+  assert.ok(late.hullPixels.every(pixel => pixel.alpha === 0));
 });
 
 test("a ship begins with its low hull already submerged", () => {
@@ -97,6 +96,41 @@ test("a ship begins with its low hull already submerged", () => {
   assert.ok(dry.length > 0);
   assert.ok(submerged.every((pixel) => pixel.alpha < 1));
   assert.ok(dry.every((pixel) => pixel.alpha === 1));
+});
+
+test("mast tops retain their source opacity until their own baked height submerges", () => {
+  // Both the overworld breakup and the intact dockside sink use this frame.
+  for (const breakApart of [true, false]) {
+    const effect = createTestEffect({ breakApart, pixels: [
+      ...testPixels(),
+      ...Array.from({ length: 6 }, (_, x) => ({ x: x + 1, y: 0, color: "#ffffff", alpha: 1, sinkHeight: 1 }))
+    ] });
+    for (let elapsedMs = 3000; elapsedMs < SHIP_SINK_EFFECT_DURATION_MS; elapsedMs += 100) {
+      const frame = shipSinkFrame(effect, effect.startedAtMs + elapsedMs);
+      const dry = frame.hullPixels.filter(pixel => !pixel.underwater);
+      assert.ok(dry.every(pixel => pixel.alpha === 1), `dry mast faded at ${elapsedMs}ms`);
+    }
+    const late = shipSinkFrame(effect, effect.startedAtMs + 3000);
+    assert.ok(late.hullPixels.some(pixel => !pixel.underwater));
+    assert.ok(late.hullPixels.some(pixel => pixel.underwater && pixel.alpha < 1));
+    const last = shipSinkFrame(effect, effect.startedAtMs + SHIP_SINK_EFFECT_DURATION_MS - 1);
+    assert.ok(last.hullPixels.every(pixel => pixel.alpha < 1e-9), "even the highest mast fades by depth before completion");
+  }
+});
+
+test("equal underwater depths have equal opacity at different sinking times", () => {
+  const reference = createTestEffect();
+  for (const elapsedMs of [2000, 2800]) {
+    const nowMs = reference.startedAtMs + elapsedMs;
+    const { sinkProgress } = shipSinkPose(reference, nowMs);
+    const depths = [-.1, 0, .12, .24, .3];
+    const effect = createTestEffect({ breakApart: false, pixels: depths.map((depth, x) => ({
+      x, y: 3, color: "#ffffff", alpha: .8, sinkHeight: sinkProgress - depth
+    })) });
+    const frame = shipSinkFrame(effect, nowMs);
+    const expected = [.8, .8, .4, 0, 0];
+    frame.hullPixels.forEach((pixel, index) => assert.ok(Math.abs(pixel.alpha - expected[index]) < 1e-12));
+  }
 });
 
 test("water drag keeps the hull anchored while its baked slices submerge", () => {

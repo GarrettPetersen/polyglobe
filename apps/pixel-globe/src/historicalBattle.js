@@ -1,3 +1,4 @@
+import { haulFlatBattleShipAlongShore } from "./flatBattleShoreHauling.js";
 import {
   createBattleSpatialGrid,
   queryBattleSpatialGrid,
@@ -960,7 +961,7 @@ function updateShipMotion(state, command) {
 
     if (ship.playerControlled) {
       desiredHeading = command.desiredHeadingQ === null
-        ? ship.headingRad
+        ? null
         : command.desiredHeadingQ / 65535 * TWO_PI;
       rowingMode = command.rowingMode;
     } else if (isSquadronLeader(state, index)) {
@@ -1167,10 +1168,16 @@ function moveShipWithStandardPropulsion(
   if (historicalBattleMapWaterAt(state.map, nextX, nextY, clearance)) {
     ship.x = nextX;
     ship.y = nextY;
-    updateHistoricalShipWake(ship, dt, wakeEnabled);
-    return;
+  } else {
+    ship.speedPx *= 0.28;
   }
-  ship.speedPx *= 0.28;
+  if (ship.playerControlled) {
+    haulFlatBattleShipAlongShore({
+      ship, dt, desiredHeadingRad: desiredHeading,
+      previousX: ship.previousX, previousY: ship.previousY,
+      canOccupy: (x, y) => historicalBattleMapWaterAt(state.map, x, y, clearance)
+    });
+  }
   updateHistoricalShipWake(ship, dt, wakeEnabled);
 }
 

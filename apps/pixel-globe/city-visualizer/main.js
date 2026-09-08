@@ -1,3 +1,4 @@
+import { createCityAssaultShipEffects, cityAssaultShipEffectsFrame, cityAssaultEscapeUrgency } from "./cityAssaultShipEffects.js";
 import { CityAssaultHitFlashes, cityAssaultDepthBand, cityAssaultDepthOrder } from "./cityAssaultFeedback.js";
 import { CROATOAN_CLUE, cityRuinsDamage, croatoanClueScreenRect, croatoanClueContainsPoint } from "./cityColonyRuins.js";
 import { GAME_ICON_ASSET_VERSION, gameIconAtlasRect, gameIconAtlasDimensions } from "../src/gameIcons.js";
@@ -1123,10 +1124,25 @@ function queueCameraPanByLogicalPixels(logicalDeltaX) {
   );
 }
 
-function focusAssaultPresentation(presentation) {
+function focusAssaultPresentation(presentation, { immediate = false } = {}) {
+  if (typeof immediate !== "boolean") {
+    throw new Error("City assault focus motion policy must be boolean");
+  }
+  if (presentation.shipHitPoints === 0) {
+    const placement = docksideShipPlacement(state.lastRenderTimeMs ?? 0, PORT_SCENE_ENTITY_META.ship.depth);
+    const centerX = placement.x + (state.shipWaterlineLayers.opaqueMinX + state.shipWaterlineLayers.opaqueMaxX) * placement.scale / 2;
+    const delta = scenePanParallaxDelta({ screenDeltaX: centerX - canvas.width / 2,
+      displayWidth: canvas.width, logicalWidth: canvas.width, approach: state.features.approach }) / PORT_SCENE_ENTITY_META.ship.depth;
+    const bounds = sceneCameraParallaxBounds(state.features.approach);
+    const target = clamp(state.parallax + delta, bounds.minimum, bounds.maximum);
+    state.cameraVelocity = 0;
+    if (immediate || prefersReducedMotion.matches) { state.parallax = target; state.cameraPanTarget = null; }
+    else state.cameraPanTarget = target;
+    return;
+  }
   const position = cityAssaultCameraTargetPosition(presentation.units);
   if (position === null) return;
-  focusSceneMasterX(666 + position * 640);
+  focusSceneMasterX(666 + position * 640, { immediate });
 }
 
 function focusSceneMasterX(masterX, { immediate = false } = {}) {
@@ -3351,6 +3367,10 @@ function drawDocksideShip(timeMs) {
   if (!state.shipImage) return;
   const placement = docksideShipPlacement(timeMs, PORT_SCENE_ENTITY_META.ship.depth);
   if (!placement) return;
+  if (state.assaultPresentation?.shipHitPoints === 0) {
+    drawDocksideAssaultShipEffects(placement);
+    return;
+  }
   if (!state.shipOutline) throw new Error("Player ship is missing its city highlight");
   const outlineY = placement.y + placement.bobY;
   for (const [dx, dy] of [
@@ -3373,7 +3393,45 @@ function drawDocksideShip(timeMs) {
     timeMs,
     hashString(placement.ship.slug)
   );
+  drawDocksideAssaultShipEffects(placement);
   drawDocksideShipHullBar(placement);
+}
+
+function drawDocksideAssaultShipEffects(placement) {
+  if (!state.assaultPresentation) return;
+  const frame = cityAssaultShipEffectsFrame(state.shipWaterlineLayers.assaultEffects, state.assaultPresentation);
+  context.save();
+  context.translate(placement.x, placement.y + placement.bobY);
+  context.scale(placement.scale, placement.scale);
+  const drawPixels = pixels => {
+    for (const pixel of pixels) {
+      context.globalAlpha = pixel.alpha;
+      context.fillStyle = pixel.color;
+      context.fillRect(pixel.x, pixel.y, 1, 1);
+    }
+    context.globalAlpha = 1;
+  };
+  if (frame.sink) {
+    drawPixels(frame.sink.hullPixels);
+    drawPixels(frame.sink.particles);
+    drawPixels(frame.sink.ripples);
+  }
+  drawPixels(frame.splinters);
+  for (const fire of frame.fires) {
+    drawBombardmentFireSprite({ x: fire.x - 8, y: fire.y - 23, width: 16, height: 24 },
+      fire.seed, state.assaultPresentation.elapsedMs, context);
+  }
+  for (const puff of frame.smoke) {
+    context.globalAlpha = 1 - puff.age;
+    context.fillStyle = "#e8e3d5";
+    for (let i = 0; i < 6; i++) {
+      const angle = i * Math.PI / 3;
+      const size = 2 + Math.floor(puff.age * 4);
+      context.fillRect(Math.round(puff.x + Math.cos(angle) * puff.age * 9),
+        Math.round(puff.y - puff.age * 12 + Math.sin(angle) * puff.age * 4), size, size);
+    }
+  }
+  context.restore();
 }
 
 function drawDocksideShipHullBar(placement) {
@@ -3402,6 +3460,7 @@ function drawDocksideShipHullBar(placement) {
 }
 
 function drawDocksideShipForeground(timeMs) {
+  if (state.assaultPresentation?.shipHitPoints === 0) return;
   if (!state.assaultPresentation && !state.colonistLanding) return;
   if (!state.shipForegroundImage) {
     throw new Error("Port assault ship is missing its foreground deck mask");
@@ -3631,6 +3690,8 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug, waterlineR
     pixels.push({
       x: pixel % source.width,
       y: Math.floor(pixel / source.width),
+      color: `rgb(${color.data[offset]},${color.data[offset + 1]},${color.data[offset + 2]})`,
+      alpha: color.data[offset + 3] / 255,
       sinkHeight: depth.data[offset] / 255
     });
   }
@@ -3695,6 +3756,7 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug, waterlineR
     above,
     submerged,
     waterline,
+    assaultEffects: createCityAssaultShipEffects(pixels, source.width, source.height),
     width: source.width,
     height: source.height,
     opaqueMinX,
@@ -4217,8 +4279,14 @@ function drawSetSailControl() {
   const layout = setSailLabelLayout(rect, label, font);
   if (!layout) return;
   const riseY = highlighted ? -2 : 0;
-  const foregroundColor = highlighted ? PIRATE_MENU_PAPER_SELECTED : "#ffffff";
+  const urgency = cityAssaultEscapeUrgency(state.assaultPresentation, prefersReducedMotion.matches);
+  const foregroundColor = urgency.flash ? "#f9c22b" : highlighted ? PIRATE_MENU_PAPER_SELECTED : "#ffffff";
   context.save();
+  const centerX = rect.x + rect.w / 2;
+  const centerY = rect.y + rect.h / 2;
+  context.translate(centerX, centerY);
+  context.scale(urgency.scale, urgency.scale);
+  context.translate(-centerX, -centerY);
   context.globalAlpha = highlighted ? 1 : 0.9;
   drawSetSailArrow(layout.arrowX + 1, layout.arrowCenterY + riseY + 1, layout.scale, PIRATE_MENU_INK);
   pixelText.draw(label, layout.textX + 1, layout.textY + riseY + 1, {
@@ -4238,6 +4306,9 @@ function drawSetSailControl() {
 }
 
 function setSailControlRect() {
+  if (cityAssaultEscapeUrgency(state.assaultPresentation, prefersReducedMotion.matches).scale > 1) {
+    return { x: 8, y: canvas.height - 48, w: Math.min(190, canvas.width - 16), h: 40 };
+  }
   if (!sceneCameraSetSailIsRevealed({
     parallax: state.parallax,
     viewportWidth: canvas.width,
@@ -4431,6 +4502,7 @@ function clearDestinationLabelHover() {
 }
 
 function activeDestinations() {
+  if (state.assaultPresentation?.shipHitPoints === 0) return [];
   return activeCityDestinations({
     availableDestinationIds: state.availableDestinationIds,
     features: state.features,
@@ -5036,7 +5108,10 @@ return Object.freeze({
       rebuildCitySceneRenderPlan();
     }
   },
-  setAssaultPresentation(presentation) {
+  setAssaultPresentation(presentation, { immediateCamera = false } = {}) {
+    if (typeof immediateCamera !== "boolean") {
+      throw new Error("Port assault camera motion policy must be boolean");
+    }
     if (presentation !== null && state.colonistLanding) {
       throw new Error("Port assault cannot overlap a colonist landing");
     }
@@ -5061,9 +5136,9 @@ return Object.freeze({
     if (assaultWasActive !== (presentation !== null)) rebuildCitySceneRenderPlan();
     invalidateDestinationLabelLayouts();
     if (presentation) {
-      if (enteringAssault) focusDestination(PORT_CITY_LOCATION.SET_SAIL, { immediate: true });
+      if (enteringAssault && presentation.shipHitPoints > 0) focusDestination(PORT_CITY_LOCATION.SET_SAIL, { immediate: true });
       state.focusedDestinationId = PORT_CITY_LOCATION.SET_SAIL;
-      focusAssaultPresentation(presentation);
+      focusAssaultPresentation(presentation, { immediate: immediateCamera });
     }
     updateHover();
   },

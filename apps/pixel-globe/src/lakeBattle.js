@@ -1,3 +1,4 @@
+import { haulFlatBattleShipAlongShore } from "./flatBattleShoreHauling.js";
 import {
   advanceCannonReload,
   NAVAL_CANNON_RANGE_PX as CANNON_RANGE_PX,
@@ -248,7 +249,8 @@ function updateLakeBattleWithControllers(state, dt, controllers) {
     state.player,
     playerDesiredHeading,
     lakeBattleControllerRowingMode(controllers.player, playerDesiredHeading),
-    dt
+    dt,
+    { hauling: controllers.player.kind === "player-input" }
   );
   updateBattleShipMotion(
     state,
@@ -667,7 +669,7 @@ function relocateShipToNavigableMapCell(state, ship) {
   ship.speedPx = 0;
 }
 
-function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingMode, dt) {
+function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingMode, dt, { hauling = false } = {}) {
   if (ship.kind === "city") return;
   const kinematics = advanceFlatBattleShipKinematics({
     ship,
@@ -679,7 +681,15 @@ function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingMode, dt) 
     autoPivot: true
   });
   if (desiredHeadingRad !== null) nudgeLakeBattleShipTowardClearWater(state, ship);
-  const movedDistance = moveShipInsideLake(state, ship, kinematics.distancePx);
+  const previousX = ship.x;
+  const previousY = ship.y;
+  let movedDistance = moveShipInsideLake(state, ship, kinematics.distancePx);
+  if (hauling) {
+    movedDistance += haulFlatBattleShipAlongShore({
+      ship, dt, desiredHeadingRad, previousX, previousY,
+      canOccupy: (x, y) => lakeBattleShipFitsInWater(state, ship, x, y)
+    });
+  }
   if (ship.tackSide !== 0) {
     ship.tackRemainingPx = Math.max(0, ship.tackRemainingPx - movedDistance);
   }

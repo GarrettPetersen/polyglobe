@@ -4936,7 +4936,7 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
       ? [option("Petition for a capture warrant", {
           type: "node",
           nodeId: "capture-petition"
-        }, { disabled: !capturePetition.eligible, disabledReason: capturePetitionDisabledReasonText(capturePetition.reason, city, portCities) })]
+        }, { disabled: !capturePetition.eligible, disabledReason: capturePetitionDisabledReasonText(capturePetition, city, portCities) })]
       : []),
     ...(session.disguisedEntry && !pirateHideout
       ? [option(portCityAuthorityLabel(city.settlementType), { type: "node", nodeId: "covert-authority" })]
@@ -5427,7 +5427,9 @@ function playerPortTradeAccess(session, city, gameState, context) {
 
 function tradeContext(session, context) {
   return {
-    ...context,
+    // Trading needs admission and ledger timing, not city-wide dialogue data.
+    // Spreading the full context evaluates unrelated lazy shipyard searches.
+    simMinute: context.simMinute,
     illicitTradeAccessPolicyId: session.illicitTradeAccessPolicyId,
     disguisedEntry: session.disguisedEntry === true
   };
@@ -8632,7 +8634,7 @@ function captureCommissionQuestView(session, questState, returnNodeId, gameState
     : capturePortQuestView(session, questState, returnNodeId, gameState);
 }
 
-function capturePetitionDisabledReasonText(reason, city, portCities) {
+function capturePetitionDisabledReasonText({ reason, blockingQuest }, city, portCities) {
   if (reason === null) return null;
   if (reason === "missing-marque") return "You must first hold this nation's letter of marque.";
   if (reason === "not-capital") {
@@ -8643,7 +8645,12 @@ function capturePetitionDisabledReasonText(reason, city, portCities) {
     if (capitals.length !== 1) throw new Error(`Capture petition requires one current capital for ${city.factionId}; found ${capitals.length}`);
     return `Such a warrant requires the council's seal, Captain. Present your petition at ${cityLabel(capitals[0])}.`;
   }
-  if (reason === "active-voyage") return "Finish your present commission or passenger passage before seeking a capture warrant.";
+  if (reason === "active-voyage") {
+    if (!blockingQuest?.destinationName) throw new Error(`Blocking commission has no destination: ${blockingQuest?.id}`);
+    if (blockingQuest.kind === "delivery") return `Deliver your package to ${blockingQuest.destinationName} first, Captain. Then the council can hear your petition.`;
+    if (blockingQuest.kind === "passenger") return `Your passenger awaits passage to ${blockingQuest.destinationName}, Captain. Set them ashore before seeking a capture warrant.`;
+    return `Fulfil your commission at ${blockingQuest.destinationName} first, Captain. Then the council can hear your petition.`;
+  }
   if (reason === "pending-offer") return "A capture warrant already awaits your answer. Ask about commissions at the inn.";
   throw new Error(`Unknown capture petition eligibility: ${reason}`);
 }

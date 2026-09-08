@@ -74,8 +74,16 @@ function refill(
   return shipCanRefillFreshWater({
     navigationKind,
     waterTileId,
+    oceanSurface: false,
     frozen,
     freshwaterSurface,
     saltwaterPassageTileIds: SALTWATER_PASSAGES
   });
 }
+
+test("river geometry protruding onto ocean never supplies fresh water", () => {
+  const access = { navigationKind: "river", waterTileId: 12345, oceanSurface: true };
+  assert.equal(shipCanRefillFreshWater(access), false);
+  assert.equal(shipCanRefillFreshWater({ ...access, oceanSurface: false }), true);
+  assert.throws(() => shipCanRefillFreshWater({ navigationKind: "river", waterTileId: 12345 }), /ocean surface classification/);
+});

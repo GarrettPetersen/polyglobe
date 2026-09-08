@@ -1095,3 +1095,17 @@ function testSailingDistanceKm(a, b) {
   if (pair.has(LISBON.tileId) && pair.has(FIJI.tileId)) return 19200;
   throw new Error(`Missing test sailing distance: ${aTileId} to ${bTileId}`);
 }
+
+test("shipyard referrals rank sailing routes, and only switch farther away when closer stock sells out", () => {
+  const system = createWorldShipyards({ ports: [LISBON, PORTO, FIJI], startMinute: 0 });
+  const nearby = shipyardAtPort(system, PORTO);
+  const distant = shipyardAtPort(system, FIJI);
+  nearby.listing = generateShipyardListing(nearby, 99, 0);
+  distant.listing = generateShipyardListing(distant, 99, 0);
+  // Deliberately reverse geographic proximity: only the navigable route matters.
+  const route = (origin, destination) => destination === FIJI.tileId ? 100 : 900;
+  assert.equal(nearestShipyardListingForPort(system, LISBON, route).portId, FIJI.cityId);
+  claimShipyardListing(system, FIJI, distant.listing.id);
+  assert.equal(nearestShipyardListingForPort(system, LISBON, route).portId, PORTO.cityId);
+  assert.equal(nearestShipyardListingForPort(system, LISBON, () => null), null);
+});

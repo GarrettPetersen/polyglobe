@@ -7091,15 +7091,18 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
 export function captureCommissionPetitionEligibility(state, city) {
   assertGameState(state);
   const holdsCommission = hasLetterOfMarqueFrom(state, city.factionId);
+  const quests = questMemory(state);
+  const blockingQuest = quests.active || quests.passengerActive || null;
   let reason = null;
   if (!holdsCommission) reason = "missing-marque";
   else if (!currentSovereignCapitalFactionId(city)) reason = "not-capital";
-  else if (questMemory(state).active || questMemory(state).passengerActive) {
+  else if (blockingQuest) {
     reason = "active-voyage";
   } else if (pendingCapturePortMissionOfferForCity(state, city)) {
     reason = "pending-offer";
   }
-  return Object.freeze({ visible: holdsCommission, eligible: reason === null, reason });
+  return Object.freeze({ visible: holdsCommission, eligible: reason === null, reason,
+    blockingQuest: reason === "active-voyage" ? blockingQuest : null });
 }
 
 export function captureCommissionPetitionOptionsForCity(

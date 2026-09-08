@@ -67,11 +67,13 @@ export function buildFreshWaterSurfaceMask({
 export function shipCanRefillFreshWater({
   navigationKind,
   waterTileId,
+  oceanSurface,
   frozen = false,
   freshwaterSurface = false,
   saltwaterPassageTileIds = []
 }) {
-  if (frozen || (navigationKind !== "river" && navigationKind !== "lake")) return false;
+  if (typeof oceanSurface !== "boolean") throw new Error("Fresh water access requires ocean surface classification");
+  if (oceanSurface || frozen || (navigationKind !== "river" && navigationKind !== "lake")) return false;
   if (!Number.isInteger(waterTileId) || waterTileId < 0) {
     throw new Error(`Fresh water requires a valid tile id: ${waterTileId}`);
   }

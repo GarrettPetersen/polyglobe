@@ -35,7 +35,8 @@ export function createShipSinkEffect({
   originX,
   originY,
   startedAtMs,
-  seed
+  seed,
+  breakApart = true
 }) {
   if (!id) throw new Error("Ship sink effect requires an id");
   if (!Array.isArray(pixels) || pixels.length === 0) {
@@ -48,11 +49,12 @@ export function createShipSinkEffect({
     if (!Number.isFinite(value)) throw new Error(`Ship sink effect ${id} has invalid ${label}: ${value}`);
   }
 
+  if (typeof breakApart !== "boolean") throw new Error("Ship sinking breakup policy must be boolean");
   const validatedPixels = pixels.map((pixel, index) => validatePixel(pixel, index, id, frameSize));
   const particleFlags = validatedPixels.map((pixel, index) => (
-    unitRandom(seed, pixel.x, pixel.y, index, 0x42555253) < SHIP_SINK_BURST_SHARE
+    breakApart && unitRandom(seed, pixel.x, pixel.y, index, 0x42555253) < SHIP_SINK_BURST_SHARE
   ));
-  if (validatedPixels.length > 1) {
+  if (breakApart && validatedPixels.length > 1) {
     if (!particleFlags.some(Boolean)) particleFlags[bestFlagIndex(validatedPixels, seed, true)] = true;
     if (particleFlags.every(Boolean)) particleFlags[bestFlagIndex(validatedPixels, seed, false)] = false;
   }
@@ -92,17 +94,7 @@ export function shipSinkFrame(effect, nowMs) {
     return { complete: true, hullPixels: [], particles: [], ripples: [] };
   }
 
-  const timelineProgress = clamp(
-    (elapsedMs - SHIP_SINK_START_MS) / (SHIP_SINK_EFFECT_DURATION_MS - SHIP_SINK_START_MS),
-    0,
-    1
-  );
-  const sinkProgress = SHIP_WATERLINE_LEVEL +
-    (1 - SHIP_WATERLINE_LEVEL) * smootherstep(timelineProgress);
-  const settleProgress = smoothstep(clamp((timelineProgress - 0.12) / 0.88, 0, 1));
-  const maxSettleOffset = Math.max(2, Math.round(effect.frameSize * SHIP_SINK_MAX_SETTLE_SHARE));
-  const sinkOffset = Math.round(settleProgress * maxSettleOffset);
-  const hullFade = 1 - smoothstep(clamp((sinkProgress - 0.72) / 0.28, 0, 1));
+  const { sinkProgress, sinkOffset } = shipSinkPose(effect, nowMs);
   const hullPixels = [];
   for (const pixel of effect.hullPixels) {
     const y = Math.round(effect.originY + pixel.y + sinkOffset);
@@ -115,12 +107,12 @@ export function shipSinkFrame(effect, nowMs) {
     const refractionOffset = underwater
       ? underwaterRefractionOffset(effect, pixel, elapsedMs, sinkOffset, underwaterDepth)
       : 0;
-    const submersionFade = 1 - smoothstep(underwaterDepth) * 0.9;
+    const submersionFade = 1 - smoothstep(underwaterDepth);
     hullPixels.push({
       x: Math.round(effect.originX + pixel.x + refractionOffset),
       y,
       color: pixel.color,
-      alpha: pixel.alpha * hullFade * submersionFade,
+      alpha: pixel.alpha * submersionFade,
       sinkHeight: pixel.sinkHeight,
       underwater,
       refractionOffset
@@ -148,6 +140,40 @@ export function shipSinkFrame(effect, nowMs) {
     particles,
     ripples: sinkRipples(effect, elapsedMs)
   };
+}
+
+// Shared by hull rendering and effects attached to a particular height pixel.
+export function shipSinkPose(effect, nowMs) {
+  if (!effect || !Number.isFinite(effect.startedAtMs) || !Number.isFinite(nowMs)) {
+    throw new Error("Ship sinking pose requires a valid effect and clock");
+  }
+  const elapsedMs = Math.max(0, nowMs - effect.startedAtMs);
+  const timelineProgress = clamp(
+    (elapsedMs - SHIP_SINK_START_MS) / (SHIP_SINK_EFFECT_DURATION_MS - SHIP_SINK_START_MS),
+    0,
+    1
+  );
+  const sinkProgress = SHIP_WATERLINE_LEVEL +
+    // Carry even the highest model pixel below the visibility depth before
+    // completing the effect; opacity depends only on depth, never elapsed time.
+    (1 + SHIP_SINK_SUBMERSION_FADE_RANGE - SHIP_WATERLINE_LEVEL) * smootherstep(timelineProgress);
+  const settleProgress = smoothstep(clamp((timelineProgress - 0.12) / 0.88, 0, 1));
+  const maxSettleOffset = Math.max(2, Math.round(effect.frameSize * SHIP_SINK_MAX_SETTLE_SHARE));
+  const sinkOffset = Math.round(settleProgress * maxSettleOffset);
+  return { sinkProgress, sinkOffset };
+}
+
+export function shipSinkSubmersionTimeMs(effect, sinkHeight) {
+  if (!Number.isFinite(sinkHeight) || sinkHeight < 0 || sinkHeight > 1) throw new Error("Invalid sinking attachment height");
+  let low = effect.startedAtMs;
+  if (shipSinkPose(effect, low).sinkProgress >= sinkHeight) return low;
+  let high = low + SHIP_SINK_EFFECT_DURATION_MS;
+  for (let step = 0; step < 24; step++) {
+    const middle = (low + high) / 2;
+    if (shipSinkPose(effect, middle).sinkProgress < sinkHeight) low = middle;
+    else high = middle;
+  }
+  return high;
 }
 
 export function shipSinkEffectComplete(effect, nowMs) {
