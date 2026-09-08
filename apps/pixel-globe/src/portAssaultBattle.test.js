@@ -713,3 +713,49 @@ test("threatened gunners pause reload progress while retreating and resume the u
   }
   assert.ok(interruptions > 0, "the battle must exercise a reload interrupted by retreat");
 });
+
+test("landing waves send cavalry, then skirmishers, then infantry across varied lanes", () => {
+  const types = ["swordsman", "gunner", "horseman", "archer", "spearman", "teppo-ashigaru", "cavalier"];
+  const attackers = Array.from({ length: 28 }, (_, i) => combatant(`deployment-${i}`, types[i % types.length]));
+  const input = createPortAssaultScenario({ ...scenario(), attackers,
+    defenders: Array.from({ length: 35 }, (_, i) => combatant(`guard-${i}`, "shieldman")) });
+  const battle = simulatePortAssault(input, 19);
+  const byId = new Map(attackers.map(unit => [unit.id, unit]));
+  const priority = id => {
+    const stats = portAssaultUnitStats(byId.get(id));
+    return stats.mounted ? 0 : stats.attackType !== "melee" ? 1 : 2;
+  };
+  const jumps = battle.events.filter(event => event.type === "jump");
+  assert.equal(jumps.length, attackers.length);
+  for (let i = 1; i < jumps.length; i++) {
+    assert.ok(priority(jumps[i].unitId) >= priority(jumps[i - 1].unitId), "later roles must not precede the cavalry/skirmisher screen");
+  }
+  for (let i = 0; i < jumps.length; i += 4) {
+    assert.equal(new Set(jumps.slice(i, i + 4).map(event =>
+      battle.tracks[event.unitId].find(frame => !frame.hidden).lane)).size, 4);
+  }
+  for (const type of types) {
+    const lanes = jumps.filter(event => byId.get(event.unitId).combatProfileId === type).map(event =>
+      battle.tracks[event.unitId].find(frame => !frame.hidden).lane);
+    assert.ok(new Set(lanes).size > 1, `${type} is locked to one lane`);
+  }
+  assert.deepEqual(input.attackers.map(unit => unit.id), attackers.map(unit => unit.id), "deployment must not reorder the caller's crew roster");
+});
+
+test("a dominant troop type takes four places per pass without delaying the other arms", () => {
+  const attackers = [
+    ...Array.from({ length: 20 }, (_, i) => combatant(`gun-${i}`, "gunner")),
+    ...Array.from({ length: 4 }, (_, i) => combatant(`pike-${i}`, "spearman")),
+    ...Array.from({ length: 4 }, (_, i) => combatant(`horse-${i}`, "horseman"))
+  ];
+  const battle = simulatePortAssault(createPortAssaultScenario({ ...scenario(), attackers,
+    defenders: Array.from({ length: 35 }, (_, i) => combatant(`guard-${i}`, "shieldman")) }), 19);
+  const byId = new Map(attackers.map(unit => [unit.id, unit.combatProfileId]));
+  const jumps = battle.events.filter(event => event.type === "jump");
+  assert.deepEqual(jumps.slice(0, 12).map(event => byId.get(event.unitId)), [
+    ...Array(4).fill("horseman"), ...Array(4).fill("gunner"), ...Array(4).fill("spearman")
+  ]);
+  assert.equal(jumps.length, attackers.length);
+  assert.equal(new Set(jumps.map(event => event.unitId)).size, attackers.length);
+  assert.ok(jumps.slice(12).every(event => byId.get(event.unitId) === "gunner"));
+});

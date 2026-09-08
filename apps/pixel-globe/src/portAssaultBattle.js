@@ -833,8 +833,27 @@ function validateShipHitEvent(event, maxShipHitPoints) {
 
 function createBattleUnits(combatants, side, modifiers, random) {
   const firstLane = Math.floor(random() * PORT_ASSAULT_LANE_COUNT);
-  return combatants.map((combatant, index) => {
+  // Deployment order is independent of crew identity and the menu roster.
+  // Keep each troop type together within its role and preserve its roster order.
+  const ordered = combatants.map((combatant, rosterIndex) => {
     const stats = portAssaultUnitStats(combatant, modifiers);
+    return { combatant, stats, rosterIndex,
+      priority: stats.mounted ? 0 : stats.attackType !== "melee" ? 1 : 2 };
+  }).sort((a, b) => a.priority - b.priority ||
+    a.combatant.combatProfileId.localeCompare(b.combatant.combatProfileId) || a.rosterIndex - b.rosterIndex);
+  const groups = new Map();
+  for (const entry of ordered) {
+    const type = entry.combatant.combatProfileId;
+    if (!groups.has(type)) groups.set(type, []);
+    groups.get(type).push(entry);
+  }
+  // Limit each type to one small wave per pass. A large contingent must not
+  // keep the other arms aboard until the battle is already decided.
+  const deployment = [];
+  for (let offset = 0; deployment.length < combatants.length; offset += PORT_ASSAULT_WAVE_SIZE) {
+    for (const group of groups.values()) deployment.push(...group.slice(offset, offset + PORT_ASSAULT_WAVE_SIZE));
+  }
+  return deployment.map(({ combatant, stats }, index) => {
     const wave = Math.floor(index / PORT_ASSAULT_WAVE_SIZE);
     const wavePosition = index % PORT_ASSAULT_WAVE_SIZE;
     const spawnAtMs = PORT_ASSAULT_FIRST_WAVE_DELAY_MS +
@@ -860,6 +879,8 @@ function createBattleUnits(combatants, side, modifiers, random) {
       position: side === PORT_ASSAULT_SIDE.ATTACKER
         ? PORT_ASSAULT_ATTACKER_ENTRY_POSITION
         : 0.96,
+      // Grouped troop types spread across all files while the regular lane
+      // cadence leaves each landing site time to clear before its next arrival.
       lane: (firstLane + index) % PORT_ASSAULT_LANE_COUNT,
       laneGoal: null,
       nextLaneChangeAtMs: 0,
