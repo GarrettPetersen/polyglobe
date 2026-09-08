@@ -74,11 +74,10 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
     // Retreat from immediate danger without needing to select a protector.
     const retreat = move("withdraw", unit.position + rearDirection * SCREEN_GAP, unit.lane);
     if (Math.abs(retreat.destination.position - unit.position) > 1e-9) return retreat;
-  } else if (reloading && unit.stats.attackType === "firearm") {
+  } else if (reloading && unit.lastRangedAttackPosition !== null && unit.stats.attackType === "firearm") {
     // Reload behind the firing position, not an additional step back every tick.
     // Never advance during this retreat if an enemy already drove us farther back.
-    const coverPosition = unit.lastRangedAttackPosition === null
-      ? unit.position : unit.lastRangedAttackPosition + rearDirection * SCREEN_GAP;
+    const coverPosition = unit.lastRangedAttackPosition + rearDirection * SCREEN_GAP;
     return move("reload", rearDirection < 0 ? Math.min(unit.position, coverPosition)
       : Math.max(unit.position, coverPosition), unit.lane);
   }
@@ -87,7 +86,9 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
   const clearTarget = nearest(unit, enemies.filter(enemy => ready(enemy) &&
     portAssaultGroundDistance(unit, enemy) <= unit.stats.range && portAssaultShotIsClear(unit, enemy, allies)));
   if (clearTarget && !reloading) return { mode: "fire", target: clearTarget };
-  if (reloading) return move("reload", unit.position, unit.lane);
+  // The initial readiness delay is not a reload: newly landed troops must
+  // still advance into firing position before their first shot.
+  if (reloading && unit.lastRangedAttackPosition !== null) return move("reload", unit.position, unit.lane);
   // Advance beyond the local screen to open a firing lane. The collision solver
   // still requires an actual route around bodies; this is only a steering goal.
   const ahead = friends.filter(ally => (ally.position - unit.position) * direction > 0 &&

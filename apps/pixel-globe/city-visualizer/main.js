@@ -2,7 +2,7 @@ import { CROATOAN_CLUE, cityRuinsDamage, croatoanClueScreenRect, croatoanClueCon
 import { GAME_ICON_ASSET_VERSION, gameIconAtlasRect, gameIconAtlasDimensions } from "../src/gameIcons.js";
 import { requirePixelPerfectSpriteScale } from "../src/pixelPerfectSpriteScale.js";
 import { cityAssaultCameraTargetPosition } from "./cityAssaultCamera.js";
-import { cityCombatEntryOpacity } from "./cityCombatVisibility.js";
+import { cityCombatEntryOpacity, cityAssaultFacadeFoundationHeight } from "./cityCombatVisibility.js";
 import { activeForeignSettlements, foreignSettlementsForCity1522 } from "../src/foreignSettlements.js";
 import {
   CITY_FEAST_TABLE, CITY_FEAST_TABLE_Z, CITY_FEAST_SHADOW_Z, CITY_FEAST_FOOD_FILES,
@@ -118,6 +118,7 @@ import {
   cityAssaultMeleeLungeOffset
 } from "./cityAssaultMotion.js";
 import { cityMatchlockSmokeParticles, drawCityMatchlockSmokeCluster } from "./cityMatchlockSmoke.js";
+import { drawCityAssaultProjectile } from "./cityAssaultProjectiles.js";
 import {
   CITY_COLONIST_LANE_FEET_Y,
   createCityColonistRoster,
@@ -2194,6 +2195,13 @@ function backgroundCityAtmosphereFrame(frame, level) {
 }
 
 function authoredBombardmentPresentation(frame, layerName, occurrence, source) {
+  if (state.assaultPresentation !== null) {
+    const foundationHeight = cityAssaultFacadeFoundationHeight(layerName, source.frame.frame.h);
+    if (foundationHeight !== null) {
+      return damagedBuildingFramePresentation({ source,
+        buildingId: `assault|authored|${layerName}|${occurrence}`, foundationHeight });
+    }
+  }
   if (state.bombardmentEventId === null || !cityBombardmentLayerIsDamageable(layerName)) {
     return null;
   }
@@ -3515,7 +3523,8 @@ function docksideShipPlacement(timeMs, depth) {
   const vertical = docksideShipVerticalPlacement({
     dock: state.features.dock,
     sideAnchorY: sideAnchor.y * scale,
-    submergedMinY: state.shipWaterlineLayers.submergedMinY * scale
+    submergedMinY: state.shipWaterlineLayers.submergedMinY * scale,
+    forwardDeckY: Math.min(...ship.cityDockside.deckPolygon.map(point => point.y)) * scale
   });
   const postClearanceShift = docksideShipPostClearanceShift({
     rightmostOpaqueXByRow: state.shipWaterlineLayers.rightmostOpaqueXByRow,
@@ -4002,9 +4011,6 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
       context.fillStyle = "#ffffff";
       context.fillRect(x + (event.facingRight ? 5 : -6), y - 10, 2, 1);
     }
-  } else if (event.type === "attack" && event.attackType === "arrow") {
-    context.fillStyle = "#2e222f";
-    context.fillRect(x + (event.facingRight ? 5 : -9), y - 9, 5, 1);
   } else if (event.type === "block") {
     context.fillStyle = "#f9c22b";
     context.fillRect(x - 3, y - 16, 7, 1);
@@ -4019,6 +4025,18 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
   } else if (event.type === "death" && timeMs - event.timeMs < 500) {
     context.fillStyle = "#ae2334";
     context.fillRect(x - 2 - Math.floor((timeMs - event.timeMs) / 180), y - 3, 2, 1);
+  }
+  if (event.type === "attack" && ["arrow", "firearm"].includes(event.attackType)) {
+    const targetX = cityAssaultLaneX({
+      baselineX: CITY_PORT_ASSAULT_TRACK_START_X + event.targetPosition * CITY_ASSAULT_TRACK_SPAN_PX - window.x,
+      position: event.targetPosition,
+      entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+      entryShiftX
+    });
+    drawCityAssaultProjectile(context, event.attackType,
+      { x: x + (event.facingRight ? 6 : -6), y: y - 10 },
+      { x: targetX, y: cityPortAssaultLaneFeetY(event.targetLane) - window.y - 10 },
+      timeMs - event.timeMs);
   }
 }
 

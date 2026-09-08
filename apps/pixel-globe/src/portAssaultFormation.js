@@ -1,7 +1,8 @@
 // Both axes use fractions of the battlefield's length. The city view projects
-// depth at half scale: an eight-pixel lane represents sixteen pixels of ground.
+// depth at half scale. Lane centers leave room for infantry to pass between
+// two standing comrades rather than forming an impenetrable shoulder-to-shoulder wall.
 export const PORT_ASSAULT_LANE_COUNT = 4;
-export const PORT_ASSAULT_LANE_SPACING = 0.025;
+export const PORT_ASSAULT_LANE_SPACING = 0.04;
 export const PORT_ASSAULT_INFANTRY_RADIUS = 0.009;
 export const PORT_ASSAULT_MOUNTED_RADIUS = 0.013;
 const CONTACT_EPSILON = 1e-9;

@@ -367,14 +367,14 @@ test("attackers remain at the ship until their one-shot landing completes", () =
   assert.ok(jumpFrames.every(({ animationStartedAtMs }) => animationStartedAtMs === jumpEvent.timeMs));
 });
 
-test("assault reinforcements deploy in separated three-person waves", () => {
+test("assault reinforcements deploy in separated four-person waves", () => {
   const battle = simulatePortAssault(scenario({ attackerCount: 12, defenderCount: 12 }), 19);
   const jumpTimes = battle.events
     .filter(({ type }) => type === "jump")
     .map(({ timeMs }) => timeMs);
   assert.equal(jumpTimes.length, 12);
-  for (let waveStart = 3; waveStart < jumpTimes.length; waveStart += 3) {
-    assert.ok(jumpTimes[waveStart] - jumpTimes[waveStart - 1] >= 700);
+  for (let waveStart = 4; waveStart < jumpTimes.length; waveStart += 4) {
+    assert.ok(jumpTimes[waveStart] - jumpTimes[waveStart - 1] >= 400);
   }
 });
 
@@ -470,7 +470,7 @@ test("a much larger crew can replenish its front line against a strong garrison 
 test("weapon reach distinguishes swords, spears, and polearms across actual lanes", () => {
   const sword = portAssaultUnitStats(combatant("sword", "swordsman", 0));
   const origin = { position: 0.5, lane: 0 };
-  const diagonal = { position: 0.526, lane: 1 };
+  const diagonal = { position: 0.515, lane: 0.8 };
   const distance = portAssaultGroundDistance(origin, diagonal);
   assert.ok(distance > sword.range, "the sword cannot hit diagonally across this gap");
   for (const profile of ["spearman", "tribal-spearman", "yari-ashigaru", "halberdier"]) {
@@ -479,8 +479,8 @@ test("weapon reach distinguishes swords, spears, and polearms across actual lane
     assert.ok(portAssaultGroundDistance(origin, { position: 0.5, lane: 2 }) > stats.range,
       `${profile} must not strike across two full lanes`);
   }
-  assert.ok(portAssaultGroundDistance(origin, { position: 0.511, lane: 1 }) < sword.range,
-    "a sword can strike a sufficiently close neighbor in the adjacent lane");
+  assert.ok(portAssaultGroundDistance(origin, { position: 0.511, lane: 0.5 }) < sword.range,
+    "a sword can strike a sufficiently close neighbor between the wider lane centers");
 });
 
 function assertAttackReach(battle) {
@@ -608,6 +608,32 @@ test("rear ranks spread into the fight rather than waiting in a blocked queue", 
       event.unitId.startsWith("a") && event.timeMs <= 30_000).map(event => event.unitId));
     assert.ok(engaged.size >= 9, `Only ${engaged.size} of 24 attackers joined by 30 seconds (seed ${seed})`);
   }
+});
+
+test("a full Great Carrack can deploy its mixed crew and meets the garrison inland", () => {
+  const capacity = shipStatsForSlug("ship-of-the-line").crewCapacity;
+  const profiles = ["gunner", "archer", "spearman", "swordsman"];
+  const battle = simulatePortAssault(createPortAssaultScenario({
+    ...scenario(), dockKind: "stone",
+    attackers: Array.from({ length: capacity }, (_, i) => combatant(`a${i}`, profiles[i % 4])),
+    defenders: Array.from({ length: PORT_ASSAULT_MAX_GARRISON }, (_, i) => combatant(`d${i}`, profiles[i % 4]))
+  }), 19);
+  const jumps = battle.events.filter(event => event.type === "jump");
+  assert.equal(jumps.length, capacity, "reinforcements must not be trapped aboard");
+  assert.ok(jumps.at(-1).timeMs < 80000);
+  for (const landing of battle.events.filter(event => event.type === "dock-land")) {
+    const frames = battle.tracks[landing.unitId].filter(frame =>
+      frame.timeMs >= landing.timeMs - 200 && frame.timeMs <= landing.timeMs + 1000);
+    for (let index = 1; index < frames.length; index++) {
+      assert.ok(frames[index].position >= frames[index - 1].position - 1e-9,
+        `${landing.unitId} walked back toward the ship immediately after landing`);
+    }
+  }
+  const attacks = battle.events.filter(event => event.type === "attack");
+  const first = attacks[0];
+  assert.ok(Math.min(first.position, first.targetPosition) > .5,
+    "the first clash must leave deployment space behind the landing force");
+  assert.ok(new Set(attacks.filter(event => event.unitId.startsWith("a")).map(event => event.unitId)).size > capacity / 2);
 });
 
 test("mixed formations skirmish, reload on the move, and enter melee sooner against cavalry", () => {

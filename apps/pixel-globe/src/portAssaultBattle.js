@@ -1,10 +1,10 @@
+import { portAssaultMoveInFormation } from "./portAssaultSteering.js";
 import { portAssaultTacticalDecision, portAssaultShotIsClear } from "./portAssaultTactics.js";
 import {
   PORT_ASSAULT_LANE_COUNT,
   PORT_ASSAULT_LANE_SPACING,
   PortAssaultOccupancy,
   portAssaultFormationStep,
-  portAssaultFormationSpacing,
   portAssaultGroundDistance,
   portAssaultPositionIsFree
 } from "./portAssaultFormation.js";
@@ -25,6 +25,7 @@ export const PORT_ASSAULT_OUTCOME = Object.freeze({
   DEFEAT: "defeat"
 });
 export const PORT_ASSAULT_ATTACKER_ENTRY_POSITION = 0.04;
+export const PORT_ASSAULT_DEFENDER_MUSTER_DELAY_MS = 8000;
 
 export const PORT_ASSAULT_PROFILE_ID = Object.freeze({
   SAILOR: "sailor",
@@ -66,11 +67,11 @@ const GARRISON_CAPITAL_BONUS = 5;
 const GARRISON_WORLD_CITY_POPULATION = 680_000;
 const GARRISON_MINIMUM_POPULATION = 500;
 const GARRISON_MAX_NON_CAPITAL = PORT_ASSAULT_MAX_GARRISON - GARRISON_CAPITAL_BONUS;
-const PORT_ASSAULT_WAVE_SIZE = 3;
+const PORT_ASSAULT_WAVE_SIZE = PORT_ASSAULT_LANE_COUNT;
 const PORT_ASSAULT_FIRST_WAVE_DELAY_MS = 300;
 // Distinct small waves keep large assaults readable without extending beyond the battle clock.
-const PORT_ASSAULT_WAVE_INTERVAL_MS = 1_500;
-const PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS = 240;
+const PORT_ASSAULT_WAVE_INTERVAL_MS = 1_200;
+const PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS = 200;
 const PORT_ASSAULT_WAVE_JITTER_MS = 120;
 const PORT_ASSAULT_VICTORY_WOUND_CHANCE = 0.48;
 const PORT_ASSAULT_DEFEAT_WOUND_CHANCE = 0.24;
@@ -95,7 +96,6 @@ const EXPERIENCE_HIT_POINTS_MULTIPLIER = 0.06;
 const RANGED_MELEE_RANGE = 0.03;
 const FULL_CHARGE_DISTANCE = 0.12;
 const MOMENTUM_DECAY_PER_STEP = 0.16;
-const FORMATION_LANE_RECONSIDER_MS = 600;
 const BASE_KNOCKBACK_POSITION_BY_ATTACK_TYPE = Object.freeze({
   [PORT_ASSAULT_ATTACK_TYPE.MELEE]: 0.006,
   [PORT_ASSAULT_ATTACK_TYPE.ARROW]: 0.002,
@@ -482,8 +482,20 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
   let timeMs = 0;
   let winner = null;
   let nextTrackMs = 0;
+  let defenderMusterTimeMs = PORT_ASSAULT_DEFENDER_MUSTER_DELAY_MS;
 
   while (winner === null && timeMs <= PORT_ASSAULT_MAX_DURATION_MS) {
+    // A fast charge raises the alarm before the normal muster delay expires.
+    if (timeMs < defenderMusterTimeMs && attackers.some(unit =>
+      unit.alive && unit.landed && unit.position >= 0.6)) {
+      const advanceMs = defenderMusterTimeMs - timeMs;
+      defenderMusterTimeMs = timeMs;
+      for (const defender of defenders) {
+        defender.spawnAtMs -= advanceMs;
+        defender.nextPrimaryAttackAtMs -= advanceMs;
+        if (defender.nextMeleeAttackAtMs !== null) defender.nextMeleeAttackAtMs -= advanceMs;
+      }
+    }
     if (!defenders.some((unit) => unit.alive) &&
         attackers.some((unit) => unit.alive && unit.position >= 0.985)) {
       winner = PORT_ASSAULT_SIDE.ATTACKER;
@@ -570,7 +582,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const destination = tactic?.destination || target || { position: goal, lane: unit.lane };
       // Stop at weapon reach instead of walking through the enemy. Lateral
       // movement consumes the same speed budget as advancing along the road.
-      const next = moveInFormation(unit, destination, movement, occupancy, tactic?.range ?? (target ? unit.stats.range : 0), timeMs);
+      const next = portAssaultMoveInFormation(unit, destination, movement, occupancy, tactic?.range ?? (target ? unit.stats.range : 0), timeMs);
       unit.position = next.position;
       unit.lane = next.lane;
       occupancy.update(unit);
@@ -811,6 +823,7 @@ function createBattleUnits(combatants, side, modifiers, random) {
     const wave = Math.floor(index / PORT_ASSAULT_WAVE_SIZE);
     const wavePosition = index % PORT_ASSAULT_WAVE_SIZE;
     const spawnAtMs = PORT_ASSAULT_FIRST_WAVE_DELAY_MS +
+      (side === PORT_ASSAULT_SIDE.DEFENDER ? PORT_ASSAULT_DEFENDER_MUSTER_DELAY_MS : 0) +
       wave * PORT_ASSAULT_WAVE_INTERVAL_MS +
       wavePosition * PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS +
       Math.floor(random() * PORT_ASSAULT_WAVE_JITTER_MS);
@@ -939,43 +952,6 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events, occ
   if (target.hitPoints === 0) target.alive = false;
 }
 
-function moveInFormation(unit, destination, movement, occupancy, range, timeMs) {
-  if (unit.laneGoal !== null && Math.abs(unit.laneGoal - unit.lane) < 1e-9) unit.laneGoal = null;
-  const lateralDistance = Math.abs(destination.lane - unit.lane) * PORT_ASSAULT_LANE_SPACING;
-  const lane = unit.laneGoal ?? (lateralDistance < range * 0.95 ? unit.lane : destination.lane);
-  const direction = Math.sign(destination.position - unit.position);
-  const standOff = Math.sqrt(Math.max(0, (range * 0.95) ** 2 -
-    ((destination.lane - lane) * PORT_ASSAULT_LANE_SPACING) ** 2));
-  const goal = { position: clamp(destination.position - direction * standOff, 0, 1), lane };
-  const goalDistance = portAssaultGroundDistance(unit, goal);
-  const attractionScale = goalDistance > 0 ? Math.min(1, movement / goalDistance) : 0;
-  const spacing = portAssaultFormationSpacing(unit, occupancy.nearby(unit, unit, 0, 3));
-  goal.position = clamp(unit.position + (goal.position - unit.position) * attractionScale +
-    spacing.positionOffset * movement, 0, 1);
-  goal.lane = clamp(unit.lane + (goal.lane - unit.lane) * attractionScale +
-    spacing.laneOffset * movement, 0, PORT_ASSAULT_LANE_COUNT - 1);
-  let next = portAssaultFormationStep(unit, goal, movement, occupancy.nearby(unit, goal, movement));
-  if (portAssaultGroundDistance(unit, next) > movement * 0.1) return next;
-
-  // Probe a single physical step around the obstruction. Requiring the whole
-  // adjacent lane to be empty stranded rear ranks even when they could sidestep.
-  if (timeMs < unit.nextLaneChangeAtMs) return next;
-  unit.nextLaneChangeAtMs = timeMs + FORMATION_LANE_RECONSIDER_MS;
-  unit.laneGoal = null;
-  const alternatives = [Math.round(unit.lane) - 1, Math.round(unit.lane) + 1]
-    .filter(candidate => candidate >= 0 && candidate < PORT_ASSAULT_LANE_COUNT)
-    .sort((left, right) => Math.abs(left - destination.lane) - Math.abs(right - destination.lane) || left - right);
-  for (const candidate of alternatives) {
-    const sideGoal = { position: unit.position, lane: candidate };
-    const sideStep = portAssaultFormationStep(unit, sideGoal, movement,
-      occupancy.nearby(unit, sideGoal, movement));
-    if (portAssaultGroundDistance(unit, sideStep) < movement * 0.5) continue;
-    unit.laneGoal = candidate;
-    next = sideStep;
-    break;
-  }
-  return next;
-}
 
 function recordTracks(tracks, units, timeMs, dockKind) {
   for (const unit of units) {

@@ -102,6 +102,8 @@ export const PORT_SCENE_DOCK = Object.freeze({
   maximumShipBobY: 1,
   shipPostClearanceX: 16,
   shipPostClearanceY: 2,
+  // Keep the bow deck below the quay edge, out of the flatter sale-ship band.
+  minimumBowDeckY: 505,
   waterlineY: 572
 });
 
@@ -518,15 +520,19 @@ export function docksideShipSideAnchor(ship) {
 export function docksideShipVerticalPlacement({
   dock,
   sideAnchorY,
-  submergedMinY
+  submergedMinY,
+  forwardDeckY
 }) {
   if (!DOCK_STYLES.includes(dock)) throw new Error(`Invalid dockside ship dock: ${dock}`);
-  if (![sideAnchorY, submergedMinY].every(Number.isFinite)) {
+  if (![sideAnchorY, submergedMinY, forwardDeckY].every(Number.isFinite)) {
     throw new Error("Invalid dockside ship vertical placement geometry");
   }
-  const waterlineTopY = PORT_SCENE_DOCK.waterlineY - submergedMinY;
-  const sideAnchorTopY = PORT_SCENE_DOCK.shipAccessY - sideAnchorY;
-  const topY = Math.max(waterlineTopY, sideAnchorTopY);
+  // Moor at the middle of the near deck rail. Only move the ship toward the
+  // viewer when its forward deck would leave the foreground perspective zone.
+  const topY = Math.max(
+    PORT_SCENE_DOCK.shipAccessY - sideAnchorY,
+    PORT_SCENE_DOCK.minimumBowDeckY - forwardDeckY
+  );
   return Object.freeze({
     topY,
     waterlineY: topY + submergedMinY

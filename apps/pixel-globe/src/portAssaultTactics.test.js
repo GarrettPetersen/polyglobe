@@ -19,6 +19,17 @@ test("friendly bodies block shots, including diagonals; fallen and off-line sold
   assert.equal(portAssaultShotIsClear(shooter, enemy, [{ ...ally, position: .2 }]), true);
 });
 
+test("initial ranged readiness does not order a newly landed soldier to stop and reload", () => {
+  for (const profile of ["gunner", "archer"]) {
+    const soldier = unit("landing", profile, .04);
+    soldier.nextPrimaryAttackAtMs = 5000;
+    const enemy = unit("enemy", "swordsman", .8, 1, "defender");
+    const decision = portAssaultTacticalDecision(soldier, [soldier], [enemy], 1000);
+    assert.equal(decision.mode, "skirmish");
+    assert.equal(decision.target, enemy);
+  }
+});
+
 test("loaded guns find a clear position and retreat toward their rear while reloading", () => {
   const gun = unit("gun", "gunner", .3);
   const pike = unit("pike", "spearman", .34);

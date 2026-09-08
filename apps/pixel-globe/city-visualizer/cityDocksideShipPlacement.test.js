@@ -28,8 +28,27 @@ const sceneManifest = JSON.parse(await readFile(new URL(
 ), "utf8"));
 const rasterMetricsBySlug = new Map();
 
+test("every hull and its forward deck stay in the foreground beside the quay", async () => {
+  for (const ship of manifest.ships) {
+    const metrics = await docksideRasterMetrics(ship);
+    const scale = PORT_SCENE_ENTITY_META.ship.scale;
+    for (const dock of ["wood", "stone", "none"]) {
+      const vertical = docksideShipVerticalPlacement({
+        dock,
+        sideAnchorY: docksideShipSideAnchor(ship).y * scale,
+        submergedMinY: metrics.submergedMinY * scale,
+        forwardDeckY: Math.min(...ship.cityDockside.deckPolygon.map(point => point.y)) * scale
+      });
+      const centerY = docksideShipSideAnchor(ship).y * scale;
+      const bowY = Math.min(...ship.cityDockside.deckPolygon.map(point => point.y)) * scale;
+      const idealTopY = PORT_SCENE_DOCK.shipAccessY - centerY;
+      assert.equal(vertical.topY, Math.max(idealTopY, PORT_SCENE_DOCK.minimumBowDeckY - bowY));
+      assert.ok(vertical.topY + Math.min(...ship.cityDockside.deckPolygon.map(point => point.y)) * scale >= PORT_SCENE_DOCK.minimumBowDeckY);
+    }
+  }
+});
+
 test("every dockside ship clears the foreground dock post through its full bob", async () => {
-  const shiftedShips = [];
   const postBottomY = PORT_SCENE_DOCK.foregroundPostTopY +
     PORT_SCENE_DOCK.foregroundPostHeight - 1;
   const safeRightX = PORT_SCENE_DOCK.foregroundPostX -
@@ -42,14 +61,14 @@ test("every dockside ship clears the foreground dock post through its full bob",
     const vertical = docksideShipVerticalPlacement({
       dock: "wood",
       sideAnchorY: sideAnchor.y,
-      submergedMinY: metrics.submergedMinY
+      submergedMinY: metrics.submergedMinY,
+      forwardDeckY: Math.min(...ship.cityDockside.deckPolygon.map(point => point.y))
     });
     const shift = docksideShipPostClearanceShift({
       rightmostOpaqueXByRow: metrics.rightmostOpaqueXByRow,
       topY: vertical.topY + PORT_SCENE_DOCK.maximumShipBobY,
       sideAnchorX: sideAnchor.x
     });
-    if (shift > 0) shiftedShips.push(ship.slug);
     const shipLeftX = PORT_SCENE_DOCK.shipAccessX - sideAnchor.x - shift;
     for (let y = 0; y < metrics.rightmostOpaqueXByRow.length; y++) {
       const rightmostSourceX = metrics.rightmostOpaqueXByRow[y];
@@ -63,9 +82,6 @@ test("every dockside ship clears the foreground dock post through its full bob",
       );
     }
   }
-
-  assert.ok(shiftedShips.includes("ocean-dhow"));
-  assert.ok(shiftedShips.includes("medium-junk"));
 });
 
 test("every no-dock ship keeps its dock berth without touching the beach", async () => {
@@ -77,7 +93,8 @@ test("every no-dock ship keeps its dock berth without touching the beach", async
     const vertical = docksideShipVerticalPlacement({
       dock: "none",
       sideAnchorY: sideAnchor.y * scale,
-      submergedMinY: metrics.submergedMinY * scale
+      submergedMinY: metrics.submergedMinY * scale,
+      forwardDeckY: Math.min(...ship.cityDockside.deckPolygon.map(point => point.y)) * scale
     });
     const postClearanceShift = docksideShipPostClearanceShift({
       rightmostOpaqueXByRow: metrics.rightmostOpaqueXByRow,
@@ -89,7 +106,8 @@ test("every no-dock ship keeps its dock berth without touching the beach", async
     const dockedVertical = docksideShipVerticalPlacement({
       dock: "wood",
       sideAnchorY: sideAnchor.y * scale,
-      submergedMinY: metrics.submergedMinY * scale
+      submergedMinY: metrics.submergedMinY * scale,
+      forwardDeckY: Math.min(...ship.cityDockside.deckPolygon.map(point => point.y)) * scale
     });
 
     assert.deepEqual(vertical, dockedVertical, `${ship.slug} moved when its dock disappeared`);

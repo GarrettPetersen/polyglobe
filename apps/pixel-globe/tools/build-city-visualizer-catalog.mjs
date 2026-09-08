@@ -1,4 +1,5 @@
-import { citySceneLandwardAxis } from "../city-visualizer/citySceneGeography.js";
+import { citySceneLandwardAxis, citySceneRiverLandwardAxis } from "../city-visualizer/citySceneGeography.js";
+import { sampledCityTerrain } from "../city-visualizer/cityTerrainSampling.js";
 import { exeterCanalNavigation } from "../src/exeterCanalNavigation.js";
 import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "../src/manualRiverHexChains.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -199,7 +200,15 @@ function visualizerCityRecord({
   const approach = authoredRiverApproach
     ? approachKind(sailingAccess.tileId, sailingEarthRows, sailingNavigation)
     : approachKind(access.tileId, earthRows, navigation);
-  const landwardAxis = citySceneLandwardAxis(graphCenter(graph, cityTileId), graphCenter(graph, access.tileId));
+  const landwardAxis = access.tileId === cityTileId
+    ? citySceneRiverLandwardAxis(
+      graphCenter(graph, cityTileId),
+      graph.neighbors[cityTileId]
+        .filter((_, edge) => ((navigation.riverMasks[cityTileId] |
+          navigation.riverToWaterMasks[cityTileId]) & (1 << edge)) !== 0)
+        .map(tileId => graphCenter(graph, tileId))
+    )
+    : citySceneLandwardAxis(graphCenter(graph, cityTileId), graphCenter(graph, access.tileId));
   const neighborhood = terrainNeighborhood({
     graph,
     earthRows,
@@ -467,10 +476,7 @@ function terrainNeighborhood({ graph, earthRows, cityTileId, landwardAxis }) {
     }
   }
   return {
-    left: dominantTerrain(scores.left),
-    right: dominantTerrain(scores.right),
-    leftDistant: dominantTerrain(scores.leftDistant),
-    rightDistant: dominantTerrain(scores.rightDistant),
+    ...sampledCityTerrain(scores),
     leftTreeCover: treeCover.left,
     rightTreeCover: treeCover.right
   };
@@ -560,10 +566,6 @@ function terrainFamily(row) {
 
 function newTerrainScore() {
   return { grass: 0, forest: 0, desert: 0, rocky: 0 };
-}
-
-function dominantTerrain(scores) {
-  return Object.entries(scores).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
 }
 
 function dockStyle(city, approach) {

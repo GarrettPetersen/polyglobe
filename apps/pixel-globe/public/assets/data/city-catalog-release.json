@@ -16,7 +16,8 @@
     "city-visualizer/cityPeople.js": "e9ba2c97a0ba3101ff64e3d9f735c1049cf198cf0f91a035114288e0dc2fafac",
     "city-visualizer/cityPeopleCatalog.js": "8aa9437ce70c17c48c202e5261f55cb725f127c60e085dad04d34bc5c2c85718",
     "city-visualizer/cityRegionalBuildings.js": "cf9f3a4d5e42a2f0749d1c0beec33b8f664ed6a73e1cd1e0a3f3deece6ef2788",
-    "city-visualizer/citySceneGeography.js": "d474632c5c94d7ebb6bcf50923f562bbb20a02b782d70c38e0c3f13f465f7367",
+    "city-visualizer/citySceneGeography.js": "ec1f51d30effb81c73c81f8d2b13d9ff470f8a9ba94d03b82a537927ee5973a0",
+    "city-visualizer/cityTerrainSampling.js": "d570405e74f90f30605c33cc3f3e7d96d2a54c83f45798bc88adc198940e3d7a",
     "src/characterBiography.js": "37d8d28ea87db6751c3bf56c4e3f45563c3e045d268faf36da87e0693f909be3",
     "src/characterNames.js": "5e20b5b5e07a3564a7022dd25d4860f8c29c8ce9575d931741bbecad69e40035",
     "src/characterPortraits.js": "065eb9d000bec708470769660274cf18931dfc1f74d45f7d2d80673d9b4f2270",
@@ -65,9 +66,10 @@
     "src/nameCultures.js": "35e3bb26ee68e1217b7a066eefd4e56c94801c5576b2d42e8c0699f0dc2e3101",
     "src/perkSystem.js": "f6e4db729fcbad25da0e9c2b84d157a800488f3dc7457e502fe88c0480386e7d",
     "src/placeNameLocalization.js": "4663bfe61ea4f07e4d37a21268c60cc4db7a5f45e464a95cb9ae0d0361bbb86b",
-    "src/portAssaultBattle.js": "aa76741cbfeb4b19d4dbd6552fd4db9f09a34b717daa0631f608a2fc9abc1fe7",
-    "src/portAssaultFormation.js": "bba020f9c60e9152dd21de2ccd1f3ef0e325e40ce20638c2b5a1bd56f1c89694",
-    "src/portAssaultTactics.js": "aaee8dc58371b6284c989069f2f6de8ebc1fecada5256aad4cc4c1398dc1ebc4",
+    "src/portAssaultBattle.js": "79b3d6ebe07b32be42624863671675e72f74555d5fe83cd1d8e201f8eb8009ef",
+    "src/portAssaultFormation.js": "321fd17b5b92e3d4fe882b6e7b9de112de2ded5e6cd864c1cd8a7c4f90e318fb",
+    "src/portAssaultSteering.js": "be6459861a843f37eed07d2d97818ea845b5587145f678c19f92775459f7803c",
+    "src/portAssaultTactics.js": "d4357dbf3a23e5df8d13b1e8f1c83f2818996ab87dd180f51dd115fa9793de23",
     "src/portCatalogMigration.js": "096af73b882ad323cb4ba6f6cbe1d608ec7e5c2f51e939cfabeaed65251b7c8e",
     "src/portCityServices.js": "e459bce751816d8b54da49723fd700e67b52ecbcbe84e66a477e2d5d3ed76997",
     "src/portDialoguePersonality.js": "597ff0eefac84db5ad5565cccaa4925b5a1ef01ffa4e651bca3ef09a66083287",
@@ -110,7 +112,7 @@
     "src/worldNavigationTopology.js": "ac4c850620152a38bd49effdbe18e142c65279c4756d0636a8cdc9a739efde43",
     "src/worldPortPlacement.js": "093937219d6ea97f6d6fabdb8945aab849e5dc64922cef27b359359504ea5999",
     "src/worldScale.js": "b690dceab0dc8fb0105a5cf48b85e8b715f1717e5b2b9347e23431980e99bbfb",
-    "tools/build-city-visualizer-catalog.mjs": "80424cb2e34359eeb03c1044d2955e2249b8d45402b2a6eafdd08ab80a5df181",
+    "tools/build-city-visualizer-catalog.mjs": "ba23d86012acea8c364670a6ac2d0ad27ec20227a81bfb5f61855230979db5e7",
     "tools/build-land-roads.mjs": "78e6d4317213db674e1e60cf006df4528b3783c6345b65f5f420b20cb58a4f00",
     "tools/build-port-sailing-distances.mjs": "b3556002fb80bbd9f6676f8faf5da388e78f068f78a2d84739de085b3381fb22",
     "tools/build-subdivision-eight-map-data.mjs": "c5959536088bb87ff27fb2a4ff6dfc12b1a45d170817811cfc1abdcc1a2d97d2",
@@ -120,6 +122,6 @@
   "artifacts": {
     "public/assets/data/port-sailing-distances.json": "58de8d99e15c558375b000daa454b4549a79d04662a2a348193e0bee4ef7c0c1",
     "public/assets/data/land-roads.json": "6efa1da44237e5f46f576f64f9d991211eaae310203d85ff80b311d5addf8ee5",
-    "city-visualizer/data/cities.json": "0b1e9bd01adc85dc24fd45369cad780b95396b133f89c640148ee735a924e8dc"
+    "city-visualizer/data/cities.json": "4d0f047dd4dfa9a7bdfb42cf1964ee2246516cc2645c4301b20f6a01b5e5d332"
   }
 }

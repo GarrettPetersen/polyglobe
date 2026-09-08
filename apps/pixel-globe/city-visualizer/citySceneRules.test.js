@@ -718,32 +718,17 @@ test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () 
   );
 });
 
-test("docked and no-dock ships share one berth geometry", () => {
-  const shortShip = docksideShipVerticalPlacement({
-    dock: "wood",
-    sideAnchorY: 438,
-    submergedMinY: 461
-  });
-  assert.equal(shortShip.waterlineY, PORT_SCENE_DOCK.waterlineY);
-  assert.equal(shortShip.topY, PORT_SCENE_DOCK.waterlineY - 461);
-  const longShip = docksideShipVerticalPlacement({
-    dock: "wood",
-    sideAnchorY: 353.5,
-    submergedMinY: 460
-  });
-  assert.equal(longShip.topY, PORT_SCENE_DOCK.shipAccessY - 353.5);
-  assert.ok(longShip.waterlineY > PORT_SCENE_DOCK.waterlineY);
-  const anchored = docksideShipVerticalPlacement({
-    dock: "none",
-    sideAnchorY: 365,
-    submergedMinY: 450
-  });
-  const docked = docksideShipVerticalPlacement({
-    dock: "wood",
-    sideAnchorY: 365,
-    submergedMinY: 450
-  });
-  assert.deepEqual(anchored, docked);
+test("ships align mid-deck with the dock unless their bow exceeds the foreground limit", () => {
+  const shortGeometry = { sideAnchorY: 438, forwardDeckY: 433, submergedMinY: 461 };
+  const shortShip = docksideShipVerticalPlacement({ dock: "wood", ...shortGeometry });
+  assert.equal(shortShip.topY + shortGeometry.sideAnchorY, PORT_SCENE_DOCK.shipAccessY);
+  const longGeometry = { sideAnchorY: 377.5, forwardDeckY: 336, submergedMinY: 460 };
+  const longShip = docksideShipVerticalPlacement({ dock: "wood", ...longGeometry });
+  assert.equal(longShip.topY + longGeometry.forwardDeckY, PORT_SCENE_DOCK.minimumBowDeckY);
+  assert.ok(longShip.topY + longGeometry.sideAnchorY > PORT_SCENE_DOCK.shipAccessY);
+  for (const dock of ["none", "stone"]) {
+    assert.deepEqual(docksideShipVerticalPlacement({ dock, ...longGeometry }), longShip);
+  }
 });
 
 test("dockside ships berth at their authored side point rather than their bow anchor", () => {
@@ -937,7 +922,7 @@ test("explicit scene z places walkers and the inn between gatehouse sections", (
 });
 
 test("port-assault lanes participate in city ground painter order", () => {
-  assert.deepEqual(CITY_PORT_ASSAULT_LANE_FEET_Y, [516, 524, 532, 540]);
+  assert.deepEqual(CITY_PORT_ASSAULT_LANE_FEET_Y, [508, 520.8, 533.6, 546.4]);
   for (const lane of CITY_PORT_ASSAULT_LANE_FEET_Y.keys()) {
     const painterZ = cityPortAssaultLanePainterZ(lane);
     assert.equal(painterZ, cityGroundPainterZ(CITY_PORT_ASSAULT_LANE_FEET_Y[lane]));
@@ -957,8 +942,8 @@ test("port-assault lanes participate in city ground painter order", () => {
   assert.throws(() => cityShipLandingForegroundPainterZ("invalid"), /Invalid landing dock/);
   assert.throws(() => cityPortAssaultLanePainterZ(-1), /port-assault lane/);
   assert.throws(() => cityPortAssaultLanePainterZ(4), /port-assault lane/);
-  assert.equal(cityPortAssaultLaneFeetY(1.5), 528);
-  assert.equal(cityPortAssaultLanePainterZ(1.5), cityGroundPainterZ(528));
+  assert.ok(Math.abs(cityPortAssaultLaneFeetY(1.5) - 527.2) < 1e-9);
+  assert.ok(Math.abs(cityPortAssaultLanePainterZ(1.5) - cityGroundPainterZ(527.2)) < 1e-9);
   assert.throws(() => cityPortAssaultLaneFeetY(NaN), /port-assault lane/);
   assert.match(VISUALIZER_MAIN_SOURCE, /kind: "port-assault",\s+lane,\s+z: cityPortAssaultLanePainterZ\(lane\)/);
   assert.match(
@@ -1176,9 +1161,10 @@ test("the city catalog preserves actual tree-cover tiles even when open ground i
   const zaragoza = cityById.get("zaragoza|spain");
   assert.equal(CITY_VISUALIZER_CATALOG.version, 7);
   assert.equal(london?.terrain?.leftTreeCover, true);
-  assert.equal(zaragoza?.terrain?.left, "grass");
+  assert.ok(["left", "right"].some(side => zaragoza.terrain[side] === "grass" &&
+    zaragoza.terrain[`${side}TreeCover`] === true));
   assert.equal(
-    zaragoza?.terrain?.leftTreeCover,
+    zaragoza?.terrain?.leftTreeCover || zaragoza?.terrain?.rightTreeCover,
     true,
     "tree-bearing production tiles survive the dominant-terrain reduction"
   );

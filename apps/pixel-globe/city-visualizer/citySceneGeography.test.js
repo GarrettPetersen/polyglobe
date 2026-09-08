@@ -1,6 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { citySceneLandwardAxis } from "./citySceneGeography.js";
+import { citySceneLandwardAxis, citySceneRiverLandwardAxis } from "./citySceneGeography.js";
+
+test("float32 London city and access directions cannot invent a radial bank axis", () => {
+  const london = [0.6232466101646423, 0.7820088267326355, 0.00508434372022748];
+  assert.throws(() => citySceneLandwardAxis(london, london), /distinct water approach/);
+});
+
+test("a city on a river tile separates the actual banks perpendicular to the channel", () => {
+  const point = (y, z) => { const v = [1, y, z]; return v.map(x => x / Math.hypot(...v)); };
+  const channel = [1, 0, 0];
+  const neighbors = [point(-0.01, 0), point(0.01, 0)];
+  const axis = citySceneRiverLandwardAxis(channel, neighbors);
+  assert.ok(Math.abs(axis[0]) < 1e-10);
+  assert.ok(Math.abs(axis[1]) < 1e-10);
+  assert.ok(Math.abs(axis[2]) > 0.999999);
+  assert.deepEqual(citySceneRiverLandwardAxis(channel, neighbors), axis);
+  assert.throws(() => citySceneRiverLandwardAxis(channel, []), /connected channel/);
+});
 
 test("starboard docking puts water left and inland terrain right at every shoreline bearing", () => {
   for (const city of [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) {
