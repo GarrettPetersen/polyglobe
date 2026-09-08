@@ -19,7 +19,7 @@ const PALE_SKIN = Object.freeze(["e6904e", "fdcbb0"]);
 const COMBAT_TAGS_BY_ARCHETYPE_ID = Object.freeze({
   hunter: combatTags("damage"),
   mariner: combatTags("hit"),
-  gunner: combatTags("hit"),
+  gunner: Object.freeze({ ...combatTags("hit"), reload: "reload" }),
   archer: combatTags("damage"),
   cavalier: combatTags("damage"),
   crossbowman: combatTags("damage"),
@@ -34,7 +34,7 @@ const COMBAT_TAGS_BY_ARCHETYPE_ID = Object.freeze({
   "horse-samurai": combatTags("damage"),
   ronin: combatTags("hit"),
   samurai: combatTags("hit"),
-  "teppo-ashigaru": combatTags("hit"),
+  "teppo-ashigaru": Object.freeze({ ...combatTags("hit"), reload: "reload" }),
   "yari-ashigaru": combatTags("hit"),
   "yumi-samurai": combatTags("hit"),
   "wrapped-cloth-man": combatTags("hit")

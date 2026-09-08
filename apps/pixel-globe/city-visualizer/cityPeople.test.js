@@ -88,13 +88,14 @@ test("every population can provide deterministic male and female colonist sprite
 });
 
 test("every garrison appearance maps to a combat type and complete combat animations", () => {
+  const archetypeById = new Map(CITY_PERSON_ARCHETYPES.map(entry => [entry.id, entry]));
   const exportedById = new Map(manifest.appearances.map((entry) => [entry.id, entry]));
   for (const profile of CITY_POPULATION_PROFILES) {
     for (const { appearanceId } of profile.garrison) {
       assert.equal(typeof cityCrewTypeForAppearance(appearanceId), "string", appearanceId);
       assert.equal(typeof cityCombatProfileForAppearance(appearanceId), "string", appearanceId);
       const animations = exportedById.get(appearanceId).animations;
-      for (const animationId of ["attack", "hit", "death"]) {
+      for (const animationId of Object.keys(archetypeById.get(exportedById.get(appearanceId).archetypeId).combatAnimations)) {
         assert.ok(animations[animationId]?.length > 0, `${appearanceId}:${animationId}`);
       }
     }

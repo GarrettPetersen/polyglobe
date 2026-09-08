@@ -4,7 +4,7 @@ import { portAssaultShotIsClear, portAssaultTacticalDecision } from "./portAssau
 import { portAssaultUnitStats } from "./portAssaultBattle.js";
 const unit = (id, type, position, lane = 1, side = "attacker") => ({
   id, side, position, lane, alive: true, spawned: true, landed: true,
-  lastRangedAttackPosition: null,
+  lastRangedAttackPosition: null, firearmReload: null,
   stats: portAssaultUnitStats({ id, crewTypeId: type, combatProfileId: type, appearanceId: type, experienceStars: 1, auxiliary: false }), nextPrimaryAttackAtMs: 0
 });
 
@@ -30,7 +30,7 @@ test("initial ranged readiness does not order a newly landed soldier to stop and
   }
 });
 
-test("loaded guns find a clear position and retreat toward their rear while reloading", () => {
+test("loaded guns find a clear position and retreat toward their rear before reloading", () => {
   const gun = unit("gun", "gunner", .3);
   const pike = unit("pike", "spearman", .34);
   const enemy = unit("enemy", "swordsman", .5, 1, "defender");
@@ -39,8 +39,9 @@ test("loaded guns find a clear position and retreat toward their rear while relo
   assert.equal(portAssaultTacticalDecision(gun, [gun, pike], [enemy], 0).mode, "fire");
   gun.lastRangedAttackPosition = gun.position;
   gun.nextPrimaryAttackAtMs = 4000;
+  gun.firearmReload = { durationMs: 4000, remainingMs: 4000 };
   const retreat = portAssaultTacticalDecision(gun, [gun, pike], [enemy], 1000);
-  assert.equal(retreat.mode, "reload");
+  assert.equal(retreat.mode, "seek-cover");
   assert.ok(retreat.destination.position < gun.position);
   assert.deepEqual(portAssaultTacticalDecision(gun, [gun], [enemy], 1000), retreat);
 });
@@ -74,6 +75,7 @@ test("mounted melee charges past its own skirmishers and decisions mirror for th
   const pike = unit("pike", "spearman", .3);
   gun.lastRangedAttackPosition = gun.position;
   gun.nextPrimaryAttackAtMs = 4000;
+  gun.firearmReload = { durationMs: 4000, remainingMs: 4000 };
   const retreat = portAssaultTacticalDecision(gun, [gun, pike], [enemy], 1000);
   const mirrored = portAssaultTacticalDecision(mirror(gun), [mirror(gun), mirror(pike)], [mirror(enemy)], 1000);
   assert.equal(mirrored.mode, retreat.mode);
@@ -85,6 +87,7 @@ test("reload cover is a fixed short retreat, not a destination that runs away ev
   const enemy = unit("enemy", "swordsman", .6, 1, "defender");
   gun.lastRangedAttackPosition = .4;
   gun.nextPrimaryAttackAtMs = 6000;
+  gun.firearmReload = { durationMs: 6000, remainingMs: 6000 };
   const first = portAssaultTacticalDecision(gun, [gun], [enemy], 1200);
   gun.position -= .02;
   const later = portAssaultTacticalDecision(gun, [gun], [enemy], 2000);
@@ -98,4 +101,20 @@ test("reload cover is a fixed short retreat, not a destination that runs away ev
   archer.lastRangedAttackPosition = .4;
   archer.nextPrimaryAttackAtMs = 3000;
   assert.equal(portAssaultTacticalDecision(archer, [archer], [enemy], 1200).destination.position, .4);
+});
+
+
+test("both firearm troops reload only after reaching cover, and leave it when threatened", () => {
+  for (const type of ["gunner", "teppo-ashigaru"]) {
+    const gun = unit("gun", type, .4);
+    gun.lastRangedAttackPosition = .4;
+    gun.firearmReload = { durationMs: 6000, remainingMs: 6000 };
+    const enemy = unit("enemy", "swordsman", .6, 1, "defender");
+    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 10000).mode, "seek-cover",
+      "elapsed wall time must not load a moving gun");
+    gun.position = .345;
+    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 10000).mode, "reload");
+    enemy.position = .4;
+    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 10000).mode, "withdraw");
+  }
 });

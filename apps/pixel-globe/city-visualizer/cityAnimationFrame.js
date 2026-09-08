@@ -3,7 +3,8 @@ export const CITY_ANIMATION_PLAYBACK = Object.freeze({
   ONCE: "once"
 });
 
-export function cityAnimationFrame(frames, elapsedMs, playback = CITY_ANIMATION_PLAYBACK.LOOP) {
+export function cityAnimationFrame(frames, elapsedMs, playback = CITY_ANIMATION_PLAYBACK.LOOP,
+  { durationMs: playbackDurationMs = null } = {}) {
   if (!Array.isArray(frames) || frames.length === 0) {
     throw new Error("City animation requires at least one frame");
   }
@@ -19,6 +20,12 @@ export function cityAnimationFrame(frames, elapsedMs, playback = CITY_ANIMATION_
       throw new Error(`Invalid city animation frame duration: ${frame?.duration}`);
     }
     durationMs += frame.duration;
+  }
+  if (playbackDurationMs !== null) {
+    if (!Number.isFinite(playbackDurationMs) || playbackDurationMs <= 0) {
+      throw new Error(`Invalid city animation playback duration: ${playbackDurationMs}`);
+    }
+    elapsedMs *= durationMs / playbackDurationMs;
   }
   if (playback === CITY_ANIMATION_PLAYBACK.ONCE && elapsedMs >= durationMs) {
     return frames[frames.length - 1];

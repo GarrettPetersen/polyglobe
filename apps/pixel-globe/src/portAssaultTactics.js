@@ -68,7 +68,8 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
     portAssaultGroundDistance(unit, ally) <= LOCAL_RADIUS);
   const threat = nearest(unit, enemies.filter(enemy => ready(enemy) && !ranged(enemy)));
   const threatened = threat && portAssaultGroundDistance(unit, threat) < PROTECTION_DISTANCE;
-  const reloading = timeMs < unit.nextPrimaryAttackAtMs;
+  const reloading = unit.stats.attackType === "firearm"
+    ? unit.firearmReload !== null : timeMs < unit.nextPrimaryAttackAtMs;
   const rearDirection = unit.side === "attacker" ? -1 : 1;
   if (threatened) {
     // Retreat from immediate danger without needing to select a protector.
@@ -78,8 +79,12 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
     // Reload behind the firing position, not an additional step back every tick.
     // Never advance during this retreat if an enemy already drove us farther back.
     const coverPosition = unit.lastRangedAttackPosition + rearDirection * SCREEN_GAP;
-    return move("reload", rearDirection < 0 ? Math.min(unit.position, coverPosition)
-      : Math.max(unit.position, coverPosition), unit.lane);
+    const destination = Math.max(0, Math.min(1, coverPosition));
+    const reachedCover = (unit.position - destination) * rearDirection >= -0.003;
+    const protectedByInfantry = friends.some(ally => !ranged(ally) &&
+      (ally.position - unit.position) * -rearDirection >= portAssaultBodyRadius(unit) + portAssaultBodyRadius(ally));
+    if (reachedCover || protectedByInfantry) return move("reload", unit.position, unit.lane);
+    return move("seek-cover", destination, unit.lane);
   }
   // A skirmisher pressed against the rear boundary must still defend itself.
   if (threatened && distance <= unit.stats.meleeFallback.range) return { mode: "fight", target };

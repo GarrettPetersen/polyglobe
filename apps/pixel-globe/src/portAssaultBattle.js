@@ -52,7 +52,8 @@ export const PORT_ASSAULT_PROFILE_ID = Object.freeze({
 });
 
 export const PORT_ASSAULT_STEP_MS = 200;
-export const PORT_ASSAULT_MAX_DURATION_MS = 120_000;
+// Large crews need time for retreat plus stationary loading between volleys.
+export const PORT_ASSAULT_MAX_DURATION_MS = 180_000;
 export const PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS = 4_000;
 export const PORT_ASSAULT_FORECAST_SAMPLES = 32;
 export const PORT_ASSAULT_MIN_GARRISON = 5;
@@ -508,6 +509,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         unit.momentum = Math.max(0, unit.momentum - MOMENTUM_DECAY_PER_STEP);
       }
       unit.moving = false;
+      unit.reloadAnimationStartedAtMs = null;
       if (!unit.spawned) {
         if (!portAssaultPositionIsFree(unit, occupancy.nearby(unit))) continue;
         unit.spawned = true;
@@ -533,6 +535,18 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const allies = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackers : defenders;
       const tactic = portAssaultTacticalDecision(unit, allies, opponents, timeMs,
         unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackerSkirmishers : defenderSkirmishers);
+      if (tactic?.mode === "reload" && unit.firearmReload !== null) {
+        // Only this stationary action advances a firearm reload. Retreats,
+        // hit reactions and melee interruptions leave the remaining work intact.
+        unit.laneGoal = null;
+        unit.facingRight = unit.side === PORT_ASSAULT_SIDE.ATTACKER;
+        const reload = unit.firearmReload;
+        unit.reloadAnimationStartedAtMs = timeMs - (reload.durationMs - reload.remainingMs);
+        unit.reloadAnimationDurationMs = reload.durationMs;
+        reload.remainingMs = Math.max(0, reload.remainingMs - PORT_ASSAULT_STEP_MS);
+        if (reload.remainingMs === 0) unit.firearmReload = null;
+        continue;
+      }
       const target = tactic?.target || null;
       const targetDistance = target ? portAssaultGroundDistance(unit, target) : null;
       const attackProfile = target
@@ -543,7 +557,8 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         unit.facingRight = target.position === unit.position
           ? unit.facingRight : target.position > unit.position;
         unit.laneGoal = null;
-        if (timeMs >= nextAttackAtMs(unit, attackProfile)) {
+        if (timeMs >= nextAttackAtMs(unit, attackProfile) &&
+            (attackProfile.attackType !== "firearm" || unit.firearmReload === null)) {
           attackUnit(unit, target, attackProfile, timeMs, random, events, occupancy);
           if (!target.alive) occupancy.remove(target);
         }
@@ -836,6 +851,9 @@ function createBattleUnits(combatants, side, modifiers, random) {
       spawnAtMs,
       nextPrimaryAttackAtMs: spawnAtMs + Math.floor(random() * stats.cooldownMs),
       lastRangedAttackPosition: null,
+      firearmReload: null,
+      reloadAnimationStartedAtMs: null,
+      reloadAnimationDurationMs: null,
       nextMeleeAttackAtMs: stats.meleeFallback
         ? spawnAtMs + Math.floor(random() * stats.meleeFallback.cooldownMs)
         : null,
@@ -880,6 +898,10 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events, occ
     attackProfile,
     timeMs + attackProfile.cooldownMs * (0.88 + random() * 0.24)
   );
+  if (attackProfile.attackType === "firearm") {
+    const durationMs = attacker.nextPrimaryAttackAtMs - timeMs;
+    attacker.firearmReload = { durationMs, remainingMs: durationMs };
+  }
   attacker.actionAnimationId = "attack";
   attacker.actionStartedAtMs = timeMs;
   attacker.actionUntilMs = timeMs + attackActionDurationMs(attackProfile.attackType);
@@ -959,6 +981,8 @@ function recordTracks(tracks, units, timeMs, dockKind) {
     const animationId = resolvedAnimation(unit, timeMs, dockKind);
     const animationStartedAtMs = animationId === "jump"
       ? unit.jumpStartedAtMs
+      : animationId === "reload"
+        ? unit.reloadAnimationStartedAtMs
       : animationId === unit.actionAnimationId
         ? unit.actionStartedAtMs
         : 0;
@@ -973,6 +997,7 @@ function recordTracks(tracks, units, timeMs, dockKind) {
       facingRight: unit.facingRight,
       animationId,
       animationStartedAtMs,
+      ...(animationId === "reload" ? { animationDurationMs: unit.reloadAnimationDurationMs } : {}),
       alive: unit.alive,
       inWater: unit.side === PORT_ASSAULT_SIDE.ATTACKER && dockKind === "none" &&
         unit.landed && timeMs < unit.jumpStartedAtMs + 1250
@@ -993,6 +1018,7 @@ function resolvedAnimation(unit, timeMs, dockKind) {
     if (!unit.actionAnimationId) throw new Error(`Port assault unit ${unit.id} lost its action animation`);
     return unit.actionAnimationId;
   }
+  if (unit.reloadAnimationStartedAtMs !== null) return "reload";
   return unit.moving ? "walk" : "idle";
 }
 
@@ -1007,7 +1033,7 @@ function trackFrameAt(track, elapsedMs) {
   }
   const before = track[low];
   const after = track[Math.min(track.length - 1, low + 1)];
-  if (before.hidden || before.animationId === "death" || after.timeMs === before.timeMs) return before;
+  if (before.hidden || ["death", "reload"].includes(before.animationId) || after.timeMs === before.timeMs) return before;
   if (
     after.position !== before.position &&
     ["hit", "death"].includes(after.animationId) &&

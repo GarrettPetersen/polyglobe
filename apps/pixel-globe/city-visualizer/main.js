@@ -3929,10 +3929,14 @@ function drawGroundPersonSprite(unit, screenX, screenFeetY, timeMs) {
   }
   const animationElapsedMs = timeMs - unit.animationStartedAtMs;
   const playback = unit.animationId === "death" || unit.animationId === "jump" ||
-    unit.animationId === "attack"
+    unit.animationId === "attack" || unit.animationId === "reload"
     ? CITY_ANIMATION_PLAYBACK.ONCE
     : CITY_ANIMATION_PLAYBACK.LOOP;
-  const frame = cityAnimationFrame(animation, animationElapsedMs, playback);
+  if (unit.animationId === "reload" && (!Number.isFinite(unit.animationDurationMs) || unit.animationDurationMs <= 0)) {
+    throw new Error(`Invalid city ground reload duration for ${unit.id}`);
+  }
+  const frame = cityAnimationFrame(animation, animationElapsedMs, playback,
+    { durationMs: unit.animationId === "reload" ? unit.animationDurationMs : null });
   const dx = Math.round(screenX + frame.spriteSourceSize.x - frame.sourceSize.w / 2);
   const dy = Math.round(screenFeetY - frame.sourceSize.h + frame.spriteSourceSize.y);
   const facingRight = unit.facingRight;

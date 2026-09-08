@@ -462,7 +462,9 @@ test("a much larger crew can replenish its front line against a strong garrison 
     seedKey: "largest-crew-v-best-garrison",
     sampleCount: 64
   });
-  assert.ok(forecast.successPercent >= 75);
+  // This mixed-experience crew should be favored, but the strongest capital
+  // garrison is no longer facing guns that reload while moving and fighting.
+  assert.ok(forecast.successPercent > 50, `Large crew is not favored: ${forecast.successPercent}%`);
   assert.ok(forecast.expectedCasualties >= defenders.length / 2);
   assert.ok(forecast.expectedCasualties < attackers.length);
 });
@@ -636,7 +638,7 @@ test("a full Great Carrack can deploy its mixed crew and meets the garrison inla
   assert.ok(new Set(attacks.filter(event => event.unitId.startsWith("a")).map(event => event.unitId)).size > capacity / 2);
 });
 
-test("mixed formations skirmish, reload on the move, and enter melee sooner against cavalry", () => {
+test("mixed formations skirmish, retreat between volleys, and enter melee sooner against cavalry", () => {
   const makeBattle = enemyType => simulatePortAssault(createPortAssaultScenario({
     ...scenario({ dockKind: "stone" }),
     attackers: Array.from({ length: 12 }, (_, i) => combatant(`a${i}`, i < 6 ? "gunner" : "spearman")),
@@ -656,4 +658,58 @@ test("mixed formations skirmish, reload on the move, and enter melee sooner agai
       frame.timeMs < shot.timeMs + 4000 && frame.animationId === "walk" &&
       frame.position < track[i - 1].position);
   }), "a discharged arquebusier retreats while reloading");
+});
+
+test("both firearm profiles stand still for a complete reload between shots", () => {
+  for (const type of ["gunner", "teppo-ashigaru"]) {
+    const input = createPortAssaultScenario({ ...scenario(), dockKind: "stone",
+      attackers: Array.from({ length: 6 }, (_, i) => combatant(`a${i}`, type)),
+      defenders: Array.from({ length: 6 }, (_, i) => combatant(`d${i}`, type)) });
+    const battle = simulatePortAssault(input, 19);
+    let cycles = 0;
+    for (const [id, track] of Object.entries(battle.tracks)) {
+      for (let i = 1; i < track.length; i++) {
+        const frame = track[i];
+        if (frame.animationId !== "reload") continue;
+        assert.equal(frame.position, track[i - 1].position, `${id} reloaded while advancing`);
+        assert.equal(frame.lane, track[i - 1].lane, `${id} reloaded while sidestepping`);
+        assert.ok(frame.animationDurationMs > 0);
+        const between = portAssaultPresentationAt(battle, frame.timeMs + 100).units.find(unit => unit.id === id);
+        assert.equal(between.position, frame.position, "reload playback cannot slide into the next movement step");
+        assert.equal(between.lane, frame.lane);
+      }
+      const shots = battle.events.filter(event => event.type === "attack" && event.attackType === "firearm" && event.unitId === id);
+      for (let i = 1; i < shots.length; i++) {
+        const frames = track.filter(frame => frame.timeMs > shots[i - 1].timeMs && frame.timeMs < shots[i].timeMs);
+        const reloads = frames.filter(frame => frame.animationId === "reload");
+        assert.ok(reloads.length * 200 >= portAssaultUnitStats(combatant(id, type)).cooldownMs * .88,
+          `${id} fired without completing its stationary reload`);
+        assert.ok(frames.some(frame => frame.animationId === "walk"), "soldiers seek cover before loading");
+        cycles++;
+      }
+    }
+    assert.ok(cycles >= 5, `${type} must exercise repeated reloads`);
+  }
+});
+
+test("threatened gunners pause reload progress while retreating and resume the unfinished animation", () => {
+  const troops = side => Array.from({ length: 6 }, (_, i) => combatant(`${side}${i}`, i % 2 ? "spearman" : "gunner"));
+  const battle = simulatePortAssault(createPortAssaultScenario({ ...scenario(),
+    dockKind: "stone", attackers: troops("a"), defenders: troops("d") }), 1);
+  let interruptions = 0;
+  for (const track of Object.values(battle.tracks)) {
+    for (let i = 0; i < track.length - 2; i++) {
+      const before = track[i];
+      if (before.animationId !== "reload" || track[i + 1].animationId !== "walk") continue;
+      let next = i + 1;
+      while (next < track.length && track[next].animationId === "walk") next++;
+      const resumed = track[next];
+      if (resumed?.animationId !== "reload") continue;
+      assert.equal(resumed.timeMs - resumed.animationStartedAtMs,
+        before.timeMs - before.animationStartedAtMs + 200,
+        "moving time must neither complete the reload nor restart it from scratch");
+      interruptions++;
+    }
+  }
+  assert.ok(interruptions > 0, "the battle must exercise a reload interrupted by retreat");
 });
