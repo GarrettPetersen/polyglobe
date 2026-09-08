@@ -48,11 +48,10 @@ test("storage expansions add capacity in levels and cannot be bought again befor
     const minute = yard.upgrades.opportunities.storage.availableMinute;
     const beforeFunds = player.doubloons;
     purchaseShipyardUpgrade(yard, player, "storage", minute);
-    assert.equal(beforeFunds - player.doubloons, 5000);
+    assert.equal(beforeFunds - player.doubloons, 2000);
     const capacity = shipyardMaterialStockTargets(yard);
     for (const goodId of Object.keys(base)) {
-      const originalTotal = base[goodId] + yard.materialConsumedForBuild[goodId];
-      assert.ok(Math.abs(capacity[goodId] + yard.materialConsumedForBuild[goodId] - originalTotal * (1 + level * 0.5)) < 1e-9);
+      assert.equal(capacity[goodId], base[goodId] * (1 + level * 0.5));
     }
     assert.throws(() => purchaseShipyardUpgrade(yard, player, "storage", minute), /unavailable/);
   }

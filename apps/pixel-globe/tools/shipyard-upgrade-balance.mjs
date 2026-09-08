@@ -1,6 +1,6 @@
 // Paired counterfactual yards isolate upgrade earnings from the base business.
 // Local supplies arrive at an explicit interval (six months by default). Test
-// storage against both regular deliveries and a multi-year interruption; it is
+// storage against both monthly deliveries and longer interruptions; it is
 // not a production bonus. Commission: one paid material shipment per month,
 // cycling through all four goods; no free commissioned materials or sales.
 import { pathToFileURL } from "node:url";
@@ -11,7 +11,7 @@ import { shipyardUpgradeOffers } from "../src/shipyardUpgrades.js";
 import { tradeGoodById } from "../src/economy.js";
 const CITY = { cityId: "lisbon|portugal", tileId: 1, city: "Lisbon", cityType: "mediterranean",
   population: 100000, lat: 38.72, lon: -9.14, factionId: "portugal" };
-export function shipyardUpgradeBalance(upgradeId, { years = 5, seeds = 12, restockEveryMonths = 6, initiallyStocked = false } = {}) {
+export function shipyardUpgradeBalance(upgradeId, { years = 5, seeds = 12, restockEveryMonths = 6, initiallyStocked = false, storageLevel = 0 } = {}) {
   const differences = [];
   let price;
   for (let seed = 0; seed < seeds; seed++) {
@@ -20,6 +20,7 @@ export function shipyardUpgradeBalance(upgradeId, { years = 5, seeds = 12, resto
       const system = createWorldShipyards({ ports: [CITY], startMinute: 0, seedKey: `upgrade-roi-${seed}` });
       const yard = fundPlayerShipyard(system, CITY, { investedMinute: 0, seedCapital: 100000,
         materialContributions: { timber: 20, iron: 12, "naval-stores": 10 } });
+      yard.upgrades.storageLevel = storageLevel;
       price = shipyardUpgradeOffers(yard, 1000000, 0).find(offer => offer.id === upgradeId).cost;
       if (upgraded) {
         yard.upgrades.opportunities[upgradeId].availableMinute = 0;
@@ -46,7 +47,7 @@ export function shipyardUpgradeBalance(upgradeId, { years = 5, seeds = 12, resto
     }
     differences.push(earnings[1] - earnings[0]);
   }
-  return { upgradeId, years, seeds, restockEveryMonths, initiallyStocked, price, minAdditionalDividends: Math.min(...differences),
+  return { upgradeId, years, seeds, restockEveryMonths, initiallyStocked, storageLevel, price, minAdditionalDividends: Math.min(...differences),
     meanAdditionalDividends: Math.round(differences.reduce((sum, value) => sum + value, 0) / seeds),
     maxAdditionalDividends: Math.max(...differences) };
 }

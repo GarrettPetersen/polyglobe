@@ -25,28 +25,46 @@ function fillStores(yard) {
   assert.ok(shipyardMaterialStatus(yard).every(material => material.ratio === 1));
 }
 
-test("fully stocked yards can work for three years after accelerated and partially complete hulls", () => {
-  for (const port of PORTS) for (let seed = 0; seed < 6; seed++) for (const progress of [0, 0.9]) {
-    let system = funded(port, `runway-${seed}`);
-    let yard = system.yards.get(port.cityId);
-    const duration = yard.nextBuildMinute - yard.buildStartedMinute;
-    const startMinute = progress ? Math.max(1, Math.floor(yard.buildStartedMinute + duration * progress)) : 0;
-    if (startMinute) advanceWorldShipyards(system, startMinute, { available: () => 100000, consume() {} });
-    if (seed >= 4) yard.upgrades.expertFromBuildNumber = yard.buildNumber + 2;
-    if (seed === 5) yard.upgrades.storageLevel = 1;
-    const snapshot = snapshotWorldShipyards(system);
-    system = createWorldShipyards({ ports: [port], startMinute, seedKey: `runway-${seed}` });
-    restoreWorldShipyards(system, snapshot);
-    yard = system.yards.get(port.cityId);
-    fillStores(yard);
-    const initialBuildNumber = yard.buildNumber;
-    for (let day = 1; day < 3 * 365; day++) {
-      advanceWorldShipyards(system, startMinute + day * DAY);
-      assert.deepEqual(shipyardCurrentBuild(yard, startMinute + day * DAY).stoppedMaterialIds, [],
-        `${port.cityId}, seed ${seed}, progress ${progress}, day ${day}`);
+test("warehouse capacities stay fixed through construction, expert hiring, and restore", () => {
+  const base = { timber: 10, iron: 6, "naval-stores": 5, "linen-cloth": 4 };
+  for (const port of PORTS) {
+    const system = funded(port, "fixed-storage");
+    const yard = system.yards.get(port.cityId);
+    for (const day of [0, 30, 90, 180, 365, 730]) {
+      advanceWorldShipyards(system, day * DAY, { available: () => 100000, consume() {} });
+      assert.deepEqual(shipyardMaterialStockTargets(yard), base);
     }
-    assert.ok(yard.buildNumber > initialBuildNumber, "the test must actually finish ships");
+    yard.upgrades.expertFromBuildNumber = yard.buildNumber + 1;
+    assert.deepEqual(shipyardMaterialStockTargets(yard), base);
+    restoreWorldShipyards(system, snapshotWorldShipyards(system));
+    assert.deepEqual(shipyardMaterialStockTargets(system.yards.get(port.cityId)), base);
   }
+});
+
+test("baseline stores cover roughly three months and expansions extend the runway", () => {
+  const runways = [[], []];
+  for (let seed = 0; seed < 12; seed++) for (const level of [0, 1]) {
+    const system = funded(PORTS[1], `storage-balance-${seed}`);
+    const yard = system.yards.get(PORTS[1].cityId);
+    // Finish the accelerated founding hull before measuring ordinary production.
+    advanceWorldShipyards(system, yard.nextBuildMinute, { available: () => 100000, consume() {} });
+    const startMinute = system.lastMinute;
+    yard.upgrades.storageLevel = level;
+    fillStores(yard);
+    let stoppedDay = null;
+    for (let day = 1; day <= 730; day++) {
+      advanceWorldShipyards(system, startMinute + day * DAY);
+      if (shipyardCurrentBuild(yard, system.lastMinute).stoppedMaterialIds.length) {
+        stoppedDay = day;
+        break;
+      }
+    }
+    assert.notEqual(stoppedDay, null);
+    runways[level].push(stoppedDay);
+  }
+  const mean = runways[0].reduce((sum, day) => sum + day, 0) / runways[0].length;
+  assert.ok(mean >= 60 && mean <= 120, `Baseline mean runway: ${mean} days`);
+  for (let seed = 0; seed < 12; seed++) assert.ok(runways[1][seed] > runways[0][seed]);
 });
 
 test("funded non-famous yards retain hull forecasts and production facilities across restore and city replacement", () => {

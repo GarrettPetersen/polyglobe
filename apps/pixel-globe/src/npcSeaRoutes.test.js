@@ -3523,10 +3523,15 @@ test("commissioned merchant makes repeated paid supply runs, preserves its voyag
   const restoredYard = economy.shipyards.yards.get(home.cityId);
   const restoredShip = routes.shipById.get(ship.id);
   assert.equal(shipyardSupplyShipStatus(routes, restoredYard).shipId, ship.id);
-  for (let trip = 0; trip < 4; trip++) {
+  const deliveryCount = () => restoredYard.playerAccounts.entries.filter((entry) =>
+    entry.description === "Materials delivered by commissioned ship").length;
+  const previousDeliveries = deliveryCount();
+  for (let stop = 0; stop < 180 && deliveryCount() === previousDeliveries; stop++) {
+    // Fixed warehouses need actual consumption to create demand for another run.
+    advanceWorldShipyards(economy.shipyards, restoredShip.plan.endMinute);
     updateNpcSeaRouteEvents(routes, restoredShip.plan.endMinute, [ship.id]);
   }
-  assert.ok(restoredYard.playerAccounts.constructionExpenses > expenses + purchaseCost, "commission continues supplying the yard");
+  assert.ok(deliveryCount() > previousDeliveries, "commission continues delivering paid supplies after consumption creates room");
   sinkNpcShip(routes, ship.id, restoredShip.plan.endMinute);
   assert.equal(restoredYard.upgrades.supplyCommission.status, "lost");
   assert.equal(shipyardSupplyShipStatus(routes, restoredYard), null);

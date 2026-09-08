@@ -28,8 +28,11 @@ const LEGACY_PLAYER_BACKED_DIVIDEND_RATE = 0.22;
 const PLAYER_BACKED_CONSTRUCTION_COST_RATE = 0.64;
 const PLAYER_BACKED_OPERATING_EXPENSE_RATE = 0.09;
 const MAX_PLAYER_ACCOUNT_ENTRIES = 256;
-const PLAYER_SHIPYARD_STOCKPILE_DAYS = 3 * 365;
-const MAX_STOCKPILE_PLANNED_BUILDS = 64;
+// Fixed warehouse space, calibrated to about 90 days of ordinary funded Lisbon
+// production across 240 hulls. Faster yards and larger hulls need more deliveries.
+const PLAYER_SHIPYARD_BASE_MATERIAL_CAPACITY = Object.freeze({
+  timber: 10, iron: 6, "naval-stores": 5, "linen-cloth": 4
+});
 const SHIPBUILDING_MATERIAL_COST_WEIGHTS = Object.freeze({
   timber: 4,
   iron: 7,
@@ -891,35 +894,18 @@ export function shipyardMaterialStockTargets(yard) {
   if (!yard || !Number.isInteger(yard.buildNumber) || !Number.isFinite(yard.nextBuildMinute)) {
     throw new Error("Shipyard material targets require a valid yard");
   }
-  const targets = emptyMaterialInventory();
-  const horizonDays = yard.playerBacking ? PLAYER_SHIPYARD_STOCKPILE_DAYS : 0;
-  let plannedDays = 0;
-  let buildOffset = 1;
-  let buildMinute = yard.nextBuildMinute;
-  do {
-    if (buildOffset > MAX_STOCKPILE_PLANNED_BUILDS) {
-      throw new Error(`Shipyard stockpile plan exceeded ${MAX_STOCKPILE_PLANNED_BUILDS} builds`);
-    }
-    const buildNumber = yard.buildNumber + buildOffset;
-    const listing = generateShipyardListing(yard, buildNumber, buildMinute);
-    const requirements = shipbuildingMaterialRequirements(listing.shipSlug);
-    for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
-      targets[goodId] += requirements[goodId];
-    }
-    // The first hull already has a schedule and may be partly complete, stalled,
-    // or accelerated by the founding investment. Forecast its remaining work,
-    // not the nominal duration of a new hull.
-    const durationDays = buildOffset === 1
-      ? shipyardConstructionDurationMinutes(yard) * (1 - shipyardMaterialProgress(yard)) / MINUTES_PER_DAY
-      : shipyardBuildDurationDays(yard, listing.shipSlug, buildNumber);
-    plannedDays += durationDays;
-    buildMinute += durationDays * MINUTES_PER_DAY;
-    buildOffset += 1;
-  } while (plannedDays < horizonDays);
-  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
-    targets[goodId] = Math.max(0, targets[goodId] * (1 + yard.upgrades.storageLevel * 0.5) - yard.materialConsumedForBuild[goodId]);
+  validateShipyardUpgrades(yard.upgrades);
+  if (yard.playerBacking) {
+    const multiplier = 1 + yard.upgrades.storageLevel * 0.5;
+    return Object.freeze(Object.fromEntries(SHIPBUILDING_MATERIAL_GOOD_IDS.map((goodId) =>
+      [goodId, PLAYER_SHIPYARD_BASE_MATERIAL_CAPACITY[goodId] * multiplier])));
   }
-  return Object.freeze(targets);
+  // NPC yards procure the remainder of their current hull; they do not own the
+  // player's warehouse upgrade system.
+  const listing = generateShipyardListing(yard, yard.buildNumber + 1, yard.nextBuildMinute);
+  const requirements = shipbuildingMaterialRequirements(listing.shipSlug);
+  return Object.freeze(Object.fromEntries(SHIPBUILDING_MATERIAL_GOOD_IDS.map((goodId) =>
+    [goodId, Math.max(0, requirements[goodId] - yard.materialConsumedForBuild[goodId])])));
 }
 
 export function shipyardDailyMaterialDemand(yard) {
