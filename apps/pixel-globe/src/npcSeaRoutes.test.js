@@ -16,6 +16,8 @@ import {
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
   NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL,
+  NPC_PORT_RESPONSE_ATTACK,
+  NPC_PORT_ATTACK_ALERT_MINUTES,
   NPC_PORT_RESPONSE_BURNING,
   NPC_PORT_RESPONSE_LOST,
   NPC_PORT_RESPONSE_WAR_LOAN,
@@ -3763,4 +3765,110 @@ test("national circuits order ports by baked sailing distance", () => {
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, portSailingDistances });
   const circuit = routes.ships.find(ship => ship.nationalCircuitFactionId === "portugal");
   assert.deepEqual(circuit.nationalCircuitCityIds, [PORTS[0].cityId, PORTS[6].cityId, PORTS[4].cityId]);
+});
+
+
+test("the first attack launches the local reserve immediately, survives saves, and repeated hits do not duplicate it", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const slot = routes.capitalNavalReserveSlots.find(slot => slot.factionId === "portugal");
+  const targetCityId = slot.originCityId;
+  const order = minute => orderNpcPortResponse(routes, {
+    factionId: "portugal", targetCityId, reason: NPC_PORT_RESPONSE_ATTACK,
+    clockMinutes: minute, threatUntilMinute: minute + NPC_PORT_ATTACK_ALERT_MINUTES
+  });
+  const first = order(100);
+  const ship = routes.shipById.get(first.shipId);
+  assert.equal(first.outcome, "reserve-activated");
+  assert.equal(ship.currentPort.cityId, targetCityId);
+  assert.equal(ship.plan.startMinute, 100);
+  assert.ok(npcShipSnapshotForId(routes, ship.id, 100), "visible at the instant of impact");
+  const plan = ship.plan;
+  for (let minute = 100; minute < 110; minute++) {
+    assert.equal(order(minute).outcome, "response-active");
+    assert.equal(ship.plan, plan);
+    assert.equal(ship.portResponse.orderedMinute, 100);
+  }
+  assert.equal(npcCapitalNavalReserveStatus(routes, "portugal").activeCount, 1);
+  applyNpcSeaRouteSimulationSnapshot(routes, snapshotNpcSeaRouteStrategicSystem(routes));
+  assert.equal(routes.shipById.get(first.shipId).portResponse.reason, NPC_PORT_RESPONSE_ATTACK);
+  const saved = snapshotNpcSeaRouteSystem(routes);
+  restoreNpcSeaRouteSystem(routes, saved, { economy });
+  updateNpcSeaRouteSystem(routes, 110);
+  assert.equal(routes.shipById.get(first.shipId).portResponse.phase, "responding",
+    "ownership by its own faction does not cancel an attack response");
+  const renewalMinute = 100 + NPC_PORT_ATTACK_ALERT_MINUTES / 2;
+  assert.equal(order(renewalMinute).shipId, first.shipId);
+  assert.equal(routes.shipById.get(first.shipId).portResponse.threatUntilMinute,
+    renewalMinute + NPC_PORT_ATTACK_ALERT_MINUTES);
+  updateNpcSeaRouteSystem(routes, renewalMinute + NPC_PORT_ATTACK_ALERT_MINUTES);
+  assert.equal(routes.shipById.get(first.shipId).portResponse.phase, "returning");
+});
+
+test("port defense chooses the reserve at the attacked city before a distant stocked slot", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const slots = routes.capitalNavalReserveSlots.filter(slot => slot.factionId === "portugal");
+  assert.ok(slots.length >= 2);
+  slots[1].originCityId = routeCityId(routes, 5);
+  const first = orderNpcPortResponse(routes, {
+    factionId: "portugal", targetCityId: slots[1].originCityId,
+    reason: NPC_PORT_RESPONSE_ATTACK, clockMinutes: 0, threatUntilMinute: 1440
+  });
+  assert.equal(first.reserveSlotId, slots[1].id);
+  const active = routes.shipById.get(first.shipId);
+  assert.equal(active.currentPort.cityId, slots[1].originCityId);
+  const burning = orderNpcPortResponse(routes, {
+    factionId: "portugal", targetCityId: slots[1].originCityId,
+    reason: NPC_PORT_RESPONSE_BURNING, clockMinutes: 1, threatUntilMinute: 4000
+  });
+  assert.equal(burning.shipId, first.shipId);
+  orderNpcPortResponse(routes, {
+    factionId: "portugal", targetCityId: slots[1].originCityId,
+    reason: NPC_PORT_RESPONSE_ATTACK, clockMinutes: 2, threatUntilMinute: 1442
+  });
+  assert.equal(active.portResponse.reason, NPC_PORT_RESPONSE_BURNING);
+  assert.equal(active.portResponse.threatUntilMinute, 4000);
+});
+
+test("distant defenders retain their sailing journey and attack alerts require an expiry", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const args = { factionId: "portugal", targetCityId: routeCityId(routes, 5),
+    reason: NPC_PORT_RESPONSE_ATTACK, clockMinutes: 100 };
+  assert.throws(() => orderNpcPortResponse(routes, args), /future recovery minute/);
+  const result = orderNpcPortResponse(routes, { ...args, threatUntilMinute: 1540 });
+  const defender = routes.shipById.get(result.shipId);
+  assert.notEqual(defender.currentPort.cityId, args.targetCityId);
+  assert.equal(defender.plan.destination.cityId, args.targetCityId);
+  assert.ok(defender.plan.endMinute > 100);
+  orderNpcPortResponse(routes, { ...args, reason: NPC_PORT_RESPONSE_BURNING, threatUntilMinute: 4000 });
+  const oldSave = snapshotNpcSeaRouteSystem(routes);
+  oldSave.version = 7;
+  defender.portResponse = null;
+  restoreNpcSeaRouteSystem(routes, oldSave, { economy });
+  assert.equal(routes.shipById.get(result.shipId).portResponse.reason, NPC_PORT_RESPONSE_BURNING);
+});
+
+test("a warship waiting in the attacked port departs before a distant reserve and is not teleported from sea", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const target = routes.ports.find(port => port.cityId === routeCityId(routes, 5));
+  const local = routes.ships.find(ship => ship.role === NPC_ROLE_WARSHIP && ship.factionId === "portugal" && !ship.encounter);
+  assert.ok(local);
+  local.currentPort = target;
+  local.clockOffsetMinutes = -50;
+  const from = { id: `port:${target.cityId}`, lat: target.lat, lon: target.lon, port: target };
+  local.plan = { origin: target, destination: target, startMinute: 0, endMinute: 2000,
+    segments: [{ kind: "wait", from, to: from, startMinute: 0, endMinute: 2000 }] };
+  const result = orderNpcPortResponse(routes, {
+    factionId: "portugal", targetCityId: target.cityId, reason: NPC_PORT_RESPONSE_ATTACK,
+    clockMinutes: 100, threatUntilMinute: 1540
+  });
+  assert.equal(result.outcome, "warship-recalled");
+  assert.equal(result.shipId, local.id);
+  assert.equal(local.plan.startMinute, 100);
+  assert.equal(local.clockOffsetMinutes, 0);
+  assert.ok(npcShipSnapshotForId(routes, local.id, 100));
+  assert.equal(npcCapitalNavalReserveStatus(routes, "portugal").activeCount, 0);
 });

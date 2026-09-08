@@ -115,7 +115,7 @@ const ROUTE_MONTH_DAYS = WEATHER_DAYS / ROUTE_MONTHS;
 const ROUTE_MONTH_MINUTES = ROUTE_MONTH_DAYS * WEATHER_MINUTES_PER_DAY;
 const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
-export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 7;
+export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 8;
 const ROUTE_WIND_SEED = 90210;
 const NPC_FLEET_TARGET = 212;
 export const NPC_PACIFIC_FLEET_TARGET = 32;
@@ -145,12 +145,15 @@ const NPC_REPLACEMENT_BASE_DAYS = 260;
 const NPC_REPLACEMENT_SPREAD_DAYS = 220;
 const NPC_SHIPYARD_FLEET_GROWTH_RATIO = 1.15;
 const NPC_SHIPYARD_PURCHASES_PER_MAINTENANCE = 2;
+export const NPC_PORT_RESPONSE_ATTACK = "port-under-attack";
+export const NPC_PORT_ATTACK_ALERT_MINUTES = WEATHER_MINUTES_PER_DAY;
 export const NPC_PORT_RESPONSE_BURNING = "burning-port";
 export const NPC_PORT_RESPONSE_LOST = "lost-port";
 export const NPC_PORT_RESPONSE_WAR_LOAN = "war-loan-offensive";
 export const NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL = "connected-patrol";
 export const NPC_CAPITAL_NAVAL_RESERVE_MAX = 3;
 const NPC_PORT_RESPONSE_REASONS = new Set([
+  NPC_PORT_RESPONSE_ATTACK,
   NPC_PORT_RESPONSE_BURNING,
   NPC_PORT_RESPONSE_LOST,
   NPC_PORT_RESPONSE_WAR_LOAN
@@ -1567,7 +1570,7 @@ export function restoreNpcSeaRouteSystem(
 ) {
   assertSaveableNpcRouteSystem(system);
   validateOptionalSeedKey(seedKey, "restored NPC routes");
-  if (!snapshot || ![1, 2, 3, 4, 5, 6, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
+  if (!snapshot || ![1, 2, 3, 4, 5, 6, 7, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil) ||
       (snapshot.version >= 3 && !Array.isArray(snapshot.capitalNavalReserveSlots))) {
     throw new Error("Unsupported NPC route save data");
@@ -1576,7 +1579,7 @@ export function restoreNpcSeaRouteSystem(
   const replacementQueue = cloneJsonData(snapshot.replacementQueue);
   if (snapshot.version < 6) migrateDetachedCapitalReserveShips(ships, replacementQueue);
   if (snapshot.version === 1) migrateNpcRouteFactionsTo1522(ships, replacementQueue);
-  if (snapshot.version < NPC_SEA_ROUTE_SNAPSHOT_VERSION) {
+  if (snapshot.version < 7) {
     migrateNpcRouteEntityReferences(system, ships, replacementQueue);
   }
   const shipById = new Map();
@@ -2240,6 +2243,19 @@ export function returnNpcWarLoanOffensiveShips(system, shipIds, clockMinutes) {
   return returned;
 }
 
+function npcShipWaitingAtPort(ship, city, clockMinutes) {
+  if (!samePort(ship.currentPort, city)) return false;
+  if (!ship.plan) return true;
+  const minute = npcEffectiveClock(ship, clockMinutes);
+  return ship.plan.segments.some(segment => segment.kind === "wait" &&
+    segment.startMinute <= minute && segment.endMinute > minute &&
+    segment.from?.port?.cityId === city.cityId);
+}
+
+function portResponseHasTimedThreat(reason) {
+  return reason === NPC_PORT_RESPONSE_ATTACK || reason === NPC_PORT_RESPONSE_BURNING;
+}
+
 export function orderNpcPortResponse(system, {
   factionId,
   targetCityId,
@@ -2261,12 +2277,12 @@ export function orderNpcPortResponse(system, {
   if (typeof allowReinforcement !== "boolean") {
     throw new Error(`Invalid port-response reinforcement flag: ${allowReinforcement}`);
   }
-  if (reason === NPC_PORT_RESPONSE_BURNING) {
+  if (portResponseHasTimedThreat(reason)) {
     if (!Number.isFinite(threatUntilMinute) || threatUntilMinute <= clockMinutes) {
-      throw new Error(`Burning-port response requires a future recovery minute: ${threatUntilMinute}`);
+      throw new Error(`Timed port response requires a future recovery minute: ${threatUntilMinute}`);
     }
   } else if (threatUntilMinute !== null) {
-    throw new Error("A non-burning port response cannot have a battery recovery minute");
+    throw new Error("An untimed port response cannot have a recovery minute");
   }
   const target = requiredNpcRoutePort(system, targetCityId, "port-response target");
   const controlledPorts = system.ports.filter((port) => (
@@ -2291,6 +2307,13 @@ export function orderNpcPortResponse(system, {
     ship.portResponse?.targetCityId === targetCityId
   ));
   if (existing && !allowReinforcement) {
+    // Impacts within the alert window neither restart the sortie nor downgrade
+    // an already burning/captured port. Refresh only halfway through the watch.
+    if (reason === NPC_PORT_RESPONSE_ATTACK && existing.portResponse.phase === "responding" &&
+        (existing.portResponse.reason !== NPC_PORT_RESPONSE_ATTACK ||
+          existing.portResponse.threatUntilMinute > clockMinutes + NPC_PORT_ATTACK_ALERT_MINUTES / 2)) {
+      return Object.freeze({ outcome: "response-active", factionId, targetCityId, shipId: existing.id });
+    }
     assignNpcPortResponse(existing, {
       factionId,
       targetPort: target,
@@ -2310,10 +2333,28 @@ export function orderNpcPortResponse(system, {
     });
   }
 
-  const stockedSlot = system.capitalNavalReserveSlots.find((slot) => (
-    slot.factionId === factionId && slot.shipSlug !== null && slot.activeShipId === null
-  ));
-  if (stockedSlot) {
+  const unassigned = system.ships
+    .filter((ship) => (
+      ship.factionId === factionId && ship.role === NPC_ROLE_WARSHIP &&
+      !ship.encounter && !ship.portResponse && !ship.capitalNavalReserveSlotId &&
+      !shipHasCombatGrace(ship)
+    ))
+    .filter(ship => portSailingDistanceKm(system.portSailingDistances, ship.currentPort, target) !== null)
+    .sort((a, b) => (
+      Number(npcShipWaitingAtPort(b, target, clockMinutes)) -
+      Number(npcShipWaitingAtPort(a, target, clockMinutes)) ||
+      portSailingDistanceKm(system.portSailingDistances, a.currentPort, target) -
+      portSailingDistanceKm(system.portSailingDistances, b.currentPort, target) ||
+      a.id.localeCompare(b.id)
+    ))[0] || null;
+  const unassignedIsLocal = unassigned && npcShipWaitingAtPort(unassigned, target, clockMinutes);
+  const stockedSlot = system.capitalNavalReserveSlots
+    .filter(slot => slot.factionId === factionId && slot.shipSlug !== null && slot.activeShipId === null)
+    .map(slot => ({ slot, origin: activeCapitalNavalReservePort(system, slot) }))
+    .map(entry => ({ ...entry, distanceKm: portSailingDistanceKm(system.portSailingDistances, entry.origin, target) }))
+    .filter(entry => entry.distanceKm !== null)
+    .sort((a, b) => a.distanceKm - b.distanceKm || a.slot.id.localeCompare(b.slot.id))[0]?.slot;
+  if (stockedSlot && (!unassignedIsLocal || stockedSlot.originCityId === targetCityId)) {
     const ship = activateCapitalNavalReserveSlot(system, stockedSlot, target, {
       reason,
       clockMinutes,
@@ -2328,18 +2369,6 @@ export function orderNpcPortResponse(system, {
     });
   }
 
-  const unassigned = system.ships
-    .filter((ship) => (
-      ship.factionId === factionId && ship.role === NPC_ROLE_WARSHIP &&
-      !ship.encounter && !ship.portResponse && !ship.capitalNavalReserveSlotId &&
-      !shipHasCombatGrace(ship)
-    ))
-    .filter(ship => portSailingDistanceKm(system.portSailingDistances, ship.currentPort, target) !== null)
-    .sort((a, b) => (
-      portSailingDistanceKm(system.portSailingDistances, a.currentPort, target) -
-      portSailingDistanceKm(system.portSailingDistances, b.currentPort, target) ||
-      a.id.localeCompare(b.id)
-    ))[0] || null;
   if (unassigned) {
     assignNpcPortResponse(unassigned, {
       factionId,
@@ -2350,6 +2379,9 @@ export function orderNpcPortResponse(system, {
       clockMinutes,
       threatUntilMinute
     });
+    if (unassignedIsLocal) {
+      launchCapitalNavalReserveShip(system, unassigned, target, clockMinutes);
+    }
     return Object.freeze({
       outcome: "warship-recalled",
       factionId,
@@ -2677,6 +2709,9 @@ function launchCapitalNavalReserveShip(system, ship, desiredDestination, clockMi
     ship.finalDestination = desiredDestination;
   }
   const route = routeBetweenPorts(system, origin, destination, ship.slug, clockMinutes);
+  // The emergency plan starts on the current world clock, independent of
+  // delays accumulated by the ship's previous voyage.
+  ship.clockOffsetMinutes = 0;
   ship.plan = buildNpcPlan(origin, destination, route, clockMinutes);
   ship.visualNavigation = {
     vector: latLonToVector(origin.lat, origin.lon),
@@ -2700,7 +2735,7 @@ function assignNpcPortResponse(ship, {
     reason,
     phase: "responding",
     orderedMinute: clockMinutes,
-    threatUntilMinute: reason === NPC_PORT_RESPONSE_BURNING ? threatUntilMinute : null
+    threatUntilMinute: portResponseHasTimedThreat(reason) ? threatUntilMinute : null
   };
   ship.capitalNavalReserveDestinationCityId = null;
   if (!targetPort || targetPort.cityId !== targetCityId) {
@@ -3004,7 +3039,7 @@ function reconcileNpcPortResponseThreats(system, clockMinutes) {
     const response = ship.portResponse;
     if (!response || response.phase !== "responding") continue;
     const target = requiredNpcRoutePort(system, response.targetCityId, "port-response target");
-    const resolved = response.reason === NPC_PORT_RESPONSE_BURNING
+    const resolved = portResponseHasTimedThreat(response.reason)
       ? clockMinutes >= response.threatUntilMinute
       : target.factionId === ship.factionId;
     if (!resolved) continue;
@@ -3804,7 +3839,7 @@ function reconcileNpcPortResponseFields(ship, label) {
       !NPC_PORT_RESPONSE_REASONS.has(response.reason) ||
       !["responding", "returning"].includes(response.phase) ||
       !Number.isFinite(response.orderedMinute) || response.orderedMinute < 0 ||
-      (response.reason === NPC_PORT_RESPONSE_BURNING &&
+      (portResponseHasTimedThreat(response.reason) &&
         (!Number.isFinite(response.threatUntilMinute) ||
           response.threatUntilMinute <= response.orderedMinute)) ||
       ([NPC_PORT_RESPONSE_LOST, NPC_PORT_RESPONSE_WAR_LOAN].includes(response.reason) &&

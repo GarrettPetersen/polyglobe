@@ -1117,6 +1117,8 @@ import {
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
   NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL,
+  NPC_PORT_RESPONSE_ATTACK,
+  NPC_PORT_ATTACK_ALERT_MINUTES,
   NPC_PORT_RESPONSE_BURNING,
   NPC_PORT_RESPONSE_LOST,
   NPC_PORT_RESPONSE_WAR_LOAN,
@@ -18263,9 +18265,22 @@ function orderPortNavalResponse(city, factionId, reason, threatUntilMinute = nul
     clockMinutes: Math.floor(weatherClockMinutes),
     threatUntilMinute
   });
-  npcVisualSnapshotCache.reset();
-  distantWorldApplyState = null;
-  resetDistantWorldWorkerSchedule();
+  if (result.outcome === "warship-recalled") {
+    const recalled = npcSeaRoutes.shipById.get(result.shipId);
+    const visual = npcVisualShips.get(result.shipId);
+    if (visual && recalled.currentPort.cityId === city.cityId &&
+        recalled.plan.startMinute === Math.floor(weatherClockMinutes)) {
+      const remainingReloadSeconds = (visual.navalWeapon?.reloadSeconds ?? 0) / 2;
+      for (const side of ["port", "starboard"]) {
+        visual.broadsideCooldowns[side] = Math.max(visual.broadsideCooldowns[side], remainingReloadSeconds);
+      }
+    }
+  }
+  if (result.outcome !== "response-active") {
+    npcVisualSnapshotCache.reset();
+    distantWorldApplyState = null;
+    resetDistantWorldWorkerSchedule();
+  }
   return result;
 }
 
@@ -34647,6 +34662,13 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   const simMinute = Math.floor(weatherClockMinutes);
   const attackerLabel = shoreBatteryAttackerShipLabel(ball.ownerId);
+  if (!ball.portable && !accidentalFriendlyFire &&
+      battery.factionId !== NEUTRAL_FACTION_ID && battery.factionId !== PIRATE_FACTION_ID) {
+    const city = chartPortCallById(battery.portId);
+    if (!city) throw new Error(`Attacked shore battery has no port: ${battery.portId}`);
+    orderPortNavalResponse(city, battery.factionId, NPC_PORT_RESPONSE_ATTACK,
+      simMinute + NPC_PORT_ATTACK_ALERT_MINUTES);
+  }
   let result;
   let crewWounds = 0;
   let crewDeaths = 0;
@@ -37395,7 +37417,11 @@ function createNpcVisualState(snapshot, routePoint) {
     crew: profile.stats.crewCapacity,
     woundedCrew: 0,
     portableWeaponCooldowns: {},
-    broadsideCooldowns: { port: 0, starboard: 0 },
+    // A newly materialized reserve sortie is still preparing its guns.
+    broadsideCooldowns: {
+      port: profile.initialCannonReloadSeconds,
+      starboard: profile.initialCannonReloadSeconds
+    },
     weaponSequence: 0,
     collisionVelocityX: 0,
     collisionVelocityY: 0,
@@ -37474,6 +37500,9 @@ function npcVisualShipProfile(shipId, slug) {
   return Object.freeze({
     stats,
     spriteAsset,
+    initialCannonReloadSeconds: routeShip.portResponse
+      ? (navalWeaponForShip({ cannons: stats.cannons })?.reloadSeconds ?? 0) / 2
+      : 0,
     navalWeapon: navalWeaponForShip({
       cannons: stats.cannons
     }),
@@ -37590,6 +37619,7 @@ function updateNpcCombat(dt) {
   const colonizationDefenseInitiator = forceColonizationDefenseEngagements(playerWasInCombat);
   const tradeEnforcementChanged = forceNearbyTradeEnforcementEngagements(simMinute);
   const ningboBattleChanged = forceNingboMissionEngagements();
+  const portDefenseChanged = forcePortDefenseEngagements();
   const participantsBefore = combatParticipantIds();
   const entities = measurePerformanceBenchmarkStage(
     "npcShips.visual.combat.entities",
@@ -37618,7 +37648,7 @@ function updateNpcCombat(dt) {
       shipCombatEntryCollisionGrace.set(id, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
     }
   }
-  let changed = result.changed || tradeEnforcementChanged || ningboBattleChanged;
+  let changed = result.changed || tradeEnforcementChanged || ningboBattleChanged || portDefenseChanged;
   const firstPlayerEngagement = !playerWasInCombat
     ? result.startedEngagements.find((engagement) => (
         engagement.aId === PLAYER_COMBAT_ID || engagement.bId === PLAYER_COMBAT_ID
@@ -38016,6 +38046,25 @@ function maybeOpenNingboRivalDelegationHail() {
   });
   saveVoyageNow("challenged by rival Ningbo delegation");
   return true;
+}
+
+function forcePortDefenseEngagements() {
+  let changed = false;
+  for (const defender of npcVisualShips.values()) {
+    if (defender.combatGrace) continue;
+    const response = npcSeaRoutes.shipById.get(defender.id)?.portResponse;
+    if (!response || response.phase !== "responding") continue;
+    const battery = shoreBatteryStates.get(shoreBatteryId(requireEntityById(cityById, response.targetCityId, "Port defense city")));
+    if (!battery || battery.factionId !== defender.factionId) continue;
+    for (const attackerId of battery.engagedTargetIds) {
+      if (attackerId === defender.id) continue;
+      const point = combatEntityAimPoint(attackerId);
+      if (!point || distance2(defender.x, defender.y, point.x, point.y) >
+          COMBAT_DETECTION_RADIUS_PX * COMBAT_DETECTION_RADIUS_PX) continue;
+      changed = forceShipEngagement(shipCombatState, defender.id, attackerId) || changed;
+    }
+  }
+  return changed;
 }
 
 function forceNingboMissionEngagements() {
