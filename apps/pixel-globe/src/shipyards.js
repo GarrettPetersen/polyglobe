@@ -28,9 +28,7 @@ const LEGACY_PLAYER_BACKED_DIVIDEND_RATE = 0.22;
 const PLAYER_BACKED_CONSTRUCTION_COST_RATE = 0.64;
 const PLAYER_BACKED_OPERATING_EXPENSE_RATE = 0.09;
 const MAX_PLAYER_ACCOUNT_ENTRIES = 256;
-// Six months in the original stores; purchased warehouses add 50% each.
-// Three years of baseline storage made every warehouse upgrade redundant.
-const PLAYER_SHIPYARD_STOCKPILE_DAYS = 180;
+const PLAYER_SHIPYARD_STOCKPILE_DAYS = 3 * 365;
 const MAX_STOCKPILE_PLANNED_BUILDS = 64;
 const SHIPBUILDING_MATERIAL_COST_WEIGHTS = Object.freeze({
   timber: 4,
@@ -703,7 +701,6 @@ export function fundPlayerShipyard(system, port, {
     yard.materialInventory[goodId] += materialContributions[goodId] || 0;
     yard.prepaidMaterialInventory[goodId] += materialContributions[goodId] || 0;
   }
-  yard.famous = true;
   const acceleratedBuildMinute = investedMinute + 90 * MINUTES_PER_DAY;
   if (acceleratedBuildMinute < yard.nextBuildMinute) {
     yard.buildStartedMinute = investedMinute;
@@ -909,7 +906,12 @@ export function shipyardMaterialStockTargets(yard) {
     for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
       targets[goodId] += requirements[goodId];
     }
-    const durationDays = shipyardBuildDurationDays(yard, listing.shipSlug, buildNumber);
+    // The first hull already has a schedule and may be partly complete, stalled,
+    // or accelerated by the founding investment. Forecast its remaining work,
+    // not the nominal duration of a new hull.
+    const durationDays = buildOffset === 1
+      ? shipyardConstructionDurationMinutes(yard) * (1 - shipyardMaterialProgress(yard)) / MINUTES_PER_DAY
+      : shipyardBuildDurationDays(yard, listing.shipSlug, buildNumber);
     plannedDays += durationDays;
     buildMinute += durationDays * MINUTES_PER_DAY;
     buildOffset += 1;
@@ -1011,10 +1013,10 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
   const rankedPool = [...new Set(regionalPool)].sort((a, b) => shipConstructionPrice(a) - shipConstructionPrice(b) || a.localeCompare(b));
   const pool = expert ? rankedPool.slice(Math.floor(rankedPool.length / 2)) : regionalPool;
   const seed = shipyardListingSeed(yard, buildNumber);
-  const masterworkChance = expert ? 0.8 : yard.playerBacking ? 0.42 : yard.famous ? 0.18 : 0.025;
+  const masterworkChance = expert ? 0.8 : yard.playerBacking ? 0.42 : shipyardHasAdvancedFacilities(yard) ? 0.18 : 0.025;
   const scheduledMasterwork = yard.playerBacking
     ? buildNumber % 2 === 0
-    : yard.famous && buildNumber % 4 === 0;
+    : shipyardHasAdvancedFacilities(yard) && buildNumber % 4 === 0;
   const masterwork = scheduledMasterwork || hashUnit(`${seed}|masterwork`) < masterworkChance;
   const qualityBudget = masterwork || expert ? Infinity : shipyardQualityBudget(yard);
   const eligible = pool
@@ -1023,7 +1025,7 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
     .sort((a, b) => a.price - b.price || a.slug.localeCompare(b.slug));
   const candidates = eligible.length > 0 ? eligible : [{ slug: pool[0], price: shipConstructionPrice(pool[0]) }];
   const wealthFraction = clamp(
-    (yard.wealthScale - 0.45) / 3.75 + (yard.famous ? 0.3 : 0) + (yard.playerBacking ? 0.3 : 0),
+    (yard.wealthScale - 0.45) / 3.75 + (shipyardHasAdvancedFacilities(yard) ? 0.3 : 0) + (yard.playerBacking ? 0.3 : 0),
     0,
     1
   );
@@ -1031,7 +1033,7 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
   const rankFraction = Math.pow(roll, expert ? 0.3 : 1.75 - wealthFraction * 1.25);
   const selected = candidates[Math.min(candidates.length - 1, Math.floor(rankFraction * candidates.length))];
   const price = shipyardListingPrice(selected.slug, seed);
-  const listingDays = yard.famous ? FAMOUS_LISTING_DAYS : NORMAL_LISTING_DAYS;
+  const listingDays = shipyardHasAdvancedFacilities(yard) ? FAMOUS_LISTING_DAYS : NORMAL_LISTING_DAYS;
   return Object.freeze({
     id: `shipyard-${yard.portId}-${buildNumber}`,
     portId: yard.portId,
@@ -1107,7 +1109,7 @@ export function shipReplacementTermsWithoutTradeIn(listingPrice) {
 }
 
 export function shipyardQualityBudget(yard) {
-  const famousBonus = yard.famous ? 50000 : 0;
+  const famousBonus = shipyardHasAdvancedFacilities(yard) ? 50000 : 0;
   const playerBonus = yard.playerBacking ? 60000 : 0;
   return 7000 + yard.wealthScale * 22000 + famousBonus + playerBonus;
 }
@@ -1164,9 +1166,16 @@ function createShipyard(port, startMinute, seedKey) {
   return yard;
 }
 
+// Historical fame and the player's investment are distinct facts. Derive the
+// production facilities from both, so restoration and city replacement cannot
+// lose the investment's speed, hull selection, or stock-planning benefits.
+export function shipyardHasAdvancedFacilities(yard) {
+  return Boolean(yard && (yard.famous || yard.playerBacking));
+}
+
 export function shipyardBuildDurationDays(yard, shipSlug, buildNumber) {
   const stats = shipStatsForSlug(shipSlug);
-  const base = yard.famous ? FAMOUS_BUILD_INTERVAL_DAYS : NORMAL_BUILD_INTERVAL_DAYS;
+  const base = shipyardHasAdvancedFacilities(yard) ? FAMOUS_BUILD_INTERVAL_DAYS : NORMAL_BUILD_INTERVAL_DAYS;
   const wealthFactor = clamp(yard.wealthScale, 0.65, 2.8);
   const hullWork = stats.mass + stats.cargoCapacity * 0.3 + stats.cannons * 4 +
     stats.crewCapacity * 0.5;
@@ -1186,7 +1195,7 @@ function representativeShipyardHull(yard) {
   const pool = [...new Set(shipPoolForYard(yard))].sort((a, b) => (
     shipConstructionPrice(a) - shipConstructionPrice(b) || a.localeCompare(b)
   ));
-  return pool[Math.floor((pool.length - 1) * (yard.playerBacking ? 0.85 : yard.famous ? 0.65 : 0.4))];
+  return pool[Math.floor((pool.length - 1) * (yard.playerBacking ? 0.85 : shipyardHasAdvancedFacilities(yard) ? 0.65 : 0.4))];
 }
 
 export function procureShipyardMaterials(yard, materialMarket) {

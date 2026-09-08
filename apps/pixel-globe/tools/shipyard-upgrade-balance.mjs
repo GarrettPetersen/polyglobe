@@ -1,6 +1,8 @@
 // Paired counterfactual yards isolate upgrade earnings from the base business.
-// Storage: port supplies arrive every six months. Commission: one paid material
-// shipment per month, cycling through all four goods; no free materials or sales.
+// Local supplies arrive at an explicit interval (six months by default). Test
+// storage against both regular deliveries and a multi-year interruption; it is
+// not a production bonus. Commission: one paid material shipment per month,
+// cycling through all four goods; no free commissioned materials or sales.
 import { pathToFileURL } from "node:url";
 import { createWorldShipyards, fundPlayerShipyard, advanceWorldShipyards,
   claimPlayerShipyardPayout, purchaseShipyardUpgrade, shipyardMaterialStockTargets,
@@ -9,7 +11,7 @@ import { shipyardUpgradeOffers } from "../src/shipyardUpgrades.js";
 import { tradeGoodById } from "../src/economy.js";
 const CITY = { cityId: "lisbon|portugal", tileId: 1, city: "Lisbon", cityType: "mediterranean",
   population: 100000, lat: 38.72, lon: -9.14, factionId: "portugal" };
-export function shipyardUpgradeBalance(upgradeId, { years = 5, seeds = 12 } = {}) {
+export function shipyardUpgradeBalance(upgradeId, { years = 5, seeds = 12, restockEveryMonths = 6, initiallyStocked = false } = {}) {
   const differences = [];
   let price;
   for (let seed = 0; seed < seeds; seed++) {
@@ -27,7 +29,7 @@ export function shipyardUpgradeBalance(upgradeId, { years = 5, seeds = 12 } = {}
       for (let month = 1; month <= years * 12; month++) {
         const minute = month * 30 * 1440;
         advanceWorldShipyards(system, minute, {
-          available: () => upgradeId === "shipwright" || month % 6 === 0 ? 100000 : 0,
+          available: () => upgradeId === "shipwright" || (initiallyStocked && month === 1) || month % restockEveryMonths === 0 ? 100000 : 0,
           consume() {}
         });
         if (upgraded && upgradeId === "supply-ship") {
@@ -44,7 +46,7 @@ export function shipyardUpgradeBalance(upgradeId, { years = 5, seeds = 12 } = {}
     }
     differences.push(earnings[1] - earnings[0]);
   }
-  return { upgradeId, years, seeds, price, minAdditionalDividends: Math.min(...differences),
+  return { upgradeId, years, seeds, restockEveryMonths, initiallyStocked, price, minAdditionalDividends: Math.min(...differences),
     meanAdditionalDividends: Math.round(differences.reduce((sum, value) => sum + value, 0) / seeds),
     maxAdditionalDividends: Math.max(...differences) };
 }

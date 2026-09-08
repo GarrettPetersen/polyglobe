@@ -1,4 +1,4 @@
-import { purchaseShipyardUpgrade } from "./shipyards.js";
+import { purchaseShipyardUpgrade, shipyardHasAdvancedFacilities } from "./shipyards.js";
 import { SHIPYARD_UPGRADE_IDS, shipyardUpgradeOffers } from "./shipyardUpgrades.js";
 import { TOPSHAM_CITY_ID, acceptExeterCanalQuest, exeterCanalQuestView, startExeterCanalConstruction } from "./exeterCanal.js";
 import { declineCaptureCommission, playerTradeAdviceByCity } from "./gameState.js";
@@ -6678,7 +6678,7 @@ function shipyardView(session, city, gameState, economy, context) {
           : `I heard a rumour of a new ${nearestListing.shipProseLabel} for sale at ${nearestListing.portName}.`
         : city.isPirateHideout
           ? "The hidden slips can patch any hull, but there is no captured vessel for sale today. No shipyard currently has a vessel for sale."
-          : yard?.famous
+          : shipyardHasAdvancedFacilities(yard)
             ? "The master shipwrights have vessels on the stocks, but none ready for sale. No shipyard currently has a vessel for sale."
             : "The slipways handle repairs and local work, but there is no newly built vessel for sale today. No shipyard currently has a vessel for sale.",
       feedback: session.feedback,

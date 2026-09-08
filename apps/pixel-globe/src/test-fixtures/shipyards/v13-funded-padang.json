@@ -1,0 +1,113 @@
+{
+  "sourceRevision": "78a72d1f",
+  "port": {
+    "cityId": "padang|indonesia",
+    "tileId": 1,
+    "city": "Padang",
+    "cityType": "southeast-asian",
+    "population": 10000,
+    "lat": -0.95,
+    "lon": 100.35,
+    "factionId": "neutral"
+  },
+  "seedKey": "runway-1",
+  "expectedShipSlug": "carrack",
+  "snapshot": {
+    "version": 13,
+    "lastMinute": 0,
+    "npcSales": [],
+    "yards": [
+      {
+        "portId": "padang|indonesia",
+        "buildNumber": 0,
+        "listing": null,
+        "usedListings": [],
+        "nextTradeInNumber": 1,
+        "nextBuildMinute": 129600,
+        "buildStartedMinute": 0,
+        "constructionDelayMinutes": 0,
+        "upgrades": {
+          "storageLevel": 0,
+          "investmentCost": 0,
+          "expertFromBuildNumber": null,
+          "supplyCommission": null,
+          "supplyCandidateShipId": null,
+          "supplyCaptainIdentity": null,
+          "opportunities": {
+            "storage": {
+              "availableMinute": 79240.46661481261,
+              "announced": false
+            },
+            "shipwright": {
+              "availableMinute": 195823.25880602002,
+              "announced": false
+            },
+            "supply-ship": {
+              "availableMinute": 238131.8096280098,
+              "announced": false
+            }
+          }
+        },
+        "materialInventory": {
+          "timber": 20,
+          "iron": 12,
+          "naval-stores": 10,
+          "linen-cloth": 0
+        },
+        "materialConsumedForBuild": {
+          "timber": 0,
+          "iron": 0,
+          "naval-stores": 0,
+          "linen-cloth": 0
+        },
+        "prepaidMaterialInventory": {
+          "timber": 20,
+          "iron": 12,
+          "naval-stores": 10,
+          "linen-cloth": 0
+        },
+        "prepaidMaterialsForBuild": {
+          "timber": 0,
+          "iron": 0,
+          "naval-stores": 0,
+          "linen-cloth": 0
+        },
+        "playerBacking": {
+          "investedMinute": 0,
+          "seedCapital": 100000,
+          "materialContributions": {
+            "timber": 20,
+            "iron": 12,
+            "naval-stores": 10
+          }
+        },
+        "playerDividendBalance": 0,
+        "lifetimePlayerDividends": 0,
+        "playerPendingSales": [],
+        "playerAccounts": {
+          "capitalContributions": 100000,
+          "salesRevenue": 0,
+          "inventoryPurchases": 0,
+          "constructionExpenses": 0,
+          "operatingExpenses": 0,
+          "playerPayouts": 0,
+          "nextEntryNumber": 2,
+          "entries": [
+            {
+              "id": "yard-account-1",
+              "kind": "capital",
+              "simMinute": 0,
+              "amount": 100000,
+              "description": "Owner's seed capital",
+              "materialContributions": {
+                "timber": 20,
+                "iron": 12,
+                "naval-stores": 10
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -70,6 +70,7 @@ import {
   registerShipyardTradeIn,
   shipConstructionPrice,
   shipyardMaterialStatus,
+  shipyardHasAdvancedFacilities,
   receiveCommissionedShipyardMaterials
 } from "./shipyards.js";
 import {
@@ -3264,7 +3265,7 @@ function removeNpcShipForReplacement(system, ship, clockMinutes) {
   const yard = system.economy.shipyards?.yards?.get(
     requireCityId(replacementPort, "NPC replacement shipyard")
   ) || null;
-  const yardSpeed = clamp((yard?.wealthScale || 0.75) + (yard?.famous ? 0.8 : 0), 0.65, 3.4);
+  const yardSpeed = clamp((yard?.wealthScale || 0.75) + (shipyardHasAdvancedFacilities(yard) ? 0.8 : 0), 0.65, 3.4);
   const delayDays = Math.max(
     NPC_REPLACEMENT_MIN_DAYS,
     Math.round(
@@ -4202,7 +4203,7 @@ function npcReplacementPortScore(system, port, ship) {
   const yard = system.economy.shipyards?.yards?.get(
     requireCityId(port, "NPC replacement shipyard")
   );
-  const shipbuilding = (yard?.wealthScale || 0.5) + (yard?.famous ? 1.2 : 0);
+  const shipbuilding = (yard?.wealthScale || 0.5) + (shipyardHasAdvancedFacilities(yard) ? 1.2 : 0);
   const distancePenalty = distanceKm(ship.currentPort, port) / 5000;
   const variation = hashUnit(
     `${ship.id}|${requireCityId(port, "NPC replacement port")}|replacement-port`
