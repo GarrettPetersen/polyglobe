@@ -1,3 +1,4 @@
+import { activeQuests } from "./activeQuests.js";
 import {
   cargoCostBasis,
   cargoHoldStatus,
@@ -445,10 +446,7 @@ function positiveModulo(value, modulus) {
 function shipPapers(gameState, ownedShipyards) {
   if (!Array.isArray(ownedShipyards)) throw new Error("Owned shipyards must be an array");
   const papers = [];
-  const activeQuest = gameState.memory.quests.active;
-  if (activeQuest) papers.push(activeQuestPaper(activeQuest));
-  const activePassenger = gameState.memory.quests.passengerActive;
-  if (activePassenger) papers.push(activeQuestPaper(activePassenger));
+  papers.push(...activeQuests(gameState.memory.quests).map(activeQuestPaper));
   papers.push(...shipItemPapers(shipItemRows(gameState)));
   papers.push(...personalTradePassPapers(gameState.relations.personalTradePasses));
   papers.push(...letterOfMarquePapers(gameState.relations.lettersOfMarque));

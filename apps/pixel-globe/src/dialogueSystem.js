@@ -1,3 +1,4 @@
+import { activeQuestById } from "./activeQuests.js";
 import { purchaseShipyardUpgrade, shipyardHasAdvancedFacilities } from "./shipyards.js";
 import { SHIPYARD_UPGRADE_IDS, shipyardUpgradeOffers } from "./shipyardUpgrades.js";
 import { TOPSHAM_CITY_ID, acceptExeterCanalQuest, exeterCanalQuestView, startExeterCanalConstruction } from "./exeterCanal.js";
@@ -3775,10 +3776,10 @@ function passengerDialogueContentView(session, city, quest, gameState) {
   assertPassengerDialogueSubject(session, city, quest);
   const questMemory = gameState?.memory?.quests || {};
   const active = isEnvoyQuest(quest)
-    ? questMemory.active || null
+    ? questMemory.envoyActive || null
     : questMemory.passengerActive || null;
   const blockingQuest = isEnvoyQuest(quest)
-    ? questMemory.active || questMemory.passengerActive || null
+    ? questMemory.envoyActive || null
     : questMemory.passengerActive ||
       (questMemory.active?.kind === "delivery" ? null : questMemory.active) ||
       null;
@@ -4444,7 +4445,7 @@ function isMultiPortReligiousMission(quest) {
 
 function activeTravelPassengerQuest(gameState) {
   const quests = gameState?.memory?.quests || {};
-  return quests.passengerActive || (isEnvoyQuest(quests.active) ? quests.active : null);
+  return quests.passengerActive || null;
 }
 
 function muslimCaptainCanUndertakeHajj(gameState) {
@@ -8329,8 +8330,8 @@ function marketUndoConfirmationView(session, city) {
 function tributeTheftWarningView(session, city, gameState) {
   const pending = session.pendingTributeTheft;
   if (!pending) throw new Error("Tribute theft warning has no pending sale");
-  const quest = gameState.memory?.quests?.active;
-  if (!quest || quest.id !== pending.theft.questId) {
+  const quest = activeQuestById(gameState.memory?.quests, pending.theft.questId);
+  if (!quest) {
     throw new Error("Tribute theft warning no longer matches the active mission");
   }
   const good = tradeGoodById(pending.theft.goodId);

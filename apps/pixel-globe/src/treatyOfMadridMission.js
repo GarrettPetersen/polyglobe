@@ -187,7 +187,7 @@ function treatyMissionAlreadyResolved(quests) {
   if (quests.completed?.[TREATY_OF_MADRID_MISSION_ID] || quests.failed?.[TREATY_OF_MADRID_MISSION_ID]) {
     return true;
   }
-  return isTreatyOfMadridQuest(quests.active) || isTreatyOfMadridQuest(quests.passengerActive);
+  return isTreatyOfMadridQuest(quests.envoyActive);
 }
 
 function matchesAny(city, references) {

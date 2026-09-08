@@ -88,7 +88,7 @@ test("accepting one Treaty of Madrid side withdraws every competing offer", () =
 
   acceptQuest(state, french, { simMinute: AFTER_PAVIA });
 
-  assert.equal(state.memory.quests.active.id, TREATY_OF_MADRID_MISSION_ID);
+  assert.equal(state.memory.quests.envoyActive.id, TREATY_OF_MADRID_MISSION_ID);
   assert.equal(
     Object.values(state.memory.quests.passengerOffers).some(isTreatyOfMadridQuest),
     false
@@ -109,11 +109,11 @@ test("Treaty dialogue asks the captain to carry the delegation, not dictate term
   ]);
 
   acceptQuest(state, french, { simMinute: AFTER_PAVIA });
-  const negotiationSession = createPassengerDialogueSession(BARCELONA, state.memory.quests.active);
+  const negotiationSession = createPassengerDialogueSession(BARCELONA, state.memory.quests.envoyActive);
   const negotiation = passengerDialogueView(
     negotiationSession,
     BARCELONA,
-    state.memory.quests.active,
+    state.memory.quests.envoyActive,
     state
   );
   assert.deepEqual(

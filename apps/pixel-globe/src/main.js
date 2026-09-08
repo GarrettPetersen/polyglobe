@@ -1,3 +1,4 @@
+import { activeQuests } from "./activeQuests.js";
 import { shipyardUpgradeCardLayout } from "./shipyardUpgradeLayout.js";
 import { commissionedShipyard, reservedSupplyShipyard, unannouncedShipyardUpgrades } from "./shipyardUpgrades.js";
 import { shipyardSupplyShipStatus, snapshotShipyardSupplyShips, restoreShipyardSupplyShips, updateShipyardSupplyOffers } from "./npcSeaRoutes.js";
@@ -2214,7 +2215,8 @@ import {
 } from "./waypointArrowUi.js";
 import {
   HAJJ_PASSENGER_SCENARIO_ID,
-  activeNamedTravelMission,
+  activeNamedTravelMissions,
+  activeTravelMissionQuests,
   activeTravelMissionQuest,
   markPassengerOfferSeen,
   passengerOfferForCity,
@@ -8331,8 +8333,7 @@ function resolveEscapedPirateCaptiveDefeat(npcShipId, { sunk, lootSummary = null
 function activeQuestJourneyDialogueSubjects() {
   const questMemory = gameState?.memory?.quests;
   return [
-    questMemory?.passengerActive,
-    questMemory?.active,
+    ...activeQuests(questMemory),
     papalCommissionJourneyDialogueSubject()
   ].filter(Boolean);
 }
@@ -21955,7 +21956,7 @@ function openPortDialogue(cityCall) {
     recoveryStatus || conquestStatus.playerAssaultActive || attackStatus.commissioned ||
     ((!entryStatus.allowed || conquestStatus.canAttempt) && !papalLegationAtPort)
   );
-  const arrivingTravelMission = activeTravelMissionQuest(gameState);
+  const arrivingTravelMission = activeTravelMissionQuests(gameState).find(quest => questHasDestination(quest, cityCall)) || null;
   if (portUnavailable && shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
     dialogueState = createWorldPassengerDialogueSession(cityCall, arrivingTravelMission, {
       admittedToPort: false,
@@ -28004,17 +28005,11 @@ function portPoliticalRivalTerms(city) {
 }
 
 function passengerDialogueQuestsForCity(city, { createOffers = false } = {}) {
-  const activeMission = activeTravelMissionQuest(gameState);
-  if (activeMission) {
-    return questHasDestination(activeMission, city) ? [activeMission] : [];
-  }
-  if (!createOffers) return pendingPassengerOffersForCity(gameState, city);
-  return travelMissionOffersForCity(
-    gameState,
-    city,
-    playerAccessiblePortCities(),
-    travelMissionOfferContext(createPassengerCharacterForQuest)
-  );
+  const missionsHere = activeTravelMissionQuests(gameState).filter(quest => questHasDestination(quest, city));
+  const offers = createOffers ? travelMissionOffersForCity(
+    gameState, city, playerAccessiblePortCities(), travelMissionOfferContext(createPassengerCharacterForQuest)
+  ) : pendingPassengerOffersForCity(gameState, city);
+  return [...missionsHere, ...offers];
 }
 
 function travelMissionOfferContext(createCharacter) {
@@ -28042,7 +28037,7 @@ function shouldAutoOpenPassengerDialogue(city, quest) {
   if (!quest || (quest.kind !== "passenger" && !isEnvoyQuest(quest))) {
     return false;
   }
-  if (questHasDestination(quest, city) && activeTravelMissionQuest(gameState)?.id === quest.id) return true;
+  if (questHasDestination(quest, city) && activeTravelMissionQuest(gameState, quest.id)?.id === quest.id) return true;
   return quest.originCityId === city.cityId && quest.seen !== true;
 }
 
@@ -28306,7 +28301,7 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
     ) {
       return dialoguePortraitPair(captain, speakerCharacter, speakerCharacter);
     }
-    const activeQuest = activeTravelMissionQuest(gameState);
+    const activeQuest = activeTravelMissionQuest(gameState, passenger.id);
     const envoyExchange = isEnvoyQuest(passenger) && (
       dialogueState.envoyNegotiationResult ||
       (activeQuest?.id === passenger.id &&
@@ -29100,10 +29095,7 @@ function playerPerkTotalsSignature(state, additionalCharacters) {
   if (!items || typeof items !== "object" || Array.isArray(items)) {
     throw new Error("Player perks require inventory items");
   }
-  const travelers = [
-    state.memory?.quests?.active?.passenger || null,
-    state.memory?.quests?.passengerActive?.passenger || null
-  ].filter(Boolean);
+  const travelers = activeQuests(state.memory?.quests).map(quest => quest.passenger).filter(Boolean);
   const characters = [state.playerCharacter, ...state.namedCrew, ...travelers, ...additionalCharacters]
     .filter(Boolean)
     .map((character) => {
@@ -49945,11 +49937,10 @@ function currentAboardRoster() {
     throw new Error("Cannot build the aboard roster before the player ship is ready");
   }
   const travelerGroups = shipTravelerManifest(gameState);
-  const namedTravelMission = activeNamedTravelMission(gameState);
-  const activeQuest = namedTravelMission?.quest || null;
+  const namedTravelMissions = activeNamedTravelMissions(gameState);
   const rescuedTravelers = activeRescuedTravelers();
   const namedTravelers = [];
-  if (namedTravelMission) {
+  for (const namedTravelMission of namedTravelMissions) {
     namedTravelers.push({
       kind: assertNamedTravelerKind(namedTravelMission.kind, "Active named travel mission"),
       character: namedTravelMission.character
@@ -50012,15 +50003,18 @@ function currentAboardRoster() {
   });
   const historianHomePort = portCities.find(isVikingLongshipQuestPort);
   if (!historianHomePort) throw new Error("Aboard roster cannot resolve the Viking historian's home port");
-  const named = roster.named.map((entry) => Object.freeze({
-    ...entry,
-    goal: aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers),
-    homePortName: aboardCharacterHomePortName(entry, {
-      activeQuest,
-      rescuedTravelers,
-      historianHomePortCityId: historianHomePort.cityId
-    })
-  }));
+  const named = roster.named.map((entry) => {
+    const activeQuest = namedTravelMissions.find(mission => mission.character.id === entry.character.id)?.quest || null;
+    return Object.freeze({
+      ...entry,
+      goal: aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers),
+      homePortName: aboardCharacterHomePortName(entry, {
+        activeQuest,
+        rescuedTravelers,
+        historianHomePortCityId: historianHomePort.cityId
+      })
+    });
+  });
   return Object.freeze({ ...roster, named: Object.freeze(named) });
 }
 
@@ -61721,10 +61715,7 @@ function nearestDiscoveryDirection(discovery, position) {
 
 function activeQuestDestinations() {
   if (!gameState) return [];
-  return [
-    gameState.memory.quests.active,
-    gameState.memory.quests.passengerActive
-  ].filter(Boolean).flatMap((quest) => questDestinationStops(quest).map((stop) => ({
+  return activeQuests(gameState.memory.quests).flatMap((quest) => questDestinationStops(quest).map((stop) => ({
     quest,
     destination: destinationPortForQuestStop(stop)
   }))).filter((entry) => entry.destination);

@@ -7705,7 +7705,7 @@ test("envoy dialogue lets courts negotiate while the captain carries the answer"
   assert.match(offer.options[0].label, /Carry envoy to London/);
   selectPassengerDialogueOption(offerSession, origin, quest, gameState, 0);
 
-  const active = gameState.memory.quests.active;
+  const active = gameState.memory.quests.envoyActive;
   const negotiationSession = createPassengerDialogueSession(target, active);
   const negotiation = passengerDialogueView(negotiationSession, target, active, gameState);
   assert.deepEqual(negotiation.options.map(({ label }) => label), [
@@ -7723,11 +7723,11 @@ test("envoy dialogue lets courts negotiate while the captain carries the answer"
   );
   assert.equal(result.action.type, "envoy-negotiated");
   assert.equal(result.closed, false);
-  assert.equal(gameState.memory.quests.active.stage, "return");
+  assert.equal(gameState.memory.quests.envoyActive.stage, "return");
   const answer = passengerDialogueView(
     negotiationSession,
     target,
-    gameState.memory.quests.active,
+    gameState.memory.quests.envoyActive,
     gameState
   );
   assert.equal(answer.speaker, "Thomas Cromwell, local official");
@@ -7736,7 +7736,7 @@ test("envoy dialogue lets courts negotiate while the captain carries the answer"
   assert.deepEqual(selectPassengerDialogueOption(
     negotiationSession,
     target,
-    gameState.memory.quests.active,
+    gameState.memory.quests.envoyActive,
     gameState,
     0
   ), { closed: true, action: null });
@@ -7752,22 +7752,22 @@ test("envoy dialogue lets courts negotiate while the captain carries the answer"
   );
   assert.equal(
     busy.text,
-    "Duarte de Meneses is aboard, returning from London to Lisbon; finish that embassy first."
+    "No sealed packets are bound for our nearby ports right now."
   );
   assert.doesNotMatch(busy.text, /Lisbon to Lisbon/);
 
-  const returnSession = createPassengerDialogueSession(origin, gameState.memory.quests.active);
-  const homecoming = passengerDialogueView(returnSession, origin, gameState.memory.quests.active, gameState);
+  const returnSession = createPassengerDialogueSession(origin, gameState.memory.quests.envoyActive);
+  const homecoming = passengerDialogueView(returnSession, origin, gameState.memory.quests.envoyActive, gameState);
   assert.equal(homecoming.options[0].label, "Report to court  310 db");
   assert.deepEqual(selectPassengerDialogueOption(
     returnSession,
     origin,
-    gameState.memory.quests.active,
+    gameState.memory.quests.envoyActive,
     gameState,
     0,
     { simMinute: 480 }
   ), { closed: true, action: null });
-  assert.equal(gameState.memory.quests.active, null);
+  assert.equal(gameState.memory.quests.envoyActive, null);
 });
 
 test("a quest character precedes the loadout and factor during port arrival", () => {

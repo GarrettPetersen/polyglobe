@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   acceptQuest,
+  shipTravelerManifest,
   activeFactionSafePassageIds,
   completeQuest,
   createGameState,
@@ -26,7 +27,7 @@ import {
   PASSENGER_MAX_DISTANCE_KM,
   PASSENGER_MIN_DISTANCE_KM,
   PASSENGER_ROLL_PERIOD_MINUTES,
-  activeNamedTravelMission,
+  activeNamedTravelMissions,
   declinePassengerOffer,
   envoyOfferForCapital,
   markPassengerOfferSeen,
@@ -408,17 +409,17 @@ test("one passenger and one package delivery can travel aboard together", () => 
   acceptQuest(state, delivery);
   assert.equal(state.memory.quests.passengerActive.id, passenger.id);
   assert.equal(state.memory.quests.active.id, delivery.id);
-  assert.deepEqual(activeNamedTravelMission(state), {
+  assert.deepEqual(activeNamedTravelMissions(state)[0], {
     quest: state.memory.quests.passengerActive,
     kind: "passenger",
     character: state.memory.quests.passengerActive.passenger
   });
-  assert.equal(activeNamedTravelMission(state).character.name, "Hana Sato");
+  assert.equal(activeNamedTravelMissions(state)[0].character.name, "Hana Sato");
   assert.equal(
-    activeNamedTravelMission(state).character.portraitId,
+    activeNamedTravelMissions(state)[0].character.portraitId,
     "east-asian-woman-black-hair"
   );
-  assert.deepEqual(activeNamedTravelMission(state).character.skillIds, ["master-chef"]);
+  assert.deepEqual(activeNamedTravelMissions(state)[0].character.skillIds, ["master-chef"]);
   assert.equal(gameStatePerkTotals(state).foodDurationMultiplier, 1.6);
 
   const captain = characterWithBiography({
@@ -434,12 +435,12 @@ test("one passenger and one package delivery can travel aboard together", () => 
   const aboardCalendar = createAboardCalendarMemory();
   observeAboardCalendarEvents(
     aboardCalendar,
-    [captain, activeNamedTravelMission(state).character],
+    [captain, activeNamedTravelMissions(state)[0].character],
     { year: 1522, month: 7, day: 10 }
   );
   assert.equal(pendingAboardCalendarDialogueLine(
     aboardCalendar,
-    [captain, activeNamedTravelMission(state).character]
+    [captain, activeNamedTravelMissions(state)[0].character]
   ).character.id, passengerCharacter.id);
 
   completeQuest(state, LONDON, { simMinute: 240, questId: passenger.id });
@@ -798,4 +799,118 @@ test("passenger eligibility and fares use sailing distance rather than proximity
   assert.throws(() => passengerOfferForCity(state, LISBON, [LISBON, PORTO], {
     destinationCityId: PORTO.cityId, scenarioId: "family-letter", spawnChance: 1, simMinute: 0
   }), /requires a sailing-distance resolver|require a sailing-distance resolver/);
+});
+
+for (const envoyFirst of [true, false]) {
+  for (const completeEnvoyFirst of [true, false]) {
+    test(`envoy and delivery coexist: envoy accepted first=${envoyFirst}, completed first=${completeEnvoyFirst}`, () => {
+      const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+      const makeEnvoy = () => envoyOfferForCapital(state, LISBON, [LISBON, LONDON], {
+        sailingDistanceKm: testSailingDistanceKm,
+        envoySpawnChance: 1, envoyKind: "friendly-envoy", destinationCityId: LONDON.cityId,
+        relationBetween: diplomacyBetween, simMinute: 0,
+        createCharacter: () => ({ id: "envoy:concurrent", name: "Duarte de Meneses" })
+      });
+      const makeDelivery = () => deliveryOfferForCity(state, LISBON, [LISBON, PORTO], {
+        sailingDistanceKm: testSailingDistanceKm, simMinute: 0, spawnChance: 1
+      });
+      let envoy;
+      let delivery;
+      if (envoyFirst) {
+        envoy = makeEnvoy();
+        acceptQuest(state, envoy);
+        delivery = makeDelivery();
+        acceptQuest(state, delivery);
+      } else {
+        delivery = makeDelivery();
+        acceptQuest(state, delivery);
+        envoy = makeEnvoy();
+        acceptQuest(state, envoy);
+      }
+      assert.equal(state.memory.quests.active.id, delivery.id);
+      assert.equal(state.memory.quests.envoyActive.id, envoy.id);
+      assert.throws(() => acceptQuest(state, { ...envoy, id: "second-envoy" }), /second envoy/);
+      const restored = migrateGameState(JSON.parse(JSON.stringify(state)), null);
+      assert.equal(restored.memory.quests.active.id, delivery.id);
+      assert.equal(restored.memory.quests.envoyActive.id, envoy.id);
+      negotiateEnvoyQuest(restored, LONDON, { simMinute: 240, portCities: [LISBON, LONDON, PORTO] });
+      const deliveryPort = [LISBON, PORTO].find(city => city.cityId === delivery.destinationCityId);
+      const finishEnvoy = () => completeQuest(restored, LISBON, { questId: envoy.id, simMinute: 480 });
+      const finishDelivery = () => completeQuest(restored, deliveryPort, { questId: delivery.id, simMinute: 480 });
+      if (completeEnvoyFirst) {
+        assert.equal(finishEnvoy().id, envoy.id);
+        assert.equal(restored.memory.quests.active.id, delivery.id);
+        finishDelivery();
+      } else {
+        assert.equal(finishDelivery().id, delivery.id);
+        assert.equal(restored.memory.quests.envoyActive.id, envoy.id);
+        finishEnvoy();
+      }
+      assert.equal(restored.memory.quests.active, null);
+      assert.equal(restored.memory.quests.envoyActive, null);
+    });
+  }
+}
+
+test("a v107 embassy migrates into its own slot without losing its return journey", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const envoy = envoyOfferForCapital(state, LISBON, [LISBON, LONDON], {
+    sailingDistanceKm: testSailingDistanceKm, envoySpawnChance: 1,
+    envoyKind: "friendly-envoy", destinationCityId: LONDON.cityId,
+    relationBetween: diplomacyBetween, simMinute: 0,
+    createCharacter: () => ({ id: "envoy:migration", name: "Duarte de Meneses" })
+  });
+  acceptQuest(state, envoy);
+  negotiateEnvoyQuest(state, LONDON, { simMinute: 240, portCities: [LISBON, LONDON] });
+  const expected = JSON.parse(JSON.stringify(state.memory.quests.envoyActive));
+  state.version = 107;
+  state.memory.quests.active = state.memory.quests.envoyActive;
+  delete state.memory.quests.envoyActive;
+  const restored = migrateGameState(state, null);
+  assert.equal(restored.memory.quests.active, null);
+  assert.deepEqual(restored.memory.quests.envoyActive, expected);
+  assert.deepEqual(migrateGameState(restored, null), restored);
+});
+
+for (const envoyFirst of [true, false]) {
+  test(`envoy and passenger retain separate travelers and arrivals: envoy first=${envoyFirst}`, () => {
+    const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+    const makeEnvoy = () => envoyOfferForCapital(state, LISBON, [LISBON, LONDON], {
+      sailingDistanceKm: testSailingDistanceKm, envoySpawnChance: 1,
+      envoyKind: "friendly-envoy", destinationCityId: LONDON.cityId,
+      relationBetween: diplomacyBetween, simMinute: 0,
+      createCharacter: () => ({ id: "envoy:both-travelers", name: "Duarte de Meneses" })
+    });
+    const makePassenger = () => passengerOfferForCity(state, LISBON, [LISBON, LONDON], {
+      sailingDistanceKm: testSailingDistanceKm, spawnChance: 1, simMinute: 0,
+      destinationCityId: LONDON.cityId,
+      createCharacter: () => ({ id: "passenger:both-travelers", name: "Thomas Hale" })
+    });
+    const first = envoyFirst ? makeEnvoy() : makePassenger();
+    acceptQuest(state, first);
+    const second = envoyFirst ? makePassenger() : makeEnvoy();
+    acceptQuest(state, second);
+    const envoy = state.memory.quests.envoyActive;
+    const passenger = state.memory.quests.passengerActive;
+    assert.equal(activeNamedTravelMissions(state).length, 2);
+    assert.deepEqual(shipTravelerManifest(state), [
+      { kind: "passenger", count: 1 }, { kind: "envoy", count: 1 }
+    ]);
+    completeQuest(state, LONDON, { questId: passenger.id, simMinute: 240 });
+    assert.equal(state.memory.quests.envoyActive.id, envoy.id);
+    negotiateEnvoyQuest(state, LONDON, { simMinute: 240, portCities: [LISBON, LONDON] });
+    assert.equal(state.memory.quests.envoyActive.stage, "return");
+  });
+}
+
+test("current saves reject wrong mission slots and duplicate active identities", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.memory.quests.envoyActive = { id: "bad-slot", kind: "delivery" };
+  assert.throws(() => migrateGameState(state, null), /Non-envoy mission occupies envoy slot/);
+  state.memory.quests.envoyActive = { id: "duplicate-mission", kind: "friendly-envoy" };
+  state.memory.quests.active = { id: "duplicate-mission", kind: "delivery" };
+  assert.throws(() => migrateGameState(state, null), /duplicate canonical IDs/);
+  state.memory.quests.active = state.memory.quests.envoyActive;
+  state.memory.quests.envoyActive = null;
+  assert.throws(() => migrateGameState(state, null), /Envoy mission must occupy the envoy slot/);
 });

@@ -200,7 +200,7 @@ export function tributeCargoHeld(state, quest) {
 
 export function tributeSaleTheftStatus(state, goodId, quantity) {
   if (!Number.isInteger(quantity) || quantity <= 0) return null;
-  const quest = state.memory?.quests?.active;
+  const quest = state.memory?.quests?.envoyActive;
   if (!isTributeEnvoyQuest(quest) || quest.stage !== "outbound" || quest.tributeStolen) return null;
   const requirement = quest.tributeCargoRequirements.find((entry) => entry.goodId === goodId);
   if (!requirement) return null;

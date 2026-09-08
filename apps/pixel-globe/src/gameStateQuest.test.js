@@ -761,7 +761,7 @@ test("pending political offers disappear when conquest invalidates their premise
 
 test("an embassy follows a displaced court and returns safely if that court has no port", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  state.memory.quests.active = {
+  state.memory.quests.envoyActive = {
     id: "friendly-envoy-displaced-court",
     kind: "friendly-envoy",
     stage: "outbound",
@@ -785,16 +785,16 @@ test("an embassy follows a displaced court and returns safely if that court has 
   const capturedCalais = { ...CALAIS, factionId: "england", foundingFactionId: "france" };
 
   reconcileQuestWorldAssumptions(state, [LONDON, capturedCalais, PARIS]);
-  assert.equal(state.memory.quests.active.targetTileId, PARIS.tileId);
-  assert.equal(state.memory.quests.active.stage, "outbound");
+  assert.equal(state.memory.quests.envoyActive.targetTileId, PARIS.tileId);
+  assert.equal(state.memory.quests.envoyActive.stage, "outbound");
 
   reconcileQuestWorldAssumptions(state, [LONDON, capturedCalais]);
-  assert.equal(state.memory.quests.active.stage, "return");
-  assert.equal(state.memory.quests.active.destinationTileId, LONDON.tileId);
-  assert.equal(state.memory.quests.active.envoyWorldResolution, "target-court-fallen");
-  assert.equal(state.memory.quests.active.reward, 300);
+  assert.equal(state.memory.quests.envoyActive.stage, "return");
+  assert.equal(state.memory.quests.envoyActive.destinationTileId, LONDON.tileId);
+  assert.equal(state.memory.quests.envoyActive.envoyWorldResolution, "target-court-fallen");
+  assert.equal(state.memory.quests.envoyActive.reward, 300);
   completeQuest(state, LONDON, { simMinute: 100 });
-  assert.equal(state.memory.quests.active, null);
+  assert.equal(state.memory.quests.envoyActive, null);
 });
 
 test("a capable letter-of-marque captain can receive and complete a nearby capture commission", () => {

@@ -75,7 +75,7 @@ test("a trusted subject can carry sealed tribute without consuming it", () => {
   });
   assert.equal(state.cargo.ginseng, undefined);
   assert.equal(negotiation.tributeCargo[0].quantity, 4);
-  assert.equal(state.memory.quests.active.stage, "return");
+  assert.equal(state.memory.quests.envoyActive.stage, "return");
   completeQuest(state, SEOUL, { simMinute: 800 });
   assert.equal(state.memory.quests.completed[offer.id], true);
 });
@@ -102,7 +102,7 @@ test("a stored tribute offer becomes disabled if later cargo fills its hold", ()
     selectPassengerDialogueOption(session, SEOUL, offer, state, acceptIndex);
   });
   assert.match(session.feedback, /needs 4 cargo spaces; 0 free/i);
-  assert.equal(state.memory.quests.active, null);
+  assert.equal(state.memory.quests.envoyActive, null);
   assert.throws(() => acceptQuest(state, offer), /Tribute mission requires 4 free cargo space/);
 });
 
@@ -141,7 +141,7 @@ test("selling personal stock is allowed but selling sealed tribute fails the mis
   state.cargo.ginseng -= 3;
   const result = recordTributeTheft(state, theft, { simMinute: 90 });
 
-  assert.equal(state.memory.quests.active, null);
+  assert.equal(state.memory.quests.envoyActive, null);
   assert.equal(state.memory.quests.failed[offer.id].reason, "tribute-theft");
   assert.equal(result.originPenalty, -45);
   assert.equal(result.suzerainPenalty, -25);
@@ -172,7 +172,7 @@ test("the market warns before selling sealed tribute and cancellation leaves it 
   assert.equal(warning.options[1].label, "Keep the tribute aboard");
 
   selectPortDialogueOption(session, SEOUL, state, economy, [SEOUL], 1, { simMinute: 10 });
-  assert.equal(state.memory.quests.active.id, offer.id);
+  assert.equal(state.memory.quests.envoyActive.id, offer.id);
   assert.equal(state.cargo.ginseng, 4);
 
   const secondMarket = portDialogueView(session, SEOUL, state, economy, [SEOUL]);
@@ -182,7 +182,7 @@ test("the market warns before selling sealed tribute and cancellation leaves it 
   selectPortDialogueOption(session, SEOUL, state, economy, [SEOUL], secondSellAllIndex, { simMinute: 11 });
   const theft = selectPortDialogueOption(session, SEOUL, state, economy, [SEOUL], 0, { simMinute: 11 });
   assert.equal(theft.tributeTheft.quest.id, offer.id);
-  assert.equal(state.memory.quests.active, null);
+  assert.equal(state.memory.quests.envoyActive, null);
   assert.equal(state.memory.quests.failed[offer.id].reason, "tribute-theft");
 });
 

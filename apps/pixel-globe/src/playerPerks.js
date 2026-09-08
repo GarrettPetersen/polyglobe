@@ -1,3 +1,4 @@
+import { activeQuests } from "./activeQuests.js";
 import { characterSkillById, validateCharacterSkillIds } from "./characterSkills.js";
 import { perkItemById } from "./perkItems.js";
 import { aggregatePerkSources, effectiveShipStats } from "./perkSystem.js";
@@ -9,10 +10,7 @@ export function gameStatePerkTotals(state, { additionalCharacters = [] } = {}) {
   if (!state || typeof state !== "object") throw new Error("Player perks require game state");
   if (!Array.isArray(additionalCharacters)) throw new Error("Additional perk characters must be an array");
   const characters = [state.playerCharacter, ...namedCrewMembers(state)];
-  const travelers = [
-    state.memory?.quests?.active?.passenger || null,
-    state.memory?.quests?.passengerActive?.passenger || null
-  ].filter(Boolean);
+  const travelers = activeQuests(state.memory?.quests).map(quest => quest.passenger).filter(Boolean);
   characters.push(...travelers);
   characters.push(...additionalCharacters);
 

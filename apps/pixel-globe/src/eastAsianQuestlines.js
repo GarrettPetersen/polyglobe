@@ -1,3 +1,4 @@
+import { activeQuests } from "./activeQuests.js";
 import { travelSailingDistanceKm } from "./travelSailingDistance.js";
 import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
 import {
@@ -474,7 +475,7 @@ function freezePlan(definition, origin, destination, portCities, context) {
 }
 
 function missionAlreadyResolved(quests, missionId) {
-  if (quests.active?.eastAsianMissionId === missionId || quests.passengerActive?.eastAsianMissionId === missionId) {
+  if (activeQuests(quests).some(quest => quest.eastAsianMissionId === missionId)) {
     return true;
   }
   return Object.keys(quests.completed || {}).some((questId) => (

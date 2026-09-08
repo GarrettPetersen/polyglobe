@@ -1,3 +1,4 @@
+import { activeQuests } from "./activeQuests.js";
 import { EXETER_CANAL_MATERIALS } from "./exeterCanal.js";
 import {
   CHEF_QUEST_STAGE_GATHERING,
@@ -94,15 +95,16 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
     if (remainingQuantity > 0) requirements.push(Object.freeze({ id, goodId, remainingQuantity }));
   };
 
-  const activeQuest = state.memory?.quests?.active;
-  if (isTributeEnvoyQuest(activeQuest) && activeQuest.stage === "outbound") {
-    for (const requirement of activeQuest.tributeCargoRequirements) {
-      add(`tribute.${activeQuest.id}.${requirement.goodId}`, requirement.goodId, requirement.quantity);
+  for (const activeQuest of activeQuests(state.memory?.quests)) {
+    if (isTributeEnvoyQuest(activeQuest) && activeQuest.stage === "outbound") {
+      for (const requirement of activeQuest.tributeCargoRequirements) {
+        add(`tribute.${activeQuest.id}.${requirement.goodId}`, requirement.goodId, requirement.quantity);
+      }
     }
-  }
-  if (isTeaRaceQuest(activeQuest) && activeQuest.stage === "race") {
-    for (const requirement of activeQuest.teaRaceCargoRequirements) {
-      add(`tea-race.${activeQuest.id}.${requirement.goodId}`, requirement.goodId, requirement.quantity);
+    if (isTeaRaceQuest(activeQuest) && activeQuest.stage === "race") {
+      for (const requirement of activeQuest.teaRaceCargoRequirements) {
+        add(`tea-race.${activeQuest.id}.${requirement.goodId}`, requirement.goodId, requirement.quantity);
+      }
     }
   }
 

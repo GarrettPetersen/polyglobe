@@ -1,3 +1,4 @@
+import { activeQuestById } from "./activeQuests.js";
 import {
   cityKey,
   cityLabel,
@@ -109,8 +110,7 @@ export const PASSENGER_SCENARIOS = Object.freeze([
 export function passengerOfferForCity(state, city, portCities, context = {}) {
   if (city?.isPirateHideout === true) return null;
   const quests = questMemory(state);
-  if (quests.passengerActive || (quests.active && quests.active.kind !== "delivery")) return null;
-  const treatyPlan = quests.active
+  const treatyPlan = quests.envoyActive
     ? null
     : treatyOfMadridMissionPlanForCity(state, city, portCities, context);
   if (treatyPlan) {
@@ -122,6 +122,7 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
       return quest;
     }
   }
+  if (quests.passengerActive || (quests.active && quests.active.kind !== "delivery")) return null;
   const existing = pendingOrdinaryPassengerOfferForCity(state, city);
   if (existing) return existing;
 
@@ -242,18 +243,18 @@ export function septemberTestamentOfferForCity(state, city, portCities, context 
 
 export function travelMissionOfferForCity(state, city, portCities, context = {}) {
   const quests = questMemory(state);
-  if (!quests.active && treatyOfMadridMissionPlanForCity(state, city, portCities, context)) {
+  if (!quests.envoyActive && treatyOfMadridMissionPlanForCity(state, city, portCities, context)) {
     return passengerOfferForCity(state, city, portCities, context);
   }
   const existing = pendingOrdinaryPassengerOfferForCity(state, city);
-  if (existing || quests.passengerActive) return existing;
-  if (quests.active && quests.active.kind !== "delivery") return null;
+  if (existing) return existing;
+  if (city?.isFactionCapital && !quests.envoyActive) {
+    const envoy = envoyOfferForCapital(state, city, portCities, context);
+    if (envoy) return envoy;
+  }
+  if (quests.passengerActive || (quests.active && quests.active.kind !== "delivery")) return null;
   if (eastAsianMissionPlanForCity(state, city, portCities, context)) {
     return passengerOfferForCity(state, city, portCities, context);
-  }
-  if (city?.isFactionCapital) {
-    const envoy = quests.active ? null : envoyOfferForCapital(state, city, portCities, context);
-    if (envoy) return envoy;
   }
   return passengerOfferForCity(state, city, portCities, context);
 }
@@ -268,7 +269,7 @@ export function travelMissionOffersForCity(state, city, portCities, context = {}
 
 export function imperialElectionOfferForCity(state, city, portCities, context = {}) {
   const quests = questMemory(state);
-  if (quests.active || quests.passengerActive) return null;
+  if (quests.envoyActive) return null;
   const existing = pendingPassengerOffersForCity(state, city)
     .find(isImperialElectionEnvoyQuest);
   if (existing) return existing;
@@ -333,7 +334,7 @@ export function previewTravelMissionOffersForCities(state, cities, portCities, c
 
 export function envoyOfferForCapital(state, city, portCities, context = {}) {
   const quests = questMemory(state);
-  if (quests.active || quests.passengerActive) return null;
+  if (quests.envoyActive) return null;
   const existing = pendingOrdinaryPassengerOfferForCity(state, city);
   if (existing) return existing;
   if (!city?.isFactionCapital || city.capitalOfFactionId !== city.factionId) return null;
@@ -524,25 +525,28 @@ export function activePassengerQuest(state) {
   return questMemory(state).passengerActive || null;
 }
 
-export function activeTravelMissionQuest(state) {
+export function activeTravelMissionQuests(state) {
   const quests = questMemory(state);
-  return isEnvoyQuest(quests.active) ? quests.active : (quests.passengerActive || null);
+  return [quests.passengerActive, quests.envoyActive].filter(Boolean);
 }
 
-export function activeNamedTravelMission(state) {
-  const quest = activeTravelMissionQuest(state);
-  if (!quest?.passenger) return null;
-  const kind = quest.kind === "passenger"
-    ? "passenger"
-    : isEnvoyQuest(quest) ? "envoy" : null;
-  if (!kind) throw new Error(`Named travel mission has unsupported kind: ${quest.kind}`);
-  return Object.freeze({ quest, kind, character: quest.passenger });
+export function activeTravelMissionQuest(state, questId = null) {
+  const missions = activeTravelMissionQuests(state);
+  return questId === null ? missions[0] || null : missions.find(quest => quest.id === questId) || null;
+}
+
+export function activeNamedTravelMissions(state) {
+  return activeTravelMissionQuests(state).filter(quest => quest.passenger).map(quest => {
+    const kind = quest.kind === "passenger" ? "passenger" : isEnvoyQuest(quest) ? "envoy" : null;
+    if (!kind) throw new Error(`Named travel mission has unsupported kind: ${quest.kind}`);
+    return Object.freeze({ quest, kind, character: quest.passenger });
+  });
 }
 
 export function passengerQuestById(state, questId) {
   const quests = questMemory(state);
-  if (quests.active?.id === questId) return quests.active;
-  if (quests.passengerActive?.id === questId) return quests.passengerActive;
+  const active = activeQuestById(quests, questId);
+  if (active) return active;
   for (const offer of Object.values(quests.passengerOffers)) {
     if (offer?.id === questId && !quests.completed[offer.id]) return offer;
   }
@@ -1291,10 +1295,11 @@ function seededFraction(value) {
 function questMemory(state) {
   if (!state?.memory || typeof state.memory !== "object") throw new Error("Passenger missions require game state memory");
   if (!state.memory.quests || typeof state.memory.quests !== "object") {
-    state.memory.quests = { active: null, passengerActive: null, completed: {} };
+    state.memory.quests = { active: null, passengerActive: null, envoyActive: null, completed: {} };
   }
   const quests = state.memory.quests;
   if (quests.passengerActive === undefined) quests.passengerActive = null;
+  if (quests.envoyActive === undefined) quests.envoyActive = null;
   if (!quests.completed || typeof quests.completed !== "object") quests.completed = {};
   if (!quests.passengerOffers || typeof quests.passengerOffers !== "object") quests.passengerOffers = {};
   if (!quests.passengerRolls || typeof quests.passengerRolls !== "object") quests.passengerRolls = {};
