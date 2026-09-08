@@ -81,7 +81,7 @@ test("polar-fog benchmark exercises the chart fog presentation pass", () => {
     captureScenarioId: POLAR_FOG_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
-    targetLandCarts: 2,
+    targetLandCarts: 0,
     initialScreen: null,
     forceRenderEveryFrame: false,
     requiresChartIntegrityTelemetry: true

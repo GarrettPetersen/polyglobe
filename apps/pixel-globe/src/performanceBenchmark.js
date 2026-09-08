@@ -32,7 +32,8 @@ const BENCHMARKS = Object.freeze({
   }),
   [POLAR_FOG_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: POLAR_FOG_CAPTURE_SCENARIO_ID,
-    targetLandCarts: 2
+    // The Scandinavian chart-recovery view has no visible land-road segments.
+    targetLandCarts: 0
   }),
   [COMBAT_HOTSPOT_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
