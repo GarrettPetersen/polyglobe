@@ -522,6 +522,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const landingDurationMs = portAssaultLandingDurationMs(scenario.dockKind);
       if (!unit.landed && timeMs >= unit.jumpStartedAtMs + landingDurationMs) {
         unit.landed = true;
+        unit.landedAtMs = timeMs;
         pushEvent(events, {
           timeMs,
           type: scenario.dockKind === "none" ? "splash" : "dock-land",
@@ -535,6 +536,8 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const allies = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackers : defenders;
       const tactic = portAssaultTacticalDecision(unit, allies, opponents, timeMs,
         unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackerSkirmishers : defenderSkirmishers);
+      // Yielding opens local passage without propagating a withdrawal through every rank.
+      unit.retreating = ["withdraw", "seek-cover"].includes(tactic?.mode);
       if (tactic?.mode === "reload" && unit.firearmReload !== null) {
         // Only this stationary action advances a firearm reload. Retreats,
         // hit reactions and melee interruptions leave the remaining work intact.
@@ -598,8 +601,10 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       // Stop at weapon reach instead of walking through the enemy. Lateral
       // movement consumes the same speed budget as advancing along the road.
       const next = portAssaultMoveInFormation(unit, destination, movement, occupancy, tactic?.range ?? (target ? unit.stats.range : 0), timeMs, {
+        holdingScreen: tactic?.mode === "support",
+        leaveRetreatGaps: (unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackerSkirmishers : defenderSkirmishers).length > 0,
         clearingLanding: unit.side === PORT_ASSAULT_SIDE.ATTACKER &&
-          timeMs < unit.jumpStartedAtMs + landingDurationMs + 1000
+          timeMs <= unit.landedAtMs + 1000
       });
       unit.position = next.position;
       unit.lane = next.lane;
@@ -876,6 +881,8 @@ function createBattleUnits(combatants, side, modifiers, random) {
       nextPrimaryAttackAtMs: spawnAtMs + Math.floor(random() * stats.cooldownMs),
       lastRangedAttackPosition: null,
       firearmReload: null,
+      retreating: false,
+      landedAtMs: null,
       reloadAnimationStartedAtMs: null,
       reloadAnimationDurationMs: null,
       nextMeleeAttackAtMs: stats.meleeFallback

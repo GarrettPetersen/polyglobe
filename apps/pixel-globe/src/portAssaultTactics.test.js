@@ -1,11 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { portAssaultShotIsClear, portAssaultTacticalDecision } from "./portAssaultTactics.js";
+import { PORT_ASSAULT_LANE_SPACING } from "./portAssaultFormation.js";
 import { portAssaultUnitStats } from "./portAssaultBattle.js";
 const unit = (id, type, position, lane = 1, side = "attacker") => ({
-  id, side, position, lane, alive: true, spawned: true, landed: true,
+  id, side, position, lane, alive: true, spawned: true, landed: true, landedAtMs: 0,
   lastRangedAttackPosition: null, firearmReload: null,
   stats: portAssaultUnitStats({ id, crewTypeId: type, combatProfileId: type, appearanceId: type, experienceStars: 1, auxiliary: false }), nextPrimaryAttackAtMs: 0
+});
+
+test("reloading gunners yield to withdrawing comrades ahead, but clear their landing first", () => {
+  for (const side of ["attacker", "defender"]) {
+    const forward = side === "attacker" ? 1 : -1;
+    const gun = unit("gun", "gunner", .5, 1, side);
+    gun.lastRangedAttackPosition = .5 + forward * .08;
+    gun.firearmReload = { durationMs: 4000, remainingMs: 2000 };
+    const ally = { ...unit("ally", "gunner", .5 + forward * .035, 1, side), retreating: true };
+    const enemy = unit("enemy", "swordsman", .5 + forward * .3, 1, side === "attacker" ? "defender" : "attacker");
+    const decision = portAssaultTacticalDecision(gun, [gun, ally], [enemy], 2000);
+    assert.equal(decision.mode, "yield");
+    assert.ok((decision.destination.position - gun.position) * forward < 0);
+    assert.equal(gun.firearmReload.remainingMs, 2000, "choosing movement must not advance reloading");
+    assert.equal(portAssaultTacticalDecision(gun, [gun, ally], [enemy], 500).mode, "reload");
+    ally.position = .5 - forward * .035;
+    assert.equal(portAssaultTacticalDecision(gun, [gun, ally], [enemy], 2000).mode, "reload");
+  }
 });
 
 test("friendly bodies block shots, including diagonals; fallen and off-line soldiers do not", () => {
@@ -116,5 +135,63 @@ test("both firearm troops reload only after reaching cover, and leave it when th
     assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 10000).mode, "reload");
     enemy.position = .4;
     assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 10000).mode, "withdraw");
+  }
+});
+
+test("infantry opens the retreat corridor without following withdrawing guns backward", () => {
+  for (const side of ["attacker", "defender"]) {
+    const forward = side === "attacker" ? 1 : -1;
+    const pike = unit("pike", "spearman", .5, 1, side);
+    const gun = { ...unit("gun", "gunner", .5 + forward * .035, 1, side), retreating: true };
+    const enemy = unit("enemy", "swordsman", .5 + forward * .3, 1, side === "attacker" ? "defender" : "attacker");
+    const decision = portAssaultTacticalDecision(pike, [pike, gun], [enemy], 2000);
+    assert.equal(decision.mode, "yield");
+    assert.ok(Math.abs(decision.destination.lane - gun.lane) * PORT_ASSAULT_LANE_SPACING >= .02, "make physical passage sideways");
+    gun.lane = 3;
+    assert.equal(portAssaultTacticalDecision(pike, [pike, gun], [enemy], 2000).mode, "support",
+      "an off-path withdrawing gun does not require yielding");
+    gun.retreating = false;
+    gun.firearmReload = { durationMs: 4000, remainingMs: 2000 };
+    assert.ok((portAssaultTacticalDecision(pike, [pike, gun], [enemy], 2000).destination.position - pike.position) * forward >= 0,
+      "reloading does not make the infantry follow guns backward");
+    gun.firearmReload = null;
+    assert.equal(portAssaultTacticalDecision(pike, [pike, gun], [enemy], 2000).mode, "support");
+  }
+});
+
+test("yielding troops choose the open side of a retreat corridor", () => {
+  const pike = unit("pike", "spearman", .5, 1);
+  const gun = { ...unit("gun", "gunner", .535, 1), retreating: true };
+  const blocker = unit("blocker", "spearman", .49, 1 - .021 / PORT_ASSAULT_LANE_SPACING);
+  const enemy = unit("enemy", "swordsman", .8, 1, "defender");
+  const decision = portAssaultTacticalDecision(pike, [pike, gun, blocker], [enemy], 2000);
+  assert.equal(decision.mode, "yield");
+  assert.ok(decision.destination.lane > pike.lane, "the nearer blocked side cannot provide passage");
+});
+
+test("gunners hold behind intervening infantry, but withdraw when that protection opens", () => {
+  for (const side of ["attacker", "defender"]) {
+    const forward = side === "attacker" ? 1 : -1;
+    const gun = unit("gun", "gunner", .5, 1, side);
+    gun.lastRangedAttackPosition = .5;
+    gun.firearmReload = { durationMs: 4000, remainingMs: 2000 };
+    const pike = unit("pike", "spearman", .5 + forward * .03, 1, side);
+    const enemy = unit("enemy", "swordsman", .5 + forward * .08, 1, side === "attacker" ? "defender" : "attacker");
+    assert.equal(portAssaultTacticalDecision(gun, [gun, pike], [enemy], 2000).mode, "reload",
+      "the infantry screen protects a stationary reload");
+    for (const exposedPike of [{ ...pike, lane: 3 }, { ...pike, alive: false }]) {
+      assert.equal(portAssaultTacticalDecision(gun, [gun, exposedPike], [enemy], 2000).mode, "withdraw");
+    }
+  }
+});
+
+test("yielding responds to the nearest withdrawing comrade regardless of roster order", () => {
+  const pike = unit("pike", "spearman", .5, 1.2);
+  const farther = { ...unit("farther", "gunner", .54, .8), retreating: true };
+  const nearer = { ...unit("nearer", "gunner", .525, 1.3), retreating: true };
+  const enemy = unit("enemy", "swordsman", .8, 1, "defender");
+  const expected = portAssaultTacticalDecision(pike, [pike, nearer], [enemy], 2000);
+  for (const allies of [[pike, farther, nearer], [nearer, pike, farther]]) {
+    assert.deepEqual(portAssaultTacticalDecision(pike, allies, [enemy], 2000), expected);
   }
 });

@@ -4,7 +4,7 @@ import { CROATOAN_CLUE, cityRuinsDamage, croatoanClueScreenRect, croatoanClueCon
 import { GAME_ICON_ASSET_VERSION, gameIconAtlasRect, gameIconAtlasDimensions } from "../src/gameIcons.js";
 import { requirePixelPerfectSpriteScale } from "../src/pixelPerfectSpriteScale.js";
 import { cityAssaultCameraTargetPosition } from "./cityAssaultCamera.js";
-import { cityCombatEntryOpacity, cityAssaultFacadeFoundationHeight } from "./cityCombatVisibility.js";
+import { cityCombatEntryOpacity, cityAssaultFacadeFoundationHeight, cityAssaultBuildingIsForeground } from "./cityCombatVisibility.js";
 import { activeForeignSettlements, foreignSettlementsForCity1522 } from "../src/foreignSettlements.js";
 import {
   CITY_FEAST_TABLE, CITY_FEAST_TABLE_Z, CITY_FEAST_SHADOW_Z, CITY_FEAST_FOOD_FILES,
@@ -1822,7 +1822,8 @@ function createSceneRenderEntries() {
       authoredOrder: 39
     });
   }
-  if (state.bombardmentEventId !== null && !["uninhabited", "ruins"].includes(state.features.settlementStage)) {
+  if ((state.bombardmentEventId !== null || state.assaultPresentation !== null) &&
+      !["uninhabited", "ruins"].includes(state.features.settlementStage)) {
     entries.push({
       kind: "bombardment-fire-overlay",
       z: CITY_BOMBARDMENT_FIRE_PAINTER_Z,
@@ -2215,13 +2216,13 @@ function backgroundCityAtmosphereFrame(frame, level) {
 
 function authoredBombardmentPresentation(frame, layerName, occurrence, source) {
   if (state.assaultPresentation !== null) {
-    const foundationHeight = cityAssaultFacadeFoundationHeight(layerName, source.frame.frame.h);
+    const foundationHeight = cityAssaultFacadeFoundationHeight(layerName, source.frame.frame.h, layerPainterZ(layerName, occurrence, state.features.approach));
     if (foundationHeight !== null) {
       return damagedBuildingFramePresentation({ source,
         buildingId: `assault|authored|${layerName}|${occurrence}`, foundationHeight });
     }
   }
-  if (state.bombardmentEventId === null || !cityBombardmentLayerIsDamageable(layerName)) {
+  if ((state.bombardmentEventId === null && state.assaultPresentation === null) || !cityBombardmentLayerIsDamageable(layerName)) {
     return null;
   }
   return damagedBuildingFramePresentation({
@@ -2231,7 +2232,7 @@ function authoredBombardmentPresentation(frame, layerName, occurrence, source) {
 }
 
 function cityStreetBombardmentPresentation(placement, source) {
-  if (state.assaultPresentation !== null) {
+  if (state.assaultPresentation !== null && cityAssaultBuildingIsForeground(placement.z)) {
     const foundationHeight = placement.foundationHeight ?? Math.max(8, Math.round(placement.height * 0.2));
     return damagedBuildingFramePresentation({ source, buildingId: `assault|street|${placement.id}`, foundationHeight });
   }
@@ -2239,7 +2240,7 @@ function cityStreetBombardmentPresentation(placement, source) {
     return damagedBuildingFramePresentation({ source, buildingId: `street|${placement.id}`,
       foundationHeight: placement.foundationHeight });
   }
-  if (state.bombardmentEventId === null) return null;
+  if (state.bombardmentEventId === null && state.assaultPresentation === null) return null;
   return damagedBuildingFramePresentation({
     source,
     buildingId: `street|${placement.id}`
@@ -2266,7 +2267,9 @@ function backgroundCityBombardmentBuildingId(side, entry) {
 }
 
 function damagedBuildingFramePresentation({ source, buildingId, seed = null, foundationHeight = null }) {
-  const eventId = foundationHeight === null ? state.bombardmentEventId : "colony-ruins";
+  const eventId = foundationHeight === null
+    ? state.bombardmentEventId ?? (state.assaultPresentation === null ? null : "port-assault")
+    : "colony-ruins";
   if (!source?.atlas || !source?.frame?.frame) {
     throw new Error(`Bombardment building ${buildingId} has no source frame`);
   }
@@ -2347,7 +2350,7 @@ function damagedBuildingFramePresentation({ source, buildingId, seed = null, fou
 }
 
 function drawBombardmentFireOverlay(timeMs) {
-  if (state.bombardmentEventId === null) return;
+  if (state.bombardmentEventId === null && state.assaultPresentation === null) return;
   if (!state.fireAtlas) throw new Error("Bombarded city rendered before its fire atlas loaded");
   const fireTargetContext = separateEmissiveOverlay ? emissiveContext : context;
   if (!fireTargetContext) throw new Error("Bombarded city has no emissive render target");

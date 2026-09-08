@@ -114,3 +114,17 @@ test("soft spacing uses radial forces and sees neighbors across index boundaries
   assert.ok(force.positionOffset < 0);
   assert.equal(force.laneOffset, 0, "a horizontal neighbor must not invent a lateral force");
 });
+
+test("advancing ranks do not transmit rear pressure into a crowded front", () => {
+  for (const side of ["attacker", "defender"]) {
+    const forward = side === "attacker" ? 1 : -1;
+    const unit = { ...soldier("middle", .5, 1), side };
+    const rear = { ...soldier("rear", .5 - forward * .025, .8), side };
+    const front = { ...soldier("front", .5 + forward * .025, 1), side };
+    const rearPressure = portAssaultFormationSpacing(unit, [rear], { advancing: true });
+    assert.equal(rearPressure.positionOffset, 0);
+    assert.ok(rearPressure.laneOffset > 0, "still spread sideways away from rear comrades");
+    const pressure = portAssaultFormationSpacing(unit, [front, rear], { advancing: true });
+    assert.ok(pressure.positionOffset * forward < 0, "back away from the front rank instead of compressing it");
+  }
+});

@@ -922,7 +922,7 @@ test("explicit scene z places walkers and the inn between gatehouse sections", (
 });
 
 test("port-assault lanes participate in city ground painter order", () => {
-  assert.deepEqual(CITY_PORT_ASSAULT_LANE_FEET_Y, [508, 520.8, 533.6, 546.4]);
+  assert.deepEqual(CITY_PORT_ASSAULT_LANE_FEET_Y, [490, 509.2, 528.4, 547.6]);
   for (const lane of CITY_PORT_ASSAULT_LANE_FEET_Y.keys()) {
     const painterZ = cityPortAssaultLanePainterZ(lane);
     assert.equal(painterZ, cityGroundPainterZ(CITY_PORT_ASSAULT_LANE_FEET_Y[lane]));
@@ -942,8 +942,8 @@ test("port-assault lanes participate in city ground painter order", () => {
   assert.throws(() => cityShipLandingForegroundPainterZ("invalid"), /Invalid landing dock/);
   assert.throws(() => cityPortAssaultLanePainterZ(-1), /port-assault lane/);
   assert.throws(() => cityPortAssaultLanePainterZ(4), /port-assault lane/);
-  assert.ok(Math.abs(cityPortAssaultLaneFeetY(1.5) - 527.2) < 1e-9);
-  assert.ok(Math.abs(cityPortAssaultLanePainterZ(1.5) - cityGroundPainterZ(527.2)) < 1e-9);
+  assert.ok(Math.abs(cityPortAssaultLaneFeetY(1.5) - 518.8) < 1e-9);
+  assert.ok(Math.abs(cityPortAssaultLanePainterZ(1.5) - cityGroundPainterZ(518.8)) < 1e-9);
   assert.throws(() => cityPortAssaultLaneFeetY(NaN), /port-assault lane/);
   assert.match(VISUALIZER_MAIN_SOURCE, /kind: "port-assault",\s+lane,\s+z: cityPortAssaultLanePainterZ\(lane\)/);
   assert.match(

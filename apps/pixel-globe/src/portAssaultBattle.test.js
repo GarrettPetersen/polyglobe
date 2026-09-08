@@ -23,6 +23,7 @@ import {
 import { shipStatsForSlug } from "./shipStats.js";
 import {
   PORT_ASSAULT_LANE_COUNT,
+  PORT_ASSAULT_LANE_SPACING,
   portAssaultBodyRadius,
   portAssaultGroundDistance
 } from "./portAssaultFormation.js";
@@ -469,10 +470,10 @@ test("a much larger crew can replenish its front line against a strong garrison 
   assert.ok(forecast.expectedCasualties < attackers.length);
 });
 
-test("weapon reach distinguishes swords, spears, and polearms across actual lanes", () => {
+test("weapon reach distinguishes swords, spears, and polearms by ground distance", () => {
   const sword = portAssaultUnitStats(combatant("sword", "swordsman", 0));
   const origin = { position: 0.5, lane: 0 };
-  const diagonal = { position: 0.515, lane: 0.8 };
+  const diagonal = { position: 0.515, lane: 0.032 / PORT_ASSAULT_LANE_SPACING };
   const distance = portAssaultGroundDistance(origin, diagonal);
   assert.ok(distance > sword.range, "the sword cannot hit diagonally across this gap");
   for (const profile of ["spearman", "tribal-spearman", "yari-ashigaru", "halberdier"]) {
@@ -481,7 +482,7 @@ test("weapon reach distinguishes swords, spears, and polearms across actual lane
     assert.ok(portAssaultGroundDistance(origin, { position: 0.5, lane: 2 }) > stats.range,
       `${profile} must not strike across two full lanes`);
   }
-  assert.ok(portAssaultGroundDistance(origin, { position: 0.511, lane: 0.5 }) < sword.range,
+  assert.ok(portAssaultGroundDistance(origin, { position: 0.511, lane: 0.020 / PORT_ASSAULT_LANE_SPACING }) < sword.range,
     "a sword can strike a sufficiently close neighbor between the wider lane centers");
 });
 

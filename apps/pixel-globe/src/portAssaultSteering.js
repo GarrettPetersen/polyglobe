@@ -7,7 +7,7 @@ const FORMATION_LANE_RECONSIDER_MS = 200;
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
 
 // Updates the soldier's local lane goal; returns its collision-safe next position.
-export function portAssaultMoveInFormation(unit, destination, movement, occupancy, range, timeMs, { clearingLanding = false } = {}) {
+export function portAssaultMoveInFormation(unit, destination, movement, occupancy, range, timeMs, { clearingLanding = false, holdingScreen = false, leaveRetreatGaps = false } = {}) {
   if (unit.laneGoal !== null) {
     const directDistance = portAssaultGroundDistance(unit, destination);
     const direct = portAssaultFormationStep(unit, destination, directDistance,
@@ -31,22 +31,50 @@ export function portAssaultMoveInFormation(unit, destination, movement, occupanc
     ((destination.lane - lane) * PORT_ASSAULT_LANE_SPACING) ** 2));
   const goal = { position: clamp(destination.position - direction * standOff, 0, 1), lane };
   const goalDistance = portAssaultGroundDistance(unit, goal);
-  const attractionScale = goalDistance > 0 ? Math.min(1, movement / goalDistance) : 0;
-  const spacing = portAssaultFormationSpacing(unit, occupancy.nearby(unit, unit, 0, 3));
+  let attractionScale = goalDistance > 0 ? Math.min(1, movement / goalDistance) : 0;
+  const retreating = direction === (unit.side === "attacker" ? -1 : 1);
+  const neighbors = occupancy.nearby(unit, unit, 0, 3);
+  // Ignore comfort pressure from the ranks we are withdrawing into. Comrades
+  // ahead can still push us back or sideways so they too have room to retreat.
+  const spacing = portAssaultFormationSpacing(unit, retreating
+    ? neighbors.filter(other => (other.position - unit.position) * direction <= 0)
+    : neighbors, { advancing: leaveRetreatGaps && !retreating && direction !== 0 && unit.stats.attackType === "melee" && !clearingLanding });
   const spacingLength = Math.hypot(spacing.positionOffset, spacing.laneOffset * PORT_ASSAULT_LANE_SPACING);
   // Skirmishers threading the infantry screen need only physical clearance.
   // The infantry's generous personal space must not repel them out of a gap.
   const threadingScreen = (unit.stats.attackType === "arrow" || unit.stats.attackType === "firearm") && direction !== 0;
-  const spacingScale = threadingScreen ? 0 : spacingLength > 0.65 ? 0.65 / spacingLength : 1;
+  const maximumSpacingForce = holdingScreen ? 1.5 : 0.65;
+  const spacingScale = threadingScreen && !retreating ? 0 :
+    spacingLength > maximumSpacingForce ? maximumSpacingForce / spacingLength : 1;
+  if (holdingScreen && !threadingScreen && !retreating && !clearingLanding) {
+    attractionScale *= Math.max(0, 1 - spacingLength);
+  }
   goal.position = clamp(unit.position + (goal.position - unit.position) * attractionScale +
     spacing.positionOffset * movement * spacingScale, 0, 1);
-  // A support/reload order to hold this position can spread sideways, but
-  // personal-space forces must not invent an unordered retreat toward the ship.
-  if (direction === 0 || (clearingLanding && direction === (unit.side === "attacker" ? 1 : -1))) goal.position = unit.side === "attacker"
+  // Only the landing run prevents backward steps. Settled ranks must be able
+  // to back up to leave passage for their withdrawing comrades.
+  if (clearingLanding && (direction === 0 || direction === (unit.side === "attacker" ? 1 : -1))) goal.position = unit.side === "attacker"
     ? Math.max(unit.position, goal.position) : Math.min(unit.position, goal.position);
   goal.lane = clamp(unit.lane + (goal.lane - unit.lane) * attractionScale +
     spacing.laneOffset * movement * spacingScale, 0, PORT_ASSAULT_LANE_COUNT - 1);
   let next = portAssaultFormationStep(unit, goal, movement, occupancy.nearby(unit, goal, movement));
+  // Slide around contacting bodies along a diagonal, rather than requiring
+  // a purely sideways gap while already pressed against a comrade.
+  const stepLength = portAssaultGroundDistance(unit, next);
+  if (stepLength < movement * .5 && portAssaultGroundDistance(unit, goal) > movement * .5) {
+    const heading = Math.atan2((goal.lane - unit.lane) * PORT_ASSAULT_LANE_SPACING, goal.position - unit.position);
+    let bestScore = stepLength;
+    for (const angle of [-Math.PI / 6, Math.PI / 6, -Math.PI / 3, Math.PI / 3]) {
+      const probeGoal = {
+        position: clamp(unit.position + Math.cos(heading + angle) * movement, 0, 1),
+        lane: clamp(unit.lane + Math.sin(heading + angle) * movement / PORT_ASSAULT_LANE_SPACING, 0, PORT_ASSAULT_LANE_COUNT - 1)
+      };
+      if (clearingLanding && (probeGoal.position - unit.position) * (unit.side === "attacker" ? 1 : -1) < 0) continue;
+      const probe = portAssaultFormationStep(unit, probeGoal, movement, occupancy.nearby(unit, probeGoal, movement));
+      const score = portAssaultGroundDistance(unit, probe) * Math.cos(angle);
+      if (score > bestScore + 1e-9) { next = probe; bestScore = score; }
+    }
+  }
   const progress = goalDistance - portAssaultGroundDistance(next, {
     position: clamp(destination.position - direction * standOff, 0, 1), lane
   });
@@ -68,6 +96,17 @@ export function portAssaultMoveInFormation(unit, destination, movement, occupanc
     .sort((left, right) => Math.abs(left - destination.lane) - Math.abs(right - destination.lane) || left - right);
   for (const candidate of alternatives) {
     const sideGoal = { position: unit.position, lane: candidate };
+    if (retreating) {
+      const sideDistance = portAssaultGroundDistance(unit, sideGoal);
+      const end = portAssaultFormationStep(unit, sideGoal, sideDistance,
+        occupancy.nearby(unit, sideGoal, sideDistance));
+      if (portAssaultGroundDistance(end, sideGoal) > 1e-9) continue;
+      const onward = { position: clamp(unit.position + direction * .02, 0, 1), lane: candidate };
+      const probe = { ...unit, ...end };
+      const forwardStep = portAssaultFormationStep(probe, onward, movement,
+        occupancy.nearby(probe, onward, movement));
+      if ((forwardStep.position - probe.position) * direction < movement * .5) continue;
+    }
     const sideStep = portAssaultFormationStep(unit, sideGoal, movement,
       occupancy.nearby(unit, sideGoal, movement));
     if (portAssaultGroundDistance(unit, sideStep) < movement * 0.5) continue;

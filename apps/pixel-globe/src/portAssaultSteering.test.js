@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { PortAssaultOccupancy, portAssaultGroundDistance, portAssaultPositionIsFree } from "./portAssaultFormation.js";
 import { portAssaultMoveInFormation } from "./portAssaultSteering.js";
 
-test("spacing cannot push a holding soldier backward, but ordered retreats still work", () => {
+test("holding soldiers back away from crowding after the landing run", () => {
   for (const side of ["attacker", "defender"]) {
     const direction = side === "attacker" ? 1 : -1;
     const position = side === "attacker" ? .04 : .96;
@@ -18,7 +18,7 @@ test("spacing cannot push a holding soldier backward, but ordered retreats still
       { position: position + direction * .0001, lane: 1 }, .003, occupancy, 0, 800, { clearingLanding: true });
     assert.ok((shortAdvance.position - position) * direction >= 0, "spacing cannot reverse an advance order");
     const holding = portAssaultMoveInFormation(soldier, { position, lane: 1 }, .003, occupancy, 0, 1000);
-    assert.equal(holding.position, position);
+    assert.ok((holding.position - position) * direction < 0);
     const retreat = portAssaultMoveInFormation(soldier, { position: position - direction * .02, lane: 1 },
       .003, occupancy, 0, 1200);
     assert.ok((retreat.position - position) * direction < 0);
@@ -37,6 +37,7 @@ test("skirmishers can pass both ways through a standing four-file infantry forma
         alive: true, stats: { mounted: false }, laneGoal: null, nextLaneChangeAtMs: 0 });
       const infantry = Array.from({ length: 4 }, (_, lane) => soldier(`pike-${lane}`, .5, lane));
       const gunner = soldier("gunner", .5 - direction * .07, entryLane);
+      gunner.stats.attackType = "firearm";
       const destination = { position: .5 + direction * .07, lane: entryLane };
       const occupancy = new PortAssaultOccupancy();
       for (const unit of [...infantry, gunner]) occupancy.add(unit);
@@ -79,7 +80,7 @@ test("skirmishers retreat through three intact infantry ranks without overlappin
   }
 });
 
-test("a moving gunner ignores personal-space pressure but a formation infantryman keeps it", () => {
+test("retreating soldiers ignore personal-space pressure from comrades behind them", () => {
   function step(attackType) {
     const soldier = { id: "subject", side: "attacker", position: .5, lane: 1,
       alive: true, stats: { mounted: false, attackType }, laneGoal: null, nextLaneChangeAtMs: 0 };
@@ -89,5 +90,5 @@ test("a moving gunner ignores personal-space pressure but a formation infantryma
     return portAssaultMoveInFormation(soldier, { position: .45, lane: 1 }, .004, occupancy, 0, 200);
   }
   assert.equal(step("firearm").position, .496, "the body fits, so retreat at full speed");
-  assert.ok(step("melee").position > .496, "formation troops resist compressing the working gap");
+  assert.equal(step("melee").position, .496, "ordered infantry retreats also ignore pressure from behind");
 });

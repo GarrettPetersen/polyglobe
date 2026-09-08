@@ -2,7 +2,8 @@
 // depth at half scale. Lane centers leave room for infantry to pass between
 // two standing comrades rather than forming an impenetrable shoulder-to-shoulder wall.
 export const PORT_ASSAULT_LANE_COUNT = 4;
-export const PORT_ASSAULT_LANE_SPACING = 0.04;
+// Enough continuous ground depth for a full crew and its retreat corridors.
+export const PORT_ASSAULT_LANE_SPACING = 0.06;
 export const PORT_ASSAULT_INFANTRY_RADIUS = 0.009;
 export const PORT_ASSAULT_MOUNTED_RADIUS = 0.013;
 const CONTACT_EPSILON = 1e-9;
@@ -77,7 +78,7 @@ export function portAssaultPositionIsFree(unit, occupants) {
 
 // A soft repulsion keeps a formation from compressing into a single pixel
 // before hard collision resolution has to stop movement.
-export function portAssaultFormationSpacing(unit, occupants) {
+export function portAssaultFormationSpacing(unit, occupants, { advancing = false } = {}) {
   let positionOffset = 0;
   let laneOffset = 0;
   for (const other of occupants) {
@@ -88,10 +89,15 @@ export function portAssaultFormationSpacing(unit, occupants) {
     const dx = unit.position - other.position;
     const dy = (unit.lane - other.lane) * PORT_ASSAULT_LANE_SPACING;
     // Repulsion is a ground-space vector, not an offset to a distant target.
-    const strength = (desired - distance) / desired;
+    const withdrawingPast = other.retreating &&
+      (other.position - unit.position) * (unit.side === "attacker" ? 1 : -1) > 0;
+    const strength = (desired - distance) / desired * (withdrawingPast ? 3 : 1);
     const directionX = distance > CONTACT_EPSILON ? dx / distance : (unit.id < other.id ? -1 : 1);
     const directionY = distance > CONTACT_EPSILON ? dy / distance : 0;
-    positionOffset += directionX * strength;
+    // Advancing ranks must not transmit pressure from the back of the army
+    // into the front. They can still move sideways to clear personal space.
+    const forward = unit.side === "attacker" ? 1 : -1;
+    if (!advancing || directionX * forward < 0) positionOffset += directionX * strength;
     laneOffset += directionY * strength / PORT_ASSAULT_LANE_SPACING;
   }
   return Object.freeze({ positionOffset, laneOffset });

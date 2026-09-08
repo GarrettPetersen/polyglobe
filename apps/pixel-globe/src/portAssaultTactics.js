@@ -1,4 +1,4 @@
-import { PORT_ASSAULT_LANE_SPACING, portAssaultBodyRadius, portAssaultGroundDistance } from "./portAssaultFormation.js";
+import { PORT_ASSAULT_LANE_COUNT, PORT_ASSAULT_LANE_SPACING, portAssaultBodyRadius, portAssaultFormationStep, portAssaultGroundDistance } from "./portAssaultFormation.js";
 
 const LOCAL_RADIUS = 0.24;
 const PROTECTION_DISTANCE = 0.09;
@@ -40,6 +40,36 @@ function move(mode, position, lane, range = 0) {
   return { mode, destination: { position: Math.max(0, Math.min(1, position)), lane }, range };
 }
 
+function withdrawingComradeInPath(unit, allies, timeMs) {
+  if (unit.landedAtMs !== null && timeMs <= unit.landedAtMs + 1000) return null;
+  const forward = unit.side === "attacker" ? 1 : -1;
+  return nearest(unit, allies.filter(ally => ally.id !== unit.id && ready(ally) && ally.retreating &&
+    (ally.position - unit.position) * forward > 0 && portAssaultGroundDistance(unit, ally) < SCREEN_GAP &&
+    Math.abs(ally.lane - unit.lane) * PORT_ASSAULT_LANE_SPACING <
+      portAssaultBodyRadius(unit) + portAssaultBodyRadius(ally) + .003));
+}
+
+function yieldToWithdrawingComrade(unit, comrade, allies, enemies) {
+  const rearDirection = unit.side === "attacker" ? -1 : 1;
+  // Open the retreat corridor sideways instead of joining a backward queue.
+  const clearance = (portAssaultBodyRadius(unit) + portAssaultBodyRadius(comrade) + .003) / PORT_ASSAULT_LANE_SPACING;
+  const candidates = [comrade.lane - clearance, comrade.lane + clearance]
+    .filter(lane => lane >= 0 && lane <= PORT_ASSAULT_LANE_COUNT - 1)
+    .sort((a, b) => Math.abs(a - unit.lane) - Math.abs(b - unit.lane) || a - b);
+  const occupants = [...allies, ...enemies].filter(ready);
+  let best = null;
+  let bestProgress = -1;
+  for (const lane of candidates) {
+    const decision = move("yield", unit.position + rearDirection * .01, lane);
+    const distance = portAssaultGroundDistance(unit, decision.destination);
+    const step = portAssaultFormationStep(unit, decision.destination, distance, occupants);
+    const progress = portAssaultGroundDistance(unit, step) / distance;
+    if (progress > bestProgress) { best = decision; bestProgress = progress; }
+  }
+  if (!best) throw new Error(`No retreat clearance within the battlefield for ${unit.id}`);
+  return best;
+}
+
 // Decisions depend on nearby soldiers and individual reload clocks, never a
 // battle-wide phase. Cavalry bypasses the infantry screen and closes immediately.
 export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, rangedAllies = allies.filter(ranged)) {
@@ -55,6 +85,10 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
       const fallenScreen = localScreen.filter(ally => !ally.alive && ally.spawned);
       const threatened = screen.some(ally => enemies.some(enemy => ready(enemy) && !ranged(enemy) &&
         portAssaultGroundDistance(ally, enemy) < PROTECTION_DISTANCE));
+      const withdrawing = withdrawingComradeInPath(unit, allies, timeMs);
+      if (withdrawing) {
+        return yieldToWithdrawingComrade(unit, withdrawing, allies, enemies);
+      }
       if (screen.length > fallenScreen.length && !threatened) {
         const skirmisher = nearest(unit, screen);
         const screenPosition = skirmisher.position - direction * SCREEN_GAP;
@@ -67,10 +101,18 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
   const friends = allies.filter(ally => ally.id !== unit.id && ready(ally) &&
     portAssaultGroundDistance(unit, ally) <= LOCAL_RADIUS);
   const threat = nearest(unit, enemies.filter(enemy => ready(enemy) && !ranged(enemy)));
-  const threatened = threat && portAssaultGroundDistance(unit, threat) < PROTECTION_DISTANCE;
+  // Once an infantry body stands between us and the approaching enemy, hold
+  // its protection instead of repeatedly fleeing and pulling every rank back.
+  const infantryScreen = friends.filter(ally => !ranged(ally));
+  const screenedFromThreat = threat && !portAssaultShotIsClear(unit, threat, infantryScreen);
+  const threatened = threat && portAssaultGroundDistance(unit, threat) < PROTECTION_DISTANCE && !screenedFromThreat;
   const reloading = unit.stats.attackType === "firearm"
     ? unit.firearmReload !== null : timeMs < unit.nextPrimaryAttackAtMs;
   const rearDirection = unit.side === "attacker" ? -1 : 1;
+  const withdrawing = withdrawingComradeInPath(unit, friends, timeMs);
+  if (!threatened && withdrawing) {
+    return yieldToWithdrawingComrade(unit, withdrawing, allies, enemies);
+  }
   if (threatened) {
     // Retreat from immediate danger without needing to select a protector.
     const retreat = move("withdraw", unit.position + rearDirection * SCREEN_GAP, unit.lane);

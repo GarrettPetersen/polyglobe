@@ -9,9 +9,10 @@ export const CITY_GATE_TRAVERSAL_PAINTER_Z = 71.8;
 // rear street. This keeps fire inside the same scene instead of treating it as UI.
 export const CITY_BOMBARDMENT_FIRE_PAINTER_Z = 63;
 
+// Use the full road depth while keeping the near rank behind the gate front.
 export const CITY_PORT_ASSAULT_LANE_FEET_Y = Object.freeze(
   Array.from({ length: PORT_ASSAULT_LANE_COUNT }, (_, lane) =>
-    508 + lane * PORT_ASSAULT_LANE_SPACING * CITY_ASSAULT_TRACK_SPAN_PX * CITY_ASSAULT_GROUND_DEPTH_SCALE)
+    490 + lane * PORT_ASSAULT_LANE_SPACING * CITY_ASSAULT_TRACK_SPAN_PX * CITY_ASSAULT_GROUND_DEPTH_SCALE)
 );
 
 export const CITY_NPC_PATHS = Object.freeze([
