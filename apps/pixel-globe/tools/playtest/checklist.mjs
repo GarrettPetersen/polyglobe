@@ -3,10 +3,12 @@ import { tradeGoodById } from "../../src/economy.js";
 
 export const CHECKLIST_GOALS = Object.freeze([
   "buy-cargo", "sell-cargo", "recruit", "inspect-crew", "equipment", "shipyard",
-  "inn", "mission", "politics", "reload", "sail-and-dock", "teleport-and-dock"
+  "inn", "mission", "politics", "reload", "sail-and-dock", "teleport-and-dock", "destroyed-port"
 ]);
-export function shuffledChecklist(random) {
-  const goals = [...CHECKLIST_GOALS];
+export function shuffledChecklist(random, selectedGoals = CHECKLIST_GOALS) {
+  assert.ok(selectedGoals.length > 0 && new Set(selectedGoals).size === selectedGoals.length &&
+    selectedGoals.every(goal => CHECKLIST_GOALS.includes(goal)), "Invalid checklist goals");
+  const goals = [...selectedGoals];
   for (let i = goals.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     if (j < 0 || j > i) throw new Error("Invalid checklist random draw");
@@ -57,8 +59,8 @@ export function checklistMenuCommand(state, goal) {
   }
 }
 
-export async function runBrowserChecklist({ command, initialState, random, checkpoint, maxActions = 400 }) {
-  const order = shuffledChecklist(random);
+export async function runBrowserChecklist({ command, initialState, random, checkpoint, maxActions = 400, goals = CHECKLIST_GOALS }) {
+  const order = shuffledChecklist(random, goals);
   const report = { order, completed: [], evidence: [], travel: [], actions: 0, actionCoverage: {},
     limitations: ["Initial naval battle remains a separate fixture", "No autonomous city-assault, colony, whale-hunt or ship-purchase strategy yet"] };
   let state = initialState;
@@ -132,7 +134,40 @@ export async function runBrowserChecklist({ command, initialState, random, check
     while (await clearOverlay()) {}
     const before = state;
     const evidence = { goal, startAction: report.actions, startMinute: state.minute };
-    if (goal === "reload") {
+    if (goal === "destroyed-port") {
+      const returnCityId = state.cityId || destination;
+      await leave();
+      const cityId = "chillicothe|united states of america";
+      await act({ type: "damage-port", cityId });
+      evidence.visits = [];
+      for (let visit = 0; visit < 2; visit++) {
+        await act({ type: "teleport", cityId });
+        let arrived = false;
+        for (let attempt = 0; attempt < 30; attempt++) {
+          // Inspect before the ordinary one-option fallback leaves the closed port.
+          if (state.cityId === cityId && state.nodeId === "recovering") { arrived = true; break; }
+          if (await clearOverlay()) continue;
+          assert.ok(!state.nodeId, `Destroyed-port approach interrupted by ${state.nodeId}`);
+          if (state.ports.some(port => port.cityId === cityId && port.inRange)) await act({ type: "dock", cityId });
+          else await act({ type: "sail", cityId });
+        }
+        assert.ok(arrived, "Did not enter the destroyed port's recovery dialogue");
+        assert.equal(state.scene?.cityId, cityId, "Recovery dialogue has no rendered city scene");
+        assert.deepEqual(state.scene.destinationIds, [], "Unadmitted recovery scene exposed interactive services");
+        const departure = singleDialogueOptionCommand(state);
+        assert.ok(departure, "Recovery dialogue has no sole enabled departure");
+        evidence.visits.push({ cityId, nodeId: state.nodeId, scene: state.scene });
+        await act(departure);
+        await leave();
+        await act({ type: "save" }); await act({ type: "reload" });
+      }
+      await act({ type: "capture-damaged-port", cityId });
+      assert.equal(state.scene?.cityId, cityId, "Post-capture arrival lost its city scene");
+      assert.deepEqual(state.scene.destinationIds, ["set-sail"], "Captured burning port exposed services or lost its exit");
+      evidence.postCaptureScene = state.scene;
+      // Keep later randomly ordered service objectives out of this closed port.
+      await arrive(returnCityId, true);
+    } else if (goal === "reload") {
       await act({ type: "save" }); await act({ type: "reload" });
     } else if (goal === "inspect-crew" || goal === "politics") {
       await act({ type: goal });
@@ -190,7 +225,8 @@ export async function runBrowserChecklist({ command, initialState, random, check
     // Cross every activity with real persistence; later objectives inherit it.
     await act({ type: "save" }); await act({ type: "reload" });
   }
-  assert.equal(new Set(report.completed).size, CHECKLIST_GOALS.length);
-  assert.ok(report.travel.some(leg => leg.teleport) && report.travel.some(leg => !leg.teleport && leg.sailingCommands > 0));
+  assert.equal(new Set(report.completed).size, goals.length);
+  if (goals.includes("teleport-and-dock")) assert.ok(report.travel.some(leg => leg.teleport));
+  if (goals.includes("sail-and-dock")) assert.ok(report.travel.some(leg => !leg.teleport && leg.sailingCommands > 0));
   return report;
 }

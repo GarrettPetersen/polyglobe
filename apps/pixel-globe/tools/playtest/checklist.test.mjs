@@ -68,3 +68,35 @@ test("automatic acknowledgements are traced and a stuck single-option dialogue f
   assert.equal(report.actionCoverage.close, 3);
   assert.deepEqual(report.completed, []);
 });
+
+test("destroyed-port objective requires rendered recovery and revisits after persistence", async () => {
+  async function exercise(destinationIds) {
+    let state = { gameState: { voyageSeed: "same-voyage" }, minute: 1, options: [], locations: [], ports: [] };
+    const commands = [];
+    const command = async input => {
+      commands.push(input.type);
+      if (input.type === "teleport") state = { ...state, cityId: null, nodeId: null,
+        ports: [{ cityId: input.cityId, inRange: true }] };
+      if (input.type === "dock") state = { ...state, cityId: input.cityId, nodeId: "recovering",
+        scene: { cityId: input.cityId, destinationIds: [] },
+        options: [{ id: "leave", action: { type: "close" }, disabled: false }] };
+      if (input.type === "capture-damaged-port") state = { ...state, cityId: input.cityId, nodeId: "root",
+        scene: { cityId: input.cityId, destinationIds }, options: [{ id: "leave", action: { type: "close" } }] };
+      if (input.type === "dock" && input.cityId !== "chillicothe|united states of america") {
+        state = { ...state, cityId: input.cityId, nodeId: "root", options: [] };
+      }
+      if (input.type === "choose") state = { ...state, cityId: null, nodeId: null, scene: null, options: [] };
+      return state;
+    };
+    const report = await runBrowserChecklist({ command, initialState: state, random: randomForSeed(1),
+      checkpoint() {}, goals: ["destroyed-port"] });
+    assert.deepEqual(report.completed, ["destroyed-port"]);
+    assert.equal(report.evidence[0].visits.length, 2);
+    assert.equal(commands.filter(type => type === "dock").length, 3);
+    assert.equal(commands.filter(type => type === "reload").length, 3);
+    assert.ok(commands.indexOf("reload") < commands.lastIndexOf("dock"));
+  }
+  await exercise(["set-sail"]);
+  await assert.rejects(exercise([]), /exposed services or lost its exit/);
+  await assert.rejects(exercise(["market", "set-sail"]), /exposed services or lost its exit/);
+});

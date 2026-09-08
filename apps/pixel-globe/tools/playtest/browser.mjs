@@ -23,8 +23,8 @@ const output = resolve(process.argv.find((value) => value.startsWith("--output="
 if (!Number.isSafeInteger(seed) || seed < 1) throw new Error("Invalid browser journey seed");
 if (replay && replay.version !== 1) throw new Error("Unsupported browser journey replay");
 const checklistArgument = process.argv.find(value => value.startsWith("--checklist="));
-if (checklistArgument && !["--checklist=true", "--checklist=false"].includes(checklistArgument)) throw new Error("Checklist must be true or false");
-const checklist = checklistArgument === "--checklist=true";
+if (checklistArgument && !["--checklist=true", "--checklist=false", "--checklist=destroyed-port"].includes(checklistArgument)) throw new Error("Checklist must be true, false, or destroyed-port");
+const checklist = checklistArgument && checklistArgument !== "--checklist=false";
 const random = randomForSeed(seed);
 mkdirSync(output, { recursive: true });
 const playwright = loadPlaywright();
@@ -114,6 +114,7 @@ try {
     console.log("Browser replay completed without the recorded failure.");
   } else if (checklist) {
     report.checklist = await runBrowserChecklist({ command, initialState: await command({ type: "observe" }), random,
+      ...(checklistArgument === "--checklist=destroyed-port" ? { goals: ["destroyed-port"] } : {}),
       checkpoint: value => {
         report.checklist = value;
         writeFileSync(resolve(output, "report.json"), JSON.stringify(report, null, 2));

@@ -227,3 +227,26 @@ whale-hunt or ship-purchase strategy. The separate scenario probes remain
 necessary. Recorded commands can be replayed, but a planner dead end requires
 inspection of the last state and pending checklist; replaying successful prior
 commands alone does not reproduce the planner's failure to choose its next one.
+
+## Destroyed-port entry
+
+Every randomized browser checklist includes `destroyed-port`. It applies the real
+shore-battery damage transition to Chillicothe on the existing voyage (a test-only
+battle-outcome setup), then uses ordinary docking and dialogue actions. The check
+requires a rendered recovery scene with services closed. It takes the sole
+departure option, saves and reloads, and docks again to verify that closure
+survives persistence. It then applies a capture outcome through the real conquest
+completion handler and requires the still-burning, now-admitted city scene to
+expose only Set Sail. Both visits and the post-capture scene are recorded in
+checklist evidence and replay.
+This is mandatory in each browser soak cycle; it does not depend on the bot
+happening to win an assault or randomly finding a ruined port.
+
+For a focused browser regression after building:
+
+```sh
+node tools/playtest/browser.mjs --checklist=destroyed-port --seed=42
+```
+
+The setup does not yet make the checklist an autonomous city-assault strategist.
+The separate assault fixtures still exercise combat itself.

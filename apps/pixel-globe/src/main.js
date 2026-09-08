@@ -16972,6 +16972,27 @@ async function runBrowserJourneyCommand(command) {
       worldEconomy, playerAccessiblePortCities(), portDialogueContext()).locations;
     if (!locations.some((location) => location.id === command.id)) throw new Error(`Unavailable city location: ${command.id}`);
     activatePortCityDestination({ id: command.id });
+  } else if (command.type === "capture-damaged-port") {
+    if (dialogueState || captainAlertModal || portCityView) throw new Error("Journey capture setup requires sailing");
+    const city = chart.cityCalls.find(city => city.cityId === command.cityId && portCallInInteractionRange(city));
+    if (!city || city.factionId === ship.factionId) throw new Error("Journey capture requires a nearby foreign port");
+    const battery = ensureShoreBatteryState(city);
+    if (!shoreBatteryRecoveryStatus(battery, Math.floor(weatherClockMinutes))) {
+      throw new Error("Journey capture requires a previously destroyed battery");
+    }
+    const simMinute = Math.floor(weatherClockMinutes);
+    // A completed assault already owns the city scene before its result is applied.
+    activatePortCityView(city);
+    const prize = receivePlayerPortAssaultSpoils(city, "conquest", simMinute);
+    const event = recordPortCapture(gameState.memory.conquest, city, ship.factionId, simMinute, "player");
+    completePlayerPortConquest(city, event, prize, null);
+  } else if (command.type === "damage-port") {
+    if (dialogueState || captainAlertModal || portCityView) throw new Error("Journey damage setup requires sailing");
+    const city = playerAccessiblePortCities().find(city => city.cityId === command.cityId);
+    if (!city) throw new Error(`Journey damage setup requires an active port: ${command.cityId}`);
+    const battery = ensureShoreBatteryState(city);
+    damageShoreBattery(battery, gameState.memory.flags, battery.maxHitPoints,
+      Math.floor(weatherClockMinutes), "the playtest squadron");
   } else if (command.type === "prepare-teleport") {
     if (dialogueState || playerIntroModal || captainAlertModal || captainMenu.isOpen || aboardMenu.isOpen || politicsMenu.isOpen || portWaitState) {
       throw new Error("Journey teleport requires idle sailing");
@@ -17054,6 +17075,8 @@ async function runBrowserJourneyCommand(command) {
     modal: Boolean(playerIntroModal || captainAlertModal || portAssaultState?.casualtyReport),
     locations: portCityRootNavigationIsActive() ? portCityNavigationView(dialogueState, currentDialogueCity(),
       gameState, worldEconomy, playerAccessiblePortCities(), portDialogueContext()).locations.map(({ id }) => id) : [],
+    scene: portCityView?.sceneReady ? { cityId: portCityView.cityId,
+      destinationIds: portCityRuntime.getDestinationIds() } : null,
     options: options.map((option) => ({ id: playerActionId(option.action), action: option.action, disabled: option.disabled === true })),
     ports: chart.cityCalls.filter((city) => city.character).map((city) => ({ cityId: city.cityId,
       inRange: portCallInInteractionRange(city), distancePx: Math.sqrt(distance2(localLayout.viewX, localLayout.viewY, city.interactionX, city.interactionY)) })),
