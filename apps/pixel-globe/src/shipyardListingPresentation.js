@@ -1,5 +1,13 @@
 import { shipStatsForSlug } from "./shipStats.js";
 
+// Only launched ships are complete; rounding must not promise a finished hull.
+export function shipyardUnfinishedBuildPercent(progress) {
+  if (!Number.isFinite(progress) || progress < 0 || progress > 1) {
+    throw new Error(`Invalid shipyard construction progress: ${progress}`);
+  }
+  return Math.min(99, Math.floor(progress * 100));
+}
+
 const SHIPYARD_LISTING_CONDITIONS = Object.freeze({
   "new-build": Object.freeze({
     menuAdjective: "New",

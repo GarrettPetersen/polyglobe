@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { EXETER_CANAL_MATERIALS, EXETER_CANAL_STAGE_MINUTES, createExeterCanalMemory } from "../../src/exeterCanal.js";
 import { decodeGeodesicGraphBake } from "../../src/geodesicBake.js";
+import { EXETER_CANAL_TILE_CHAIN } from "../../src/exeterCanalNavigation.js";
 
 export async function exerciseExeterCanalSaveRoundTrips(page, serializedFixture, browserErrors) {
   const bytes = readFileSync(new URL("../../../../examples/globe-demo/public/geodesic-graph-8.bin", import.meta.url));
@@ -18,7 +19,7 @@ export async function exerciseExeterCanalSaveRoundTrips(page, serializedFixture,
     if (stage > 0) {
       for (const material of EXETER_CANAL_MATERIALS) state.memory.quests.cargoDeliveries[material.requirementId] = material.quantity;
     }
-    const tileId = stage >= 2 ? 644452 : stage === 1 ? 644453 : 644451;
+    const tileId = EXETER_CANAL_TILE_CHAIN[Math.min(stage, 2)];
     const lat = graph.latDeg[tileId] * Math.PI / 180;
     const lon = graph.lonDeg[tileId] * Math.PI / 180;
     save.payload.playerShip.tileId = tileId;

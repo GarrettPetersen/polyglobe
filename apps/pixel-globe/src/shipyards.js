@@ -1,3 +1,4 @@
+import { createShipyardUpgrades, validateShipyardUpgrades, invalidateSupplyCommissionIndex, scheduleInitialShipyardUpgrades, applyShipyardUpgradePurchase } from "./shipyardUpgrades.js";
 import {
   FUSTA_SLUG,
   GALLEASS_SLUG,
@@ -14,20 +15,18 @@ import { JAPANESE_POLITY_FACTION_IDS } from "./factions.js";
 import { requireCityId } from "./entityIds.js";
 
 const MINUTES_PER_DAY = 24 * 60;
-const SHIPYARD_SNAPSHOT_VERSION = 11;
+const SHIPYARD_SNAPSHOT_VERSION = 13;
+const CANONICAL_SHIPYARD_SNAPSHOT_VERSION = 11;
 const LEGACY_BUILD_TIME_SCALE = 0.75;
 const NORMAL_BUILD_INTERVAL_DAYS = 1200;
 const FAMOUS_BUILD_INTERVAL_DAYS = 360;
 const NORMAL_LISTING_DAYS = 180;
 const FAMOUS_LISTING_DAYS = 240;
-const MATERIAL_RETRY_DAYS = 30;
-const MAX_MATERIAL_DELAY_DAYS = 180;
-const PLAYER_BACKED_BUILD_INTERVAL_MULTIPLIER = 0.62;
+const PLAYER_SHIPYARD_WORKING_CAPITAL = 100000;
+const PLAYER_BACKED_BUILD_INTERVAL_MULTIPLIER = 0.45;
 const LEGACY_PLAYER_BACKED_DIVIDEND_RATE = 0.22;
 const PLAYER_BACKED_CONSTRUCTION_COST_RATE = 0.64;
 const PLAYER_BACKED_OPERATING_EXPENSE_RATE = 0.09;
-const PLAYER_BACKED_CAPITAL_RECOVERY_RATE = 0.4;
-const PLAYER_BACKED_MATURE_DIVIDEND_RATE = 0.12;
 const MAX_PLAYER_ACCOUNT_ENTRIES = 256;
 const PLAYER_SHIPYARD_STOCKPILE_DAYS = 3 * 365;
 const MAX_STOCKPILE_PLANNED_BUILDS = 64;
@@ -183,15 +182,14 @@ export function replaceWorldShipyardPort(system, port, startMinute = system?.las
   replacement.listing = previous.listing;
   replacement.usedListings = previous.usedListings.slice();
   replacement.nextTradeInNumber = previous.nextTradeInNumber;
-  replacement.nextBuildMinute = Math.min(previous.nextBuildMinute, replacement.nextBuildMinute);
-  replacement.buildStartedMinute = Math.min(
-    previous.buildStartedMinute,
-    replacement.buildStartedMinute,
-    replacement.nextBuildMinute
-  );
-  replacement.materialDelayDays = previous.materialDelayDays;
+  replacement.nextBuildMinute = previous.nextBuildMinute;
+  replacement.buildStartedMinute = previous.buildStartedMinute;
+  replacement.constructionDelayMinutes = previous.constructionDelayMinutes;
   replacement.materialInventory = { ...previous.materialInventory };
   replacement.materialConsumedForBuild = { ...previous.materialConsumedForBuild };
+  replacement.prepaidMaterialInventory = { ...previous.prepaidMaterialInventory };
+  replacement.prepaidMaterialsForBuild = { ...previous.prepaidMaterialsForBuild };
+  replacement.upgrades = structuredClone(previous.upgrades);
   replacement.playerBacking = previous.playerBacking ? { ...previous.playerBacking } : null;
   replacement.playerDividendBalance = previous.playerDividendBalance;
   replacement.lifetimePlayerDividends = previous.lifetimePlayerDividends;
@@ -235,6 +233,7 @@ export function reconcileRebuiltShipyardFleetHistory(system, retainedShipIds) {
       // Construction materials belong to the reconstructed build, not the
       // next serial established by the retained hull history.
       yard.materialConsumedForBuild = emptyMaterialInventory();
+      yard.prepaidMaterialsForBuild = emptyMaterialInventory();
     }
     if (yard.nextTradeInNumber <= lastTradeIn) repairedRecords++;
     yard.nextTradeInNumber = Math.max(yard.nextTradeInNumber, lastTradeIn + 1);
@@ -295,9 +294,12 @@ export function snapshotWorldShipyards(system) {
       nextTradeInNumber: yard.nextTradeInNumber,
       nextBuildMinute: yard.nextBuildMinute,
       buildStartedMinute: yard.buildStartedMinute,
-      materialDelayDays: yard.materialDelayDays,
+      constructionDelayMinutes: yard.constructionDelayMinutes,
+      upgrades: structuredClone(yard.upgrades),
       materialInventory: { ...yard.materialInventory },
       materialConsumedForBuild: { ...yard.materialConsumedForBuild },
+      prepaidMaterialInventory: { ...yard.prepaidMaterialInventory },
+      prepaidMaterialsForBuild: { ...yard.prepaidMaterialsForBuild },
       playerBacking: yard.playerBacking ? { ...yard.playerBacking } : null,
       playerDividendBalance: yard.playerDividendBalance,
       lifetimePlayerDividends: yard.lifetimePlayerDividends,
@@ -312,7 +314,7 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
   validateOptionalSeedKey(seedKey, "restored shipyard");
   if (
     !snapshot ||
-    ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
+    ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
     !Array.isArray(snapshot.yards) ||
     (snapshot.version >= 3 && !Array.isArray(snapshot.npcSales))
   ) {
@@ -340,7 +342,10 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
       throw new Error(`Invalid saved shipyard build minute: ${saved.nextBuildMinute}`);
     }
     if (snapshot.version >= 3 && (
-      !Number.isInteger(saved.materialDelayDays) || saved.materialDelayDays < 0 ||
+      (snapshot.version < 12
+        ? !Number.isInteger(saved.materialDelayDays) || saved.materialDelayDays < 0
+        : !Number.isFinite(saved.constructionDelayMinutes) || saved.constructionDelayMinutes < 0 ||
+          saved.nextBuildMinute - saved.buildStartedMinute - saved.constructionDelayMinutes <= 0) ||
       !Number.isInteger(saved.playerDividendBalance) || saved.playerDividendBalance < 0 ||
       !Number.isInteger(saved.lifetimePlayerDividends) || saved.lifetimePlayerDividends < 0 ||
       (snapshot.version >= 4 && !Array.isArray(saved.playerPendingSales)) ||
@@ -381,7 +386,16 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
           (saved.nextBuildMinute - snapshot.lastMinute) * LEGACY_BUILD_TIME_SCALE
         )
       : saved.nextBuildMinute;
-    yard.materialDelayDays = snapshot.version >= 3 ? saved.materialDelayDays : 0;
+    yard.prepaidMaterialInventory = snapshot.version >= 13 ? copyMaterialInventory(saved.prepaidMaterialInventory) : emptyMaterialInventory();
+    yard.prepaidMaterialsForBuild = snapshot.version >= 13 ? copyMaterialInventory(saved.prepaidMaterialsForBuild) : emptyMaterialInventory();
+    yard.upgrades = snapshot.version >= 13
+      ? structuredClone(validateShipyardUpgrades(saved.upgrades)) : createShipyardUpgrades();
+    const supplyGoodId = yard.upgrades.supplyCommission?.supplyGoodId;
+    if (supplyGoodId != null && !SHIPBUILDING_MATERIAL_GOOD_IDS.includes(supplyGoodId)) {
+      throw new Error(`Invalid shipyard supply material: ${yard.portId}/${supplyGoodId}`);
+    }
+    yard.constructionDelayMinutes = snapshot.version >= 12 ? saved.constructionDelayMinutes
+      : snapshot.version >= 3 ? saved.materialDelayDays * MINUTES_PER_DAY : 0;
     yard.playerBacking = snapshot.version >= 3 && saved.playerBacking
       ? restorePlayerBacking(saved.playerBacking, yard.portId)
       : null;
@@ -399,6 +413,23 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
     yard.materialConsumedForBuild = snapshot.version >= 8
       ? copyMaterialInventory(saved.materialConsumedForBuild)
       : inferredConsumedBuildMaterials(yard, snapshot.lastMinute);
+    for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+      if (yard.prepaidMaterialInventory[goodId] > yard.materialInventory[goodId] + 1e-9 ||
+          yard.prepaidMaterialsForBuild[goodId] > yard.materialConsumedForBuild[goodId] + 1e-9) {
+        throw new Error(`Prepaid shipyard materials exceed delivered supplies: ${yard.portId}/${goodId}`);
+      }
+    }
+    if (snapshot.version < 12) {
+      // Old timers advanced even with missing supplies. Keep every consumed
+      // material, but resume from the least-complete requirement, not the timer.
+      const duration = shipyardConstructionDurationMinutes(yard);
+      const progress = shipyardMaterialProgress(yard);
+      const delayedMinutes = Math.max(0, snapshot.lastMinute - yard.buildStartedMinute -
+        yard.constructionDelayMinutes - progress * duration);
+      yard.constructionDelayMinutes += delayedMinutes;
+      yard.nextBuildMinute += delayedMinutes;
+    }
+    if (snapshot.version < 13 && yard.playerBacking) scheduleInitialShipyardUpgrades(yard, snapshot.lastMinute);
     yard.playerAccounts = snapshot.version >= 5 && saved.playerAccounts
       ? migrateVersionFivePlayerShipyardAccounts(
           restorePlayerShipyardAccounts(saved.playerAccounts, yard, snapshot.version),
@@ -407,6 +438,7 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
         )
       : migratePlayerShipyardAccounts(yard);
   }
+  invalidateSupplyCommissionIndex(system);
   system.lastMinute = snapshot.lastMinute;
   return system;
 }
@@ -435,7 +467,7 @@ function restoreUsedShipyardListing(yard, listing, snapshotVersion) {
   const matchingPort = typeof listing?.portId === "string"
     ? listing.portId === yard.portId
     // IDENTITY_MIGRATION_EXCEPTION: pre-canonical shipyard listings stored a tile in portId.
-    : snapshotVersion < SHIPYARD_SNAPSHOT_VERSION && listing?.portId === yard.tileId;
+    : snapshotVersion < CANONICAL_SHIPYARD_SNAPSHOT_VERSION && listing?.portId === yard.tileId;
   if (!listing || !matchingPort || listing.source !== "trade-in" ||
       typeof listing.id !== "string" || typeof listing.shipSlug !== "string" ||
       typeof listing.shipLabel !== "string" || !Number.isInteger(listing.price) ||
@@ -469,7 +501,7 @@ function canonicalUsedShipyardListingId(yard, id, snapshotVersion) {
   if (id === canonical) return id;
   // Only the pre-canonical snapshot versions used tile-based yard prefixes.
   // Ownership has already been resolved by the listing's port reference.
-  if (snapshotVersion < SHIPYARD_SNAPSHOT_VERSION && /^shipyard-\d+-used-\d+$/.test(id)) return canonical;
+  if (snapshotVersion < CANONICAL_SHIPYARD_SNAPSHOT_VERSION && /^shipyard-\d+-used-\d+$/.test(id)) return canonical;
   throw new Error(`Used shipyard listing belongs to another yard: ${id} at ${yard.portId}`);
 }
 
@@ -490,49 +522,36 @@ export function advanceWorldShipyards(system, simMinute, materialMarket = null) 
       yard.usedListings.splice(yard.usedListings.indexOf(listing), 1);
       changed = true;
     }
-    while (simMinute >= yard.nextBuildMinute) {
-      const buildMinute = yard.nextBuildMinute;
-      const plannedListing = generateShipyardListing(yard, yard.buildNumber + 1, buildMinute);
-      const materialResult = consumeShipbuildingMaterials(
-        yard,
-        plannedListing,
-        1,
-        materialMarket
-      );
-      if (!materialResult.ready) {
-        yard.materialDelayDays += MATERIAL_RETRY_DAYS;
-        yard.nextBuildMinute += MATERIAL_RETRY_DAYS * MINUTES_PER_DAY;
+    let workMinute = Math.max(system.lastMinute, yard.buildStartedMinute);
+    while (workMinute < simMinute) {
+      const duration = shipyardConstructionDurationMinutes(yard);
+      const before = shipyardMaterialProgress(yard);
+      const desired = Math.min(1, before + (simMinute - workMinute) / duration);
+      const progress = consumeShipbuildingMaterials(yard, desired);
+      const workedMinutes = Math.max(0, progress - before) * duration;
+      if (progress < 1) {
+        const stoppedMinutes = Math.max(0, simMinute - workMinute - workedMinutes);
+        yard.constructionDelayMinutes += stoppedMinutes;
+        yard.nextBuildMinute += stoppedMinutes;
         changed = true;
-        continue;
+        break;
       }
+      const buildMinute = workMinute + workedMinutes;
+      const plannedListing = generateShipyardListing(yard, yard.buildNumber + 1, buildMinute);
       if (yard.listing) completeShipyardSale(system, yard, yard.listing, "npc", buildMinute);
       yard.buildNumber += 1;
       yard.listing = plannedListing;
-      yard.materialDelayDays = 0;
+      yard.constructionDelayMinutes = 0;
       if (yard.playerBacking) recordPlayerShipyardConstruction(yard, plannedListing, buildMinute);
       yard.buildStartedMinute = buildMinute;
       yard.materialConsumedForBuild = emptyMaterialInventory();
+      yard.prepaidMaterialsForBuild = emptyMaterialInventory();
       const nextBuild = generateShipyardListing(yard, yard.buildNumber + 1, buildMinute);
       yard.nextBuildMinute = buildMinute +
         shipyardBuildDurationDays(yard, nextBuild.shipSlug, yard.buildNumber + 1) * MINUTES_PER_DAY;
       procureShipyardMaterials(yard, materialMarket);
       changed = true;
-    }
-    if (materialMarket) {
-      const plannedListing = generateShipyardListing(
-        yard,
-        yard.buildNumber + 1,
-        yard.nextBuildMinute
-      );
-      const scheduledCompleteMinute = yard.nextBuildMinute -
-        yard.materialDelayDays * MINUTES_PER_DAY;
-      const buildDuration = Math.max(1, scheduledCompleteMinute - yard.buildStartedMinute);
-      const buildProgress = clamp(
-        (simMinute - yard.buildStartedMinute) / buildDuration,
-        0,
-        1
-      );
-      consumeShipbuildingMaterials(yard, plannedListing, buildProgress, materialMarket);
+      workMinute = buildMinute;
     }
     if (yard.listing && simMinute >= yard.listing.expiresMinute) {
       completeShipyardSale(system, yard, yard.listing, "npc");
@@ -677,8 +696,10 @@ export function fundPlayerShipyard(system, port, {
     materialContributions: Object.freeze({ ...materialContributions })
   });
   yard.playerAccounts = createPlayerShipyardAccounts(yard.playerBacking);
+  scheduleInitialShipyardUpgrades(yard, investedMinute);
   for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
     yard.materialInventory[goodId] += materialContributions[goodId] || 0;
+    yard.prepaidMaterialInventory[goodId] += materialContributions[goodId] || 0;
   }
   yard.famous = true;
   const acceleratedBuildMinute = investedMinute + 90 * MINUTES_PER_DAY;
@@ -686,6 +707,8 @@ export function fundPlayerShipyard(system, port, {
     yard.buildStartedMinute = investedMinute;
     yard.nextBuildMinute = acceleratedBuildMinute;
     yard.materialConsumedForBuild = emptyMaterialInventory();
+    yard.prepaidMaterialsForBuild = emptyMaterialInventory();
+    yard.constructionDelayMinutes = 0;
   }
   return yard;
 }
@@ -719,7 +742,7 @@ export function playerShipyardLedger(yard, simMinute) {
     plannedListing.shipSlug,
     constructionCost
   );
-  const workInProgressExpenses = Math.round(constructionCost * progress);
+  const workInProgressExpenses = Math.max(0, Math.round(constructionCost * progress) - prepaidBuildCredit(yard, costBreakdown));
   const constructionExpenses = accounts.constructionExpenses + workInProgressExpenses;
   const cashBalance = accounts.capitalContributions + accounts.salesRevenue -
     accounts.inventoryPurchases - constructionExpenses - accounts.operatingExpenses -
@@ -746,10 +769,7 @@ export function playerShipyardLedger(yard, simMinute) {
       constructionCost,
       costBreakdown,
       accruedConstructionCost: workInProgressExpenses,
-      daysRemaining: yard.materialDelayDays > 0
-        ? 0
-        : Math.max(0, Math.ceil((yard.nextBuildMinute - simMinute) / MINUTES_PER_DAY)),
-      materialDelayDays: yard.materialDelayDays,
+      daysRemaining: Math.ceil((1 - currentBuild.progress) * shipyardConstructionDurationMinutes(yard) / MINUTES_PER_DAY),
       materials: shipyardMaterialStatus(yard, plannedListing.shipSlug)
     }),
     finishedShip: yard.listing ? Object.freeze({
@@ -772,6 +792,7 @@ export function playerShipyardLedger(yard, simMinute) {
       playerPayouts: accounts.playerPayouts,
       outstandingPlayerShare: yard.playerDividendBalance,
       cashBalance,
+      workingCapitalReserve: PLAYER_SHIPYARD_WORKING_CAPITAL,
       entries: Object.freeze(journalEntries)
     })
   });
@@ -781,7 +802,7 @@ export function shipyardCurrentBuild(yard, simMinute) {
   if (!yard || !Number.isInteger(yard.buildNumber) || yard.buildNumber < 0 ||
       !Number.isFinite(yard.buildStartedMinute) || !Number.isFinite(yard.nextBuildMinute) ||
       yard.buildStartedMinute > yard.nextBuildMinute ||
-      !Number.isInteger(yard.materialDelayDays) || yard.materialDelayDays < 0) {
+      !Number.isFinite(yard.constructionDelayMinutes) || yard.constructionDelayMinutes < 0) {
     throw new Error("Shipyard current build requires a valid construction clock");
   }
   if (!Number.isFinite(simMinute)) throw new Error(`Invalid shipyard build minute: ${simMinute}`);
@@ -790,14 +811,18 @@ export function shipyardCurrentBuild(yard, simMinute) {
     yard.buildNumber + 1,
     yard.nextBuildMinute
   );
-  const scheduledCompleteMinute = yard.nextBuildMinute - yard.materialDelayDays * MINUTES_PER_DAY;
-  const buildDuration = Math.max(1, scheduledCompleteMinute - yard.buildStartedMinute);
+  const progress = shipyardMaterialProgress(yard);
+  const requirements = shipbuildingMaterialRequirements(plannedListing.shipSlug);
   return Object.freeze({
     shipSlug: plannedListing.shipSlug,
     shipLabel: plannedListing.shipLabel,
     startedMinute: yard.buildStartedMinute,
     completeMinute: yard.nextBuildMinute,
-    progress: clamp((simMinute - yard.buildStartedMinute) / buildDuration, 0, 1)
+    progress,
+    stoppedMaterialIds: Object.freeze(SHIPBUILDING_MATERIAL_GOOD_IDS.filter((goodId) =>
+      requirements[goodId] > 0 && progress < 1 &&
+      yard.materialConsumedForBuild[goodId] + yard.materialInventory[goodId] <=
+        requirements[goodId] * progress + 1e-9))
   });
 }
 
@@ -888,7 +913,7 @@ export function shipyardMaterialStockTargets(yard) {
     buildOffset += 1;
   } while (plannedDays < horizonDays);
   for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
-    targets[goodId] = Math.max(0, targets[goodId] - yard.materialConsumedForBuild[goodId]);
+    targets[goodId] = Math.max(0, targets[goodId] * (1 + yard.upgrades.storageLevel * 0.5) - yard.materialConsumedForBuild[goodId]);
   }
   return Object.freeze(targets);
 }
@@ -980,14 +1005,16 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
   if (!Number.isFinite(builtMinute)) throw new Error(`Invalid shipyard build minute: ${builtMinute}`);
   const regionalPool = shipPoolForYard(yard);
   if (!regionalPool) throw new Error(`No shipyard hull pool for region: ${yard.cityType}`);
-  const pool = regionalPool;
+  const expert = yard.upgrades.expertFromBuildNumber !== null && buildNumber >= yard.upgrades.expertFromBuildNumber;
+  const rankedPool = [...new Set(regionalPool)].sort((a, b) => shipConstructionPrice(a) - shipConstructionPrice(b) || a.localeCompare(b));
+  const pool = expert ? rankedPool.slice(Math.floor(rankedPool.length / 2)) : regionalPool;
   const seed = shipyardListingSeed(yard, buildNumber);
-  const masterworkChance = yard.playerBacking ? 0.42 : yard.famous ? 0.18 : 0.025;
+  const masterworkChance = expert ? 0.8 : yard.playerBacking ? 0.42 : yard.famous ? 0.18 : 0.025;
   const scheduledMasterwork = yard.playerBacking
     ? buildNumber % 2 === 0
     : yard.famous && buildNumber % 4 === 0;
   const masterwork = scheduledMasterwork || hashUnit(`${seed}|masterwork`) < masterworkChance;
-  const qualityBudget = masterwork ? Infinity : shipyardQualityBudget(yard);
+  const qualityBudget = masterwork || expert ? Infinity : shipyardQualityBudget(yard);
   const eligible = pool
     .map((slug) => ({ slug, price: shipConstructionPrice(slug) }))
     .filter((entry) => entry.price <= qualityBudget)
@@ -999,7 +1026,7 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
     1
   );
   const roll = hashUnit(`${seed}|rank`);
-  const rankFraction = Math.pow(roll, 1.75 - wealthFraction * 1.25);
+  const rankFraction = Math.pow(roll, expert ? 0.3 : 1.75 - wealthFraction * 1.25);
   const selected = candidates[Math.min(candidates.length - 1, Math.floor(rankFraction * candidates.length))];
   const price = shipyardListingPrice(selected.slug, seed);
   const listingDays = yard.famous ? FAMOUS_LISTING_DAYS : NORMAL_LISTING_DAYS;
@@ -1108,9 +1135,12 @@ function createShipyard(port, startMinute, seedKey) {
     nextTradeInNumber: 1,
     nextBuildMinute: startMinute,
     buildStartedMinute: startMinute,
-    materialDelayDays: 0,
+    constructionDelayMinutes: 0,
+    upgrades: createShipyardUpgrades(),
     materialInventory: emptyMaterialInventory(),
     materialConsumedForBuild: emptyMaterialInventory(),
+    prepaidMaterialInventory: emptyMaterialInventory(),
+    prepaidMaterialsForBuild: emptyMaterialInventory(),
     playerBacking: null,
     playerDividendBalance: 0,
     lifetimePlayerDividends: 0,
@@ -1187,29 +1217,40 @@ export function procureShipyardMaterials(yard, materialMarket) {
   });
 }
 
-function consumeShipbuildingMaterials(yard, listing, progress, materialMarket) {
-  if (!materialMarket) return { ready: true, emergencyProcurement: false };
-  if (!Number.isFinite(progress) || progress < 0 || progress > 1) {
-    throw new Error(`Invalid shipyard material consumption progress: ${progress}`);
-  }
+function shipyardConstructionDurationMinutes(yard) {
+  const duration = yard.nextBuildMinute - yard.buildStartedMinute - yard.constructionDelayMinutes;
+  if (!Number.isFinite(duration) || duration <= 0) throw new Error(`Invalid shipyard construction duration: ${yard.portId}`);
+  return duration;
+}
+
+function shipyardMaterialProgress(yard, { includeStock = false } = {}) {
+  const listing = generateShipyardListing(yard, yard.buildNumber + 1, yard.nextBuildMinute);
+  const requirements = shipbuildingMaterialRequirements(listing.shipSlug);
+  return Math.min(1, ...SHIPBUILDING_MATERIAL_GOOD_IDS.filter((id) => requirements[id] > 0).map((id) => {
+    const quantity = yard.materialConsumedForBuild[id] + (includeStock ? yard.materialInventory[id] : 0);
+    // Repeated fractional consumption can leave a sub-nanoton rounding residue.
+    // Use the same material precision as shortage detection, so a fully supplied
+    // hull cannot remain stuck infinitesimally short of completion.
+    return requirements[id] - quantity <= 1e-9 ? 1 : quantity / requirements[id];
+  }));
+}
+
+function consumeShipbuildingMaterials(yard, desiredProgress) {
+  const progress = Math.min(desiredProgress, shipyardMaterialProgress(yard, { includeStock: true }));
+  const listing = generateShipyardListing(yard, yard.buildNumber + 1, yard.nextBuildMinute);
   const requirements = shipbuildingMaterialRequirements(listing.shipSlug);
   for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
     const targetConsumed = requirements[goodId] * progress;
     const remaining = Math.max(0, targetConsumed - yard.materialConsumedForBuild[goodId]);
     const quantity = Math.min(remaining, yard.materialInventory[goodId]);
+    const prepaid = yard.materialInventory[goodId] > 0
+      ? Math.min(yard.prepaidMaterialInventory[goodId], quantity * yard.prepaidMaterialInventory[goodId] / yard.materialInventory[goodId]) : 0;
+    yard.prepaidMaterialInventory[goodId] -= prepaid;
+    yard.prepaidMaterialsForBuild[goodId] += prepaid;
     yard.materialInventory[goodId] -= quantity;
     yard.materialConsumedForBuild[goodId] += quantity;
   }
-  const missing = SHIPBUILDING_MATERIAL_GOOD_IDS.filter((goodId) => (
-    yard.materialConsumedForBuild[goodId] + 1e-9 < requirements[goodId] * progress
-  ));
-  const ready = progress < 1 || missing.length === 0 ||
-    yard.materialDelayDays >= MAX_MATERIAL_DELAY_DAYS;
-  return {
-    ready,
-    missing,
-    emergencyProcurement: progress >= 1 && missing.length > 0 && ready
-  };
+  return progress;
 }
 
 function completeShipyardSale(system, yard, listing, buyer, soldMinute = listing.expiresMinute) {
@@ -1221,12 +1262,10 @@ function completeShipyardSale(system, yard, listing, buyer, soldMinute = listing
       listing.price - economics.operatingExpense;
     const cashAvailableAboveReserve = Math.max(
       0,
-      postedCashAfterSale - yard.playerBacking.seedCapital - yard.playerDividendBalance
+      postedCashAfterSale - PLAYER_SHIPYARD_WORKING_CAPITAL - yard.playerDividendBalance -
+        playerShipyardLedger(yard, soldMinute).accounts.workInProgressExpenses
     );
-    const dividend = Math.min(
-      economics.targetDividend,
-      Math.floor(cashAvailableAboveReserve / 100) * 100
-    );
+    const dividend = Math.floor(cashAvailableAboveReserve);
     recordPlayerShipyardSale(yard, listing, buyer, { ...economics, dividend }, soldMinute);
     if (dividend > 0) {
       yard.playerDividendBalance += dividend;
@@ -1298,12 +1337,12 @@ function recordPlayerShipyardConstruction(yard, listing, simMinute) {
   const accounts = requiredPlayerShipyardAccounts(yard);
   const cost = playerBackedConstructionCost(listing);
   const breakdown = shipyardConstructionCostBreakdown(listing.shipSlug, cost);
-  accounts.constructionExpenses += cost;
+  accounts.constructionExpenses += cost - prepaidBuildCredit(yard, breakdown);
   for (const material of breakdown.materials) {
     appendPlayerShipyardAccountEntry(accounts, {
       kind: "construction-material",
       simMinute,
-      amount: -material.cost,
+      amount: -(material.cost - prepaidMaterialCredit(yard, material)),
       description: `${listing.shipLabel} ${material.goodId}`,
       shipSlug: listing.shipSlug,
       goodId: material.goodId,
@@ -1340,25 +1379,11 @@ function playerShipyardSaleEconomics(yard, listing) {
   );
   const grossMargin = listing.price - costOfShip;
   const netProfit = Math.max(0, grossMargin - operatingExpense);
-  const capitalRecoveryRemaining = Math.max(
-    0,
-    yard.playerBacking.seedCapital - yard.lifetimePlayerDividends
-  );
-  const recoveryProfit = Math.min(
-    netProfit,
-    capitalRecoveryRemaining / PLAYER_BACKED_CAPITAL_RECOVERY_RATE
-  );
-  const matureProfit = netProfit - recoveryProfit;
-  const targetDividend = roundToHundred(
-    recoveryProfit * PLAYER_BACKED_CAPITAL_RECOVERY_RATE +
-      matureProfit * PLAYER_BACKED_MATURE_DIVIDEND_RATE
-  );
   return Object.freeze({
     costOfShip,
     operatingExpense,
     grossMargin,
-    netProfit,
-    targetDividend
+    netProfit
   });
 }
 
@@ -1570,6 +1595,7 @@ function restorePlayerShipyardAccountEntry(entry, portId) {
     "construction-material",
     "construction-labor",
     "operating-overhead",
+    "upgrade",
     "trade-in-purchase",
     "sale",
     "payout",
@@ -1710,7 +1736,7 @@ function restoredShipyard(system, savedPortId, snapshotVersion) {
     if (!yard) throw new Error(`Saved shipyard city is missing: ${savedPortId}`);
     return yard;
   }
-  if (snapshotVersion >= SHIPYARD_SNAPSHOT_VERSION) {
+  if (snapshotVersion >= CANONICAL_SHIPYARD_SNAPSHOT_VERSION) {
     throw new Error(`Saved shipyard requires a canonical city id: ${savedPortId}`);
   }
   if (!Number.isInteger(savedPortId) || savedPortId < 0) {
@@ -1785,7 +1811,7 @@ function legacyMaterialInventory(playerBacking) {
 
 function inferredConsumedBuildMaterials(yard, simMinute) {
   const planned = generateShipyardListing(yard, yard.buildNumber + 1, yard.nextBuildMinute);
-  const scheduledCompleteMinute = yard.nextBuildMinute - yard.materialDelayDays * MINUTES_PER_DAY;
+  const scheduledCompleteMinute = yard.nextBuildMinute - yard.constructionDelayMinutes;
   const duration = Math.max(1, scheduledCompleteMinute - yard.buildStartedMinute);
   const progress = clamp((simMinute - yard.buildStartedMinute) / duration, 0, 1);
   return scaledBuildMaterials(planned.shipSlug, progress);
@@ -1853,4 +1879,41 @@ function validateOptionalSeedKey(value, label) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+
+function prepaidMaterialCredit(yard, material) {
+  return Math.min(material.cost, Math.round(material.cost * yard.prepaidMaterialsForBuild[material.goodId] / material.quantity));
+}
+
+function prepaidBuildCredit(yard, breakdown) {
+  return breakdown.materials.reduce((sum, material) => sum + prepaidMaterialCredit(yard, material), 0);
+}
+
+export function receiveCommissionedShipyardMaterials(yard, { goodId, quantity, cost, minute }) {
+  const accounts = requiredPlayerShipyardAccounts(yard);
+  if (!SHIPBUILDING_MATERIAL_GOOD_IDS.includes(goodId) || !Number.isInteger(quantity) || quantity <= 0 ||
+      !Number.isInteger(cost) || cost < 0 || !Number.isFinite(minute)) {
+    throw new Error(`Invalid commissioned shipyard delivery: ${yard.portId}/${goodId}`);
+  }
+  yard.materialInventory[goodId] += quantity;
+  yard.prepaidMaterialInventory[goodId] += quantity;
+  accounts.constructionExpenses += cost;
+  appendPlayerShipyardAccountEntry(accounts, { kind: "construction-material", simMinute: minute,
+    amount: -cost, description: "Materials delivered by commissioned ship", goodId, quantity });
+}
+
+
+export function purchaseShipyardUpgrade(yard, gameState, upgradeId, minute) {
+  const accounts = requiredPlayerShipyardAccounts(yard);
+  const offer = applyShipyardUpgradePurchase(yard, gameState, upgradeId, minute);
+  accounts.capitalContributions += offer.cost;
+  accounts.operatingExpenses += offer.cost;
+  appendPlayerShipyardAccountEntry(accounts, {
+    kind: "capital", simMinute: minute, amount: offer.cost, description: offer.label
+  });
+  appendPlayerShipyardAccountEntry(accounts, {
+    kind: "upgrade", simMinute: minute, amount: -offer.cost, description: offer.label
+  });
+  return offer;
 }

@@ -1,3 +1,4 @@
+import { shipyardUpgradeOffers } from "../../src/shipyardUpgrades.js";
 import { PORT_CATALOG_VERSION } from "../../src/portCatalogMigration.js";
 import { initialCampaignCities } from "./world-catalog.mjs";
 import assert from "node:assert/strict";
@@ -15,7 +16,7 @@ import { createGameState, diplomacyBetweenForState, sovereignTradeOpenToFaction,
 import { SOVEREIGN_TRADE_ACCESS_POLICIES } from "../../src/sovereignTradeAccess.js";
 import { fisheryForHabitat } from "../../src/fishEcology.js";
 import { FACTIONS } from "../../src/factions.js";
-import { registerShipyardTradeIn } from "../../src/shipyards.js";
+import { registerShipyardTradeIn, purchaseShipyardUpgrade } from "../../src/shipyards.js";
 import { snapshotPlayerShipyards, restorePlayerShipyardSnapshot } from "../../src/playerShipyardPersistence.js";
 
 const scenes = new Map(JSON.parse(readFileSync(new URL("../../city-visualizer/data/cities.json", import.meta.url))).cities.map(city => [city.id, city]));
@@ -114,6 +115,7 @@ export function createApplyProbe(voyage, event, minute) {
 export function snapshotWorkerVoyage(voyage) {
   return { economy: economy.snapshotWorldEconomy(voyage.worldEconomy),
     npcRoutes: fleet.snapshotNpcSeaRouteSystem(voyage.npcSeaRoutes),
+    shipyardSupplyShips: fleet.snapshotShipyardSupplyShips(voyage.npcSeaRoutes),
     landTrade: land.snapshotLandTradeSystem(voyage.landTradeSystem) };
 }
 export function restoreWorkerVoyage(voyage, saved) {
@@ -127,6 +129,7 @@ export function restoreWorkerVoyage(voyage, saved) {
   fleet.restoreNpcSeaRouteSystem(voyage.npcSeaRoutes, saved.npcRoutes, { economy: voyage.worldEconomy, fishState: voyage.gameState, whaleMemory: voyage.gameState.memory.whales,
     relationBetween: (a, b) => diplomacyBetweenForState(voyage.gameState, a, b),
     sovereignTradeOpenToFaction: (id, factionId) => sovereignTradeOpenToFaction(voyage.gameState, id, factionId) });
+  fleet.restoreShipyardSupplyShips(voyage.npcSeaRoutes, saved.shipyardSupplyShips);
 }
 
 export function synchronizeCampaignOwnership(voyage) {
@@ -165,6 +168,7 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
     restoreWorkerVoyage(voyage, checkpoint.world);
   }
   if (!checkpoint) {
+    voyage.gameState.doubloons += 300000;
     const books = JSON.parse(readFileSync(new URL("../../src/test-fixtures/shipyards/v10.json", import.meta.url)));
     restorePlayerShipyardSnapshot(voyage.worldEconomy.shipyards, books, {
       seedKey: seed, legacyCityIdForPortReference: ({ tileId }) => {
@@ -207,6 +211,12 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
           shipSlug: captured.ship.slug, seller: "campaign-captain", acquiredMinute: minute
         });
         captures++;
+      }
+      for (const yard of voyage.worldEconomy.shipyards.yards.values()) {
+        if (!yard.playerBacking) continue;
+        for (const offer of shipyardUpgradeOffers(yard, voyage.gameState.doubloons, minute)) {
+          if (!offer.disabled) purchaseShipyardUpgrade(yard, voyage.gameState, offer.id, minute);
+        }
       }
       const world = JSON.parse(JSON.stringify(snapshotWorkerVoyage(voyage)));
       restoreWorkerVoyage(voyage, world);

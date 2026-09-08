@@ -1,3 +1,7 @@
+import { purchaseShipyardUpgrade } from "./shipyards.js";
+import { fundWorldEconomyShipyard } from "./economy.js";
+import { shipyardMaterialStockTargets, snapshotWorldShipyards, restoreWorldShipyards, registerShipyardTradeIn, advanceWorldShipyards } from "./shipyards.js";
+import { updateShipyardSupplyOffers, shipyardSupplyShipStatus, snapshotShipyardSupplyShips, restoreShipyardSupplyShips } from "./npcSeaRoutes.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -3448,4 +3452,114 @@ test("the frozen pre-fix Inca save cannot resurrect its demobilized reserve", as
   assert.equal(routes.shipById.has(id), false);
   updateNpcSeaRouteEvents(routes, 1000000, [id], { maintenance: true });
   assert.equal(routes.shipById.has(id), false);
+});
+
+
+test("commissioned merchant makes repeated paid supply runs, preserves its voyage and reports its loss", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0, seedKey: "supply-runs" });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, seedKey: "supply-runs" });
+  const home = PORTS[0];
+  const yard = fundWorldEconomyShipyard(economy, home, { investedMinute: 0, seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 } });
+  const ship = routes.ships.find((entry) => entry.role === NPC_ROLE_MERCHANT && entry.factionId === home.factionId && entry.currentPort.cityId === home.cityId);
+  assert.ok(ship, "fixture needs a local national merchant");
+  ship.plan = { origin: ship.currentPort, destination: ship.currentPort, startMinute: 0, endMinute: 1,
+    segments: [{ kind: "wait", startMinute: 0, endMinute: 1 }] };
+  ship.cargo = {};
+  ship.cargoCost = {};
+  ship.cargoOrigins = {};
+  yard.materialInventory = { ...shipyardMaterialStockTargets(yard), iron: 0 };
+  yard.prepaidMaterialInventory.iron = 0;
+  const player = { doubloons: 100000 };
+  yard.upgrades.opportunities["supply-ship"].availableMinute = 0;
+  const originalPlan = structuredClone(ship.plan);
+  const hullCount = routes.ships.length;
+  assert.equal(updateShipyardSupplyOffers(routes, 0), true);
+  assert.equal(routes.ships.length, hullCount);
+  assert.equal(yard.upgrades.supplyCandidateShipId, ship.id);
+  purchaseShipyardUpgrade(yard, player, "supply-ship", 0);
+  assert.equal(yard.upgrades.supplyCommission.shipId, ship.id);
+  assert.deepEqual(ship.plan, originalPlan, "hiring must not move the ship");
+  updateNpcSeaRouteEvents(routes, 1, [ship.id]);
+  assert.equal(shipyardSupplyShipStatus(routes, yard).goodId, "iron");
+  assert.notEqual(ship.plan.destination.cityId, home.cityId);
+  const source = ship.plan.destination;
+  const sourceStock = economy.portStates.get(source.cityId).goods.get("iron").stock;
+  const supplierMinute = ship.plan.endMinute;
+  updateNpcSeaRouteEvents(routes, supplierMinute, [ship.id]);
+  assert.ok(ship.cargo.iron > 0);
+  assert.ok(economy.portStates.get(source.cityId).goods.get("iron").stock < sourceStock);
+  assert.equal(ship.plan.destination.cityId, home.cityId);
+  const continuity = snapshotShipyardSupplyShips(routes);
+  const savedCargo = { ...ship.cargo };
+  routes.ships = routes.ships.filter((entry) => entry.id !== ship.id);
+  routes.shipById.delete(ship.id);
+  assert.throws(() => restoreShipyardSupplyShips(routes, { version: 1, ships: [] }), /incomplete/);
+  restoreShipyardSupplyShips(routes, continuity);
+  assert.deepEqual(routes.shipById.get(ship.id).cargo, savedCargo);
+  // Restore the original live object only for this test's remaining references.
+  routes.ships = routes.ships.map((entry) => entry.id === ship.id ? ship : entry);
+  routes.shipById.set(ship.id, ship);
+  const purchaseCost = Math.ceil(ship.cargoCost.iron);
+  const quantity = ship.cargo.iron;
+  const expenses = yard.playerAccounts.constructionExpenses;
+  const homeMinute = ship.plan.endMinute;
+  yard.materialInventory.iron = shipyardMaterialStockTargets(yard).iron;
+  updateNpcSeaRouteEvents(routes, homeMinute, [ship.id]);
+  assert.equal(ship.cargo.iron, quantity, "a full warehouse keeps the paid cargo aboard");
+  assert.equal(yard.playerAccounts.constructionExpenses, expenses, "undelivered cargo is not invoiced");
+  assert.equal(shipyardSupplyShipStatus(routes, yard).waiting, true);
+  yard.materialInventory.iron = 0;
+  updateNpcSeaRouteEvents(routes, ship.plan.endMinute, [ship.id]);
+  assert.equal(yard.materialInventory.iron, quantity);
+  assert.equal(yard.playerAccounts.constructionExpenses, expenses + purchaseCost);
+  assert.equal(ship.cargo.iron, undefined);
+  assert.equal(player.doubloons, 60000, "no recurring commission fee");
+  assert.equal(yard.upgrades.supplyCommission.status, "active");
+  const shipsSnapshot = snapshotNpcSeaRouteSystem(routes);
+  const yardsSnapshot = snapshotWorldShipyards(economy.shipyards);
+  restoreWorldShipyards(economy.shipyards, yardsSnapshot);
+  restoreNpcSeaRouteSystem(routes, shipsSnapshot);
+  const restoredYard = economy.shipyards.yards.get(home.cityId);
+  const restoredShip = routes.shipById.get(ship.id);
+  assert.equal(shipyardSupplyShipStatus(routes, restoredYard).shipId, ship.id);
+  for (let trip = 0; trip < 4; trip++) {
+    updateNpcSeaRouteEvents(routes, restoredShip.plan.endMinute, [ship.id]);
+  }
+  assert.ok(restoredYard.playerAccounts.constructionExpenses > expenses + purchaseCost, "commission continues supplying the yard");
+  sinkNpcShip(routes, ship.id, restoredShip.plan.endMinute);
+  assert.equal(restoredYard.upgrades.supplyCommission.status, "lost");
+  assert.equal(shipyardSupplyShipStatus(routes, restoredYard), null);
+  updateShipyardSupplyOffers(routes, restoredShip.plan.endMinute);
+  assert.equal(restoredYard.upgrades.supplyCommission.status, "lost", "a replacement offer does not hire a free ship");
+});
+
+test("supply offers wait for real hulls and withdraw if the earmarked ship is sunk", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0, seedKey: "supply-offer-hull" });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, seedKey: "supply-offer-hull" });
+  const home = PORTS[0];
+  const yard = fundWorldEconomyShipyard(economy, home, { investedMinute: 0, seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 } });
+  routes.ships = routes.ships.filter((ship) => !(ship.role === NPC_ROLE_MERCHANT && ship.factionId === home.factionId));
+  routes.shipById = new Map(routes.ships.map((ship) => [ship.id, ship]));
+  yard.upgrades.opportunities["supply-ship"].availableMinute = 0;
+  const originalCount = routes.ships.length;
+  assert.equal(updateShipyardSupplyOffers(routes, 0), false);
+  assert.equal(routes.ships.length, originalCount, "an offer must not invent a hull");
+  assert.throws(() => purchaseShipyardUpgrade(yard, { doubloons: 100000 }, "supply-ship", 0), /unavailable/);
+  // An actual owner sells a vessel to the yard, which later sells that same
+  // hull into the NPC market. The commission can now reserve its new captain.
+  const listing = registerShipyardTradeIn(economy.shipyards, home, {
+    shipSlug: "caravel", seller: "player", acquiredMinute: 0
+  });
+  advanceWorldShipyards(economy.shipyards, listing.expiresMinute + 1);
+  const availableSaleIds = new Set(economy.shipyards.npcSales.map((sale) => `shipyard:${sale.id}`));
+  assert.equal(updateShipyardSupplyOffers(routes, listing.expiresMinute + 1), true);
+  const reservedId = yard.upgrades.supplyCandidateShipId;
+  assert.ok(availableSaleIds.has(reservedId));
+  assert.ok(routes.shipById.has(reservedId));
+  assert.equal(yard.upgrades.supplyCommission, null, "reservation does not start a paid commission");
+  sinkNpcShip(routes, reservedId, listing.expiresMinute + 2);
+  assert.equal(yard.upgrades.supplyCandidateShipId, null);
+  assert.throws(() => purchaseShipyardUpgrade(yard, { doubloons: 100000 }, "supply-ship", listing.expiresMinute + 2), /unavailable/);
 });

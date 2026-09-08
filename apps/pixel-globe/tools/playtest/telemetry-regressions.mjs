@@ -7,6 +7,7 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 const files = [
   "src/workerVoyageInterruption.test.js",
   "src/shipyardFleetHistory.test.js",
+  "src/shipyardUpgrades.test.js",
   "src/stormWave.test.js",
   "src/npcSeaRoutes.test.js",
   "tools/playtest/politics-contract.test.mjs"

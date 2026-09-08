@@ -1,3 +1,6 @@
+import { shipyardUpgradeCardLayout } from "./shipyardUpgradeLayout.js";
+import { commissionedShipyard, reservedSupplyShipyard, unannouncedShipyardUpgrades } from "./shipyardUpgrades.js";
+import { shipyardSupplyShipStatus, snapshotShipyardSupplyShips, restoreShipyardSupplyShips, updateShipyardSupplyOffers } from "./npcSeaRoutes.js";
 import { EXETER_CITY_ID, TOPSHAM_CITY_ID, exeterCanalStage, exeterCanalQuestView } from "./exeterCanal.js";
 import { exeterCanalNavigation, exeterCanalPort } from "./exeterCanalNavigation.js";
 import { sailingCorrectionDistancePx } from "./sailingContinuity.js";
@@ -2013,7 +2016,7 @@ import {
   shipConstructionPrice,
   shipyardRumorForPort
 } from "./shipyards.js";
-import { shipyardListingCondition } from "./shipyardListingPresentation.js";
+import { shipyardListingCondition, shipyardUnfinishedBuildPercent } from "./shipyardListingPresentation.js";
 import {
   SHIPYARD_INVESTMENT_CAPITAL,
   assertPlayerShipyardInvestmentWorldConsistency,
@@ -5094,7 +5097,7 @@ async function main() {
     {
       excludedSourceIds: playerPortraitSourceExclusions(playerCharacter),
       homeCitiesById: cityById,
-      captainIdentitiesByShipId: storedTreasurePirateCaptainIdentities(npcSeaRoutes.ships)
+      captainIdentitiesByShipId: storedNpcCaptainIdentities(npcSeaRoutes.ships)
     }
   );
   if (!CAPTURE_SCENARIO) synchronizeTreasurePirateCaptains();
@@ -8940,15 +8943,14 @@ function synchronizeTreasurePirateCaptains() {
   return changed;
 }
 
-function storedTreasurePirateCaptainIdentities(activeShips) {
+function storedNpcCaptainIdentities(activeShips) {
   if (!Array.isArray(activeShips)) {
-    throw new Error("Treasure captain identity restore requires the active NPC fleet");
+    throw new Error("Captain identity restore requires the active NPC fleet");
   }
   const goal = activeTreasureCampaignGoal();
-  if (!goal || goal.mapPirates.length === 0) return new Map();
   const activeShipIds = new Set(activeShips.map(({ id }) => id));
   const identities = new Map();
-  for (const pirate of goal.mapPirates) {
+  for (const pirate of goal?.mapPirates || []) {
     if (!activeShipIds.has(pirate.shipId)) continue;
     if (pirate.captainId === null || pirate.captainId === undefined) continue;
     if (typeof pirate.captainName !== "string" || pirate.captainName === "") {
@@ -8958,6 +8960,10 @@ function storedTreasurePirateCaptainIdentities(activeShips) {
       id: pirate.captainId,
       name: pirate.captainName
     }));
+  }
+  for (const ship of activeShips) {
+    const identity = reservedSupplyShipyard(npcSeaRoutes.economy.shipyards, ship.id)?.upgrades.supplyCaptainIdentity;
+    if (identity) identities.set(ship.id, Object.freeze({ ...identity }));
   }
   return identities;
 }
@@ -13307,14 +13313,14 @@ function capturePortCallById(cityId) {
   return matches[0];
 }
 
-function placeCapturePlayerNearTile(tileId) {
+function placeCapturePlayerNearTile(tileId, options) {
   if (!Number.isInteger(tileId)) throw new Error(`Invalid capture destination tile: ${tileId}`);
   const candidates = [tileId, ...(graph.neighbors[tileId] || [])];
   const navigableTileId = candidates.find((candidate) => isShipBaseNavigableTile(candidate));
   if (!Number.isInteger(navigableTileId)) {
     throw new Error(`Capture destination has no navigable tile: ${tileId}`);
   }
-  placeCapturePlayerOnTile(navigableTileId);
+  placeCapturePlayerOnTile(navigableTileId, options);
 }
 
 function placeCapturePlayerNearRiverCoordinates(coordinates) {
@@ -13337,14 +13343,14 @@ function captureRiverTileNearCoordinates(coordinates, role) {
   return riverTileId;
 }
 
-function placeCapturePlayerOnTile(navigableTileId) {
+function placeCapturePlayerOnTile(navigableTileId, { headingDeg = CAPTURE_SCENARIO.player.headingDeg } = {}) {
   if (!isShipBaseNavigableTile(navigableTileId)) {
     throw new Error(`Capture player tile is not navigable: ${navigableTileId}`);
   }
   ship.position = tileCenterVector(navigableTileId);
   ship.tileId = navigableTileId;
   ship.velocity = [0, 0, 0];
-  applyCaptureShipHeading(ship, CAPTURE_SCENARIO.player.headingDeg);
+  applyCaptureShipHeading(ship, headingDeg);
   camera = northUpCamera(ship.position);
   centerTileId = ship.tileId;
   localLayout = createLocalLayout(centerTileId);
@@ -16720,6 +16726,84 @@ function installSaveRestoreSmokeHarness() {
   let running = false;
   window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__ = Object.freeze({
     journey: runBrowserJourneyCommand,
+    shipyardCardViewport() {
+      if (!dialogueIsPlayerShipyardUpgrades()) throw new Error("Shipyard cards are not open");
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      return { scrollOffsetPx: dialogueState.shipyardLedgerScrollOffset, maxScrollOffsetPx: dialogueLayout.upgradeMaxScrollPx };
+    },
+    async inspectShipyardUpgrade(upgradeId, { purchase = false, supplyState = null, tab = "upgrades" } = {}) {
+      if (running || !["storage", "shipwright", "supply-ship"].includes(upgradeId)) {
+        throw new Error("Shipyard smoke requires an idle voyage and a known upgrade");
+      }
+      if (playerIntroModal) closePlayerIntroModal();
+      placeCapturePlayerNearTile(captureCityById("lisbon|portugal").tileId, { headingDeg: 0 });
+      openCapturePortNode("lisbon|portugal", "shipyard");
+      const yard = shipyardAtPort(worldEconomy.shipyards, captureCityById("lisbon|portugal"));
+      if (supplyState === "reserve") {
+        const home = npcSeaRoutes.ports.find((port) => port.cityId === yard.portId);
+        const merchant = npcSeaRoutes.ships.find((candidate) => candidate.role === NPC_ROLE_MERCHANT &&
+          candidate.factionId === home.factionId && !candidate.encounter && !candidate.portResponse && candidate.hitPoints > 0);
+        if (!merchant) throw new Error("Shipyard smoke requires a real national merchant");
+        // This disposable fixture places an existing hull at the dock; hiring
+        // still uses the same offer and purchase transitions as normal play.
+        merchant.currentPort = home;
+        merchant.visualNavigation = null;
+        merchant.finalDestination = null;
+        merchant.plan = { origin: home, destination: home, startMinute: weatherClockMinutes,
+          endMinute: weatherClockMinutes + 1440,
+          segments: [{ kind: "wait", startMinute: weatherClockMinutes, endMinute: weatherClockMinutes + 1440 }] };
+        yard.upgrades.opportunities["supply-ship"].availableMinute = weatherClockMinutes;
+        updateShipyardSupplyOffers(npcSeaRoutes, weatherClockMinutes);
+        if (yard.upgrades.supplyCandidateShipId === null) throw new Error("Shipyard smoke found no eligible supply captain");
+      } else if (supplyState === "lost") {
+        if (yard.upgrades.supplyCommission?.status !== "active") throw new Error("Shipyard smoke has no commissioned ship to sink");
+        sinkNpcShip(npcSeaRoutes, yard.upgrades.supplyCommission.shipId, weatherClockMinutes);
+      } else if (supplyState !== null) throw new Error(`Unknown shipyard smoke supply state: ${supplyState}`);
+      invalidateDialogueView();
+      await synchronizePortCityScene();
+      for (const action of [
+        { type: "shipyard-ledger-tab", tab: "upgrades" },
+        { type: "select-shipyard-upgrade", upgradeId }
+      ]) {
+        const view = currentDialogueView();
+        const index = view.options.findIndex((option) => Object.entries(action).every(([key, value]) => option.action[key] === value));
+        if (index < 0 || view.options[index].disabled) throw new Error(`Shipyard smoke action unavailable: ${action.type}`);
+        chooseDialogueOption(index);
+      }
+      if (purchase) {
+        const view = currentDialogueView();
+        const index = view.options.findIndex((option) => option.action.type === "buy-shipyard-upgrade" && option.action.upgradeId === upgradeId);
+        if (index < 0 || view.options[index].disabled) throw new Error("Shipyard smoke purchase unavailable");
+        chooseDialogueOption(index);
+      }
+      if (tab !== "upgrades") {
+        const view = currentDialogueView();
+        const index = view.options.findIndex((option) => option.action.type === "shipyard-ledger-tab" && option.action.tab === tab);
+        if (index < 0) throw new Error(`Unknown shipyard smoke tab: ${tab}`);
+        chooseDialogueOption(index);
+      }
+      const view = currentDialogueView();
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      if (!saveVoyageNow("shipyard smoke checkpoint")) throw new Error("Shipyard smoke could not save its state");
+      await waitForSaveRestoreSmokePersistence();
+      return { tab: view.presentation.tab, upgrade: view.presentation.selectedUpgrade,
+        cardIds: dialogueLayout.upgradeCardIds, maxScrollPx: dialogueLayout.upgradeMaxScrollPx,
+        optionRects: dialogueLayout.optionRects, width: SCREEN_W, height: SCREEN_H,
+        serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
+    },
+    async inspectShipyardArrival() {
+      if (running) throw new Error("Shipyard arrival smoke requires an idle voyage");
+      if (playerIntroModal) closePlayerIntroModal();
+      placeCapturePlayerNearTile(captureCityById("lisbon|portugal").tileId, { headingDeg: 0 });
+      openCapturePortNode("lisbon|portugal", "root");
+      if (!maybeOpenShipyardArrivalDialogue(capturePortCallById("lisbon|portugal"))) {
+        throw new Error("Shipyard arrival did not surface its available upgrade");
+      }
+      invalidateDialogueView();
+      await synchronizePortCityScene();
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      return currentDialogueView();
+    },
     async inspectMarketExit(mode) {
       if (running || !["buy", "sell"].includes(mode)) throw new Error("Market smoke requires an idle restored voyage and a valid mode");
       const city = chart.cityCalls.find((candidate) => portCitiesByTileId.has(candidate.tileId));
@@ -17355,7 +17439,7 @@ async function restoreSavedVoyage(payload) {
     {
       excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
       homeCitiesById: cityById,
-      captainIdentitiesByShipId: storedTreasurePirateCaptainIdentities(npcSeaRoutes.ships)
+      captainIdentitiesByShipId: storedNpcCaptainIdentities(npcSeaRoutes.ships)
     }
   );
   reconcileEnglishReformationCharacters();
@@ -17504,6 +17588,7 @@ function restoreSavedDerivedWorld(payload, restoredGameState, savedWorldTopology
     console.info("[pixel-globe] seeding NPC sea routes at the saved economy minute");
     npcSeaRoutes = createSavedVoyageNpcRoutes(simulationMinute, restoredGameState);
   }
+  restoreShipyardSupplyShips(npcSeaRoutes, payload.shipyardSupplyShips);
   return Object.freeze(recovered);
 }
 
@@ -17799,7 +17884,8 @@ function snapshotVoyagePayload({ includeWorldTraffic }) {
     survivalDamageTimers: { ...survivalDeprivationTimers },
     // Versioned shipyard books are durable even when market/traffic caches are discarded.
     playerShipyards: snapshotPlayerShipyards(worldEconomy.shipyards),
-    npcSurrenders: snapshotNpcSurrenderContinuity(npcSeaRoutes)
+    npcSurrenders: snapshotNpcSurrenderContinuity(npcSeaRoutes),
+    shipyardSupplyShips: snapshotShipyardSupplyShips(npcSeaRoutes)
   };
   if (demoVoyageScope) payload.demoVoyageScope = demoVoyageScope;
   const snapshotErrors = [];
@@ -20884,13 +20970,13 @@ function handleDialogueKeyDown(event) {
     navigateBackFromDialogue();
     return;
   }
-  if (dialogueIsPlayerShipyardBooks() && (event.key === "PageUp" || event.key === "PageDown")) {
-    scrollPlayerShipyardJournal(event.key === "PageDown" ? 1 : -1);
+  if ((dialogueIsPlayerShipyardBooks() || dialogueIsPlayerShipyardUpgrades()) && (event.key === "PageUp" || event.key === "PageDown")) {
+    scrollPlayerShipyardContents(event.key === "PageDown" ? 1 : -1);
     return;
   }
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
     if (dialogueIsPlayerShipyardBooks() && dialogueState.selectedIndex === 2 &&
-        scrollPlayerShipyardJournal(event.key === "ArrowDown" ? 1 : -1)) {
+        scrollPlayerShipyardContents(event.key === "ArrowDown" ? 1 : -1)) {
       return;
     }
     stepDialogueSelection(event.key === "ArrowDown" ? 1 : -1);
@@ -21125,11 +21211,11 @@ function handleDialoguePointerDown(point) {
     }
   }
   if (pointInRect(point, dialogueLayout.shipyardLedgerScrollUpRect)) {
-    scrollPlayerShipyardJournal(-1);
+    scrollPlayerShipyardContents(-1);
     return;
   }
   if (pointInRect(point, dialogueLayout.shipyardLedgerScrollDownRect)) {
-    scrollPlayerShipyardJournal(1);
+    scrollPlayerShipyardContents(1);
     return;
   }
   if (pointInRect(point, dialogueLayout.previousRect)) {
@@ -21154,7 +21240,20 @@ function dialogueIsPlayerShipyardBooks() {
     dialogueState.shipyardLedgerTab === "books";
 }
 
-function scrollPlayerShipyardJournal(direction) {
+function dialogueIsPlayerShipyardUpgrades() {
+  return dialogueState?.kind === "port" && dialogueState.nodeId === "shipyard" && dialogueState.shipyardLedgerTab === "upgrades";
+}
+
+function scrollPlayerShipyardContents(direction) {
+  if (!Number.isInteger(direction) || direction === 0) throw new Error("Invalid shipyard scroll direction");
+  if (dialogueIsPlayerShipyardUpgrades()) {
+    const next = clamp(dialogueState.shipyardLedgerScrollOffset + Math.sign(direction) * 40, 0, dialogueLayout.upgradeMaxScrollPx || 0);
+    if (next === dialogueState.shipyardLedgerScrollOffset) return false;
+    dialogueState.shipyardLedgerScrollOffset = next;
+    invalidateDialogueView();
+    dirty = true;
+    return true;
+  }
   if (!dialogueIsPlayerShipyardBooks()) return false;
   if (!Number.isInteger(direction) || direction === 0) {
     throw new Error(`Invalid shipyard journal scroll direction: ${direction}`);
@@ -21371,8 +21470,8 @@ function handleCanvasWheel(event) {
     }
     return;
   }
-  if (dialogueIsPlayerShipyardBooks()) {
-    scrollPlayerShipyardJournal(event.deltaY > 0 ? 1 : -1);
+  if (dialogueIsPlayerShipyardBooks() || dialogueIsPlayerShipyardUpgrades()) {
+    scrollPlayerShipyardContents(event.deltaY > 0 ? 1 : -1);
     return;
   }
   if (["crew-recruitment", "crew-dismissal"].includes(
@@ -22527,6 +22626,7 @@ function maybeOpenShipyardArrivalDialogue(cityCall, { allowShipyardNode = false 
     simMinute: Math.floor(weatherClockMinutes)
   });
   const yard = shipyardAtPort(worldEconomy.shipyards, cityCall);
+  const upgrade = unannouncedShipyardUpgrades(yard, Math.floor(weatherClockMinutes))[0] || null;
   const reserved = activeQuestCargoReservedQuantities(gameState, {
     currentMinute: Math.floor(weatherClockMinutes)
   });
@@ -22543,7 +22643,7 @@ function maybeOpenShipyardArrivalDialogue(cityCall, { allowShipyardNode = false 
     needed = shipyardMaterialStatus(yard).filter(
       (material) => material.stockpileMissing > 0
     );
-    if (needed.length === 0 && !payout) {
+    if (needed.length === 0 && !payout && !upgrade) {
       if (worldEconomyChanged) resetDistantWorldWorkerSchedule();
       return false;
     }
@@ -22552,13 +22652,20 @@ function maybeOpenShipyardArrivalDialogue(cityCall, { allowShipyardNode = false 
     ));
   }
   if (worldEconomyChanged) resetDistantWorldWorkerSchedule();
-  if (!payout && !hasUncommittedMaterial) return false;
+  if (!payout && !hasUncommittedMaterial && !upgrade) return false;
+  dialogueState.shipyardUpgradeArrival = upgrade?.id === "supply-ship"
+    ? { ...upgrade, explanation: playerShipyardSupplyStatusText(yard) } : upgrade;
+  if (upgrade) {
+    yard.upgrades.opportunities[upgrade.id].announced = true;
+    dialogueState.shipyardUpgradeSelection = upgrade.id;
+    resetDistantWorldWorkerSchedule();
+  }
   dialogueState.shipyardDividendArrival = payout
     ? { ...payout, salesSummary: shipyardPayoutSalesSummary(payout.sales) }
     : null;
   dialogueState.shipyardMaterialArrival = hasUncommittedMaterial;
   dialogueState.shipyardLedgerReturnNodeId = "root";
-  dialogueState.shipyardLedgerTab = hasUncommittedMaterial ? "materials" : "books";
+  dialogueState.shipyardLedgerTab = upgrade ? "upgrades" : hasUncommittedMaterial ? "materials" : "books";
   dialogueState.shipyardLedgerScrollOffset = 0;
   dialogueState.nodeId = "shipyard-arrival";
   dialogueState.selectedIndex = 0;
@@ -25403,11 +25510,13 @@ function openShipDialogue(shipCall, options = {}) {
   if (papalGossip) {
     recordNpcGossipHeard(gameState.memory.decisions, papalGossip, simMinute);
   }
+  const commissionedYard = commissionedShipyard(worldEconomy.shipyards, shipCall.id);
   dialogueState = createShipDialogueSession(shipCall, {
     ...options,
     rumorText: enforcementDialogue
       ? null
-      : campaignRumor?.text || (papalGossip ? papalGossipDialogueLine(papalGossip) : null),
+      : commissionedYard ? `We sail on commission from the ${commissionedYard.portName} shipyard, fetching what its shipwrights require.`
+        : campaignRumor?.text || (papalGossip ? papalGossipDialogueLine(papalGossip) : null),
     listenerReligionId: gameState.playerCharacter?.religionId || null,
     pirateTreasureName,
     hostileHail
@@ -27725,6 +27834,23 @@ function buildCurrentDialogueView() {
   throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
 }
 
+function playerShipyardSupplyStatusText(yard) {
+  const status = shipyardSupplyShipStatus(npcSeaRoutes, yard);
+  if (!status) return null;
+  const captain = ensureNpcShipCaptain(status.shipId);
+  const destination = cityById.get(status.destinationCityId);
+  if (!destination) throw new Error(`Supply ship destination missing: ${status.destinationCityId}`);
+  const name = cityLabelText(destination);
+  if (!status.hired) return `${captain.name} has agreed to take our commission. His ship is reserved for us.`;
+  if (status.waiting) return `${captain.name}: waiting in ${name} for supplies or safe passage.`;
+  if (status.goodId) {
+    const material = tradeGoodById(status.goodId).label;
+    return status.loaded ? `${captain.name}: returning to ${name} with ${material}.`
+      : `${captain.name}: sailing to ${name} to buy ${material}.`;
+  }
+  return `${captain.name}: completing a voyage to ${name} before beginning our supply runs.`;
+}
+
 function portDialogueContext() {
   const city = dialogueState?.cityId === undefined
     ? null
@@ -27769,6 +27895,7 @@ function portDialogueContext() {
       ? dialogueState.historicalGossip || null
       : null,
     shipyard,
+    shipyardSupplyStatus: shipyard ? playerShipyardSupplyStatusText(shipyard) : null,
     sailingDistanceKm: sailingDistanceBetweenPorts,
     nearestShipyardListing: city && !questOnlyColony
       ? nearestShipyardListingForPort(
@@ -38002,9 +38129,19 @@ function openNpcCombatHail(npcShipId) {
   return true;
 }
 
+function retainSupplyCaptainIdentity(npcShipId, character) {
+  const yard = reservedSupplyShipyard(npcSeaRoutes.economy.shipyards, npcShipId);
+  if (!yard || yard.upgrades.supplyCaptainIdentity !== null) return;
+  yard.upgrades.supplyCaptainIdentity = { id: character.id, name: character.name };
+  invalidateDistantWorldWorkerState();
+}
+
 function ensureNpcShipCaptain(npcShipId) {
   const existing = npcShipCaptains?.get(npcShipId);
-  if (existing) return existing;
+  if (existing) {
+    retainSupplyCaptainIdentity(npcShipId, existing);
+    return existing;
+  }
   const strategic = npcSeaRoutes?.shipById?.get(npcShipId);
   if (!strategic) throw new Error(`Cannot assign a captain to missing NPC ship: ${npcShipId}`);
   if (!npcShipCaptains) npcShipCaptains = new Map();
@@ -38016,11 +38153,12 @@ function ensureNpcShipCaptain(npcShipId) {
     {
       excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
       homeCitiesById: cityById,
-      captainIdentitiesByShipId: storedTreasurePirateCaptainIdentities([strategic])
+      captainIdentitiesByShipId: storedNpcCaptainIdentities([strategic])
     }
   );
   const character = additions.get(npcShipId);
   if (!character) throw new Error(`NPC captain reconciliation produced no captain: ${npcShipId}`);
+  retainSupplyCaptainIdentity(npcShipId, character);
   console.warn(`[pixel-globe] reconciled missing NPC captain: ${npcShipId}`);
   return character;
 }
@@ -65299,7 +65437,7 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
   const presentation = dialogueView.presentation;
   const { ledger, ledgerJournal, tab } = presentation;
   if (!ledger?.currentBuild || !ledger?.accounts ||
-      !["yard", "materials", "books"].includes(tab)) {
+      !["yard", "materials", "books", "upgrades"].includes(tab)) {
     throw new Error("Player shipyard ledger presentation is incomplete");
   }
   ensureShipyardSideViewLoaded(ledger.currentBuild.shipSlug);
@@ -65321,13 +65459,14 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
   ));
   const bodyOptionGroups = {
     regular: allOptionGroups.regular.filter((entry) => (
-      !tabEntries.includes(entry) && !materialActionEntries.includes(entry)
+      !tabEntries.includes(entry) && !materialActionEntries.includes(entry) &&
+      !["select-shipyard-upgrade", "buy-shipyard-upgrade"].includes(entry.option.action.type)
     )),
     exits: allOptionGroups.exits,
     modeSwitches: Object.freeze([])
   };
-  if (tabEntries.length !== 3) {
-    throw new Error(`Player shipyard requires three ledger tabs, received ${tabEntries.length}`);
+  if (tabEntries.length !== 4) {
+    throw new Error(`Player shipyard requires four ledger tabs, received ${tabEntries.length}`);
   }
   const optionWidth = panel.w - 18;
   const bodyOptionEntries = [...bodyOptionGroups.regular, ...bodyOptionGroups.exits];
@@ -65369,7 +65508,10 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
   if (tab === "yard") drawPlayerShipyardYardTab(content, presentation);
   else if (tab === "materials") {
     drawPlayerShipyardMaterialsTab(content, presentation, materialActionEntriesByGoodId);
-  } else drawPlayerShipyardBooksTab(content, presentation, ledgerJournal);
+  } else if (tab === "upgrades") {
+    drawPlayerShipyardUpgradeCards(content, dialogueView);
+  }
+  else drawPlayerShipyardBooksTab(content, presentation, ledgerJournal);
   ctx.restore();
 
   drawDialogueOptions(
@@ -65454,7 +65596,64 @@ function playerShipyardTabLabel(tab) {
   if (tab === "yard") return "SHIPS";
   if (tab === "materials") return "STORES";
   if (tab === "books") return "ACCOUNTS";
+  if (tab === "upgrades") return "Upgrades";
   throw new Error(`Unknown player shipyard tab: ${tab}`);
+}
+
+function drawPlayerShipyardUpgradeCards(content, view) {
+  const width = content.w - 13;
+  const lineHeight = localizedLineHeight(10);
+  const cards = view.presentation.upgrades.map((upgrade) => {
+    const entries = view.options.map((option, index) => ({ option, index })).filter((entry) => entry.option.action.upgradeId === upgrade.id);
+    const header = entries.find((entry) => entry.option.action.type === "select-shipyard-upgrade");
+    const buy = entries.find((entry) => entry.option.action.type === "buy-shipyard-upgrade");
+    const description = wrapPixelTextAll(renderedUiText(upgrade.description), PIXEL_FONT_SMALL_8, width - 16);
+    const status = wrapPixelTextAll(renderedUiText(upgrade.status), PIXEL_FONT_SMALL_8, width - 16);
+    const headerHeight = dialogueOptionTextMetrics(header.option, PIXEL_FONT_SMALL_8, width, 22).height;
+    const buyHeight = buy ? dialogueOptionTextMetrics(buy.option, PIXEL_FONT_SMALL_8, width - 16, 22).height : 0;
+    return { id: upgrade.id, header, buy, description, status, headerHeight, buyHeight,
+      heightPx: headerHeight + 12 + (description.length + status.length) * lineHeight + (buy ? buyHeight + 6 : 0) };
+  });
+  const focusChanged = dialogueLayout.upgradeFocusedOptionIndex !== dialogueState.selectedIndex;
+  const focused = cards.find((card) => card.header.index === dialogueState.selectedIndex || card.buy?.index === dialogueState.selectedIndex);
+  const layout = shipyardUpgradeCardLayout(cards, content.h, dialogueState.shipyardLedgerScrollOffset, focusChanged ? focused?.id || null : null);
+  dialogueState.shipyardLedgerScrollOffset = layout.scrollOffsetPx;
+  dialogueLayout.upgradeFocusedOptionIndex = dialogueState.selectedIndex;
+  dialogueLayout.upgradeMaxScrollPx = layout.maxScrollOffsetPx;
+  dialogueLayout.upgradeCardIds = cards.map((card) => card.id);
+  if (cards.length === 0) drawOptionsText("No offer available yet.", content.x, content.y, { color: PIRATE_MENU_INK_MUTED });
+  const drawCardOption = (entry, rect) => {
+    if (rect.y + rect.h <= content.y || rect.y >= content.y + content.h) return;
+    drawDialogueOptionEntry(view, entry, rect, PIXEL_FONT_SMALL_8, false);
+    const clipped = dialogueLayout.optionRects.at(-1);
+    clipped.rect = { ...rect, y: Math.max(content.y, rect.y),
+      h: Math.min(content.y + content.h, rect.y + rect.h) - Math.max(content.y, rect.y) };
+  };
+  for (const [index, row] of layout.rows.entries()) {
+    if (!row.visible) continue;
+    const card = cards[index];
+    const top = content.y + row.yPx;
+    drawPiratePaperInset({ x: content.x, y: top, w: width, h: card.heightPx }, false);
+    drawCardOption(card.header, { x: content.x, y: top, w: width, h: card.headerHeight });
+    let y = top + card.headerHeight + 5;
+    for (const lines of [card.description, card.status]) {
+      for (const line of lines) { drawOptionsText(line, content.x + 8, y, { color: PIRATE_MENU_INK }); y += lineHeight; }
+      y += 3;
+    }
+    if (card.buy) drawCardOption(card.buy, { x: content.x + 8, y: top + card.heightPx - card.buyHeight - 5, w: width - 16, h: card.buyHeight });
+  }
+  if (layout.maxScrollOffsetPx > 0) {
+    const x = content.x + content.w - 9;
+    dialogueLayout.shipyardLedgerScrollUpRect = layout.scrollOffsetPx > 0 ? { x, y: content.y, w: 9, h: 10 } : null;
+    dialogueLayout.shipyardLedgerScrollDownRect = layout.scrollOffsetPx < layout.maxScrollOffsetPx ? { x, y: content.y + content.h - 10, w: 9, h: 10 } : null;
+    if (dialogueLayout.shipyardLedgerScrollUpRect) drawMenuScrollTriangle(x + 4, content.y + 2, "up");
+    if (dialogueLayout.shipyardLedgerScrollDownRect) drawMenuScrollTriangle(x + 4, content.y + content.h - 8, "down");
+    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    const trackHeight = content.h - 28;
+    const thumbHeight = Math.max(8, Math.round(trackHeight * content.h / layout.contentHeightPx));
+    const thumbY = content.y + 14 + Math.round((trackHeight - thumbHeight) * layout.scrollOffsetPx / layout.maxScrollOffsetPx);
+    ctx.fillRect(x + 3, thumbY, 3, thumbHeight);
+  }
 }
 
 function drawPlayerShipyardYardTab(content, presentation) {
@@ -65486,9 +65685,9 @@ function drawPlayerShipyardYardTab(content, presentation) {
     { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
   );
   detailY += 14;
-  const percent = Math.round(build.progress * 100);
+  const percent = shipyardUnfinishedBuildPercent(build.progress);
   drawOptionsText(`${percent}% BUILT`, detailX, detailY, { color: PIRATE_MENU_CHART_LINE });
-  if (build.materialDelayDays === 0) {
+  if (build.stoppedMaterialIds.length === 0) {
     drawOptionsText(
       build.daysRemaining === 0 ? "READY FOR LAUNCH" : `${build.daysRemaining} DAYS TO LAUNCH`,
       detailX + detailW,
@@ -65498,11 +65697,18 @@ function drawPlayerShipyardYardTab(content, presentation) {
   }
   drawShipyardProgressBar({ x: detailX, y: detailY + 11, w: detailW, h: 6 }, build.progress);
   detailY += 23;
-  if (build.materialDelayDays > 0) {
-    drawOptionsText(`WAITING FOR MATERIALS  ${build.materialDelayDays} DAYS`, detailX, detailY, {
-      color: "#b65050"
-    });
-    detailY += 12;
+  if (build.stoppedMaterialIds.length > 0) {
+    const material = tradeGoodById(build.stoppedMaterialIds[0]).label;
+    const lines = wrapPixelTextAll(
+      renderedUiText(`Construction stopped: not enough ${material}.`),
+      PIXEL_FONT_SMALL_8,
+      detailW
+    );
+    for (const line of lines) {
+      drawOptionsText(line, detailX, detailY, { color: "#b65050" });
+      detailY += localizedLineHeight(10);
+    }
+    detailY += 2;
   }
 
   if (landscape) {
@@ -65817,7 +66023,8 @@ function drawPlayerShipyardBooksTab(content, presentation, ledgerJournal) {
     [compactSummary ? "UPKEEP" : "MANAGEMENT & UPKEEP", -accounts.operatingExpenses],
     [compactSummary ? "PAID" : "DIVIDENDS PAID", -accounts.playerPayouts],
     [compactSummary ? "OWED" : "UNPAID DIVIDENDS", accounts.outstandingPlayerShare],
-    [compactSummary ? "CASH" : "SHIPYARD CASH", accounts.cashBalance]
+    [compactSummary ? "CASH" : "SHIPYARD CASH", accounts.cashBalance],
+    ["WORKING RESERVE", accounts.workingCapitalReserve]
   ];
   const summaryColumns = content.w >= 330 || compactSummary ? 2 : 1;
   const summaryRows = Math.ceil(summary.length / summaryColumns);
@@ -65923,6 +66130,7 @@ function shipyardAccountEntryLabel(entry) {
     return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} BOUGHT USED`;
   }
   if (entry.kind === "operating-overhead") return "MANAGEMENT & UPKEEP";
+  if (entry.kind === "upgrade") return entry.description;
   if (entry.kind === "sale") {
     const prefix = entry.source === "trade-in" ? "USED " : "";
     return `${prefix}${shipLabelForSlug(entry.shipSlug).toUpperCase()} SOLD`;

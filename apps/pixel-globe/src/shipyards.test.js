@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+
+const suppliedMarket = { available: () => 1_000_000, consume() {} };
+function legacySnapshotFields(snapshot) {
+  for (const yard of snapshot.yards) {
+    yard.materialDelayDays = Math.ceil(yard.constructionDelayMinutes / 1440);
+    delete yard.constructionDelayMinutes;
+  }
+}
 
 import {
   addWorldShipyardPort,
@@ -397,7 +406,7 @@ test("new listings spawn over time and purchased listings disappear", () => {
   const yard = shipyardAtPort(system, SMALL_PORT);
   yard.listing = null;
   const buildMinute = yard.nextBuildMinute;
-  assert.equal(advanceWorldShipyards(system, buildMinute), true);
+  assert.equal(advanceWorldShipyards(system, buildMinute + 1e-6, suppliedMarket), true);
   assert.ok(yard.listing);
   const claimed = claimShipyardListing(system, SMALL_PORT, yard.listing.id);
   assert.equal(claimed.portId, SMALL_PORT.cityId);
@@ -410,7 +419,7 @@ test("famous yards put advanced hulls on the market within an ordinary five-year
   const advanced = new Set(["carrack", "galleass", "galleon", "ship-of-the-line"]);
   const observed = new Set();
   for (let day = 30; day <= 5 * 365; day += 30) {
-    advanceWorldShipyards(system, day * 24 * 60);
+    advanceWorldShipyards(system, day * 24 * 60, suppliedMarket);
     if (yard.listing) observed.add(yard.listing.shipSlug);
     for (const sale of system.npcSales) observed.add(sale.shipSlug);
   }
@@ -432,6 +441,85 @@ test("an unsold shipyard listing becomes an NPC hull purchase", () => {
   });
   assert.equal(sale.shipSlug, listing.shipSlug);
   assert.equal(system.npcSales.length, 0);
+});
+
+test("every required supply can stop all work, survive reload, and resume without catching up idle time", () => {
+  for (const exhausted of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "stalled-build" });
+    const yard = shipyardAtPort(system, LISBON);
+    yard.listing = null;
+    yard.buildStartedMinute = 0;
+    yard.nextBuildMinute = 1000;
+    const requirements = shipbuildingMaterialRequirements(shipyardCurrentBuild(yard, 0).shipSlug);
+    if (!requirements[exhausted]) continue;
+    for (const id of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+      yard.materialConsumedForBuild[id] = 0;
+      yard.materialInventory[id] = requirements[id] * (id === exhausted ? 0.1 : 1);
+    }
+    advanceWorldShipyards(system, 250);
+    const stalled = shipyardCurrentBuild(yard, 250);
+    assert.ok(Math.abs(stalled.progress - 0.1) < 1e-9, exhausted);
+    assert.deepEqual(stalled.stoppedMaterialIds, [exhausted]);
+    const consumed = { ...yard.materialConsumedForBuild };
+    for (const id of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+      assert.ok(Math.abs(consumed[id] - requirements[id] * 0.1) < 1e-9);
+    }
+    advanceWorldShipyards(system, 400 * 1440);
+    assert.equal(yard.listing, null, "there is no forced launch after a long shortage");
+    assert.deepEqual(yard.materialConsumedForBuild, consumed);
+    const saved = snapshotWorldShipyards(system);
+    assert.equal(saved.version, 13);
+    assert.equal(Object.hasOwn(saved.yards[0], "materialDelayDays"), false);
+    const restored = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "stalled-build" });
+    restoreWorldShipyards(restored, JSON.parse(JSON.stringify(saved)));
+    const resumed = shipyardAtPort(restored, LISBON);
+    assert.deepEqual(snapshotWorldShipyards(restored), saved);
+    resumed.materialInventory[exhausted] += requirements[exhausted] * 0.9;
+    assert.deepEqual(shipyardCurrentBuild(resumed, restored.lastMinute).stoppedMaterialIds, []);
+    advanceWorldShipyards(restored, saved.lastMinute + 100);
+    assert.ok(Math.abs(shipyardCurrentBuild(resumed, restored.lastMinute).progress - 0.2) < 1e-9);
+    advanceWorldShipyards(restored, saved.lastMinute + 900 + 1e-6);
+    assert.equal(resumed.buildNumber, 1);
+    assert.ok(resumed.listing);
+  }
+});
+
+test("exactly sufficient supplies launch a hull after many small construction steps", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "small-build-steps" });
+  const yard = shipyardAtPort(system, LISBON);
+  yard.listing = null;
+  yard.buildStartedMinute = 0;
+  yard.nextBuildMinute = 1000;
+  const requirements = shipbuildingMaterialRequirements(shipyardCurrentBuild(yard, 0).shipSlug);
+  for (const id of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    yard.materialConsumedForBuild[id] = 0;
+    yard.materialInventory[id] = requirements[id];
+  }
+  for (let minute = 1; minute <= 1001; minute++) advanceWorldShipyards(system, minute);
+  assert.equal(yard.buildNumber, 1);
+  assert.ok(yard.listing);
+});
+
+test("released v11 material-stalled saves resume from actual work without losing delivered materials", () => {
+  const fixture = JSON.parse(readFileSync(new URL("./test-fixtures/shipyards/v11-material-stall.json", import.meta.url)));
+  const system = createWorldShipyards({ ports: [fixture.port], startMinute: 0, seedKey: fixture.seedKey });
+  const original = structuredClone(fixture.snapshot);
+  restoreWorldShipyards(system, fixture.snapshot);
+  const yard = shipyardAtPort(system, fixture.port);
+  const progress = shipyardCurrentBuild(yard, system.lastMinute);
+  assert.ok(Math.abs(progress.progress - 0.1) < 1e-9);
+  assert.deepEqual(progress.stoppedMaterialIds, ["iron"]);
+  assert.deepEqual(yard.materialConsumedForBuild, original.yards[0].materialConsumedForBuild);
+  assert.deepEqual(yard.materialInventory, original.yards[0].materialInventory);
+  assert.deepEqual(fixture.snapshot, original);
+  advanceWorldShipyards(system, 500);
+  assert.equal(shipyardCurrentBuild(yard, 500).progress, progress.progress);
+  const current = snapshotWorldShipyards(system);
+  restoreWorldShipyards(system, current);
+  assert.deepEqual(snapshotWorldShipyards(system), current);
+  const malformed = structuredClone(current);
+  malformed.yards[0].constructionDelayMinutes = -1;
+  assert.throws(() => restoreWorldShipyards(system, malformed), /accounts/);
 });
 
 test("completed hulls stockpile and consume their full bill of materials", () => {
@@ -523,7 +611,9 @@ test("every yard exposes the same real construction progress used by player-back
   const yard = shipyardAtPort(system, SMALL_PORT);
   yard.buildStartedMinute = 10;
   yard.nextBuildMinute = 110;
-  yard.materialDelayDays = 0;
+  yard.constructionDelayMinutes = 0;
+  yard.materialConsumedForBuild = Object.fromEntries(SHIPBUILDING_MATERIAL_GOOD_IDS.map((id) => [id, 0]));
+  advanceWorldShipyards(system, 60, suppliedMarket);
 
   const halfway = shipyardCurrentBuild(yard, 60);
   assert.equal(halfway.progress, 0.5);
@@ -581,8 +671,8 @@ test("player-backed yards favor major hulls and return profit after upkeep", () 
   const netProfit = listing.price - constructionCost - operatingExpense;
   assert.equal(sale.operatingExpense, operatingExpense);
   assert.equal(sale.margin, netProfit);
-  assert.equal(sale.dividend, roundHundred(netProfit * 0.4));
-  assert.ok(sale.dividend < listing.price * 0.12);
+  assert.ok(sale.dividend > 0);
+  assert.ok(sale.dividend <= listing.price - operatingExpense);
   assert.deepEqual(availablePlayerShipyardPayouts(system), [{
     portId: LISBON.cityId,
     portName: LISBON.city,
@@ -653,14 +743,14 @@ test("player-backed yards account for trade-ins, resale margin, and dividends ac
   assert.equal(restoredYard.playerPendingSales[0].margin, sale.margin);
   assert.equal(
     restoredYard.playerPendingSales[0].dividend,
-    roundHundred(netProfit * 0.4)
+    netProfit
   );
   assert.equal(ledger.accounts.operatingExpenses, operatingExpense);
   assert.ok(ledger.accounts.entries.some((entry) => entry.kind === "operating-overhead"));
   assert.equal(restored.npcSales.some((entry) => entry.shipSlug === "small-cog"), true);
 });
 
-test("player-backed yards retain seed capital and taper dividends after it is recovered", () => {
+test("player-backed yards pay all surplus after costs while retaining working capital", () => {
   const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-reserve" });
   const yard = fundPlayerShipyard(system, LISBON, {
     investedMinute: 0,
@@ -675,11 +765,13 @@ test("player-backed yards retain seed capital and taper dividends after it is re
 
   yard.lifetimePlayerDividends = 100000;
   yard.playerAccounts.salesRevenue = 100000;
+  yard.playerAccounts.constructionExpenses = constructionCost;
   yard.playerAccounts.playerPayouts = 100000;
+  const unpostedWork = playerShipyardLedger(yard, 0).accounts.workInProgressExpenses;
   claimShipyardListing(system, LISBON, listing.id);
 
-  assert.equal(yard.playerDividendBalance, roundHundred(netProfit * 0.12));
-  assert.ok(yard.playerDividendBalance < roundHundred(netProfit * 0.4));
+  assert.equal(yard.playerDividendBalance, netProfit - unpostedWork);
+  assert.equal(playerShipyardLedger(yard, 0).accounts.cashBalance, 100000);
 
   const constrained = createWorldShipyards({
     ports: [LISBON],
@@ -710,13 +802,14 @@ test("player-backed yards expose deterministic build progress and persist comple
   yard.listing = null;
   yard.buildStartedMinute = 10;
   yard.nextBuildMinute = 110;
+  yard.materialConsumedForBuild = Object.fromEntries(SHIPBUILDING_MATERIAL_GOOD_IDS.map((id) => [id, 0]));
+
+  advanceWorldShipyards(system, 60, suppliedMarket);
 
   const halfway = playerShipyardLedger(yard, 60);
   assert.equal(halfway.currentBuild.progress, 0.5);
-  assert.equal(
-    halfway.currentBuild.accruedConstructionCost,
-    Math.round(halfway.currentBuild.constructionCost * 0.5)
-  );
+  assert.ok(halfway.currentBuild.accruedConstructionCost > 0);
+  assert.ok(halfway.currentBuild.accruedConstructionCost < Math.round(halfway.currentBuild.constructionCost * 0.5), "founding materials must not be charged twice");
   assert.equal(
     halfway.accounts.constructionExpenses,
     halfway.currentBuild.accruedConstructionCost
@@ -734,7 +827,7 @@ test("player-backed yards expose deterministic build progress and persist comple
     halfway.currentBuild.constructionCost
   );
 
-  advanceWorldShipyards(system, 111);
+  advanceWorldShipyards(system, 111, suppliedMarket);
   const completed = playerShipyardLedger(yard, 111);
   assert.ok(completed.finishedShip);
   assert.ok(completed.accounts.constructionExpenses > 0);
@@ -775,6 +868,7 @@ test("version four player-backed yards migrate into readable accounts", () => {
   }];
   const snapshot = snapshotWorldShipyards(system);
   snapshot.version = 4;
+  legacySnapshotFields(snapshot);
   for (const saved of snapshot.yards) {
     delete saved.buildStartedMinute;
     delete saved.playerAccounts;
@@ -800,6 +894,7 @@ test("version five books reconstruct paid sales and costs that predate the journ
   yard.lifetimePlayerDividends = 6400;
   const snapshot = snapshotWorldShipyards(system);
   snapshot.version = 5;
+  legacySnapshotFields(snapshot);
   const saved = snapshot.yards[0];
   saved.playerDividendBalance = 0;
   saved.lifetimePlayerDividends = 6400;
@@ -851,6 +946,7 @@ test("version nine shipyard books migrate without inventing historical upkeep", 
   });
   const snapshot = snapshotWorldShipyards(system);
   snapshot.version = 9;
+  legacySnapshotFields(snapshot);
   delete snapshot.yards[0].playerAccounts.operatingExpenses;
 
   restoreWorldShipyards(system, snapshot);
@@ -908,6 +1004,8 @@ test("shipyard stores persist while old player yards regain their founding deliv
   });
   yard.materialInventory.timber = 7.5;
   yard.materialInventory.iron = 3;
+  yard.prepaidMaterialInventory.timber = 7.5;
+  yard.prepaidMaterialInventory.iron = 3;
   const snapshot = snapshotWorldShipyards(system);
   const restored = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-stores" });
   restoreWorldShipyards(restored, snapshot);
@@ -915,6 +1013,7 @@ test("shipyard stores persist while old player yards regain their founding deliv
 
   const legacySnapshot = structuredClone(snapshot);
   legacySnapshot.version = 6;
+  legacySnapshotFields(legacySnapshot);
   for (const saved of legacySnapshot.yards) delete saved.materialInventory;
   const migrated = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-stores" });
   restoreWorldShipyards(migrated, legacySnapshot);
@@ -927,6 +1026,7 @@ test("shipyard stores persist while old player yards regain their founding deliv
 
   const versionSevenSnapshot = structuredClone(snapshot);
   versionSevenSnapshot.version = 7;
+  legacySnapshotFields(versionSevenSnapshot);
   for (const saved of versionSevenSnapshot.yards) delete saved.materialConsumedForBuild;
   const versionSeven = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-stores" });
   restoreWorldShipyards(versionSeven, versionSevenSnapshot);

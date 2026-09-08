@@ -1514,3 +1514,19 @@ function assertExactQuantizedPortrait(actual, source, label) {
     assert.equal(actualHex, expectedHex, `${label} color at pixel ${offset / 4}`);
   }
 }
+
+test("a retained supply captain keeps his homeland and identity after visiting another region", () => {
+  const home = { cityId: "calicut|india", city: "Calicut", country: "India", factionId: "calicut",
+    cityType: "south-asian", routeRegion: "south-asia", lat: 11.25, lon: 75.77 };
+  const destination = { cityId: "lisbon|portugal", city: "Lisbon", country: "Portugal", factionId: "portugal",
+    cityType: "mediterranean", routeRegion: "europe", lat: 38.7, lon: -9.1 };
+  const ship = { id: "persistent-supply-captain", role: "merchant", profileId: "indian-ocean",
+    factionId: "portugal", currentPort: home, captainHomeCityId: home.cityId };
+  const { routeRegion, ...canonicalHome } = home;
+  const options = { homeCitiesById: new Map([[home.cityId, canonicalHome], [destination.cityId, destination]]) };
+  const initial = assignNpcShipCaptains([ship], GENERATED_MANIFEST, new Set(), options).get(ship.id);
+  const restored = assignNpcShipCaptains([{ ...ship, currentPort: destination }], GENERATED_MANIFEST, new Set(), {
+    ...options, captainIdentitiesByShipId: new Map([[ship.id, { id: initial.id, name: initial.name }]])
+  }).get(ship.id);
+  for (const key of ["id", "name", "sourceId", "nameCulture"]) assert.equal(restored[key], initial[key], key);
+});

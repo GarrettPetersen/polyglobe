@@ -2308,6 +2308,7 @@ function damagedBuildingFramePresentation({ source, buildingId, seed = null, fou
 
   const presentation = Object.freeze({
     atlas: buffer,
+    burning: foundationHeight === null,
     frame: Object.freeze({
       ...sourceFrame,
       frame: Object.freeze({ ...sourceFrame.frame, x: 0, y: 0 })
@@ -2411,15 +2412,18 @@ function drawBombardmentSmokeSources(timeMs, targetContext) {
 
 function forEachBombardmentPresentation(visit) {
   if (typeof visit !== "function") throw new TypeError("Bombardment presentation visitor is required");
-  visitAuthoredBombardmentPresentations(visit);
-  visitBackgroundCityBombardmentPresentations("right", visit);
-  if (state.features.leftBankCity) visitBackgroundCityBombardmentPresentations("left", visit);
+  const visitBurning = (presentation, destination) => {
+    if (presentation?.burning) visit(presentation, destination);
+  };
+  visitAuthoredBombardmentPresentations(visitBurning);
+  visitBackgroundCityBombardmentPresentations("right", visitBurning);
+  if (state.features.leftBankCity) visitBackgroundCityBombardmentPresentations("left", visitBurning);
   for (const placement of state.streetBuildings) {
     const regionalFrame = regionalStaticFrame(placement.frame, placement.layerName);
     const source = regionalFrame || { atlas: state.staticAtlas, frame: placement.frame };
     const presentation = cityStreetBombardmentPresentation(placement, source);
     const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
-    visit(presentation, {
+    visitBurning(presentation, {
       x: placement.x - window.x,
       y: placement.y - window.y,
       width: placement.width,

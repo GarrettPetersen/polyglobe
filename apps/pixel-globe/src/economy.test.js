@@ -300,6 +300,25 @@ test("voyage seeds vary initial markets while remaining deterministic", () => {
   assert.notDeepEqual(snapshotWorldEconomy(first), snapshotWorldEconomy(second));
 });
 
+test("fast-forwarded shipbuilding uses the same supply intervals as ordinary sailing", () => {
+  const options = { ports: [LONDON, GOA, TERNATE], startMinute: 0, seedKey: "construction-intervals" };
+  const fast = createWorldEconomy(options);
+  const gradual = createWorldEconomy(options);
+  for (const economy of [fast, gradual]) {
+    for (const yard of economy.shipyards.yards.values()) {
+      for (const goodId of Object.keys(yard.materialInventory)) {
+        yard.materialInventory[goodId] = 0;
+      }
+    }
+  }
+  const endMinute = 90 * 24 * 60;
+  advanceWorldEconomy(fast, endMinute);
+  for (let minute = 6 * 60; minute <= endMinute; minute += 6 * 60) {
+    advanceWorldEconomy(gradual, minute);
+  }
+  assert.deepEqual(snapshotWorldEconomy(fast), snapshotWorldEconomy(gradual));
+});
+
 test("trade catalog covers staples, manufactures, luxuries, spices, and specie metals", () => {
   const ids = new Set(TRADE_GOODS.map((good) => good.id));
   for (const goodId of [

@@ -1,3 +1,4 @@
+import { commissionedShipyard, reservedSupplyShipyard, invalidateSupplyCommissionIndex } from "./shipyardUpgrades.js";
 import { settlementTypeForCity } from "./settlementTypes.js";
 import {
   WEATHER_DAYS,
@@ -40,7 +41,8 @@ import {
   maximumPortSaleQuantity,
   planNpcTrade,
   quotePortPurchase,
-  tradeGoodById
+  tradeGoodById,
+  portGoodSupply
 } from "./economy.js";
 import {
   NPC_WHALING_MIN_LIVING_POPULATION,
@@ -66,7 +68,9 @@ import {
   claimNpcShipyardSaleById,
   npcShipyardSales,
   registerShipyardTradeIn,
-  shipConstructionPrice
+  shipConstructionPrice,
+  shipyardMaterialStatus,
+  receiveCommissionedShipyardMaterials
 } from "./shipyards.js";
 import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
@@ -2860,6 +2864,7 @@ export function updateNpcSeaRouteSystem(system, clockMinutes) {
   if (rerouteHostileNpcTradePlans(system, clockMinutes)) changed = true;
   if (spawnDueNpcReplacements(system, clockMinutes)) changed = true;
   if (restockCapitalNavalReserves(system, clockMinutes)) changed = true;
+  if (updateShipyardSupplyOffers(system, clockMinutes)) changed = true;
   if (purchaseNpcShipyardFleetGrowth(system, clockMinutes)) changed = true;
   for (const ship of system.ships) {
     if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 12)) changed = true;
@@ -2927,7 +2932,8 @@ export function updateNpcSeaRouteEvents(
     if (rerouteHostileNpcTradePlans(system, clockMinutes)) changed = true;
     if (spawnDueNpcReplacements(system, clockMinutes)) changed = true;
     if (restockCapitalNavalReserves(system, clockMinutes)) changed = true;
-    if (purchaseNpcShipyardFleetGrowth(system, clockMinutes)) changed = true;
+    if (updateShipyardSupplyOffers(system, clockMinutes)) changed = true;
+  if (purchaseNpcShipyardFleetGrowth(system, clockMinutes)) changed = true;
   }
   const seen = new Set();
   for (const shipId of shipIds) {
@@ -3232,6 +3238,19 @@ export function captureSurrenderedNpcShip(system, shipId, clockMinutes) {
 
 function removeNpcShipForReplacement(system, ship, clockMinutes) {
   if (!Number.isFinite(clockMinutes)) throw new Error(`Invalid NPC replacement minute: ${clockMinutes}`);
+  const reservedYard = reservedSupplyShipyard(system.economy.shipyards, ship.id);
+  if (reservedYard?.upgrades.supplyCandidateShipId === ship.id) {
+    reservedYard.upgrades.supplyCandidateShipId = null;
+    reservedYard.upgrades.opportunities["supply-ship"].announced = false;
+    invalidateSupplyCommissionIndex(system.economy.shipyards);
+  }
+  const commissionedYard = commissionedShipyard(system.economy.shipyards, ship.id);
+  if (commissionedYard) {
+    commissionedYard.upgrades.supplyCommission.status = "lost";
+    commissionedYard.upgrades.supplyCommission.lostMinute = clockMinutes;
+    commissionedYard.upgrades.opportunities["supply-ship"] = { availableMinute: clockMinutes, announced: false };
+    invalidateSupplyCommissionIndex(system.economy.shipyards);
+  }
   if (ship.replaceOnSink === false) {
     if (ship.capitalNavalReserveSlotId !== null && ship.capitalNavalReserveSlotId !== undefined) {
       const slot = requiredCapitalNavalReserveSlot(system, ship.capitalNavalReserveSlotId);
@@ -4357,6 +4376,11 @@ function assertNpcShipSupportsFleetMode(slug, profileSpec, shipId) {
 }
 
 function assignNpcPlan(system, ship, startMinute) {
+  const commissionedYard = commissionedShipyard(system.economy.shipyards, ship.id);
+  if (commissionedYard && system.shipById.get(ship.id) === ship) {
+    assignShipyardSupplyPlan(system, ship, commissionedYard, startMinute);
+    return;
+  }
   const origin = ship.currentPort;
   let hideoutDestination = null;
   if (!ship.finalDestination && pirateShouldVisitHideout(ship)) {
@@ -4488,7 +4512,10 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
     if (!shipHasCombatGrace(ship) || reachedSafePort) ship.hitPoints = ship.maxHitPoints;
     if (reachedSafePort) ship.graceUntilPortVisit = 0;
     const reachedTradingDestination = !ship.finalDestination || samePort(ship.currentPort, ship.finalDestination);
-    if (ship.role === NPC_ROLE_FISHERMAN && reachedTradingDestination) {
+    const commissionedYard = commissionedShipyard(system.economy.shipyards, ship.id);
+    if (commissionedYard) {
+      handleShipyardSupplyArrival(system, ship, commissionedYard, ship.plan.endMinute);
+    } else if (ship.role === NPC_ROLE_FISHERMAN && reachedTradingDestination) {
       ship.finalDestination = null;
       if (ship.currentPort.isFishingGround) harvestNpcFishingGround(system, ship, ship.currentPort, ship.plan.endMinute);
       else if (npcCargoUnits(ship) > 0 && npcMerchantCanTradeAtPort(system, ship, ship.currentPort)) {
@@ -6671,4 +6698,216 @@ function hashString32(value) {
 
 function hashUnit(value) {
   return hashString32(value) / 0x100000000;
+}
+
+
+// Hiring never rebases a ship's current voyage. An existing merchant finishes
+// that leg before following the yard's instructions; newly built hulls depart
+// their actual sale port, with no seeded journey progress.
+export function updateShipyardSupplyOffers(system, minute) {
+  let changed = false;
+  for (const yard of system.economy.shipyards.yards.values()) {
+    const commission = yard.upgrades.supplyCommission;
+    const opportunity = yard.upgrades.opportunities["supply-ship"];
+    if (!yard.playerBacking || commission?.status === "active" || yard.upgrades.supplyCandidateShipId !== null ||
+        opportunity.availableMinute === null || minute < opportunity.availableMinute) continue;
+    const home = system.ports.find((port) => port.cityId === yard.portId);
+    if (!home) throw new Error(`Commissioned shipyard has no navigable port: ${yard.portId}`);
+    const candidates = system.ships.filter((ship) => ship.role === NPC_ROLE_MERCHANT &&
+      ship.factionId === home.factionId && !ship.encounter && !ship.portResponse &&
+      !shipHasCombatGrace(ship) && ship.hitPoints > 0 &&
+      !reservedSupplyShipyard(system.economy.shipyards, ship.id) &&
+      npcPortsShareRouteNetwork(system, ship.currentPort, home))
+      .map((ship) => {
+        const snapshot = npcShipSnapshot(ship, npcEffectiveClock(ship, minute));
+        const position = snapshot?.routeVector ? vectorToLatLon(snapshot.routeVector) : ship.currentPort;
+        return { ship, distanceKm: distanceKm(position, home) };
+      }).filter((entry) => entry.distanceKm <= 600)
+      .sort((a, b) => a.distanceKm - b.distanceKm || a.ship.id.localeCompare(b.ship.id));
+    let ship = candidates[0]?.ship || null;
+    if (!ship) {
+      for (const sale of npcShipyardSales(system.economy.shipyards)) {
+        const origin = system.ports.find((port) => port.cityId === sale.portId);
+        if (!origin || sale.factionId !== home.factionId || distanceKm(origin, home) > 600 ||
+            !npcPortsShareRouteNetwork(system, origin, home)) continue;
+        const profileSpec = FLEET_PROFILES.find((profile) => profile.portPredicate(origin) &&
+          npcShipSupportsFleetMode(sale.shipSlug, profile.mode) &&
+          profileSlugsForRole(profile, NPC_ROLE_MERCHANT, sale.factionId).includes(sale.shipSlug));
+        if (!profileSpec) continue;
+        const id = `shipyard:${sale.id}`;
+        if (system.shipById.has(id) || system.replacementQueue.some((entry) => entry.shipId === id)) {
+          throw new Error(`Commission cannot reuse a sold hull: ${sale.id}`);
+        }
+        ship = createNpcShipRecord({ id, factionId: sale.factionId, role: NPC_ROLE_MERCHANT,
+          profileSpec, slugs: profileSlugsForRole(profileSpec, NPC_ROLE_MERCHANT, sale.factionId),
+          slug: sale.shipSlug, seed: hashString32(id), origin });
+        claimNpcShipyardSaleById(system.economy.shipyards, sale.id);
+        system.ships.push(ship);
+        system.shipById.set(id, ship);
+        break;
+      }
+    }
+    if (!ship) continue;
+    yard.upgrades.supplyCandidateShipId = ship.id;
+    yard.upgrades.supplyCaptainIdentity = null;
+    invalidateSupplyCommissionIndex(system.economy.shipyards);
+    if (!ship.plan) assignNpcPlan(system, ship, npcEffectiveClock(ship, minute));
+    changed = true;
+  }
+  return changed;
+}
+
+function supplyTradePermitted(system, ship, source, destination, goodId) {
+  return npcMerchantCanTradeAtPort(system, ship, source) && npcMerchantCanTradeAtPort(system, ship, destination) &&
+    tradeEmbargoOrdersForPurchase(system.tradeEmbargoes, { sourceFactionId: source.factionId, goodId, playerFactionId: ship.factionId }).length === 0 &&
+    tradeEmbargoOrdersForSale(system.tradeEmbargoes, { destinationFactionId: destination.factionId, goodId, playerFactionId: ship.factionId }).length === 0 &&
+    tradeEmbargoOrdersForShipping(system.tradeEmbargoes, { shipFactionId: ship.factionId, destinationFactionId: destination.factionId, goodId }).length === 0;
+}
+
+function assignShipyardSupplyPlan(system, ship, yard, minute) {
+  const home = requiredNpcRoutePort(system, yard.portId, "Shipyard supply destination");
+  const commission = yard.upgrades.supplyCommission;
+  const origin = ship.currentPort;
+  const loaded = commission.supplyGoodId !== null && (ship.cargo[commission.supplyGoodId] || 0) > 0;
+  let destination = loaded ? home : null;
+  if (!loaded) {
+    commission.supplyGoodId = null;
+    const needs = shipyardMaterialStatus(yard).filter((entry) => entry.stockpileMissing >= 1)
+      .sort((a, b) => b.missing - a.missing || b.stockpileMissing - a.stockpileMissing || a.goodId.localeCompare(b.goodId));
+    const suppliers = system.ports.filter((port) => npcRoutePortAcceptsTraffic(port) &&
+      port.cityId !== home.cityId && npcPortsShareRouteNetwork(system, origin, port) &&
+      npcPortsShareRouteNetwork(system, port, home) && distanceKm(port, home) <= 2000)
+      .sort((a, b) => distanceKm(a, home) - distanceKm(b, home) || a.cityId.localeCompare(b.cityId));
+    for (const need of needs) {
+      const supplier = suppliers.find((port) => {
+        if (!supplyTradePermitted(system, ship, port, home, need.goodId)) return false;
+        const supply = portGoodSupply(system.economy, port, need.goodId);
+        return supply.listedForSale && supply.stock >= 1;
+      });
+      if (!supplier) continue;
+      destination = supplier;
+      commission.supplyGoodId = need.goodId;
+      break;
+    }
+  }
+  ship.finalDestination = null;
+  if (!destination || samePort(origin, destination) || !npcMerchantCanTradeAtPort(system, ship, destination)) {
+    // No legal stock, no affordable cargo, or no room is an ordinary paused
+    // commission. Retry after a day so it survives shortages and diplomacy.
+    ship.plan = { origin, destination: origin, startMinute: minute, endMinute: minute + 1440,
+      segments: [{ kind: "wait", startMinute: minute, endMinute: minute + 1440 }] };
+    return;
+  }
+  ship.plan = buildNpcPlan(origin, destination, routeBetweenPorts(system, origin, destination, ship.slug, minute), minute);
+}
+
+function handleShipyardSupplyArrival(system, ship, yard, minute) {
+  const commission = yard.upgrades.supplyCommission;
+  const home = requiredNpcRoutePort(system, yard.portId, "Shipyard supply arrival");
+  if (!npcMerchantCanTradeAtPort(system, ship, ship.currentPort)) return;
+  if (commission.supplyGoodId !== null && !supplyTradePermitted(system, ship, ship.currentPort, home, commission.supplyGoodId)) return;
+  if (ship.currentPort.cityId === home.cityId && commission.supplyGoodId !== null &&
+      (ship.cargo[commission.supplyGoodId] || 0) > 0) {
+    const goodId = commission.supplyGoodId;
+    const held = ship.cargo[goodId];
+    const room = shipyardMaterialStatus(yard).find((entry) => entry.goodId === goodId).stockpileMissing;
+    const quantity = Math.min(held, Math.floor(room));
+    if (quantity <= 0) return;
+    const cost = Math.ceil(ship.cargoCost[goodId] * quantity / held);
+    receiveCommissionedShipyardMaterials(yard, { goodId, quantity, cost, minute });
+    ship.specie += cost;
+    consumeNpcCargoOrigins(ship, goodId, quantity);
+    if (quantity === held) {
+      delete ship.cargo[goodId];
+      delete ship.cargoCost[goodId];
+      commission.supplyGoodId = null;
+    } else {
+      ship.cargo[goodId] -= quantity;
+      ship.cargoCost[goodId] -= cost;
+    }
+  }
+  if (commission.supplyGoodId === null) {
+    if (npcCargoUnits(ship) > 0 && npcMerchantCanTradeAtPort(system, ship, ship.currentPort)) sellNpcCargo(system, ship, ship.currentPort);
+    return;
+  }
+  const goodId = commission.supplyGoodId;
+  if ((ship.cargo[goodId] || 0) > 0 || !supplyTradePermitted(system, ship, ship.currentPort, home, goodId)) return;
+  const need = shipyardMaterialStatus(yard).find((entry) => entry.goodId === goodId);
+  const multiplier = npcPurchaseMultiplier(system, ship, ship.currentPort)(goodId);
+  const cartazCost = npcCartazVoyageCost(system, ship, ship.currentPort, home);
+  if (!Number.isFinite(cartazCost) || cartazCost > ship.specie) return;
+  const quantity = maximumPortSaleQuantity(system.economy, ship.currentPort, goodId,
+    Math.min(Math.floor(need?.stockpileMissing || 0), npcCargoAvailableQuantity(ship, goodId)), ship.specie - cartazCost, multiplier);
+  if (quantity <= 0) return;
+  const transaction = executePortSale(system.economy, ship.currentPort, goodId, quantity, multiplier);
+  ship.specie -= transaction.total + cartazCost;
+  if (cartazCost > 0) ship.cartazUntilMinute = minute + PORTUGUESE_CARTAZ_DURATION_DAYS * WEATHER_MINUTES_PER_DAY;
+  const stored = storeNpcCargo(ship, goodId, quantity, transaction.total + cartazCost, "commissioned supply purchase");
+  if (stored !== quantity) throw new Error(`Commissioned ship exceeded its hold: ${ship.id}`);
+  recordNpcCargoOrigin(ship, goodId, stored, ship.currentPort, minute);
+}
+
+export function shipyardSupplyShipStatus(system, yard) {
+  const commission = yard.upgrades.supplyCommission;
+  const active = commission?.status === "active";
+  const shipId = active ? commission.shipId : yard.upgrades.supplyCandidateShipId;
+  if (shipId === null) return null;
+  const ship = system.shipById.get(shipId);
+  if (!ship) throw new Error(`Commissioned ship is missing: ${yard.portId}/${shipId}`);
+  const destination = ship.plan?.destination || ship.currentPort;
+  return { shipId: ship.id, hired: active, destinationCityId: destination.cityId,
+    goodId: active ? commission.supplyGoodId : null, loaded: active && (ship.cargo[commission.supplyGoodId] || 0) > 0,
+    waiting: !ship.plan || ship.plan.segments.every((segment) => segment.kind === "wait") };
+}
+
+
+export function snapshotShipyardSupplyShips(system) {
+  const ships = [];
+  for (const ship of system.ships) {
+    if (reservedSupplyShipyard(system.economy.shipyards, ship.id)) {
+      ships.push({ ...cloneJsonData(ship), visualNavigation: null });
+    }
+  }
+  const expectedIds = shipyardSupplyShipIds(system.economy.shipyards);
+  if (ships.length !== expectedIds.size) throw new Error("Shipyard supply contract refers to a missing ship");
+  return { version: 1, ships };
+}
+
+function shipyardSupplyShipIds(shipyards) {
+  const ids = new Set();
+  for (const yard of shipyards.yards.values()) {
+    const id = yard.upgrades.supplyCommission?.status === "active"
+      ? yard.upgrades.supplyCommission.shipId : yard.upgrades.supplyCandidateShipId;
+    if (id === null) continue;
+    if (ids.has(id)) throw new Error(`Duplicate shipyard supply ship: ${id}`);
+    ids.add(id);
+  }
+  return ids;
+}
+
+export function restoreShipyardSupplyShips(system, snapshot) {
+  const expectedIds = shipyardSupplyShipIds(system.economy.shipyards);
+  if (snapshot === undefined && expectedIds.size === 0) return;
+  if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ships)) {
+    throw new Error("Missing or invalid durable shipyard supply fleet");
+  }
+  const ships = cloneJsonData(snapshot.ships);
+  const seen = new Set();
+  for (const ship of ships) {
+    if (!expectedIds.has(ship.id) || seen.has(ship.id) || ship.role !== NPC_ROLE_MERCHANT) {
+      throw new Error(`Invalid durable commissioned ship: ${ship.id}`);
+    }
+    seen.add(ship.id);
+    reconcileRestoredNpcShip(ship, "shipyard supply restore");
+  }
+  if (seen.size !== expectedIds.size) throw new Error("Durable shipyard supply fleet is incomplete");
+  canonicalizeSavedNpcRoutePorts(system, ships);
+  for (const ship of ships) {
+    const oldIndex = system.ships.findIndex((entry) => entry.id === ship.id);
+    if (oldIndex === -1) system.ships.push(ship);
+    else system.ships[oldIndex] = ship;
+    system.shipById.set(ship.id, ship);
+  }
+  system.replacementQueue = system.replacementQueue.filter((entry) => !seen.has(entry.shipId));
+  replanNpcRoutesForCurrentTopology(system, ships);
 }

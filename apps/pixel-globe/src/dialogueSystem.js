@@ -1,3 +1,5 @@
+import { purchaseShipyardUpgrade } from "./shipyards.js";
+import { SHIPYARD_UPGRADE_IDS, shipyardUpgradeOffers } from "./shipyardUpgrades.js";
 import { TOPSHAM_CITY_ID, acceptExeterCanalQuest, exeterCanalQuestView, startExeterCanalConstruction } from "./exeterCanal.js";
 import { declineCaptureCommission, playerTradeAdviceByCity } from "./gameState.js";
 import { SOUND_DUES_COLLECTOR_CITY_ID, soundDuesPaymentEligibility } from "./soundDues.js";
@@ -444,7 +446,7 @@ export function createPortDialogueSession(city, options = {}) {
     throw new Error("Port quest cargo delivery prompts must be string ids");
   }
   if (options.shipyardLedgerTab !== undefined &&
-      !["yard", "materials", "books"].includes(options.shipyardLedgerTab)) {
+      !["yard", "materials", "books", "upgrades"].includes(options.shipyardLedgerTab)) {
     throw new Error(`Unknown shipyard ledger tab: ${options.shipyardLedgerTab}`);
   }
   if (options.marketMode !== undefined && !["buy", "sell"].includes(options.marketMode)) {
@@ -486,8 +488,10 @@ export function createPortDialogueSession(city, options = {}) {
     shipHandover: null,
     shipyardDividendArrival: null,
     shipyardMaterialArrival: false,
+    shipyardUpgradeArrival: null,
     shipyardArrivalChecked: false,
     shipyardLedgerTab: options.shipyardLedgerTab || "yard",
+    shipyardUpgradeSelection: "storage",
     shipyardLedgerScrollOffset: 0,
     shipyardLedgerReturnNodeId: null,
     shipyardMaterialSourceHints: null,
@@ -2286,6 +2290,7 @@ export function selectPortDialogueAction(
         !["shipyard", "shipyard-arrival"].includes(action.nodeId)) {
       session.shipyardDividendArrival = null;
       session.shipyardMaterialArrival = false;
+      session.shipyardUpgradeArrival = null;
       session.shipyardLedgerReturnNodeId = null;
       session.shipyardMaterialSourceHints = null;
     }
@@ -2327,7 +2332,7 @@ export function selectPortDialogueAction(
         ? 0
         : session.shipyardLedgerTab === "materials"
           ? 1
-          : 2
+          : session.shipyardLedgerTab === "upgrades" ? 3 : 2
       : 0;
     session.feedback = null;
     return { closed: false };
@@ -2340,13 +2345,31 @@ export function selectPortDialogueAction(
     session.selectedIndex = marketModeOptionIndex(session);
     return { closed: false };
   }
+  if (action.type === "select-shipyard-upgrade" || action.type === "buy-shipyard-upgrade") {
+    if (session.nodeId !== "shipyard" || session.shipyardLedgerTab !== "upgrades" || !SHIPYARD_UPGRADE_IDS.includes(action.upgradeId)) {
+      throw new Error(`Invalid shipyard upgrade action: ${action.upgradeId}`);
+    }
+    if (!shipyardUpgradeOffers(context.shipyard, gameState.doubloons, context.simMinute ?? 0)
+      .some((offer) => offer.id === action.upgradeId && offer.visible)) {
+      throw new Error(`Shipyard upgrade is not visible: ${action.upgradeId}`);
+    }
+    session.shipyardUpgradeSelection = action.upgradeId;
+    if (action.type === "buy-shipyard-upgrade") {
+      purchaseShipyardUpgrade(context.shipyard, gameState, action.upgradeId, context.simMinute ?? 0);
+      session.shipyardMaterialSourceHints = null;
+    }
+    const offers = shipyardUpgradeOffers(context.shipyard, gameState.doubloons, context.simMinute ?? 0).filter((offer) => offer.visible);
+    session.selectedIndex = 4 + shipyardUpgradeCardOptions(offers).findIndex((entry) =>
+      entry.action.type === "select-shipyard-upgrade" && entry.action.upgradeId === action.upgradeId);
+    return { closed: false };
+  }
   if (action.type === "shipyard-ledger-tab") {
-    if (session.nodeId !== "shipyard" || !["yard", "materials", "books"].includes(action.tab)) {
+    if (session.nodeId !== "shipyard" || !["yard", "materials", "books", "upgrades"].includes(action.tab)) {
       throw new Error(`Invalid shipyard ledger tab action: ${action.tab}`);
     }
     session.shipyardLedgerTab = action.tab;
     session.shipyardLedgerScrollOffset = 0;
-    session.selectedIndex = action.tab === "yard" ? 0 : action.tab === "materials" ? 1 : 2;
+    session.selectedIndex = action.tab === "yard" ? 0 : action.tab === "materials" ? 1 : action.tab === "books" ? 2 : 3;
     session.feedback = null;
     return { closed: false };
   }
@@ -6812,7 +6835,7 @@ function playerShipyardArrivalView(session, city, gameState, economy, context) {
       .filter(Boolean)
     : [];
   const payout = session.shipyardDividendArrival;
-  if (!payout && !session.shipyardMaterialArrival) {
+  if (!payout && !session.shipyardMaterialArrival && !session.shipyardUpgradeArrival) {
     throw new Error(`Shipyard arrival dialogue at ${cityLabel(city)} has no business for the captain`);
   }
   const payoutText = payout
@@ -6832,7 +6855,7 @@ function playerShipyardArrivalView(session, city, gameState, economy, context) {
   return {
     speaker: `${cityLabel(city)} master shipwright`,
     expressionId: payout ? "pleased" : "attentive",
-    text: [payoutText, materialText].filter(Boolean).join(" "),
+    text: [session.shipyardUpgradeArrival?.explanation, payoutText, materialText].filter(Boolean).join(" "),
     feedback: session.feedback,
     options: [
       ...(materialSales.length > 0
@@ -6872,10 +6895,26 @@ function playerShipyardArrivalReviewView(city, gameState, context) {
   };
 }
 
+function shipyardUpgradeCardOptions(upgrades) {
+  return upgrades.flatMap((upgrade) => [
+    option(upgrade.label, { type: "select-shipyard-upgrade", upgradeId: upgrade.id }, { iconId: upgrade.iconId }),
+    ...(upgrade.available && !upgrade.owned ? [
+      option(`Buy upgrade: ${upgrade.cost} db`, { type: "buy-shipyard-upgrade", upgradeId: upgrade.id },
+        { disabled: upgrade.disabled, iconId: "action:buy" })
+    ] : [])
+  ]);
+}
+
 function playerShipyardLedgerView(session, city, gameState, economy, context, yard) {
   const tab = session.shipyardLedgerTab;
-  if (!["yard", "materials", "books"].includes(tab)) {
+  if (!["yard", "materials", "books", "upgrades"].includes(tab)) {
     throw new Error(`Unknown shipyard ledger tab: ${tab}`);
+  }
+  const upgrades = shipyardUpgradeOffers(yard, gameState.doubloons, context.simMinute ?? 0).filter((entry) => entry.visible)
+    .map((entry) => entry.id === "supply-ship" && context.shipyardSupplyStatus ? { ...entry, status: context.shipyardSupplyStatus } : entry);
+  let selectedUpgrade = upgrades.find((entry) => entry.id === (session.shipyardUpgradeSelection || "storage")) || upgrades[0] || null;
+  if (selectedUpgrade?.id === "supply-ship" && context.shipyardSupplyStatus) {
+    selectedUpgrade = { ...selectedUpgrade, status: context.shipyardSupplyStatus };
   }
   const ledger = playerShipyardLedger(yard, context.simMinute ?? 0);
   const newestEntries = [...ledger.accounts.entries].reverse();
@@ -6988,6 +7027,8 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
       tab,
       ledger,
       ledgerJournal,
+      selectedUpgrade,
+      upgrades,
       listing,
       currentShipSlug: purchase?.currentShipSlug || context.shipStats?.slug || null,
       purchaseTerms: purchase?.purchaseTerms || null,
@@ -7007,6 +7048,10 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
         rowId: "shipyard-ledger-tabs",
         iconId: "action:letter"
       }),
+      option("Upgrades", { type: "shipyard-ledger-tab", tab: "upgrades" }, {
+        rowId: "shipyard-ledger-tabs", iconId: "action:inventory"
+      }),
+      ...(tab === "upgrades" ? shipyardUpgradeCardOptions(upgrades) : []),
       ...materialActionOptions,
       ...(tab === "yard" ? listings.map((readyListing) => option(
         `Inspect ${readyListing.source === "trade-in" ? "pre-owned " : ""}${readyListing.shipLabel}`,

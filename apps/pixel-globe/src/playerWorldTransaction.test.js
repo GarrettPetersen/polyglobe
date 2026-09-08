@@ -117,6 +117,7 @@ test("saving during a worker commit cannot mix unsold stock with the purchased f
     snapshotPlayerShip: () => ({}), snapshotFirstDayNightNoticeState: () => ({}),
     snapshotPlayerShipyards: (yards) => structuredClone(yards),
     snapshotNpcSurrenderContinuity: (routes) => structuredClone(routes.ships),
+    snapshotShipyardSupplyShips: (routes) => ({ version: 1, ships: structuredClone(routes.ships) }),
     snapshotWorldEconomy: (economy) => structuredClone(economy),
     snapshotLandTradeSystem: () => ({}), landTradeSystem: {},
     snapshotNpcSeaRouteSystem: (routes) => structuredClone(routes),
@@ -134,4 +135,5 @@ test("saving during a worker commit cannot mix unsold stock with the purchased f
   assert.deepEqual(saved.economy.shipyards.npcSales, []);
   assert.deepEqual(saved.npcRoutes.ships, ["shipyard:sale-a"]);
   assert.deepEqual(saved.npcSurrenders, ["shipyard:sale-a"]);
+  assert.deepEqual(saved.shipyardSupplyShips.ships, ["shipyard:sale-a"]);
 });

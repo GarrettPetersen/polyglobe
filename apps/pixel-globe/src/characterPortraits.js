@@ -394,7 +394,8 @@ export function assignNpcShipCaptains(
   ));
   if (piratePool.length === 0) throw new Error("Character portrait manifest has no pirate captains");
   for (const ship of [...npcShips].sort((a, b) => a.id.localeCompare(b.id))) {
-    const region = portraitRegionForNpcShip(ship);
+    const homeCity = npcCaptainHomeCity(ship, homeCitiesById);
+    const region = portraitRegionForNpcShip(ship, homeCity);
     const sourcePool = ship.role === "pirate"
       ? piratePool
       : characterSourcesForRole(manifest, "captain", region, {
@@ -406,7 +407,6 @@ export function assignNpcShipCaptains(
     const character = storedIdentity
       ? assignStoredCharacterSprite(identityKey, region, sourcePool, used, storedIdentity)
       : assignCharacterSprite(identityKey, region, sourcePool, used);
-    const homeCity = npcCaptainHomeCity(ship, homeCitiesById);
     assignments.set(ship.id, {
       ...character,
       ...assignRegionalCharacterIdentity({
@@ -453,7 +453,7 @@ function npcCaptainHomeCity(ship, homeCitiesById) {
   const routeHome = ship?.currentPort?.cityId
     ? ship.currentPort
     : ship?.plan?.origin?.cityId ? ship.plan.origin : null;
-  if (routeHome) return routeHome;
+  if (routeHome && (!ship.captainHomeCityId || routeHome.cityId === ship.captainHomeCityId)) return routeHome;
   const cityId = requireEntityId(ship?.captainHomeCityId, `NPC ship ${ship?.id || "unknown"} captain home`);
   if (!(homeCitiesById instanceof Map)) {
     throw new Error(`NPC ship ${ship.id} captain home requires a canonical city index`);
@@ -1079,12 +1079,12 @@ function portraitRegionForCity(city) {
   return "global";
 }
 
-function portraitRegionForNpcShip(ship) {
+function portraitRegionForNpcShip(ship, homeCity) {
   const sovereignRegion = sovereignEastAsianPortraitRegion(ship)
-    || sovereignEastAsianPortraitRegion(ship.currentPort)
-    || sovereignEastAsianPortraitRegion(ship.plan?.origin);
+    || sovereignEastAsianPortraitRegion(homeCity);
   if (sovereignRegion) return sovereignRegion;
-  const routeRegion = ship.currentPort?.routeRegion || ship.plan?.origin?.routeRegion;
+  if (!homeCity.routeRegion) return portraitRegionForCity(homeCity);
+  const routeRegion = homeCity.routeRegion;
   if (routeRegion === "east-asia") return "east-asia";
   if (routeRegion === "south-asia") return "south-asia";
   if (routeRegion === "southeast-asia") return "southeast-asia";

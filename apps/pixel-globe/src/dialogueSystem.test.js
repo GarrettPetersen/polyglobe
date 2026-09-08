@@ -6464,7 +6464,8 @@ test("a player-backed yard replaces the ordinary shipyard and keeps its finished
   });
 
   assert.equal(view.presentation.kind, "player-shipyard-ledger");
-  assert.equal(view.presentation.ledger.currentBuild.daysRemaining, 60);
+  // Viewing a later clock cannot perform construction or consume supplies.
+  assert.equal(view.presentation.ledger.currentBuild.daysRemaining, 90);
   assert.equal(view.presentation.ledger.finishedShip.id, yard.listing.id);
   const inspectIndex = view.options.findIndex((entry) => entry.action.type === "inspect-shipyard-listing");
   assert.ok(inspectIndex >= 0);

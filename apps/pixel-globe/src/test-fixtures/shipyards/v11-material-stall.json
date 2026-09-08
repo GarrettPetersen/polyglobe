@@ -1,0 +1,47 @@
+{
+  "port": {
+    "cityId": "lisbon|portugal",
+    "tileId": 1,
+    "city": "Lisbon",
+    "cityType": "mediterranean",
+    "population": 100000,
+    "lat": 38.72,
+    "lon": -9.14,
+    "factionId": "portugal"
+  },
+  "seedKey": "v11-material-stall",
+  "snapshot": {
+    "version": 11,
+    "lastMinute": 250,
+    "npcSales": [],
+    "yards": [
+      {
+        "portId": "lisbon|portugal",
+        "buildNumber": 0,
+        "listing": null,
+        "usedListings": [],
+        "nextTradeInNumber": 1,
+        "nextBuildMinute": 1000,
+        "buildStartedMinute": 0,
+        "materialDelayDays": 0,
+        "materialInventory": {
+          "timber": 3.75,
+          "iron": 0,
+          "naval-stores": 2.25,
+          "linen-cloth": 0.75
+        },
+        "materialConsumedForBuild": {
+          "timber": 1.25,
+          "iron": 0.2,
+          "naval-stores": 0.75,
+          "linen-cloth": 0.25
+        },
+        "playerBacking": null,
+        "playerDividendBalance": 0,
+        "lifetimePlayerDividends": 0,
+        "playerPendingSales": [],
+        "playerAccounts": null
+      }
+    ]
+  }
+}

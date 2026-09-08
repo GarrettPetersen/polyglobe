@@ -1310,6 +1310,10 @@ export function advanceWorldEconomy(economy, clockMinute) {
   const steps = Math.floor((clockMinute - economy.lastMinute) / ECONOMY_STEP_MINUTES);
   if (steps <= 0) return false;
   for (let step = 0; step < steps; step++) {
+    // Work uses the stock available during this interval. Newly produced
+    // supplies cannot retroactively pay for months of stalled construction.
+    advanceWorldShipyards(economy.shipyards,
+      economy.lastMinute + (step + 1) * ECONOMY_STEP_MINUTES, shipyardMaterialMarket(economy));
     for (const port of economy.portStates.values()) advancePortEconomy(port, ECONOMY_STEP_DAYS);
     activateHistoricalPortIndustries(
       economy,
@@ -1317,7 +1321,6 @@ export function advanceWorldEconomy(economy, clockMinute) {
     );
   }
   economy.lastMinute += steps * ECONOMY_STEP_MINUTES;
-  advanceWorldShipyards(economy.shipyards, economy.lastMinute, shipyardMaterialMarket(economy));
   invalidateWorldMarketMedianCache(economy);
   return true;
 }

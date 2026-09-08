@@ -440,6 +440,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "open-player-shipyard": "action:shipyard",
   "fund-player-shipyard": "action:shipyard",
   "shipyard-ledger-tab": "action:letter",
+  "select-shipyard-upgrade": "action:inventory",
+  "buy-shipyard-upgrade": "action:buy",
   "shipyard-ledger-page": "action:navigation",
   "deliver-viking-material": "action:quest",
   "deliver-japanese-matchlock-material": "action:quest",

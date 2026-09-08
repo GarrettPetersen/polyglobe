@@ -48,6 +48,7 @@ const FAST_NAVIGATION_ACTION_TYPES = new Set([
   "open-crew-management",
   "open-custom-loadout",
   "shipyard-ledger-tab",
+  "select-shipyard-upgrade",
   "switch-market-mode",
   "wait-in-port"
 ]);
