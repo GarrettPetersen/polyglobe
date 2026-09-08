@@ -1,6 +1,6 @@
 import { NAVAL_WEAPON_ARROW, NAVAL_WEAPON_CANNON } from "./navalWeapons.js";
 
-export const HULL_SPLINTER_TTL_SECONDS = 0.58;
+export const HULL_SPLINTER_TTL_SECONDS = 0.92;
 
 export function createHullSplinterBurst(projectile, point) {
   validateProjectile(projectile);
@@ -17,7 +17,7 @@ export function createHullSplinterBurst(projectile, point) {
     incomingX: dx / length,
     incomingY: dy / length,
     age: 0,
-    ttl: HULL_SPLINTER_TTL_SECONDS,
+    ttl: projectile.kind === NAVAL_WEAPON_CANNON ? HULL_SPLINTER_TTL_SECONDS : 0.58,
     seed: projectile.seed >>> 0,
     kind: projectile.kind,
     damage: projectile.damage,
@@ -42,28 +42,44 @@ export function advanceHullSplinterBursts(bursts, dt) {
 export function hullSplinterPixels(burst) {
   validateBurst(burst);
   const cannon = burst.kind === NAVAL_WEAPON_CANNON;
+  if (burst.age >= burst.ttl) return [];
   const count = cannon
-    ? Math.min(10, 6 + Math.ceil(burst.damage * 1.5))
-    : burst.incendiary
-      ? 5
-      : 3;
+    ? Math.min(24, 14 + Math.ceil(burst.damage * 2))
+    : burst.incendiary ? 5 : 3;
   const pixels = [];
   for (let index = 0; index < count; index++) {
     const random = splinterRandom(burst.seed, index);
-    const speed = (cannon ? 8 : 5) + random[0] * (cannon ? 13 : 7);
-    const spread = (random[1] * 2 - 1) * (cannon ? 1.15 : 0.72);
+    const speed = (cannon ? 22 : 5) + random[0] * (cannon ? 34 : 7);
+    // Most wood follows the shot; a few fragments kick back from the struck face.
+    const spread = (random[1] * 2 - 1) * (cannon ? 1.4 : 0.72) +
+      (cannon && index % 4 === 0 ? Math.PI : 0);
     const cos = Math.cos(spread);
     const sin = Math.sin(spread);
     const directionX = burst.incomingX * cos - burst.incomingY * sin;
     const directionY = burst.incomingX * sin + burst.incomingY * cos;
-    const upwardSpeed = (cannon ? 8 : 5) + random[2] * (cannon ? 14 : 8);
-    const z = Math.max(0, upwardSpeed * burst.age - 25 * burst.age * burst.age);
-    pixels.push({
-      x: Math.round(burst.x + directionX * speed * burst.age),
-      y: Math.round(burst.y + directionY * speed * burst.age - z),
-      alpha: Math.pow(1 - burst.age / burst.ttl, 0.8),
-      shade: Math.min(2, Math.floor(random[3] * 3))
-    });
+    const upwardSpeed = (cannon ? 18 : 5) + random[2] * (cannon ? 24 : 8);
+    const z = Math.max(0, upwardSpeed * burst.age - (cannon ? 48 : 25) * burst.age * burst.age);
+    // Drag slows the initial burst; the particles remain at the impact location
+    // in chart space after detaching, instead of following the moving ship.
+    const travel = cannon ? (1 - Math.exp(-1.5 * burst.age)) / 1.5 : burst.age;
+    const x = burst.x + directionX * speed * travel;
+    const y = burst.y + directionY * speed * travel - z;
+    const alpha = cannon ? Math.min(1, (burst.ttl - burst.age) / 0.32)
+      : Math.pow(1 - burst.age / burst.ttl, 0.8);
+    const shade = Math.min(2, Math.floor(random[3] * 3));
+    const length = cannon ? 2 + Math.floor(random[3] * 3) : 1;
+    const angle = random[1] * Math.PI * 2 + (random[2] - .5) * 18 * burst.age;
+    let previousX = null;
+    let previousY = null;
+    for (let segment = 0; segment < length; segment++) {
+      const offset = segment - (length - 1) / 2;
+      const pixelX = Math.round(x + Math.cos(angle) * offset);
+      const pixelY = Math.round(y + Math.sin(angle) * offset);
+      if (pixelX === previousX && pixelY === previousY) continue;
+      pixels.push({ x: pixelX, y: pixelY, alpha, shade });
+      previousX = pixelX;
+      previousY = pixelY;
+    }
   }
   return pixels;
 }
