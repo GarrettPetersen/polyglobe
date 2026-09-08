@@ -135,6 +135,7 @@ const PIRATE_HIDEOUT_MIN_STAY_MINUTES = 18 * 60;
 const PIRATE_HIDEOUT_STAY_SPREAD_MINUTES = 30 * 60;
 const PIRATE_HIDEOUT_DANGER_RADIUS_KM = 120;
 const PIRATE_HIDEOUT_DANGER_HOLD_MINUTES = 6 * 60;
+const PIRATE_HIDEOUT_MAX_BLOCKADE_MINUTES = 7 * WEATHER_MINUTES_PER_DAY;
 export const MAJOR_PORT_PROTECTION_POPULATION = 80000;
 const NPC_FISH_GOOD_ID = "fish";
 const NPC_REPLACEMENT_MIN_DAYS = 90;
@@ -2882,11 +2883,7 @@ export function npcSeaRouteEventSchedule(system) {
         throw new Error(`Hidden NPC pirate unexpectedly has a route plan: ${ship.id}`);
       }
       const dangerUntil = system.pirateHideoutDangerUntil.get(ship.currentPort.tileId) || 0;
-      const minute = Math.max(
-        0,
-        ship.hiddenUntilMinute - ship.clockOffsetMinutes,
-        dangerUntil
-      );
+      const minute = Math.max(0, pirateHideoutReleaseMinute(ship, dangerUntil) - ship.clockOffsetMinutes);
       if (!Number.isFinite(minute) || minute < 0) {
         throw new Error(`NPC pirate has an invalid hideout release minute: ${ship.id}`);
       }
@@ -4439,8 +4436,7 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
   }
   if (ship.hiddenAtHideout) {
     const dangerUntil = system.pirateHideoutDangerUntil.get(ship.currentPort.tileId) || 0;
-    const effectiveDangerUntil = dangerUntil + ship.clockOffsetMinutes;
-    if (clockMinutes < ship.hiddenUntilMinute || clockMinutes < effectiveDangerUntil) return false;
+    if (clockMinutes < pirateHideoutReleaseMinute(ship, dangerUntil)) return false;
     ship.hiddenAtHideout = false;
     ship.hiddenUntilMinute = 0;
     ship.seekingHideout = false;
@@ -4537,6 +4533,7 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
       ship.finalDestination = null;
       if (npcCargoUnits(ship) > 0) sellNpcCargo(system, ship, ship.currentPort);
     }
+    recruitNpcPirateAtPort(system, ship);
     assignNpcPlan(system, ship, ship.plan.endMinute);
     changed = true;
     guard++;
@@ -4976,6 +4973,45 @@ function npcPortIsSafeForShip(system, ship, port) {
   if (port.factionId === NEUTRAL_FACTION_ID) return true;
   if (ship.factionId === PIRATE_FACTION_ID) return port.factionId === PIRATE_FACTION_ID;
   return port.factionId === ship.factionId;
+}
+
+// Patrols delay departure, but cannot keep every pirate off the sea forever.
+// After a week the repaired crew risks a breakout. Use the same deadline in
+// event scheduling and settlement, including ships restored from old voyages.
+function pirateHideoutReleaseMinute(ship, dangerUntil) {
+  return Math.max(ship.hiddenUntilMinute, Math.min(
+    dangerUntil + ship.clockOffsetMinutes,
+    ship.hiddenUntilMinute + PIRATE_HIDEOUT_MAX_BLOCKADE_MINUTES
+  ));
+}
+
+export function recruitNpcPirateAtPort(system, ship) {
+  if (ship.role !== NPC_ROLE_MERCHANT || ship.encounter || ship.replaceOnSink === false ||
+      ship.portResponse || ship.nationalCircuitId !== null || shipHasCombatGrace(ship) ||
+      reservedSupplyShipyard(system.economy.shipyards, ship.id) ||
+      npcPortHasMajorProtection(ship.currentPort) || ship.currentPort.isFishingGround ||
+      ship.currentPort.isWhalingGround) return false;
+  const profileSpec = fleetProfileForId(ship.profileId);
+  if (profileSpec.roleWeights?.pirate === 0) return false;
+  const atWar = system.ports.some(port => port.factionId !== ship.factionId &&
+    port.factionId !== PIRATE_FACTION_ID && port.factionId !== NEUTRAL_FACTION_ID &&
+    system.relationBetween(ship.factionId, port.factionId) === DIPLOMACY_WAR);
+  // One deterministic opportunity per port call, rather than per simulation
+  // tick. Existing hull, captain, cargo and canonical identity all survive.
+  if (hashUnit(`${ship.id}|${ship.portVisits}|turn-pirate`) >= (atWar ? 0.08 : 0.02)) return false;
+  const regionalFleet = system.ships.filter(other => other.profileId === ship.profileId && !other.encounter);
+  const pirates = regionalFleet.filter(other => other.role === NPC_ROLE_PIRATE).length +
+    system.replacementQueue.filter(other => other.profileId === ship.profileId && other.role === NPC_ROLE_PIRATE).length;
+  if (pirates >= Math.max(1, Math.ceil(regionalFleet.length * (atWar ? 0.08 : 0.04)))) return false;
+  const destinations = system.ports.filter(port => profileSpec.portPredicate(port) &&
+    npcRoutePortAcceptsTraffic(port) && !npcPortHasMajorProtection(port) &&
+    npcPortsShareRouteNetwork(system, ship.currentPort, port));
+  if (destinations.length < 2 || !system.pirateHideouts.some(port =>
+    npcPortsShareRouteNetwork(system, ship.currentPort, port))) return false;
+  ship.role = NPC_ROLE_PIRATE;
+  ship.factionId = PIRATE_FACTION_ID;
+  ship.finalDestination = null;
+  return true;
 }
 
 function pirateShouldVisitHideout(ship) {

@@ -1042,22 +1042,24 @@ test("shipyard stores persist while old player yards regain their founding deliv
   );
 });
 
-test("player shipyards plan enough stores for several years of deterministic builds", () => {
+test("player shipyards target six months of builds before warehouse expansion", () => {
   const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-reserve" });
   const yard = fundPlayerShipyard(system, LISBON, {
     investedMinute: 0,
     seedCapital: 100000,
     materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
   });
-  const nextHull = generateShipyardListing(yard, yard.buildNumber + 1, yard.nextBuildMinute);
-  const nextRequirements = shipbuildingMaterialRequirements(nextHull.shipSlug);
-  const targets = shipyardMaterialStockTargets(yard);
-
-  assert.ok(targets.timber > nextRequirements.timber);
-  assert.ok(targets.iron > nextRequirements.iron);
-  assert.ok(targets["naval-stores"] > nextRequirements["naval-stores"]);
-  assert.ok(Object.values(targets).reduce((sum, quantity) => sum + quantity, 0) >
-    Object.values(nextRequirements).reduce((sum, quantity) => sum + quantity, 0) * 2);
+  const expected = { timber: 0, iron: 0, "naval-stores": 0, "linen-cloth": 0 };
+  let days = 0;
+  let build = yard.buildNumber + 1;
+  while (days < 180) {
+    const hull = generateShipyardListing(yard, build, yard.nextBuildMinute);
+    const requirements = shipbuildingMaterialRequirements(hull.shipSlug);
+    for (const id of Object.keys(expected)) expected[id] += requirements[id];
+    days += shipyardBuildDurationDays(yard, hull.shipSlug, build++);
+  }
+  for (const id of Object.keys(expected)) expected[id] -= yard.materialConsumedForBuild[id];
+  assert.deepEqual(shipyardMaterialStockTargets(yard), expected);
 });
 
 test("ship construction books split every material from labor without changing total cost", () => {

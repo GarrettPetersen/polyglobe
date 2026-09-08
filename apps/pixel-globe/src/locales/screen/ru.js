@@ -2113,7 +2113,7 @@ export default Object.freeze({
   "Large Iceberg": "Большой Айсберг",
   "Large Junk": "Большая джонка",
   "Large Junk on a Beam Reach": "Большой мусор на луче",
-  "Larger, better ships from the next hull onward.": "Более крупные и лучшие корабли со следующего корпуса.",
+  "Larger, better ships; 25% faster construction from the next hull.": "Более крупные и лучшие суда; начиная со следующего корпуса, постройка на 25% быстрее.",
   "LAST: {0} {1} ({2}d)": "ПОСЛЕДНИЙ: {0} {1} ({2}d)",
   "Lateen Barque": "Латинская барка",
   "Lead Hull Sheathing": "Свинцовая обшивка корпуса",

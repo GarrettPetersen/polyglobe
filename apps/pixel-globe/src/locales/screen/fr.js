@@ -2113,7 +2113,7 @@ export default Object.freeze({
   "Large Iceberg": "Grand iceberg",
   "Large Junk": "Grande jonque",
   "Large Junk on a Beam Reach": "Gros déchets sur une portée de poutre",
-  "Larger, better ships from the next hull onward.": "Des navires plus grands et meilleurs dès la prochaine coque.",
+  "Larger, better ships; 25% faster construction from the next hull.": "Des navires plus grands et meilleurs ; construction 25% plus rapide dès la prochaine coque.",
   "LAST: {0} {1} ({2}d)": "DERNIER : {0} {1} ({2}d)",
   "Lateen Barque": "Barque à voile latine",
   "Lead Hull Sheathing": "Revêtement de coque en plomb",

@@ -2113,7 +2113,7 @@ export default Object.freeze({
   "Large Iceberg": "大きな氷山",
   "Large Junk": "大型ジャンク船",
   "Large Junk on a Beam Reach": "ビームリーチ上の大型ジャンク",
-  "Larger, better ships from the next hull onward.": "次の船から、より大型で優れた船を建造。",
+  "Larger, better ships; 25% faster construction from the next hull.": "より大きく優れた船。次の船体から建造が25%速くなる。",
   "LAST: {0} {1} ({2}d)": "最後: {0} {1} ({2}d)",
   "Lateen Barque": "ラティーン帆船",
   "Lead Hull Sheathing": "鉛の船体外装",

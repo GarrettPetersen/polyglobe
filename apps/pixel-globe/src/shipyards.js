@@ -28,7 +28,9 @@ const LEGACY_PLAYER_BACKED_DIVIDEND_RATE = 0.22;
 const PLAYER_BACKED_CONSTRUCTION_COST_RATE = 0.64;
 const PLAYER_BACKED_OPERATING_EXPENSE_RATE = 0.09;
 const MAX_PLAYER_ACCOUNT_ENTRIES = 256;
-const PLAYER_SHIPYARD_STOCKPILE_DAYS = 3 * 365;
+// Six months in the original stores; purchased warehouses add 50% each.
+// Three years of baseline storage made every warehouse upgrade redundant.
+const PLAYER_SHIPYARD_STOCKPILE_DAYS = 180;
 const MAX_STOCKPILE_PLANNED_BUILDS = 64;
 const SHIPBUILDING_MATERIAL_COST_WEIGHTS = Object.freeze({
   timber: 4,
@@ -1173,8 +1175,10 @@ export function shipyardBuildDurationDays(yard, shipSlug, buildNumber) {
     shipyardSeedKey(yard.seedKey, `${yard.portId}|${buildNumber}|interval`)
   ) * 0.44;
   const backingFactor = yard.playerBacking ? PLAYER_BACKED_BUILD_INTERVAL_MULTIPLIER : 1;
+  const expertFactor = yard.upgrades.expertFromBuildNumber !== null &&
+    buildNumber >= yard.upgrades.expertFromBuildNumber ? 1 / 1.25 : 1;
   return Math.max(45, Math.round(
-    base / wealthFactor * hullFactor * variation * backingFactor
+    base / wealthFactor * hullFactor * variation * backingFactor * expertFactor
   ));
 }
 

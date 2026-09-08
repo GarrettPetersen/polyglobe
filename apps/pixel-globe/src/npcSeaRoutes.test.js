@@ -3469,7 +3469,7 @@ test("commissioned merchant makes repeated paid supply runs, preserves its voyag
   ship.cargoCost = {};
   ship.cargoOrigins = {};
   yard.materialInventory = { ...shipyardMaterialStockTargets(yard), iron: 0 };
-  yard.prepaidMaterialInventory.iron = 0;
+  yard.prepaidMaterialInventory = Object.fromEntries(Object.keys(yard.materialInventory).map(id => [id, 0]));
   const player = { doubloons: 100000 };
   yard.upgrades.opportunities["supply-ship"].availableMinute = 0;
   const originalPlan = structuredClone(ship.plan);
@@ -3514,7 +3514,7 @@ test("commissioned merchant makes repeated paid supply runs, preserves its voyag
   assert.equal(yard.materialInventory.iron, quantity);
   assert.equal(yard.playerAccounts.constructionExpenses, expenses + purchaseCost);
   assert.equal(ship.cargo.iron, undefined);
-  assert.equal(player.doubloons, 60000, "no recurring commission fee");
+  assert.equal(player.doubloons, 88000, "no recurring commission fee");
   assert.equal(yard.upgrades.supplyCommission.status, "active");
   const shipsSnapshot = snapshotNpcSeaRouteSystem(routes);
   const yardsSnapshot = snapshotWorldShipyards(economy.shipyards);
@@ -3562,4 +3562,116 @@ test("supply offers wait for real hulls and withdraw if the earmarked ship is su
   sinkNpcShip(routes, reservedId, listing.expiresMinute + 2);
   assert.equal(yard.upgrades.supplyCandidateShipId, null);
   assert.throws(() => purchaseShipyardUpgrade(yard, { doubloons: 100000 }, "supply-ship", listing.expiresMinute + 2), /unavailable/);
+});
+
+test("patrols cannot hide repaired pirates forever, including a twelve-year saved voyage", () => {
+  const startMinute = 12 * 365 * 1440;
+  const economy = createWorldEconomy({ ports: PORTS, startMinute });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, economy, startMinute });
+  const pirate = routes.ships.find(ship => ship.role === NPC_ROLE_PIRATE);
+  pirate.currentPort = routes.pirateHideouts[0];
+  pirate.plan = null;
+  pirate.hiddenAtHideout = true;
+  pirate.hiddenUntilMinute = startMinute + 1440;
+  pirate.clockOffsetMinutes = 120;
+  routes.pirateHideoutDangerUntil.set(pirate.currentPort.tileId, startMinute + 365 * 1440);
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  restoreNpcSeaRouteSystem(routes, snapshot);
+  const restored = routes.shipById.get(pirate.id);
+  const release = npcSeaRouteEventSchedule(routes).find(event => event.id === pirate.id).minute;
+  assert.equal(release, pirate.hiddenUntilMinute + 7 * 1440 - pirate.clockOffsetMinutes);
+  updateNpcSeaRouteEvents(routes, release - 1, [pirate.id]);
+  assert.equal(restored.hiddenAtHideout, true);
+  updateNpcSeaRouteEvents(routes, release, [pirate.id]);
+  assert.equal(restored.hiddenAtHideout, false);
+  assert.equal(restored.hitPoints, restored.maxHitPoints);
+  assert.ok(restored.plan);
+});
+
+test("existing merchant captains can replenish depleted pirate fleets without creating hulls", async () => {
+  const { recruitNpcPirateAtPort } = await import("./npcSeaRoutes.js");
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, economy, startMinute: 0 });
+  const ship = routes.ships.find(ship => ship.role === NPC_ROLE_MERCHANT &&
+    ship.nationalCircuitId === null && !npcPortHasMajorProtection(ship.currentPort) &&
+    !ship.currentPort.isFishingGround);
+  assert.ok(ship);
+  routes.ships = routes.ships.filter(other => other.role !== NPC_ROLE_PIRATE);
+  routes.shipById = new Map(routes.ships.map(other => [other.id, other]));
+  const count = routes.ships.length;
+  const identity = { id: ship.id, slug: ship.slug, home: ship.captainHomeCityId, cargo: structuredClone(ship.cargo) };
+  for (let visit = 1; visit <= 1000 && ship.role !== NPC_ROLE_PIRATE; visit++) {
+    ship.portVisits = visit;
+    recruitNpcPirateAtPort(routes, ship);
+  }
+  assert.equal(ship.role, NPC_ROLE_PIRATE);
+  assert.equal(ship.factionId, PIRATE_FACTION_ID);
+  assert.equal(routes.ships.length, count);
+  assert.deepEqual({ id: ship.id, slug: ship.slug, home: ship.captainHomeCityId, cargo: ship.cargo }, identity);
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  restoreNpcSeaRouteSystem(routes, snapshot);
+  assert.equal(routes.shipById.get(ship.id).role, NPC_ROLE_PIRATE);
+});
+
+test("pirate recruitment respects protected assignments and a bounded wartime population", async () => {
+  const { recruitNpcPirateAtPort } = await import("./npcSeaRoutes.js");
+  function population(atWar, protection = null) {
+    const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+    const routes = createNpcSeaRouteSystem({ ports: PORTS, economy, startMinute: 0 });
+    routes.relationBetween = atWar ? (a, b) => a === b ? "neutral" : DIPLOMACY_WAR : () => "neutral";
+    routes.ships = routes.ships.filter(ship => ship.role !== NPC_ROLE_PIRATE);
+    routes.shipById = new Map(routes.ships.map(ship => [ship.id, ship]));
+    const eligible = routes.ships.filter(ship => ship.role === NPC_ROLE_MERCHANT &&
+      ship.nationalCircuitId === null && !npcPortHasMajorProtection(ship.currentPort));
+    if (protection === "quest") for (const ship of eligible) ship.replaceOnSink = false;
+    if (protection === "surrender") for (const ship of eligible) ship.graceUntilPortVisit = Number.MAX_SAFE_INTEGER;
+    for (let visit = 1; visit <= 200; visit++) for (const ship of eligible) {
+      ship.portVisits = visit;
+      recruitNpcPirateAtPort(routes, ship);
+    }
+    for (const profileId of new Set(routes.ships.map(ship => ship.profileId))) {
+      const regional = routes.ships.filter(ship => ship.profileId === profileId);
+      assert.ok(regional.filter(ship => ship.role === NPC_ROLE_PIRATE).length <= Math.max(1, Math.ceil(regional.length * (atWar ? 0.08 : 0.04))));
+    }
+    return routes.ships.filter(ship => ship.role === NPC_ROLE_PIRATE).length;
+  }
+  assert.equal(population(true, "quest"), 0);
+  assert.equal(population(true, "surrender"), 0);
+  assert.ok(population(true) >= population(false));
+});
+
+test("twelve years of port calls replenish pirates after a late-game fleet wipe", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0, seedKey: "pirate-long-voyage" });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, economy, startMinute: 0, seedKey: "pirate-long-voyage" });
+  let returned = false;
+  for (let month = 1; month <= 144; month++) {
+    const minute = month * 30 * 1440;
+    if (month === 120) for (const ship of [...routes.ships]) {
+      if (ship.role === NPC_ROLE_PIRATE) sinkNpcShip(routes, ship.id, minute);
+    }
+    advanceWorldEconomy(economy, minute);
+    updateNpcSeaRouteSystem(routes, minute);
+    if (month > 120 && npcShipSnapshots(routes, minute).some(ship => ship.role === NPC_ROLE_PIRATE && !ship.hidden)) returned = true;
+    if (month % 12 === 0) restoreNpcSeaRouteSystem(routes, snapshotNpcSeaRouteSystem(routes), { economy });
+  }
+  assert.equal(returned, true, "pirate ships return to sea after late-game defeats");
+});
+
+test("earmarked and commissioned supply captains never turn pirate", async () => {
+  const { recruitNpcPirateAtPort } = await import("./npcSeaRoutes.js");
+  const { invalidateSupplyCommissionIndex } = await import("./shipyardUpgrades.js");
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, economy, startMinute: 0 });
+  const ship = routes.ships.find(ship => ship.role === NPC_ROLE_MERCHANT && ship.nationalCircuitId === null && !npcPortHasMajorProtection(ship.currentPort));
+  const yard = economy.shipyards.yards.values().next().value;
+  for (const active of [false, true]) {
+    yard.upgrades.supplyCandidateShipId = active ? null : ship.id;
+    yard.upgrades.supplyCommission = active ? { status: "active", shipId: ship.id, purchasedMinute: 0, lostMinute: null, supplyGoodId: null } : null;
+    invalidateSupplyCommissionIndex(economy.shipyards);
+    for (let visit = 1; visit <= 1000; visit++) {
+      ship.portVisits = visit;
+      assert.equal(recruitNpcPirateAtPort(routes, ship), false);
+    }
+    assert.equal(ship.role, NPC_ROLE_MERCHANT);
+  }
 });

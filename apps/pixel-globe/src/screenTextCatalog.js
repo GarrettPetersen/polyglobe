@@ -2113,7 +2113,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Large Iceberg",
   "Large Junk",
   "Large Junk on a Beam Reach",
-  "Larger, better ships from the next hull onward.",
+  "Larger, better ships; 25% faster construction from the next hull.",
   "LAST: {0} {1} ({2}d)",
   "Lateen Barque",
   "Lead Hull Sheathing",

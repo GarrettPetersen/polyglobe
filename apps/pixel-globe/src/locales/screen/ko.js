@@ -2113,7 +2113,7 @@ export default Object.freeze({
   "Large Iceberg": "큰 빙산",
   "Large Junk": "대형 정크선",
   "Large Junk on a Beam Reach": "빔 범위의 대형 쓰레기",
-  "Larger, better ships from the next hull onward.": "다음 선체부터 더 크고 우수한 배를 건조합니다.",
+  "Larger, better ships; 25% faster construction from the next hull.": "더 크고 좋은 배. 다음 선체부터 건조 속도 25% 향상.",
   "LAST: {0} {1} ({2}d)": "마지막: {0} {1} ({2}d)",
   "Lateen Barque": "라틴 범장 바크선",
   "Lead Hull Sheathing": "리드 선체 덮개",

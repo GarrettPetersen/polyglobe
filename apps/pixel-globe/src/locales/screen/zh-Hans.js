@@ -2113,7 +2113,7 @@ export default Object.freeze({
   "Large Iceberg": "大冰山",
   "Large Junk": "大型福船",
   "Large Junk on a Beam Reach": "横梁范围内的大型垃圾",
-  "Larger, better ships from the next hull onward.": "从下一艘船起，建造更大、更好的船只。",
+  "Larger, better ships; 25% faster construction from the next hull.": "更大、更好的船只；从下一艘起建造速度加快25%。",
   "LAST: {0} {1} ({2}d)": "最后：{0} {1} ({2}d)",
   "Lateen Barque": "三角帆驳船",
   "Lead Hull Sheathing": "铅壳护套",

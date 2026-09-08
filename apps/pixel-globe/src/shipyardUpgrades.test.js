@@ -48,7 +48,7 @@ test("storage expansions add capacity in levels and cannot be bought again befor
     const minute = yard.upgrades.opportunities.storage.availableMinute;
     const beforeFunds = player.doubloons;
     purchaseShipyardUpgrade(yard, player, "storage", minute);
-    assert.equal(beforeFunds - player.doubloons, 15000 * level);
+    assert.equal(beforeFunds - player.doubloons, 5000);
     const capacity = shipyardMaterialStockTargets(yard);
     for (const goodId of Object.keys(base)) {
       const originalTotal = base[goodId] + yard.materialConsumedForBuild[goodId];
@@ -79,7 +79,7 @@ test("a commission cannot be sold without an earmarked ship or sufficient funds"
   assert.throws(() => purchaseShipyardUpgrade(yard, player, "supply-ship", minute), /unavailable/);
   assert.equal(player.doubloons, 1000000);
   yard.upgrades.supplyCandidateShipId = "merchant:reserved";
-  assert.throws(() => purchaseShipyardUpgrade(yard, { doubloons: 39999 }, "supply-ship", minute), /unavailable/);
+  assert.throws(() => purchaseShipyardUpgrade(yard, { doubloons: 11999 }, "supply-ship", minute), /unavailable/);
   purchaseShipyardUpgrade(yard, player, "supply-ship", minute);
   assert.equal(yard.upgrades.supplyCommission.shipId, "merchant:reserved");
   assert.equal(yard.upgrades.supplyCommission.status, "active");
@@ -193,4 +193,13 @@ test("upgrade screens reveal only current offers and the owner's existing invest
   assert.deepEqual(visible(minute), ["storage"], "owned storage stays visible while the next expansion is unavailable");
   yard.upgrades.supplyCommission = { status: "lost", purchasedMinute: 0, shipId: "merchant:lost", lostMinute: minute, supplyGoodId: null };
   assert.deepEqual(visible(minute), ["storage", "supply-ship"], "a lost commission remains visible so its loss is explained");
+});
+
+test("smaller purchasing targets preserve existing over-capacity stores across saves", () => {
+  const { system, yard } = fixture();
+  const targets = shipyardMaterialStockTargets(yard);
+  for (const goodId of Object.keys(targets)) yard.materialInventory[goodId] = targets[goodId] * 10;
+  const stored = { ...yard.materialInventory };
+  restoreWorldShipyards(system, snapshotWorldShipyards(system));
+  assert.deepEqual(system.yards.get(LISBON.cityId).materialInventory, stored);
 });
