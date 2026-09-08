@@ -1902,6 +1902,7 @@ export default Object.freeze({
   "I searched every face on the quay in my dreams. You are alive. You are truly alive!": "Во сне я искал каждое лицо на набережной. Вы живы. Вы действительно живы!",
   "I shall bring the materials": "материалы принесу",
   "I shouted an order aft and heard it echo back as a rumor.": "Я выкрикнул приказ на корме и услышал, как он отозвался как слух.",
+  "I still owe the crown an account of my commission against {0}. I must settle that charge before I retire.": "Я ещё должен отчитаться перед короной о поручении против {0}. Прежде чем уйти на покой, я должен завершить это дело.",
   "I still wake grateful that the next footsteps above my cell were yours. Let us improve the memory with a loud supper.": "Я до сих пор просыпаюсь с благодарностью за то, что следующие шаги над моей камерой были твоими. Улучшим память громким ужином.",
   "I thought the date looked familiar. A shared birthday deserves a shared toast.": "Мне показалось, что дата показалась знакомой. Общий день рождения заслуживает общего тоста.",
   "I tried to weigh her. She sat on the scales, ate the counterweight, and went back to sleep.": "Я попробовал ее взвесить. Она села на весы, съела противовес и снова заснула.",

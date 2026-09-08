@@ -53,3 +53,32 @@ test("a retirement-blocking traveler cannot lose their named obligation", () => 
     /no named representative/
   );
 });
+
+test("capture warrants block retirement until settled, including the return journey", () => {
+  for (const kind of ["capture-port", "capture-capital"]) for (const stage of ["capture", "return"]) {
+    assert.deepEqual(campaignRetirementObligation([], [], { id: "warrant", kind, stage, targetName: "Lisbon" }),
+      { commissionTargetName: "Lisbon" });
+  }
+  assert.equal(campaignRetirementObligation([], [], null), null);
+  assert.throws(() => campaignRetirementObligation([], [], { id: "broken", kind: "capture-port", stage: "capture" }), /Invalid retirement capture commission/);
+});
+
+test("the live retirement check sees a capture commission even with no passengers", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { runInNewContext } = await import("node:vm");
+  const { activeQuests } = await import("./activeQuests.js");
+  const { isCaptureCommissionQuest } = await import("./gameState.js");
+  const main = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  const start = main.indexOf("function currentCampaignRetirementObligation(");
+  const code = main.slice(start, main.indexOf("\nfunction ", start + 1));
+  const quests = { active: { id: "warrant", kind: "capture-port", stage: "capture", targetName: "Lisbon" } };
+  const check = runInNewContext(`${code}\ncurrentCampaignRetirementObligation`, {
+    gameState: { memory: { quests } }, shipTravelerManifest: () => [], currentAboardRoster: () => ({ named: [] }),
+    activeQuests, isCaptureCommissionQuest, campaignRetirementObligation
+  });
+  assert.deepEqual(check(), { commissionTargetName: "Lisbon" });
+  quests.active.stage = "return";
+  assert.deepEqual(check(), { commissionTargetName: "Lisbon" });
+  quests.active = null;
+  assert.equal(check(), null);
+});

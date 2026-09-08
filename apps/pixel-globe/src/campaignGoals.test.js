@@ -750,3 +750,8 @@ test("killing the white whale sends the captain home and completes the revenge v
   assert.equal(goal.status, CAMPAIGN_GOAL_COMPLETE);
   assert.match(campaignVictorySummary(goal, CHARACTER).legacy, /chase became legend/i);
 });
+
+test("retirement explains the outstanding capture commission in character", () => {
+  const steps = campaignRetirementBlockedSteps({ commissionTargetName: "Lisbon" });
+  assert.match(JSON.stringify(steps), /commission against Lisbon/);
+});

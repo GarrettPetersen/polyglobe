@@ -1902,6 +1902,7 @@ export default Object.freeze({
   "I searched every face on the quay in my dreams. You are alive. You are truly alive!": "나는 꿈속에서 부두에 있는 모든 얼굴을 찾아보았다. 당신은 살아있습니다. 당신은 정말로 살아있습니다!",
   "I shall bring the materials": "자료를 가져오겠습니다",
   "I shouted an order aft and heard it echo back as a rumor.": "나는 뒤에서 명령을 외쳤고 그것이 소문으로 되돌아오는 것을 들었다.",
+  "I still owe the crown an account of my commission against {0}. I must settle that charge before I retire.": "아직 {0}에 대한 임무를 왕실에 보고해야 한다. 은퇴하기 전에 이 책무를 마쳐야겠다.",
   "I still wake grateful that the next footsteps above my cell were yours. Let us improve the memory with a loud supper.": "내 감방 위의 다음 발자국이 당신의 발자국이라는 사실에 나는 아직도 감사하게 깨어납니다. 시끄러운 저녁 식사로 기억력을 향상시키자.",
   "I thought the date looked familiar. A shared birthday deserves a shared toast.": "날짜가 낯익은 것 같았어요. 함께하는 생일에는 함께 건배할 가치가 있습니다.",
   "I tried to weigh her. She sat on the scales, ate the counterweight, and went back to sleep.": "나는 그녀의 체중을 측정해 보았습니다. 그녀는 저울 위에 앉아 균형추를 먹고 다시 잠에 들었습니다.",

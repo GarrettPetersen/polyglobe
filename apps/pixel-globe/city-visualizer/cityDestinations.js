@@ -87,6 +87,16 @@ export function activeCityDestinations({
     : destination));
 }
 
+// Normal arrivals focus the moored ship. Closed quays and active assaults expose
+// only departure; read-only story scenes expose no navigation at all.
+export function initialCityDestinationId(destinations) {
+  const ids = validateCityDestinationIds(destinations.map(destination => destination.id));
+  if (ids.size === 0) return null;
+  if (ids.has(PORT_CITY_LOCATION.SHIP)) return PORT_CITY_LOCATION.SHIP;
+  if (ids.has(PORT_CITY_LOCATION.SET_SAIL)) return PORT_CITY_LOCATION.SET_SAIL;
+  throw new Error("Interactive city scene has no ship access or departure destination");
+}
+
 export function cityDestinationById(destinationId) {
   const destination = CITY_DESTINATION_BY_ID.get(destinationId);
   if (!destination) throw new Error(`Unknown city destination: ${destinationId}`);

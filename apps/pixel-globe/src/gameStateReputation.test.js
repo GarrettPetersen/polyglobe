@@ -658,6 +658,7 @@ test("lawful wartime attacks cost victim standing without recording piracy", () 
 
 test("a Mughal commission cannot excuse betraying Bengal's commission", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: { ...PLAYER, nationalityId: "ottoman" } });
+  state.memory.conquest.collapsedFactionIds = state.memory.conquest.collapsedFactionIds.filter(id => id !== "mughal");
   declareDiplomaticWar(state.relations.diplomacy, "mughal", "bengal", 0);
   for (const factionId of ["mughal", "bengal"]) {
     state.relations.lettersOfMarque[factionId] = { factionId, simMinute: 0 };
@@ -1360,4 +1361,22 @@ test("privateering harms every victim without penalizing the commissioning natio
     const restored = migrateGameState(JSON.parse(JSON.stringify(state)), null);
     assert.equal(factionReputation(restored, victim), factionReputation(state, victim));
   }
+});
+
+test("marque offers and authority exclude collapsed factions despite historical wars", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  state.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
+  state.memory.conquest.collapsedFactionIds.push("france");
+  adjustFactionReputation(state, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
+  assert.equal(prepareProactiveLetterOfMarque(state, LONDON_CAPITAL, LETTER_OF_MARQUE_POWER_REQUIRED), null);
+  assert.equal(state.memory.decisions["marque.factor-offer.england"], undefined);
+  state.relations.diplomacy.overrides["england|morocco"] = DIPLOMACY_WAR;
+  const offer = prepareProactiveLetterOfMarque(state, LONDON_CAPITAL, LETTER_OF_MARQUE_POWER_REQUIRED);
+  assert.deepEqual(offer.enemyFactionIds, ["morocco"]);
+  assert.equal(offer.primaryEnemyFactionId, "morocco");
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  assert.equal(hasPrivateeringAuthorityAgainst(state, "france"), false);
+  assert.equal(hasPrivateeringAuthorityAgainst(state, "morocco"), true);
+  state.memory.conquest.collapsedFactionIds.push("england");
+  assert.equal(hasPrivateeringAuthorityAgainst(state, "morocco"), false);
 });

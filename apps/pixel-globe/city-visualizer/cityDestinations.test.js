@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CITY_DESTINATIONS,
   activeCityDestinations,
+  initialCityDestinationId,
   cityDestinationById,
   validateCityDestinationIds
 } from "./cityDestinations.js";
@@ -133,4 +134,19 @@ test("village chief's hut and town port authority share the authority destinatio
   assert.equal(authority(false).label, "Port authority");
   assert.deepEqual(authority(true).layers, authority(false).layers);
   assert.equal(cityDestinationById(PORT_CITY_LOCATION.AUTHORITY).label, "Port authority");
+});
+
+test("initial focus handles normal, recovering, assault, ruins and story-only arrivals", () => {
+  for (const stage of ["city", "colony", "ruins"]) {
+    for (const available of [[], ["set-sail"], ["ship", "set-sail"]]) {
+      const destinations = activeCityDestinations({ availableDestinationIds: new Set(available),
+        features: { ...ALL_SERVICES, settlementStage: stage }, assaultActive: false });
+      assert.equal(initialCityDestinationId(destinations), available.includes("ship") ? "ship" : available[0] ?? null);
+    }
+  }
+  assert.equal(initialCityDestinationId(activeCityDestinations({ availableDestinationIds: null,
+    features: ALL_SERVICES, assaultActive: true })), "set-sail");
+  assert.equal(initialCityDestinationId(activeCityDestinations({ availableDestinationIds: null,
+    features: ALL_SERVICES, assaultActive: false })), "ship");
+  assert.throws(() => initialCityDestinationId([cityDestinationById("market")]), /no ship access or departure/);
 });

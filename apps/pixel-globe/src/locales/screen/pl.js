@@ -1902,6 +1902,7 @@ export default Object.freeze({
   "I searched every face on the quay in my dreams. You are alive. You are truly alive!": "W snach przeszukiwałem każdą twarz na nabrzeżu. Jesteś żywy. Ty naprawdę żyjesz!",
   "I shall bring the materials": "Przyniosę materiały",
   "I shouted an order aft and heard it echo back as a rumor.": "Krzyknąłem rozkaz na rufie i usłyszałem, jak odbił się echem jako plotka.",
+  "I still owe the crown an account of my commission against {0}. I must settle that charge before I retire.": "Wciąż muszę zdać koronie sprawę z mojej misji przeciwko {0}. Muszę zamknąć tę sprawę, zanim przejdę na spoczynek.",
   "I still wake grateful that the next footsteps above my cell were yours. Let us improve the memory with a loud supper.": "Wciąż budzę się wdzięczny, że kolejne kroki nad moją celą należały do Ciebie. Poprawmy pamięć głośną kolacją.",
   "I thought the date looked familiar. A shared birthday deserves a shared toast.": "Wydało mi się, że data wygląda znajomo. Wspólne urodziny zasługują na wspólny toast.",
   "I tried to weigh her. She sat on the scales, ate the counterweight, and went back to sleep.": "Próbowałem ją zważyć. Usiadła na wadze, zjadła przeciwwagę i ponownie zasnęła.",

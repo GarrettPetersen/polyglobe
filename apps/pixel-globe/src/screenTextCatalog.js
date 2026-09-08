@@ -1902,6 +1902,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "I searched every face on the quay in my dreams. You are alive. You are truly alive!",
   "I shall bring the materials",
   "I shouted an order aft and heard it echo back as a rumor.",
+  "I still owe the crown an account of my commission against {0}. I must settle that charge before I retire.",
   "I still wake grateful that the next footsteps above my cell were yours. Let us improve the memory with a loud supper.",
   "I thought the date looked familiar. A shared birthday deserves a shared toast.",
   "I tried to weigh her. She sat on the scales, ate the counterweight, and went back to sleep.",

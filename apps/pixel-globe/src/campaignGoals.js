@@ -713,10 +713,15 @@ export function campaignRetirementReturnSteps(goal, playerCharacter) {
 }
 
 export function campaignRetirementBlockedSteps({
+  commissionTargetName,
   travelerName,
   destinationName,
   additionalTravelerCount
 }) {
+  if (commissionTargetName !== undefined) {
+    const target = requiredDialogueText(commissionTargetName, "retirement commission target");
+    return [step("player", "determined", `I still owe the crown an account of my commission against ${target}. I must settle that charge before I retire.`)];
+  }
   const name = requiredDialogueText(travelerName, "retirement traveler name");
   const destination = requiredDialogueText(destinationName, "retirement traveler destination");
   if (!Number.isInteger(additionalTravelerCount) || additionalTravelerCount < 0) {

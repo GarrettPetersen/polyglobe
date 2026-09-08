@@ -12,7 +12,15 @@ const RETIREMENT_BLOCKING_ROLES = new Set([
   ABOARD_ROLE_COLONY_LEADER
 ]);
 
-export function campaignRetirementObligation(travelerGroups, namedEntries) {
+export function campaignRetirementObligation(travelerGroups, namedEntries, captureCommission = null) {
+  if (captureCommission) {
+    if (!["capture-port", "capture-capital"].includes(captureCommission.kind) ||
+        !["capture", "return"].includes(captureCommission.stage) ||
+        typeof captureCommission.targetName !== "string" || !captureCommission.targetName.trim()) {
+      throw new Error(`Invalid retirement capture commission: ${captureCommission.id}`);
+    }
+    return Object.freeze({ commissionTargetName: captureCommission.targetName });
+  }
   if (!Array.isArray(travelerGroups)) throw new Error("Retirement obligation requires traveler groups");
   if (!Array.isArray(namedEntries)) throw new Error("Retirement obligation requires named people aboard");
   const travelerCount = travelerGroups.reduce((total, group) => {

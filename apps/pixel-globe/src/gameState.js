@@ -5737,8 +5737,11 @@ export function privateeringAuthorityIssuerIdsAgainst(state, targetFactionId) {
 
 function privateeringAuthorityIssuerIdsAgainstValidState(state, targetId) {
   if (targetId === NEUTRAL_FACTION_ID || targetId === PIRATE_FACTION_ID) return [];
+  const inactiveFactionIds = new Set(state.memory.conquest.collapsedFactionIds);
+  if (inactiveFactionIds.has(targetId)) return [];
   const issuerIds = [];
   for (const issuerId of Object.keys(state.relations.lettersOfMarque)) {
+    if (inactiveFactionIds.has(issuerId)) continue;
     assertFactionId(issuerId);
     if (worldDiplomacyBetween(state.relations.diplomacy, issuerId, targetId) === DIPLOMACY_WAR || (
       state.relations.imperial.emperorOfficeVacant !== true &&
@@ -5790,9 +5793,12 @@ export function letterOfMarqueStatus(state, city, shipPower = 0) {
 export function prepareProactiveLetterOfMarque(state, city, shipPower = 0) {
   const status = letterOfMarqueStatus(state, city, shipPower);
   if (!status.available || !status.eligible) return null;
+  const inactiveFactionIds = new Set(state.memory.conquest.collapsedFactionIds);
+  if (inactiveFactionIds.has(status.factionId)) return null;
   const enemyFactionIds = FACTIONS
     .map((faction) => faction.id)
     .filter((factionId) => (
+      !inactiveFactionIds.has(factionId) &&
       factionId !== status.factionId &&
       factionId !== NEUTRAL_FACTION_ID &&
       factionId !== PIRATE_FACTION_ID &&

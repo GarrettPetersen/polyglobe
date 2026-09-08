@@ -24464,8 +24464,8 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
 
 function currentCampaignRetirementObligation() {
   const travelerGroups = shipTravelerManifest(gameState);
-  if (!travelerGroups.some(({ count }) => count > 0)) return null;
-  return campaignRetirementObligation(travelerGroups, currentAboardRoster().named);
+  const commission = activeQuests(gameState.memory.quests).find(isCaptureCommissionQuest);
+  return campaignRetirementObligation(travelerGroups, currentAboardRoster().named, commission);
 }
 
 function openPendingDiscoveryPortDialogue() {
@@ -34192,6 +34192,8 @@ function nearestPlayerPortableWeaponTarget(range) {
   const origin = { x: localLayout.viewX, y: localLayout.viewY };
   let nearest = null;
   for (const id of candidateIds) {
+    const battery = shoreBatteryStates.get(id);
+    if (battery && !shoreBatteryMayReceivePlayerPortableFire(battery, PLAYER_COMBAT_ID)) continue;
     const point = combatEntityAimPoint(id);
     if (!point) continue;
     const distance = Math.hypot(point.x - origin.x, point.y - origin.y);
@@ -34586,6 +34588,7 @@ function resolvePlayerNavalImpact(ball) {
   if (!hit) return false;
 
   if (shoreBatteryStates.has(target.id)) {
+    if (!shoreBatteryMayReceivePlayerPortableFire(target, PLAYER_COMBAT_ID)) return false;
     applyShoreBatteryHit(ball, target, { x: ball.targetX, y: ball.targetY }, true);
   } else {
     applyPlayerNavalHit(ball, target, { x: ball.targetX, y: ball.targetY });

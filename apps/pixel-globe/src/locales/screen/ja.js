@@ -1902,6 +1902,7 @@ export default Object.freeze({
   "I searched every face on the quay in my dreams. You are alive. You are truly alive!": "私は夢の中で岸壁のあらゆる顔を探しました。あなたは生きています。あなたは本当に生きています！",
   "I shall bring the materials": "材料を持っていきます",
   "I shouted an order aft and heard it echo back as a rumor.": "私が船尾で号令を叫ぶと、それが噂として反響するのが聞こえた。",
+  "I still owe the crown an account of my commission against {0}. I must settle that charge before I retire.": "{0}に対する任務について、まだ王室に報告する義務がある。引退する前に、この責務を果たさねばならない。",
   "I still wake grateful that the next footsteps above my cell were yours. Let us improve the memory with a loud supper.": "私は今でも目が覚めて、私の独房の上で次に聞こえた足音があなたのものだったことに感謝しています。賑やかな夕食で記憶力を高めましょう。",
   "I thought the date looked familiar. A shared birthday deserves a shared toast.": "見覚えのある日付だと思いました。共通の誕生日には、一緒に乾杯する価値があります。",
   "I tried to weigh her. She sat on the scales, ate the counterweight, and went back to sleep.": "私は彼女の体重を量ろうとしました。彼女は体重計に座り、釣り合いおもりを食べて、また眠りについた。",

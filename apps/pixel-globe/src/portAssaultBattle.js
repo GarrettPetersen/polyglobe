@@ -460,13 +460,13 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
     scenario.attackers,
     PORT_ASSAULT_SIDE.ATTACKER,
     scenario.attackerModifiers,
-    random
+    random, seed
   );
   const defenders = createBattleUnits(
     scenario.defenders,
     PORT_ASSAULT_SIDE.DEFENDER,
     scenario.defenderModifiers,
-    random
+    random, seed
   );
   const units = [...attackers, ...defenders];
   const attackerSkirmishers = attackers.filter(unit => unit.stats.attackType !== "melee");
@@ -841,16 +841,16 @@ function validateShipHitEvent(event, maxShipHitPoints) {
   }
 }
 
-function createBattleUnits(combatants, side, modifiers, random) {
+function createBattleUnits(combatants, side, modifiers, random, seed) {
   const firstLane = Math.floor(random() * PORT_ASSAULT_LANE_COUNT);
   // Deployment order is independent of crew identity and the menu roster.
-  // Keep each troop type together within its role and preserve its roster order.
-  const ordered = combatants.map((combatant, rosterIndex) => {
+  // Rotate exposure within each troop type without depending on hire seniority.
+  const ordered = combatants.map((combatant) => {
     const stats = portAssaultUnitStats(combatant, modifiers);
-    return { combatant, stats, rosterIndex,
+    return { combatant, stats, deploymentOrder: hashString32(`${seed}|${side}|${combatant.id}|deployment`),
       priority: stats.mounted ? 0 : stats.attackType !== "melee" ? 1 : 2 };
   }).sort((a, b) => a.priority - b.priority ||
-    a.combatant.combatProfileId.localeCompare(b.combatant.combatProfileId) || a.rosterIndex - b.rosterIndex);
+    a.combatant.combatProfileId.localeCompare(b.combatant.combatProfileId) || a.deploymentOrder - b.deploymentOrder || a.combatant.id.localeCompare(b.combatant.id));
   const groups = new Map();
   for (const entry of ordered) {
     const type = entry.combatant.combatProfileId;

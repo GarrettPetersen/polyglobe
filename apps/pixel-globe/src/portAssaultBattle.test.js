@@ -760,3 +760,12 @@ test("a dominant troop type takes four places per pass without delaying the othe
   assert.equal(new Set(jumps.map(event => event.unitId)).size, attackers.length);
   assert.ok(jumps.slice(12).every(event => byId.get(event.unitId) === "gunner"));
 });
+
+test("deployment rotates frontline exposure without using crew seniority", () => {
+  const attackers = Array.from({ length: 12 }, (_, i) => combatant(`rotation-${i}`, "gunner"));
+  const make = roster => createPortAssaultScenario({ ...scenario(), attackers: roster });
+  const jumps = (roster, seed) => simulatePortAssault(make(roster), seed).events
+    .filter(event => event.type === "jump").map(event => event.unitId);
+  assert.deepEqual(jumps(attackers, 42), jumps([...attackers].reverse(), 42));
+  assert.notDeepEqual(jumps(attackers, 42).slice(0, 4), jumps(attackers, 43).slice(0, 4));
+});

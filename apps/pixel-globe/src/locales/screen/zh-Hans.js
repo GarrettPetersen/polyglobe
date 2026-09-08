@@ -1902,6 +1902,7 @@ export default Object.freeze({
   "I searched every face on the quay in my dreams. You are alive. You are truly alive!": "我在梦中搜寻着码头上的每一张脸。你还活着。你真的还活着！",
   "I shall bring the materials": "我来带材料",
   "I shouted an order aft and heard it echo back as a rumor.": "我在船尾大喊一声命令，听到它像谣言一样回响。",
+  "I still owe the crown an account of my commission against {0}. I must settle that charge before I retire.": "我还欠王室一份关于征讨{0}的复命。退隐之前，我必须了结这项差事。",
   "I still wake grateful that the next footsteps above my cell were yours. Let us improve the memory with a loud supper.": "醒来时我仍然心存感激，因为牢房上方的下一个脚步声就是你的。让我们通过丰盛的晚餐来提高记忆力。",
   "I thought the date looked familiar. A shared birthday deserves a shared toast.": "我觉得这个日期看起来很熟悉。共同的生日值得共同祝酒。",
   "I tried to weigh her. She sat on the scales, ate the counterweight, and went back to sleep.": "我试着称量她的体重。她坐在秤上，吃了配重，然后又睡了。",

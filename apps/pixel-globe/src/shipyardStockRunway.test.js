@@ -98,3 +98,22 @@ test("a frozen released save retains its funded hull and all physical supplies",
   restoreWorldShipyards(second, snapshotWorldShipyards(system));
   assert.deepEqual(shipyardMaterialStockTargets(second.yards.get(fixture.port.cityId)), stockTargets);
 });
+
+test("grandfathered surplus survives restore and purchases stop above warehouse capacity", async () => {
+  const { procureShipyardMaterials } = await import("./shipyards.js");
+  const system = funded(PORTS[1], "grandfathered-stores");
+  let yard = system.yards.get(PORTS[1].cityId);
+  const surplus = Object.fromEntries(Object.entries(shipyardMaterialStockTargets(yard)).map(([id, amount]) => [id, amount * 10]));
+  yard.materialInventory = { ...surplus };
+  restoreWorldShipyards(system, snapshotWorldShipyards(system));
+  yard = system.yards.get(PORTS[1].cityId);
+  assert.deepEqual(yard.materialInventory, surplus);
+  yard.upgrades.storageLevel = 1;
+  const materialMarket = { available: () => 1000, consume() { assert.fail("must not buy above capacity"); } };
+  procureShipyardMaterials(yard, materialMarket);
+  assert.deepEqual(yard.materialInventory, surplus);
+  for (const material of shipyardMaterialStatus(yard)) {
+    assert.ok(material.stocked > material.stockTarget);
+    assert.equal(material.stockpileMissing, 0);
+  }
+});

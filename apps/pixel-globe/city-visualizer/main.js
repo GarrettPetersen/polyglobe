@@ -149,6 +149,7 @@ import { PORT_CITY_STAFF_ROLE } from "../src/characterPortraits.js";
 import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
 import {
   activeCityDestinations,
+  initialCityDestinationId,
   validateCityDestinationIds
 } from "./cityDestinations.js";
 import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
@@ -672,16 +673,7 @@ async function selectCity(cityId, {
   state.lastCloudTimeMs = null;
   rebuildCitySceneRenderPlan();
   updateHover();
-  const initialDestinations = activeDestinations();
-  if (initialDestinations.length === 0) {
-    state.focusedDestinationId = null;
-  } else {
-    const playerShipDestination = destinationById(PORT_CITY_LOCATION.SHIP);
-    if (!playerShipDestination) {
-      throw new Error("Interactive city scene is missing the player-ship destination");
-    }
-    state.focusedDestinationId = playerShipDestination.id;
-  }
+  state.focusedDestinationId = initialCityDestinationId(activeDestinations());
   if (!externalFrameClock) {
     const url = new URL(location.href);
     url.searchParams.set("city", city.id);
@@ -902,9 +894,7 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
   if (state.focusedDestinationId !== null && !destinationById(state.focusedDestinationId)) {
-    const destinations = activeDestinations();
-    state.focusedDestinationId = destinations.find(({ id }) => id === PORT_CITY_LOCATION.SHIP)?.id ??
-      destinations[0]?.id ?? null;
+    state.focusedDestinationId = initialCityDestinationId(activeDestinations());
   }
   invalidateDestinationLabelLayouts();
   updateHover();
