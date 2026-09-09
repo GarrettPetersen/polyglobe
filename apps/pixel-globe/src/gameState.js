@@ -562,7 +562,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 108;
+export const GAME_STATE_VERSION = 109;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -878,6 +878,7 @@ export function createGameState({
         active: null,
         passengerActive: null,
         envoyActive: null,
+        captureActive: null,
         completed: {},
         failed: {},
         onboardingDeliveriesCompleted: 0,
@@ -981,7 +982,7 @@ export function migrateGameState(state, shipStats, {
   crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -1562,6 +1563,7 @@ function migrateSovereignTradeQuestReferences(quests) {
     active: migrateQuest(quests.active),
     passengerActive: migrateQuest(quests.passengerActive),
     envoyActive: migrateQuest(quests.envoyActive),
+    captureActive: migrateQuest(quests.captureActive),
     passengerOffers: Object.fromEntries(Object.entries(quests.passengerOffers || {})
       .map(([key, quest]) => [key, migrateQuest(quest)]))
   };
@@ -1571,14 +1573,17 @@ function migrateConcurrentQuestMemory(quests) {
   if (!quests || typeof quests !== "object") return quests;
   const legacyPassenger = quests.active?.kind === "passenger" ? quests.active : null;
   const legacyEnvoy = isEnvoyQuest(quests.active) ? quests.active : null;
+  const legacyCapture = isCaptureCommissionQuest(quests.active) ? quests.active : null;
+  if (legacyCapture && quests.captureActive) throw new Error("Saved voyage has duplicate capture commissions");
   if (legacyEnvoy && quests.envoyActive) throw new Error("Saved voyage has duplicate envoy missions");
   if (legacyPassenger && quests.passengerActive) {
     throw new Error("Saved voyage has both legacy and concurrent passenger missions");
   }
   return {
     ...quests,
-    active: legacyPassenger || legacyEnvoy ? null : (quests.active || null),
+    active: legacyPassenger || legacyEnvoy || legacyCapture ? null : (quests.active || null),
     envoyActive: quests.envoyActive || legacyEnvoy,
+    captureActive: quests.captureActive || legacyCapture,
     passengerActive: quests.passengerActive || legacyPassenger
   };
 }
@@ -1603,6 +1608,7 @@ function migrateQuestCharacterSkills(quests) {
     active: migrateQuest(quests.active, "active"),
     passengerActive: migrateQuest(quests.passengerActive, "passenger-active"),
     envoyActive: migrateQuest(quests.envoyActive, "envoy-active"),
+    captureActive: migrateQuest(quests.captureActive, "capture-active"),
     passengerOffers: Object.fromEntries(Object.entries(quests.passengerOffers || {})
       .map(([key, quest]) => [key, migrateQuest(quest, key)]))
   };
@@ -1622,6 +1628,7 @@ function migrateEastAsianMissionDialogue(quests) {
     active: migrateQuest(quests.active),
     passengerActive: migrateQuest(quests.passengerActive),
     envoyActive: migrateQuest(quests.envoyActive),
+    captureActive: migrateQuest(quests.captureActive),
     passengerOffers: Object.fromEntries(Object.entries(quests.passengerOffers || {})
       .map(([key, quest]) => [key, migrateQuest(quest)]))
   };
@@ -1636,6 +1643,7 @@ function migrateQuestItineraries(quests) {
     active: migrateQuestItinerary(quests.active),
     passengerActive: migrateQuestItinerary(quests.passengerActive),
     envoyActive: migrateQuestItinerary(quests.envoyActive),
+    captureActive: migrateQuestItinerary(quests.captureActive),
     deliveryOffers: migrateOffers(quests.deliveryOffers),
     passengerOffers: migrateOffers(quests.passengerOffers),
     capturePortOffers: migrateOffers(quests.capturePortOffers),
@@ -7048,7 +7056,7 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
   if (!Array.isArray(portCities)) throw new Error("Capture-port missions require a port list");
   const quests = questMemory(state);
   const existing = pendingCapturePortMissionOfferForCity(state, city);
-  if (existing || quests.active || quests.passengerActive) return existing;
+  if (existing || quests.captureActive) return existing;
 
   const issuerFactionId = currentSovereignCapitalFactionId(city);
   if (!issuerFactionId || !hasLetterOfMarqueFrom(state, issuerFactionId)) return null;
@@ -7098,7 +7106,7 @@ export function captureCommissionPetitionEligibility(state, city) {
   assertGameState(state);
   const holdsCommission = hasLetterOfMarqueFrom(state, city.factionId);
   const quests = questMemory(state);
-  const blockingQuest = quests.active || quests.passengerActive || null;
+  const blockingQuest = quests.captureActive || null;
   let reason = null;
   if (!holdsCommission) reason = "missing-marque";
   else if (!currentSovereignCapitalFactionId(city)) reason = "not-capital";
@@ -7391,7 +7399,7 @@ export function pendingCapturePortMissionOfferForCity(state, city) {
 export function declineCaptureCommission(state, city, questId) {
   assertGameState(state);
   const offer = pendingCapturePortMissionOfferForCity(state, city);
-  if (!offer || offer.id !== questId || state.memory.quests.active?.id === questId) {
+  if (!offer || offer.id !== questId || state.memory.quests.captureActive?.id === questId) {
     throw new Error(`No pending capture warrant to decline: ${questId}`);
   }
   const quests = questMemory(state);
@@ -7414,7 +7422,7 @@ function commissionedPortCaptureFactionIdForValidState(state, city) {
     city
   );
   if (conquistadorFactionId) return conquistadorFactionId;
-  const quest = questMemory(state).active;
+  const quest = questMemory(state).captureActive;
   if (!isCaptureCommissionQuest(quest) || quest.stage !== "capture" ||
       quest.targetCityId !== city.cityId) return null;
   return assertFactionId(quest.originFactionId);
@@ -7509,7 +7517,7 @@ export function playerPortAttackStatus(state, city, context = null) {
 export function advanceCapturePortMissionAfterConquest(state, city, event, simMinute) {
   assertGameState(state);
   assertSimulationMinute(simMinute);
-  const quest = questMemory(state).active;
+  const quest = questMemory(state).captureActive;
   if (!isCaptureCommissionQuest(quest)) return null;
   if (quest.stage !== "capture" || quest.targetCityId !== city?.cityId) {
     throw new Error(`Capture-port commission does not target ${cityLabel(city)}`);
@@ -7539,7 +7547,7 @@ export function capturePortMissionMatchesConquest(state, city, event) {
   if (!event || typeof event.cityId !== "string" || !event.newFactionId) {
     throw new Error("Capture-port mission matching requires a conquest event");
   }
-  const quest = questMemory(state).active;
+  const quest = questMemory(state).captureActive;
   return Boolean(
     isCaptureCommissionQuest(quest) &&
     quest.stage === "capture" &&
@@ -8018,9 +8026,7 @@ export function reconcileQuestPortTiles(state, portCities, {
     }
   };
 
-  reconcile(quests.active);
-  reconcile(quests.passengerActive);
-  reconcile(quests.envoyActive);
+  for (const quest of activeQuests(quests)) reconcile(quest);
   const deliveryOffers = {};
   for (const [storedKey, offer] of Object.entries(quests.deliveryOffers)) {
     reconcile(offer);
@@ -8819,9 +8825,8 @@ export function reconcileQuestWorldAssumptions(state, portCities, options = {}) 
 
   removeInvalidatedQuestOffers(state, portCities, events);
   const active = quests.active;
-  if (isCaptureCommissionQuest(active)) {
-    reconcileActiveCaptureCommission(state, active, portCities, events);
-  } else if (isEnvoyQuest(active)) {
+  if (quests.captureActive) reconcileActiveCaptureCommission(state, quests.captureActive, portCities, events);
+  if (isEnvoyQuest(active)) {
     throw new Error("Envoy mission occupies the ordinary quest slot");
   } else if (isWokouHuntQuest(active) && active.stage === "return") {
     relocateReturningCommission(active, portCities, events);
@@ -8834,6 +8839,10 @@ export function reconcileQuestWorldAssumptions(state, portCities, options = {}) 
 export function questStateForCity(state, city, portCities) {
   assertGameState(state);
   const quests = questMemory(state);
+  const capture = quests.captureActive;
+  if (capture?.stage === "return" && capture.destinationCityId === city.cityId) {
+    return { kind: "ready-to-complete", quest: capture };
+  }
   const active = quests.active;
   if (active) {
     if (isTeaRaceQuest(active)) {
@@ -8875,6 +8884,10 @@ export function questStateForCity(state, city, portCities) {
   const offer = quests.passengerActive
     ? pendingOffers.find(questMaySharePassengerSlot) || null
     : pendingOffers[0] || null;
+  if (!offer && capture) {
+    return { kind: [capture.originCityId, capture.targetCityId].includes(city.cityId)
+      ? "in-progress-here" : "busy", quest: capture };
+  }
   if (!offer && pendingOffers.length > 0 && quests.passengerActive) {
     return { kind: "busy", quest: quests.passengerActive };
   }
@@ -8889,6 +8902,7 @@ export function acceptQuest(state, quest, context = {}) {
   const quests = questMemory(state);
   const passengerSlot = quest.kind === "passenger";
   const envoySlot = isEnvoyQuest(quest);
+  const captureSlot = isCaptureCommissionQuest(quest);
   const passenger = quest.passenger ? {
     ...quest.passenger,
     skillIds: quest.passenger.skillIds || characterSkillIdsForIdentity(
@@ -8915,7 +8929,7 @@ export function acceptQuest(state, quest, context = {}) {
   }
   if (isEastAsianMissionQuest(quest)) removeSiblingEastAsianOffers(quests, quest);
   if (isTreatyOfMadridQuest(quest)) removeSiblingTreatyOfMadridOffers(quests, quest);
-  quests[envoySlot ? "envoyActive" : passengerSlot ? "passengerActive" : "active"] = {
+  quests[captureSlot ? "captureActive" : envoySlot ? "envoyActive" : passengerSlot ? "passengerActive" : "active"] = {
     ...quest,
     passenger,
     ...(isTeaRaceQuest(quest)
@@ -8942,7 +8956,7 @@ export function acceptQuest(state, quest, context = {}) {
   if (isCaptureCommissionQuest(quest) && quest.originKey) delete quests.capturePortOffers[quest.originKey];
   if (isWokouHuntQuest(quest) && quest.originKey) delete quests.courtMissionOffers[quest.originKey];
   recordDecision(state, `quest.accept.${quest.id}`, 1);
-  return quests[envoySlot ? "envoyActive" : passengerSlot ? "passengerActive" : "active"];
+  return quests[captureSlot ? "captureActive" : envoySlot ? "envoyActive" : passengerSlot ? "passengerActive" : "active"];
 }
 
 export function questAcceptanceEligibility(state, quest) {
@@ -8960,6 +8974,7 @@ export function questAcceptanceEligibility(state, quest) {
   }
   const passengerSlot = quest.kind === "passenger";
   const envoySlot = isEnvoyQuest(quest);
+  const captureSlot = isCaptureCommissionQuest(quest);
   if (passengerSlot && quests.passengerActive) {
     return questAcceptanceDenied(
       "Another passenger is already aboard.",
@@ -8976,13 +8991,16 @@ export function questAcceptanceEligibility(state, quest) {
   if (envoySlot && quests.envoyActive) {
     return questAcceptanceDenied("Finish the current commission first.", "Cannot accept a second envoy mission");
   }
-  if (!passengerSlot && !envoySlot && quests.active) {
+  if (captureSlot && quests.captureActive) {
+    return questAcceptanceDenied("Finish the current capture commission first.", "Cannot accept a second capture commission");
+  }
+  if (!passengerSlot && !envoySlot && !captureSlot && quests.active) {
     return questAcceptanceDenied(
       "Finish the current commission first.",
       "Cannot accept a quest while another quest is active"
     );
   }
-  if (!passengerSlot && !envoySlot && quests.passengerActive && !questMaySharePassengerSlot(quest)) {
+  if (!passengerSlot && !envoySlot && !captureSlot && quests.passengerActive && !questMaySharePassengerSlot(quest)) {
     return questAcceptanceDenied(
       "Set the current passenger ashore first.",
       `Cannot accept ${quest.kind} while a passenger is aboard`
@@ -9014,7 +9032,7 @@ function questAcceptanceDenied(disabledReason, diagnostic) {
 }
 
 function questMaySharePassengerSlot(quest) {
-  return quest?.kind === "delivery" || isTeaRaceQuest(quest);
+  return quest?.kind === "delivery" || isTeaRaceQuest(quest) || isCaptureCommissionQuest(quest);
 }
 
 export function tributeSaleTheftStatus(state, goodId, quantity) {
@@ -11271,11 +11289,12 @@ function assertPortugueseCartazMemory(memory) {
 
 function questMemory(state) {
   if (!state.memory.quests || typeof state.memory.quests !== "object") {
-    state.memory.quests = { active: null, passengerActive: null, envoyActive: null, completed: {} };
+    state.memory.quests = { active: null, passengerActive: null, envoyActive: null, captureActive: null, completed: {} };
   }
   const quests = state.memory.quests;
   if (quests.passengerActive === undefined) quests.passengerActive = null;
   if (quests.envoyActive === undefined) quests.envoyActive = null;
+  if (quests.captureActive === undefined) quests.captureActive = null;
   if (!quests.completed || typeof quests.completed !== "object") quests.completed = {};
   if (!quests.failed || typeof quests.failed !== "object") quests.failed = {};
   if (!Number.isInteger(quests.onboardingDeliveriesCompleted) || quests.onboardingDeliveriesCompleted < 0) {
@@ -11313,6 +11332,12 @@ function assertDiplomaticQuestMemory(quests) {
   }
   if (isEnvoyQuest(quests.active) || isEnvoyQuest(quests.passengerActive)) {
     throw new Error("Envoy mission must occupy the envoy slot");
+  }
+  if (quests.captureActive && !isCaptureCommissionQuest(quests.captureActive)) {
+    throw new Error(`Non-capture mission occupies capture slot: ${quests.captureActive.id}`);
+  }
+  if (isCaptureCommissionQuest(quests.active) || isCaptureCommissionQuest(quests.passengerActive)) {
+    throw new Error("Capture commission must occupy the capture slot");
   }
   const missionIds = activeQuests(quests).map(quest => quest.id);
   if (new Set(missionIds).size !== missionIds.length) {

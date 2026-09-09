@@ -4442,7 +4442,7 @@ test("a friendly capture-commission target closes its harbor and engages", () =>
     cargoCapacity: 20,
     playerCharacter: { name: "Hasan", nationalityId: "tidore", expressions: ["neutral"] }
   });
-  gameState.memory.quests.active = {
+  gameState.memory.quests.captureActive = {
     id: "capture-rhodes",
     kind: "capture-port",
     stage: "capture",
@@ -4486,7 +4486,7 @@ test("an independent-port commission bars entry without naming a neutral soverei
     cargoCapacity: 20,
     playerCharacter: { name: "Hasan", nationalityId: "tidore", expressions: ["neutral"] }
   });
-  gameState.memory.quests.active = {
+  gameState.memory.quests.captureActive = {
     id: "capture-aden",
     kind: "capture-port",
     stage: "capture",
@@ -4634,6 +4634,13 @@ test("a recovering non-enemy port refuses business and names the bombarding ship
   assert.equal(view.speaker, "Beatriz Ferreira, harbour master of Porto");
   assert.match(view.text, /French Brigantine commanded by Jean Moreau/);
   assert.match(view.text, /bombarded/);
+  for (const attackerShipLabel of ["your galleon", "the French brigantine", "a Portuguese carrack"]) {
+    const recoveryView = portDialogueView(session, city, gameState, economy, [city], {
+      ...context, portRecoveryStatus: { ...context.portRecoveryStatus, attackerShipLabel }
+    });
+    assert.match(recoveryView.text, /^[A-Z]/, recoveryView.text);
+    assert.ok(recoveryView.text.startsWith(attackerShipLabel[0].toUpperCase() + attackerShipLabel.slice(1)));
+  }
   assert.match(view.text, /quays remain closed for 2 more days/);
   assert.deepEqual(view.options.map((entry) => entry.label), ["Leave"]);
 });
@@ -8741,7 +8748,7 @@ test("both market modes show the current finite specie including an empty treasu
   }
 });
 
-test("capture petitions name the blocking delivery and ignore the separate envoy passage", () => {
+test("capture petitions only block on another capture commission", () => {
   const city = { cityId: "london|united kingdom", tileId: 804, city: "London", country: "United Kingdom",
     factionId: "england", cityType: "northern-european", population: 12000,
     isFactionCapital: true, capitalOfFactionId: "england", character: { name: "Thomas Ward", role: "harbour-master" } };
@@ -8755,20 +8762,13 @@ test("capture petitions name the blocking delivery and ignore the separate envoy
     .find(({ action }) => action.nodeId === "capture-petition");
   assert.equal(petition().disabled, false);
   state.memory.quests.active = { id: "gelibolu-package", kind: "delivery", destinationName: "Gelibolu" };
-  assert.equal(petition().disabled, true);
-  assert.match(petition().disabledReason, /package to Gelibolu/);
-  assert.doesNotMatch(petition().disabledReason, /passenger|Istanbul/);
-  const beforeBlockedClick = structuredClone(state);
-  const blockedView = portDialogueView(session, city, state, economy, [city]);
-  selectPortDialogueOption(session, city, state, economy, [city],
-    blockedView.options.findIndex(({ action }) => action.nodeId === "capture-petition"));
-  assert.deepEqual(state, beforeBlockedClick);
-  assert.equal(session.nodeId, "city-menu");
-  state.memory.quests.active = null;
-  state.memory.quests.passengerActive = { id: "passenger-gao", kind: "passenger", destinationName: "Gao" };
-  assert.match(petition().disabledReason, /passenger.*Gao/);
-  state.memory.quests.passengerActive = null;
   assert.equal(petition().disabled, false);
+  state.memory.quests.passengerActive = { id: "passenger-gao", kind: "passenger", destinationName: "Gao" };
+  assert.equal(petition().disabled, false);
+  state.memory.quests.captureActive = { id: "warrant", kind: "capture-port", targetName: "Calais", destinationName: "Calais" };
+  assert.equal(petition().disabled, true);
+  assert.match(petition().disabledReason, /Calais/);
+  assert.doesNotMatch(petition().disabledReason, /Gelibolu|Istanbul|Gao/);
 });
 
 test("repeated buying and selling never resolve unrelated shipyard rumours", () => {

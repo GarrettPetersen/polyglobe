@@ -71,14 +71,14 @@ test("the live retirement check sees a capture commission even with no passenger
   const main = readFileSync(new URL("./main.js", import.meta.url), "utf8");
   const start = main.indexOf("function currentCampaignRetirementObligation(");
   const code = main.slice(start, main.indexOf("\nfunction ", start + 1));
-  const quests = { active: { id: "warrant", kind: "capture-port", stage: "capture", targetName: "Lisbon" } };
+  const quests = { captureActive: { id: "warrant", kind: "capture-port", stage: "capture", targetName: "Lisbon" } };
   const check = runInNewContext(`${code}\ncurrentCampaignRetirementObligation`, {
     gameState: { memory: { quests } }, shipTravelerManifest: () => [], currentAboardRoster: () => ({ named: [] }),
     activeQuests, isCaptureCommissionQuest, campaignRetirementObligation
   });
   assert.deepEqual(check(), { commissionTargetName: "Lisbon" });
-  quests.active.stage = "return";
+  quests.captureActive.stage = "return";
   assert.deepEqual(check(), { commissionTargetName: "Lisbon" });
-  quests.active = null;
+  quests.captureActive = null;
   assert.equal(check(), null);
 });

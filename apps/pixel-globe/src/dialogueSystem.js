@@ -2004,7 +2004,7 @@ function recoveringPortView(city, context) {
   return {
     speaker: speakerName(city),
     expressionId: "sad",
-    text: `${recovery.attackerShipLabel} bombarded ${cityLabel(city)} and silenced its guns. The quays remain closed for ${dayLabel}; you must put back to sea.`,
+    text: `${recovery.attackerShipLabel.charAt(0).toUpperCase() + recovery.attackerShipLabel.slice(1)} bombarded ${cityLabel(city)} and silenced its guns. The quays remain closed for ${dayLabel}; you must put back to sea.`,
     feedback: null,
     options: [option("Leave", { type: "close" })]
   };
@@ -3692,7 +3692,7 @@ export function selectPortDialogueAction(
     return { closed: false, captureCommissionPetition: result };
   }
   if (action.type === "complete-quest") {
-    const quest = completeQuest(gameState, city, context);
+    const quest = completeQuest(gameState, city, { ...context, questId: action.questId ?? context.questId });
     const missionItemGift = quest.kind === "delivery" || isTeaRaceQuest(quest)
       ? null
       : maybeGrantMissionPerkItem(gameState, city, {
@@ -4886,8 +4886,7 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
   const cartazIllicitMarket = session.illicitTradeAccessPolicyId ===
     PORTUGUESE_CROWN_SPICE_POLICY_ID;
   const illicitMarket = tradeAccess.illicit || cartazIllicitMarket;
-  const activeQuest = gameState.memory.quests?.active || null;
-  const canCompleteQuest = activeQuest?.destinationCityId === city.cityId;
+  const canCompleteQuest = questStateForCity(gameState, city, portCities).kind === "ready-to-complete";
   const shipyardProject = shipyardInvestmentAtPort(gameState, city);
   const shipyardProjectOffer = shipyardInvestmentOfferAvailable(
     gameState,
@@ -5072,8 +5071,7 @@ function innDrinkView(session, city, gameState, economy, portCities, context) {
     throw new Error("Inn dialogue context is missing");
   }
   const pirateHideout = city.isPirateHideout === true;
-  const activeQuest = gameState.memory.quests?.active || null;
-  const canCompleteQuest = activeQuest?.destinationCityId === city.cityId;
+  const canCompleteQuest = questStateForCity(gameState, city, portCities).kind === "ready-to-complete";
   const innRootOptions = [
     ...passengerInnRootOptions(session, context, pirateHideout),
     ...specialInnRootOptions(session, city, gameState, context).reverse(),
@@ -8766,7 +8764,7 @@ function capturePortQuestView(session, questState, returnNodeId, gameState) {
       feedback: session.feedback,
       options: [
         option(`Report victory  ${quest.reward.toLocaleString("en-US")} db`, {
-          type: "complete-quest"
+          type: "complete-quest", questId: quest.id
         }),
         back
       ]
@@ -8815,7 +8813,7 @@ function recalledCaptureCommissionView(session, quest, back) {
     feedback: session.feedback,
     options: [
       option(`Close recalled commission  ${quest.reward.toLocaleString("en-US")} db`, {
-        type: "complete-quest"
+        type: "complete-quest", questId: quest.id
       }),
       back
     ]
@@ -8860,7 +8858,7 @@ function captureCapitalQuestView(session, questState, returnNodeId, gameState) {
       feedback: session.feedback,
       options: [
         option(`Report final victory  ${quest.reward.toLocaleString("en-US")} db`, {
-          type: "complete-quest"
+          type: "complete-quest", questId: quest.id
         }),
         back
       ]

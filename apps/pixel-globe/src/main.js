@@ -1,3 +1,4 @@
+import { questOfferDirections } from "./questOfferDirections.js";
 import { activeQuests } from "./activeQuests.js";
 import { shipyardUpgradeCardLayout } from "./shipyardUpgradeLayout.js";
 import { commissionedShipyard, reservedSupplyShipyard, unannouncedShipyardUpgrades } from "./shipyardUpgrades.js";
@@ -28003,17 +28004,20 @@ function currentDialogueView() {
 
 function buildCurrentDialogueView() {
   if (dialogueState.kind === "port") {
-    return portDialogueView(
+    return questOfferDirections(portDialogueView(
       dialogueState,
       currentDialogueCity(),
       gameState,
       worldEconomy,
       playerAccessiblePortCities(),
       portDialogueContext()
-    );
+    ), { origin: currentDialogueCity(), citiesById: cityById });
   }
   if (dialogueState.kind === "passenger") {
-    return passengerDialogueView(dialogueState, currentDialogueCity(), currentDialoguePassenger(), gameState);
+    return questOfferDirections(
+      passengerDialogueView(dialogueState, currentDialogueCity(), currentDialoguePassenger(), gameState),
+      { origin: currentDialogueCity(), citiesById: cityById, passengerQuest: currentDialoguePassenger() }
+    );
   }
   if (dialogueState.kind === "ship") {
     return shipDialogueView(dialogueState, currentDialogueShip());

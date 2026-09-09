@@ -147,7 +147,7 @@ test("port attacks distinguish capture commissions, wartime raids, privateering,
     playerCharacter: { ...PLAYER, nationalityId: "ming" }
   });
   const rhodes = port(4, "Rhodes", "Rhodes", "mediterranean", 18000, "hospitallers");
-  commissioned.memory.quests.active = {
+  commissioned.memory.quests.captureActive = {
     id: "capture-rhodes",
     kind: "capture-port",
     stage: "capture",

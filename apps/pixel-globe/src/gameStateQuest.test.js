@@ -1,3 +1,4 @@
+import { envoyOfferForCapital } from "./passengerMissions.js";
 import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import { createPortDialogueSession, portDialogueView, selectPortDialogueAction } from "./dialogueSystem.js";
 import { dialogueOptionIconId } from "./gameIcons.js";
@@ -15,6 +16,8 @@ import {
   ONBOARDING_DELIVERY_SCENARIOS,
   PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
   acceptQuest,
+  migrateGameState,
+  questAcceptanceEligibility,
   addPortNavigationWaypoint,
   advanceCapturePortMissionAfterConquest,
   capturePortMissionMatchesConquest,
@@ -663,7 +666,7 @@ test("an allied capture recalls an active commission instead of leaving an impos
   const beforeReputation = factionReputation(state, "england");
 
   const result = reconcileQuestWorldAssumptions(state, [LONDON, capturedCalais, PARIS]);
-  const active = state.memory.quests.active;
+  const active = state.memory.quests.captureActive;
   assert.equal(active.stage, "return");
   assert.equal(active.captureCommissionResolution, "secured-by-allies");
   assert.equal(active.destinationTileId, LONDON.tileId);
@@ -695,11 +698,11 @@ test("a fallen issuing court recalls its capture order through the original offi
 
   reconcileQuestWorldAssumptions(state, [capturedLondon, CALAIS, PARIS]);
 
-  assert.equal(state.memory.quests.active.stage, "return");
-  assert.equal(state.memory.quests.active.captureCommissionResolution, "issuer-fallen");
-  assert.equal(state.memory.quests.active.destinationTileId, LONDON.tileId);
+  assert.equal(state.memory.quests.captureActive.stage, "return");
+  assert.equal(state.memory.quests.captureActive.captureCommissionResolution, "issuer-fallen");
+  assert.equal(state.memory.quests.captureActive.destinationTileId, LONDON.tileId);
   completeQuest(state, capturedLondon, { simMinute: 100 });
-  assert.equal(state.memory.quests.active, null);
+  assert.equal(state.memory.quests.captureActive, null);
 });
 
 test("a retired sovereign cannot send a recalled commission to an unrelated independent village", () => {
@@ -719,19 +722,19 @@ test("a retired sovereign cannot send a recalled commission to an unrelated inde
     sailingDistanceKm: () => 180
   });
   acceptQuest(state, offer);
-  state.memory.quests.active.originFactionId = "neutral";
-  state.memory.quests.active.independentTarget = true;
+  state.memory.quests.captureActive.originFactionId = "neutral";
+  state.memory.quests.captureActive.independentTarget = true;
   const unrelatedVillage = {...LONDON, cityId: "unrelated-independent-village", tileId: 9999,
     factionId: "neutral", population: 900000, isFactionCapital: false, capitalOfFactionId: null};
   const capturedLondon = { ...LONDON, factionId: "france", foundingFactionId: "england" };
 
   reconcileQuestWorldAssumptions(state, [capturedLondon, CALAIS, PARIS, unrelatedVillage]);
 
-  assert.equal(state.memory.quests.active.stage, "return");
-  assert.equal(state.memory.quests.active.captureCommissionResolution, "issuer-fallen");
-  assert.equal(state.memory.quests.active.destinationTileId, LONDON.tileId);
+  assert.equal(state.memory.quests.captureActive.stage, "return");
+  assert.equal(state.memory.quests.captureActive.captureCommissionResolution, "issuer-fallen");
+  assert.equal(state.memory.quests.captureActive.destinationTileId, LONDON.tileId);
   completeQuest(state, capturedLondon, { simMinute: 100 });
-  assert.equal(state.memory.quests.active, null);
+  assert.equal(state.memory.quests.captureActive, null);
 });
 
 test("pending political offers disappear when conquest invalidates their premise", () => {
@@ -847,11 +850,11 @@ test("a capable letter-of-marque captain can receive and complete a nearby captu
     source: "player"
   };
   assert.equal(capturePortMissionMatchesConquest(state, PARIS, unrelatedConquest), false);
-  assert.equal(state.memory.quests.active.stage, "capture");
+  assert.equal(state.memory.quests.captureActive.stage, "capture");
   assert.equal(capturePortMissionMatchesConquest(state, CALAIS, event), true);
   advanceCapturePortMissionAfterConquest(state, CALAIS, event, 600);
-  assert.equal(state.memory.quests.active.stage, "return");
-  assert.equal(state.memory.quests.active.destinationTileId, LONDON.tileId);
+  assert.equal(state.memory.quests.captureActive.stage, "return");
+  assert.equal(state.memory.quests.captureActive.destinationTileId, LONDON.tileId);
   assert.equal(questStateForCity(state, LONDON, ports).kind, "ready-to-complete");
 
   const doubloonsBefore = state.doubloons;
@@ -862,7 +865,7 @@ test("a capable letter-of-marque captain can receive and complete a nearby captu
     factionReputation(state, "england"),
     reputationBefore + CAPTURE_PORT_MISSION_REPUTATION_GAIN
   );
-  assert.equal(state.memory.quests.active, null);
+  assert.equal(state.memory.quests.captureActive, null);
 });
 
 test("Mughal conquest commissions prefer historical expansion fronts over the nearest war", () => {
@@ -1547,4 +1550,50 @@ test("onboarding delivery picks the shortest reachable sailing trip", () => {
   const disconnected = deliveryQuestForCity(LISBON, ports, { onboardingIndex: 0,
     sailingDistanceKm: () => null });
   assert.equal(disconnected, null);
+});
+
+
+test("capture commissions coexist with ordinary work and migrate from the old slot", () => {
+  const stats = shipStatsForSlug("galleon");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, playerCharacter: PLAYER, shipStats: stats });
+  setTestCrewCount(state, 36);
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
+  const ports = [LONDON, CALAIS, PARIS];
+  const offer = capturePortMissionOfferForCity(state, LONDON, ports, {
+    simMinute: 0, spawnChance: 1, sailingDistanceKm: () => 180
+  });
+  acceptQuest(state, offer);
+  const old = structuredClone(state);
+  old.version = 108;
+  old.memory.quests.active = old.memory.quests.captureActive;
+  delete old.memory.quests.captureActive;
+  const restored = migrateGameState(old, stats);
+  assert.deepEqual(restored.memory.quests.captureActive, state.memory.quests.captureActive);
+  assert.equal(restored.memory.quests.active, null);
+  assert.deepEqual(migrateGameState(structuredClone(restored), stats), restored);
+  const movedCalais = { ...CALAIS, tileId: CALAIS.tileId + 1000, displayCity: "Renamed Calais" };
+  reconcileQuestPortTiles(restored, [LONDON, movedCalais, PARIS]);
+  assert.equal(restored.memory.quests.captureActive.targetTileId, movedCalais.tileId);
+  assert.equal(restored.memory.quests.captureActive.targetName, "Renamed Calais");
+  const delivery = deliveryQuestForCity(LISBON, [LISBON, PORTO], { sailingDistanceKm: testSailingDistanceKm });
+  acceptQuest(state, delivery);
+  const envoy = envoyOfferForCapital(state, LONDON, [LONDON, PARIS], {
+    sailingDistanceKm: () => 1800, envoySpawnChance: 1, envoyKind: "friendly-envoy",
+    destinationCityId: PARIS.cityId, relationBetween: () => "war", simMinute: 0,
+    createCharacter: () => ({ id: "envoy:alongside-capture", name: "Thomas Ward" })
+  });
+  assert.ok(envoy);
+  acceptQuest(state, envoy);
+  assert.equal(state.memory.quests.envoyActive.id, envoy.id);
+  assert.equal(state.memory.quests.active.id, delivery.id);
+  assert.equal(state.memory.quests.captureActive.id, offer.id);
+  assert.equal(questAcceptanceEligibility(state, { ...offer, id: "another-capture" }).eligible, false);
+  const event = { cityId: CALAIS.cityId, newFactionId: "england", source: "player" };
+  advanceCapturePortMissionAfterConquest(state, CALAIS, event, 100);
+  completeQuest(state, LONDON, { simMinute: 110, questId: offer.id });
+  assert.equal(state.memory.quests.captureActive, null);
+  assert.equal(state.memory.quests.active.id, delivery.id);
+  assert.equal(state.memory.quests.envoyActive.id, envoy.id);
 });
