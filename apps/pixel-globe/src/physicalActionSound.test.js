@@ -45,7 +45,8 @@ test("important silent physical actions now trigger feedback", () => {
   assert.match(repair, /playShipRepairSound\(\)/);
 
   const shipyard = functionSource(source, "purchaseShipyardShip", "placeVikingLongshipEnthusiastAtPort");
-  assert.match(shipyard, /playShipHandoverSound\(\)/);
+  assert.match(shipyard, /performPlayerShipReplacement\(/);
+  assert.match(functionSource(source, "performPlayerShipReplacement", "purchaseShipyardShip"), /playShipHandoverSound\(\)/);
 
   const surrender = functionSource(source, "handleNpcSurrender", "receivePlayerSurrenderedShipLoot");
   assert.match(surrender, /if \(state\) \{\s*playStruckColorsSound\(\)/);

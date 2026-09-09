@@ -1,3 +1,4 @@
+import { runShipReplacement } from "./shipReplacementLifecycle.js";
 import { questOfferDirections } from "./questOfferDirections.js";
 import { activeQuests } from "./activeQuests.js";
 import { shipyardUpgradeCardLayout } from "./shipyardUpgradeLayout.js";
@@ -614,7 +615,6 @@ import {
   rollCrewCasualtiesForDamage,
   purchasePlayerShip,
   purchaseFactionSafePassage,
-  setPlayerShipStats,
   shipEmergencyAidNeed,
   shipHudStatus,
   shipTravelerManifest,
@@ -7889,14 +7889,11 @@ function openCampaignGoalIntroDialogue() {
       ];
     }
   }
-  dialogueState = createCampaignDialogueSession({
+  activateDialogueSession(createCampaignDialogueSession({
     cityId: goal.homePortCityId,
     steps,
     phase: campaignGoalIntroPhase(goal.type)
-  });
-  dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
-  ensureDialoguePortraitLoaded();
+  }), { movement: "stop" });
   saveVoyageNow("opened campaign goal");
   dirty = true;
   return true;
@@ -13157,10 +13154,7 @@ function updateCaptureCompanions(sequence) {
 
   if (sequence.variant === "castaway-offer" || sequence.variant === "pirate-offer") {
     if (captureCue("open-rescue-offer", 0.8)) {
-      dialogueState = createRescuedTravelerDialogueSession(quest, { phase: "offer" });
-      dialogueLayout = createDialogueLayoutState();
-      stopShipForDialogue();
-      ensureDialoguePortraitLoaded();
+      activateDialogueSession(createRescuedTravelerDialogueSession(quest, { phase: "offer" }), { movement: "stop" });
       emitCaptureEvent("capture-portrait", {
         role: sequence.variant === "castaway-offer" ? "castaway" : "pirate-captive",
         sourceId: quest.character.sourceId
@@ -13268,14 +13262,11 @@ function updateCaptureCompanions(sequence) {
 
 function openCaptureRescuedTravelerHomecoming(quest) {
   const home = capturePortCallById(quest.homePortCityId);
-  dialogueState = createRescuedTravelerDialogueSession(quest, {
+  activateDialogueSession(createRescuedTravelerDialogueSession(quest, {
     phase: "homecoming",
     cityId: home.cityId,
     admittedToPort: true
-  });
-  dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
-  ensureDialoguePortraitLoaded();
+  }), { movement: "stop" });
   emitCaptureEvent("capture-portrait", {
     role: "rescued-traveler",
     sourceId: quest.character.sourceId,
@@ -14558,13 +14549,12 @@ async function loadShipAssetSet(slug) {
   });
 }
 
-function applyPlayerShipType(slug, stats, assets, { stateAlreadyUpdated = false } = {}) {
+function applyPlayerShipType(slug, stats, assets) {
   shipImage = assets.image;
   shipSinkDepthImage = assets.sinkDepthImage;
   shipWakeAnchors = requiredShipWakeAnchors(slug);
   shipLighting = assets.lighting;
   if (ship) {
-    if (gameState && !stateAlreadyUpdated) setPlayerShipStats(gameState, stats);
     ship.typeSlug = slug;
     ship.stats = stats;
     ship.hitPoints = stats.hitPoints;
@@ -14622,11 +14612,7 @@ function loadShipInfoImage(slug) {
 
 function openShipInfoMenu() {
   if (!ship || !gameState) throw new Error("Cannot open ship information before the game is ready");
-  closeOptionsMenu();
-  closeDiscoveriesMenu();
-  closeAchievementsMenu();
-  closePoliticsMenu();
-  closeNavigationMenu();
+  switchNotebookPage("ship");
   capturePausedView(shipInfoMenu.viewCache, gameState, () => createShipInfoView(ship, gameState, {
     ownedShipyards: [...worldEconomy.shipyards.yards.values()].filter((yard) => yard.playerBacking)
   }));
@@ -14641,8 +14627,6 @@ function openShipInfoMenu() {
   shipInfoMenu.paperDetailScrollY = 0;
   shipInfoMenu.paperDetailMaxScrollY = 0;
   shipInfoMenu.error = null;
-  keys.clear();
-  clearPointerSteering();
   const slug = ship.typeSlug;
   if (!shipInfoImages.has(slug)) {
     shipInfoMenu.loadingSlug = slug;
@@ -18509,31 +18493,38 @@ function finiteMinuteOrNull(value) {
   return Number.isFinite(value) ? value : null;
 }
 
-function openCreditsMenu() {
-  closeOptionsMenu();
-  closePastVoyagesMenu();
-  closeDiscoveriesMenu();
-  closeAchievementsMenu();
-  closeShipInfoMenu();
-  closePoliticsMenu();
-  closeNavigationMenu();
-  capturePausedView(creditsMenu.viewCache, creditsMenu, creditsDisplayLines);
-  creditsMenu.isOpen = true;
-  creditsMenu.page = 0;
+// The captain notebook is the parent; these pages are mutually exclusive.
+function switchNotebookPage(pageId) {
+  const pages = [
+    { id: "ship", close: closeShipInfoMenu }, { id: "credits", close: closeCreditsMenu },
+    { id: "voyages", close: closePastVoyagesMenu }, { id: "options", close: closeOptionsMenu },
+    { id: "discoveries", close: closeDiscoveriesMenu }, { id: "achievements", close: closeAchievementsMenu },
+    { id: "politics", close: closePoliticsMenu }, { id: "navigation", close: closeNavigationMenu }, { id: "crew", close: closeAboardMenu }
+  ];
+  if (pageId !== null && !pages.some(({ id }) => id === pageId)) {
+    throw new Error(`Unknown notebook page: ${pageId}`);
+  }
+  // Also close the destination: clear its cached views and finish pending crew
+  // dismissals before its opener constructs a fresh view.
+  for (const { close } of pages) close();
   keys.clear();
   clearPointerSteering();
   dirty = true;
 }
 
+function openCreditsMenu() {
+  switchNotebookPage("credits");
+  capturePausedView(creditsMenu.viewCache, creditsMenu, creditsDisplayLines);
+  creditsMenu.isOpen = true;
+  creditsMenu.page = 0;
+  dirty = true;
+}
+
 function openPastVoyagesMenu() {
-  closeOptionsMenu();
-  closeCreditsMenu();
-  closeAchievementsMenu();
+  switchNotebookPage("voyages");
   capturePausedView(pastVoyagesMenu.viewCache, pastVoyagesMenu, buildPastVoyagesMenuView);
   pastVoyagesMenu.isOpen = true;
   pastVoyagesMenu.page = 0;
-  keys.clear();
-  clearPointerSteering();
   dirty = true;
 }
 
@@ -18579,13 +18570,7 @@ function stepCreditsPage(direction) {
 }
 
 function openOptionsMenu() {
-  closeDiscoveriesMenu();
-  closeAchievementsMenu();
-  closeShipInfoMenu();
-  closePoliticsMenu();
-  closeNavigationMenu();
-  closeCreditsMenu();
-  closePastVoyagesMenu();
+  switchNotebookPage("options");
   optionsMenu.isOpen = true;
   optionsMenu.view = "settings";
   optionsMenu.selectedIndex = 0;
@@ -18594,17 +18579,11 @@ function openOptionsMenu() {
   optionsMenu.bindingCapture = null;
   optionsMenu.bindingFeedback = null;
   optionsMenu.returnError = null;
-  keys.clear();
-  clearPointerSteering();
   dirty = true;
 }
 
 function openDiscoveriesMenu() {
-  closeOptionsMenu();
-  closeAchievementsMenu();
-  closeShipInfoMenu();
-  closePoliticsMenu();
-  closeNavigationMenu();
+  switchNotebookPage("discoveries");
   capturePausedView(discoveriesMenu.viewCache, gameState, buildDiscoveriesMenuView);
   discoveriesMenu.isOpen = true;
   discoveriesMenu.tab = discoveriesMenu.tab || "wonders";
@@ -18612,19 +18591,11 @@ function openDiscoveriesMenu() {
   discoveriesMenu.entrySelectedIndex = 0;
   discoveriesMenu.entrySelectionActive = false;
   closeDiscoveryDetail();
-  keys.clear();
-  clearPointerSteering();
   dirty = true;
 }
 
 function openAchievementsMenu(achievementId = null) {
-  closeOptionsMenu();
-  closeCreditsMenu();
-  closePastVoyagesMenu();
-  closeDiscoveriesMenu();
-  closeShipInfoMenu();
-  closePoliticsMenu();
-  closeNavigationMenu();
+  switchNotebookPage("achievements");
   if (gameState && achievementProfile) syncAchievementsFromGameState();
   capturePausedView(achievementsMenu.viewCache, achievementsMenu, buildAchievementsMenuView);
   achievementsMenu.isOpen = true;
@@ -18635,8 +18606,6 @@ function openAchievementsMenu(achievementId = null) {
       achievementId,
       ACHIEVEMENTS_PAGE_SIZE
     );
-  keys.clear();
-  clearPointerSteering();
   dirty = true;
 }
 
@@ -18665,11 +18634,7 @@ function closeDiscoveriesMenu() {
 
 function openPoliticsMenu() {
   if (!gameState) throw new Error("Cannot open politics before the game is ready");
-  closeOptionsMenu();
-  closeDiscoveriesMenu();
-  closeAchievementsMenu();
-  closeShipInfoMenu();
-  closeNavigationMenu();
+  switchNotebookPage("politics");
   politicsMenu.view = buildPoliticsView();
   politicsMenu.paginationCache = null;
   politicsMenu.isOpen = true;
@@ -18680,8 +18645,6 @@ function openPoliticsMenu() {
   politicsMenu.groupCardRects = [];
   politicsMenu.groupDetailBackRect = null;
   closePoliticsNewsDetail();
-  keys.clear();
-  clearPointerSteering();
   dirty = true;
 }
 
@@ -18724,19 +18687,13 @@ function clearPoliticsPagerRects() {
 
 function openNavigationMenu() {
   if (!gameState) throw new Error("Cannot open waypoints before the game is ready");
-  closeOptionsMenu();
-  closeDiscoveriesMenu();
-  closeAchievementsMenu();
-  closeShipInfoMenu();
-  closePoliticsMenu();
+  switchNotebookPage("navigation");
   capturePausedView(navigationMenu.viewCache, gameState, navigationMenuEntries);
   navigationMenu.isOpen = true;
   navigationMenu.page = 0;
   navigationMenu.selectedIndex = 0;
   navigationMenu.rowRects = [];
   navigationMenu.removeButtonRects = [];
-  keys.clear();
-  clearPointerSteering();
   dirty = true;
 }
 
@@ -19063,22 +19020,13 @@ function recenterCaptainChartMap() {
 
 function openCaptainMenu() {
   if (startMenu || gameOverReason || playerIntroModal || captainAlertModal) return;
-  closeOptionsMenu();
-  closeDiscoveriesMenu();
-  closeAchievementsMenu();
-  closeShipInfoMenu();
-  closePoliticsMenu();
-  closeNavigationMenu();
-  closeAboardMenu();
-  closeCreditsMenu();
+  switchNotebookPage(null);
   capturePausedView(captainMenu.viewCache, gameState, buildCaptainChartView);
   captainMenu.isOpen = true;
   captainMenu.selectedIndex = 0;
   captainMenu.itemRects = [];
   captainMenu.journalScrollLine = 0;
   resetCaptainChartView();
-  keys.clear();
-  clearPointerSteering();
   dirty = true;
 }
 
@@ -19089,12 +19037,7 @@ function openAboardMenu({ source = "captain-notebook" } = {}) {
   if (!["captain-notebook", "port-inn"].includes(source)) {
     throw new Error(`Unknown aboard roster source: ${source}`);
   }
-  closeOptionsMenu();
-  closeDiscoveriesMenu();
-  closeAchievementsMenu();
-  closeShipInfoMenu();
-  closePoliticsMenu();
-  closeNavigationMenu();
+  switchNotebookPage("crew");
   const roster = capturePausedView(aboardMenu.viewCache, gameState, currentAboardRoster);
   aboardMenu.isOpen = true;
   aboardMenu.source = source;
@@ -19118,8 +19061,6 @@ function openAboardMenu({ source = "captain-notebook" } = {}) {
   for (const entry of roster.named) {
     dialoguePortraitImage(entry.character, characterExpression(entry.character, "neutral"));
   }
-  keys.clear();
-  clearPointerSteering();
   dirty = true;
 }
 
@@ -21744,6 +21685,20 @@ function ensurePortCityView(cityCall) {
   activatePortCityView(projectedCity);
 }
 
+function activateDialogueSession(session, { movement }) {
+  if (!session || typeof session.kind !== "string") throw new Error("Dialogue entry requires a session");
+  if (!["stop", "resume", "unchanged"].includes(movement)) {
+    throw new Error(`Unknown dialogue movement policy: ${movement}`);
+  }
+  dialogueState = session;
+  clearPausedView(dialogueViewCache);
+  dialogueLayout = createDialogueLayoutState();
+  if (movement === "stop") stopShipForDialogue();
+  else if (movement === "resume") pauseShipForOverlay();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+}
+
 function openCityDialogue(cityCall, session) {
   const cityId = requireCityId(cityCall, "City dialogue entry");
   if (!session || session.cityId !== cityId ||
@@ -21752,11 +21707,7 @@ function openCityDialogue(cityCall, session) {
   }
   ensurePortCityView(cityCall);
   assertPortRootScene(session, portCityView, { ruinedSite: colonizationSiteIsRuined(cityCall) });
-  dialogueState = session;
-  clearPausedView(dialogueViewCache);
-  dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
-  ensureDialoguePortraitLoaded();
+  activateDialogueSession(session, { movement: "stop" });
   queuePortCitySceneSync();
   dirty = true;
 }
@@ -25738,7 +25689,7 @@ function openShipDialogue(shipCall, options = {}) {
     recordNpcGossipHeard(gameState.memory.decisions, papalGossip, simMinute);
   }
   const commissionedYard = commissionedShipyard(worldEconomy.shipyards, shipCall.id);
-  dialogueState = createShipDialogueSession(shipCall, {
+  activateDialogueSession(createShipDialogueSession(shipCall, {
     ...options,
     rumorText: enforcementDialogue
       ? null
@@ -25747,10 +25698,7 @@ function openShipDialogue(shipCall, options = {}) {
     listenerReligionId: gameState.playerCharacter?.religionId || null,
     pirateTreasureName,
     hostileHail
-  });
-  dialogueLayout = createDialogueLayoutState();
-  pauseShipForOverlay();
-  ensureDialoguePortraitLoaded();
+  }), { movement: "resume" });
   if (!enforcementDialogue && !hostileHail) {
     maybeOpenAnimalCompanionNpcReaction(`ship:${shipCall.id}`, shipCall.character);
   }
@@ -27299,6 +27247,45 @@ function updateItemAcquisitionEffects(nowMs) {
   return itemAcquisitionEffects.length > 0 || changed;
 }
 
+function returnReplacedShipHistorian(plan, replacement) {
+  if (!plan) return null;
+  const historian = replacement.departedNamedCrew.find(member => member.id === plan.historian.id);
+  if (!historian) throw new Error("Ship replacement did not disembark its historical enthusiast");
+  markVikingLongshipReturnedToIceland(gameState, historian);
+  placeVikingLongshipEnthusiastAtPort(historian);
+  return historian;
+}
+
+async function performPlayerShipReplacement({ slug, session, stillCurrent = () => true, commit, present, saveReason }) {
+  if (!session || typeof commit !== "function" || typeof present !== "function" ||
+      typeof stillCurrent !== "function" || typeof saveReason !== "string" || saveReason.length === 0) {
+    throw new Error("Ship replacement requires a session, transaction, presentation and save reason");
+  }
+  const previousState = gameState;
+  const previousShip = ship;
+  const previousSlug = ship.typeSlug;
+  const previousNodeId = session.nodeId;
+  const stats = shipStatsForSlug(slug);
+  return runShipReplacement({
+    isCurrent: () => gameState === previousState && ship === previousShip && ship.typeSlug === previousSlug &&
+      dialogueState === session && session.nodeId === previousNodeId && stillCurrent(),
+    load: () => loadShipAssetSet(slug),
+    commit: () => {
+      invalidateDistantWorldWorkerState();
+      const outcome = commit(stats);
+      if (gameState.ship.slug !== slug) throw new Error(`Ship replacement did not install ${slug}`);
+      return outcome;
+    },
+    publish: (assets) => {
+      resetDistantWorldWorkerSchedule();
+      applyPlayerShipType(slug, stats, assets);
+      syncShipCargoFromGameState();
+    },
+    present: (outcome) => { playShipHandoverSound(); present(outcome); },
+    save: () => saveVoyageNow(saveReason)
+  });
+}
+
 async function purchaseShipyardShip(action) {
   if (shipyardPurchaseListingId) return;
   const session = dialogueState;
@@ -27320,100 +27307,88 @@ async function purchaseShipyardShip(action) {
   invalidateDialogueView();
   dirty = true;
   try {
-    const stats = shipStatsForSlug(listing.shipSlug);
-    const assets = await loadShipAssetSet(listing.shipSlug);
-    if (dialogueState !== session || session.nodeId !== "shipyard-purchase-confirm" ||
-        session.shipyardPurchaseListingId !== listing.id ||
-        session.shipyardPurchasePending !== true) return;
-    const purchaseTerms = shipyardPurchaseTerms(listing.price, ship.typeSlug);
-    const tradedShipSlug = ship.typeSlug;
-    const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
-    const purchase = purchasePlayerShip(gameState, city, stats, purchaseTerms, {
-      simMinute: Math.floor(weatherClockMinutes),
-      departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
+    await performPlayerShipReplacement({
+      slug: listing.shipSlug, session, saveReason: "ship purchase",
+      stillCurrent: () => session.shipyardPurchaseListingId === listing.id && session.shipyardPurchasePending === true,
+      commit: (stats) => {
+        const purchaseTerms = shipyardPurchaseTerms(listing.price, ship.typeSlug);
+        const tradedShipSlug = ship.typeSlug;
+        const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
+        const purchase = purchasePlayerShip(gameState, city, stats, purchaseTerms, {
+          simMinute: Math.floor(weatherClockMinutes),
+          departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
+        });
+        const returnedHistorian = returnReplacedShipHistorian(vikingTradeIn, purchase);
+        claimShipyardListing(worldEconomy.shipyards, city, listing.id);
+        registerShipyardTradeIn(worldEconomy.shipyards, city, {
+          shipSlug: tradedShipSlug,
+          seller: "player",
+          acquiredMinute: Math.floor(weatherClockMinutes)
+        });
+        const ownerPayout = yard.playerBacking
+          ? collectPlayerShipyardDividends(gameState, worldEconomy.shipyards, city, {
+              simMinute: Math.floor(weatherClockMinutes)
+            })
+          : null;
+        return { purchaseTerms, returnedHistorian, ownerPayout };
+      },
+      present: ({ purchaseTerms, returnedHistorian, ownerPayout }) => {
+        playCoinClinkSound();
+        session.shipyardPurchaseListingId = null;
+        session.shipyardPurchaseReturnNodeId = null;
+        session.shipyardPurchasePending = false;
+        const transactionText = purchaseTerms.netPrice >= 0
+          ? `The ${listing.shipLabel} is yours for ${purchaseTerms.netPrice} doubloons after trade-in.`
+          : `The ${listing.shipLabel} is yours, and I have returned ${-purchaseTerms.netPrice} doubloons on the trade.`;
+        if (ownerPayout) {
+          session.shipyardDividendArrival = {
+            ...ownerPayout,
+            salesSummary: `This sale paid your owner's share of ${ownerPayout.amount} doubloons at once.`
+          };
+          session.shipyardLedgerTab = "books";
+          session.shipyardLedgerScrollOffset = 0;
+          session.shipyardLedgerReturnNodeId = "root";
+        }
+        if (returnedHistorian) {
+          session.nodeId = "root";
+          session.selectedIndex = 0;
+          session.feedback = null;
+          const opened = startCharacterAlertSequence([
+            pairedCharacterAlertStep({
+              leftCharacter: returnedHistorian,
+              rightCharacter: gameState.playerCharacter,
+              speakerCharacter: returnedHistorian,
+              expressionId: "pleased",
+              message: vikingLongshipTradeInFarewell()
+            }),
+            pairedCharacterAlertStep({
+              leftCharacter: gameState.playerCharacter,
+              rightCharacter: city.character,
+              speakerCharacter: city.character,
+              expressionId: "pleased",
+              message: `${transactionText} ${shipHandoverHistoryForSlug(listing.shipSlug)}`
+            })
+          ], ownerPayout ? () => {
+            if (dialogueState !== session) return;
+            session.nodeId = "shipyard";
+            session.selectedIndex = 2;
+            invalidateDialogueView();
+            dirty = true;
+          } : null);
+          if (!opened) throw new Error("Could not open the Viking longship trade-in farewell");
+        } else {
+          beginShipHandoverDialogue(session, {
+            shipSlug: listing.shipSlug,
+            transactionText,
+            sellerTitle: city.isPirateHideout ? "hidden-yard broker" : "shipwright",
+            returnNodeId: ownerPayout ? "shipyard" : "root"
+          });
+        }
+        dialogueLayout.scrollOffset = 0;
+      }
     });
-    const returnedHistorian = vikingTradeIn
-      ? purchase.departedNamedCrew.find((member) => member.id === vikingTradeIn.historian.id)
-      : null;
-    if (vikingTradeIn && !returnedHistorian) {
-      throw new Error("Viking longship trade-in did not disembark its historical enthusiast");
-    }
-    if (returnedHistorian) {
-      markVikingLongshipReturnedToIceland(gameState, returnedHistorian);
-      placeVikingLongshipEnthusiastAtPort(returnedHistorian);
-    }
-    claimShipyardListing(worldEconomy.shipyards, city, listing.id);
-    registerShipyardTradeIn(worldEconomy.shipyards, city, {
-      shipSlug: tradedShipSlug,
-      seller: "player",
-      acquiredMinute: Math.floor(weatherClockMinutes)
-    });
-    const ownerPayout = yard.playerBacking
-      ? collectPlayerShipyardDividends(gameState, worldEconomy.shipyards, city, {
-          simMinute: Math.floor(weatherClockMinutes)
-        })
-      : null;
-    resetDistantWorldWorkerSchedule();
-    applyPlayerShipType(listing.shipSlug, stats, assets, { stateAlreadyUpdated: true });
-    syncShipCargoFromGameState();
-    playCoinClinkSound();
-    playShipHandoverSound();
-    session.shipyardPurchaseListingId = null;
-    session.shipyardPurchaseReturnNodeId = null;
-    session.shipyardPurchasePending = false;
-    const transactionText = purchaseTerms.netPrice >= 0
-      ? `The ${listing.shipLabel} is yours for ${purchaseTerms.netPrice} doubloons after trade-in.`
-      : `The ${listing.shipLabel} is yours, and I have returned ${-purchaseTerms.netPrice} doubloons on the trade.`;
-    if (ownerPayout) {
-      session.shipyardDividendArrival = {
-        ...ownerPayout,
-        salesSummary: `This sale paid your owner's share of ${ownerPayout.amount} doubloons at once.`
-      };
-      session.shipyardLedgerTab = "books";
-      session.shipyardLedgerScrollOffset = 0;
-      session.shipyardLedgerReturnNodeId = "root";
-    }
-    if (returnedHistorian) {
-      session.nodeId = "root";
-      session.selectedIndex = 0;
-      session.feedback = null;
-      const opened = startCharacterAlertSequence([
-        pairedCharacterAlertStep({
-          leftCharacter: returnedHistorian,
-          rightCharacter: gameState.playerCharacter,
-          speakerCharacter: returnedHistorian,
-          expressionId: "pleased",
-          message: vikingLongshipTradeInFarewell()
-        }),
-        pairedCharacterAlertStep({
-          leftCharacter: gameState.playerCharacter,
-          rightCharacter: city.character,
-          speakerCharacter: city.character,
-          expressionId: "pleased",
-          message: `${transactionText} ${shipHandoverHistoryForSlug(listing.shipSlug)}`
-        })
-      ], ownerPayout ? () => {
-        if (dialogueState !== session) return;
-        session.nodeId = "shipyard";
-        session.selectedIndex = 2;
-        invalidateDialogueView();
-        dirty = true;
-      } : null);
-      if (!opened) throw new Error("Could not open the Viking longship trade-in farewell");
-    } else {
-      beginShipHandoverDialogue(session, {
-        shipSlug: listing.shipSlug,
-        transactionText,
-        sellerTitle: city.isPirateHideout ? "hidden-yard broker" : "shipwright",
-        returnNodeId: ownerPayout ? "shipyard" : "root"
-      });
-    }
-    dialogueLayout.scrollOffset = 0;
-    saveVoyageNow("ship purchase");
   } catch (error) {
-    console.error(new Error(`Failed to purchase ${listing.shipLabel}`, { cause: error }));
-    session.shipyardPurchasePending = false;
-    session.feedback = error instanceof Error ? error.message : "The ship purchase failed.";
+    throw new Error(`Failed to purchase ${listing.shipLabel}`, { cause: error });
   } finally {
     shipyardPurchaseListingId = null;
     invalidateDialogueView();
@@ -27452,25 +27427,23 @@ async function acquireVikingLongship(action) {
   invalidateDialogueView();
   dirty = true;
   try {
-    const stats = shipStatsForSlug(VIKING_LONGSHIP_SLUG);
-    const assets = await loadShipAssetSet(VIKING_LONGSHIP_SLUG);
-    if (dialogueState !== session || session.nodeId !== "viking-longship") return;
-    const transactionContext = { simMinute: Math.floor(weatherClockMinutes) };
-    completeVikingLongshipAcquisition(gameState, city, action, transactionContext);
-    applyPlayerShipType(VIKING_LONGSHIP_SLUG, stats, assets, { stateAlreadyUpdated: true });
-    syncShipCargoFromGameState();
-    if (purchasing) playCoinClinkSound();
-    playShipHandoverSound();
-    const longshipLabel = shipLabelForSlug(VIKING_LONGSHIP_SLUG);
-    beginShipHandoverDialogue(session, {
-      shipSlug: VIKING_LONGSHIP_SLUG,
-      transactionText: acceptingReward
-        ? `The ${longshipLabel} is yours as the reward for your help, complete with a rack of reconstructed bows. The enthusiast comes aboard with her.`
-        : `The ${longshipLabel} is yours for ${VIKING_LONGSHIP_PRICE} doubloons, complete with its bows, and the enthusiast comes aboard with her.`,
-      sellerTitle: "historical enthusiast"
+    await performPlayerShipReplacement({
+      slug: VIKING_LONGSHIP_SLUG, session,
+      saveReason: acceptingReward ? "accepted Viking longship reward" : "Viking longship purchase",
+      commit: () => completeVikingLongshipAcquisition(gameState, city, action, { simMinute: Math.floor(weatherClockMinutes) }),
+      present: () => {
+        if (purchasing) playCoinClinkSound();
+        const longshipLabel = shipLabelForSlug(VIKING_LONGSHIP_SLUG);
+        beginShipHandoverDialogue(session, {
+          shipSlug: VIKING_LONGSHIP_SLUG,
+          transactionText: acceptingReward
+            ? `The ${longshipLabel} is yours as the reward for your help, complete with a rack of reconstructed bows. The enthusiast comes aboard with her.`
+            : `The ${longshipLabel} is yours for ${VIKING_LONGSHIP_PRICE} doubloons, complete with its bows, and the enthusiast comes aboard with her.`,
+          sellerTitle: "historical enthusiast"
+        });
+        dialogueLayout.scrollOffset = 0;
+      }
     });
-    dialogueLayout.scrollOffset = 0;
-    saveVoyageNow(acceptingReward ? "accepted Viking longship reward" : "Viking longship purchase");
   } catch (error) {
     throw new Error("Failed to acquire Viking Longship", { cause: error });
   } finally {
@@ -27686,73 +27659,60 @@ async function captureSurrenderedShip(npcShipId) {
   invalidateDialogueView();
   dirty = true;
   try {
-    const stats = shipStatsForSlug(candidateSlug);
-    const assets = await loadShipAssetSet(candidateSlug);
-    if (dialogueState !== session || session.nodeId !== "capture-loading") return;
-    const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
-    const replacement = awardPlayerShip(
-      gameState,
-      null,
-      stats,
-      `Captured ${shipLabelForSlug(candidateSlug)} as a surrendered prize`,
-      {
-        simMinute: Math.floor(weatherClockMinutes),
-        departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
+    await performPlayerShipReplacement({
+      slug: candidateSlug, session, saveReason: "captured surrendered ship",
+      stillCurrent: () => npcSeaRoutes.shipById.get(npcShipId) === strategic,
+      commit: (stats) => {
+        const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
+        const replacement = awardPlayerShip(
+          gameState,
+          null,
+          stats,
+          `Captured ${shipLabelForSlug(candidateSlug)} as a surrendered prize`,
+          {
+            simMinute: Math.floor(weatherClockMinutes),
+            departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
+          }
+        );
+        const returnedHistorian = returnReplacedShipHistorian(vikingTradeIn, replacement);
+        const deferredLoot = receiveSurrenderedLoot(gameState, {
+          specie: 0,
+          cargo: session.prize.remainingCargo
+        }, { simMinute: Math.floor(weatherClockMinutes) });
+        const recoveredCargoQuantity = Object.values(deferredLoot.cargo)
+          .reduce((sum, quantity) => sum + quantity, 0);
+        const abandonedCargoQuantity = Object.values(deferredLoot.remainingCargo)
+          .reduce((sum, quantity) => sum + quantity, 0);
+        captureSurrenderedNpcShip(npcSeaRoutes, npcShipId, Math.floor(weatherClockMinutes));
+        deleteNpcVisualShipState(npcShipId);
+        shipCombatEntryCollisionGrace.delete(npcShipId);
+        return { returnedHistorian, recoveredCargoQuantity, abandonedCargoQuantity };
+      },
+      present: ({ returnedHistorian, recoveredCargoQuantity, abandonedCargoQuantity }) => {
+        showSurvivalNotice(
+          `CAPTURED ${shipLabelForSlug(candidateSlug).toUpperCase()}` +
+            (recoveredCargoQuantity > 0 ? `  +${recoveredCargoQuantity} CARGO` : "") +
+            (abandonedCargoQuantity > 0 ? `  ${abandonedCargoQuantity} CARGO LEFT` : ""),
+          abandonedCargoQuantity > 0 ? "warn" : "good"
+        );
+        if (returnedHistorian) {
+          const opened = startCharacterAlertSequence([
+            pairedCharacterAlertStep({
+              leftCharacter: returnedHistorian,
+              rightCharacter: gameState.playerCharacter,
+              speakerCharacter: returnedHistorian,
+              expressionId: "pleased",
+              message: vikingLongshipTradeInFarewell()
+            })
+          ], closeDialogue);
+          if (!opened) throw new Error("Could not open the Viking longship prize farewell");
+        } else {
+          closeDialogue();
+        }
       }
-    );
-    const returnedHistorian = vikingTradeIn
-      ? replacement.departedNamedCrew.find((member) => member.id === vikingTradeIn.historian.id)
-      : null;
-    if (vikingTradeIn && !returnedHistorian) {
-      throw new Error("Viking longship prize replacement did not disembark its historical enthusiast");
-    }
-    if (returnedHistorian) {
-      markVikingLongshipReturnedToIceland(gameState, returnedHistorian);
-      placeVikingLongshipEnthusiastAtPort(returnedHistorian);
-    }
-    applyPlayerShipType(candidateSlug, stats, assets, { stateAlreadyUpdated: true });
-    ship.hitPoints = stats.hitPoints;
-    const deferredLoot = receiveSurrenderedLoot(gameState, {
-      specie: 0,
-      cargo: session.prize.remainingCargo
-    }, { simMinute: Math.floor(weatherClockMinutes) });
-    const recoveredCargoQuantity = Object.values(deferredLoot.cargo)
-      .reduce((sum, quantity) => sum + quantity, 0);
-    const abandonedCargoQuantity = Object.values(deferredLoot.remainingCargo)
-      .reduce((sum, quantity) => sum + quantity, 0);
-    captureSurrenderedNpcShip(npcSeaRoutes, npcShipId, Math.floor(weatherClockMinutes));
-    deleteNpcVisualShipState(npcShipId);
-    shipCombatEntryCollisionGrace.delete(npcShipId);
-    syncShipCargoFromGameState();
-    playShipHandoverSound();
-    showSurvivalNotice(
-      `CAPTURED ${shipLabelForSlug(candidateSlug).toUpperCase()}` +
-        (recoveredCargoQuantity > 0 ? `  +${recoveredCargoQuantity} CARGO` : "") +
-        (abandonedCargoQuantity > 0 ? `  ${abandonedCargoQuantity} CARGO LEFT` : ""),
-      abandonedCargoQuantity > 0 ? "warn" : "good"
-    );
-    saveVoyageNow("captured surrendered ship");
-    if (returnedHistorian) {
-      const opened = startCharacterAlertSequence([
-        pairedCharacterAlertStep({
-          leftCharacter: returnedHistorian,
-          rightCharacter: gameState.playerCharacter,
-          speakerCharacter: returnedHistorian,
-          expressionId: "pleased",
-          message: vikingLongshipTradeInFarewell()
-        })
-      ], closeDialogue);
-      if (!opened) throw new Error("Could not open the Viking longship prize farewell");
-    } else {
-      closeDialogue();
-    }
+    });
   } catch (error) {
-    console.error(new Error(`Failed to capture surrendered ship ${npcShipId}`, { cause: error }));
-    if (dialogueState === session) {
-      session.nodeId = "capture-confirm";
-      session.feedback = error instanceof Error ? error.message : "The prize transfer failed.";
-      session.selectedIndex = 0;
-    }
+    throw new Error(`Failed to capture surrendered ship ${npcShipId}`, { cause: error });
   } finally {
     surrenderedShipCapturePendingId = null;
     invalidateDialogueView();
@@ -37817,10 +37777,7 @@ function updateSoundDues() {
   const city = cityById.get(SOUND_DUES_COLLECTOR_CITY_ID);
   if (!city) throw new Error("Sound Dues collector city is missing");
   const character = requirePortCityStaffMember(portCityStaffByCityId, city.cityId, PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
-  dialogueState = createSoundDuesDialogueSession({ ...city, character }, gameState);
-  dialogueLayout = createDialogueLayoutState();
-  pauseShipForOverlay();
-  ensureDialoguePortraitLoaded();
+  activateDialogueSession(createSoundDuesDialogueSession({ ...city, character }, gameState), { movement: "resume" });
   dirty = true;
   return true;
 }
@@ -38719,21 +38676,18 @@ function openShoreBatteryCombatHail(city, state, entryStatus) {
   const playerWarship = playerShipIsWarship(gameState);
   const passageOffered = entryStatus.canPurchaseSafePassage;
   const toll = passageOffered ? factionSafePassageToll(gameState) : null;
-  dialogueState = createShoreBatteryDialogueSession(city, {
+  activateDialogueSession(createShoreBatteryDialogueSession(city, {
     relation,
     playerWarship,
     passageOffered,
     toll,
     canAffordToll: passageOffered && gameState.doubloons >= toll,
     simMinute: Math.floor(weatherClockMinutes)
-  });
+  }), { movement: "resume" });
   if (relation === DIPLOMACY_WAR && !shoreBatteryWarWarningSeen(gameState.memory.flags, city.factionId)) {
     rememberShoreBatteryWarWarning(gameState.memory.flags, city.factionId);
     saveVoyageNow("shore battery war warning");
   }
-  dialogueLayout = createDialogueLayoutState();
-  pauseShipForOverlay();
-  ensureDialoguePortraitLoaded();
   startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
   dirty = true;
 }
@@ -39853,9 +39807,7 @@ function presentPendingDamageSurrenderDecision() {
 
 function openDamageSurrenderDecision(npcShipId, cause, existingSession) {
   const surrenderedShip = dialogueShipForId(npcShipId);
-  dialogueState = prepareDamageSurrenderDialogue(existingSession, surrenderedShip, { cause });
-  dialogueLayout = createDialogueLayoutState();
-  ensureDialoguePortraitLoaded();
+  activateDialogueSession(prepareDamageSurrenderDialogue(existingSession, surrenderedShip, { cause }), { movement: "unchanged" });
   dirty = true;
 }
 
@@ -39867,15 +39819,13 @@ function openSurrenderPrizeDecision(npcShipId, lootSummary) {
     throw new Error(`Cannot open surrender prize while ${dialogueState.kind} dialogue is active`);
   }
   const prizeShip = dialogueShipForId(npcShipId);
-  dialogueState = prepareSurrenderPrizeDialogue(existingSession, prizeShip, {
+  activateDialogueSession(prepareSurrenderPrizeDialogue(existingSession, prizeShip, {
     slug: ship.typeSlug,
     hitPoints: ship.hitPoints,
     maxHitPoints: ship.maxHitPoints,
     cargoUsed: cargoUsed(gameState)
-  }, lootSummary);
-  dialogueLayout = createDialogueLayoutState();
+  }, lootSummary), { movement: "unchanged" });
   ensureShipyardSideViewLoaded(prizeShip.slug);
-  ensureDialoguePortraitLoaded();
   dirty = true;
 }
 
@@ -40116,13 +40066,10 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
     captiveKindRoll: Math.random()
   });
   if (!quest) return false;
-  dialogueState = createRescuedTravelerDialogueSession(quest, {
+  activateDialogueSession(createRescuedTravelerDialogueSession(quest, {
     phase: "offer",
     surrenderPrize
-  });
-  dialogueLayout = createDialogueLayoutState();
-  pauseShipForOverlay();
-  ensureDialoguePortraitLoaded();
+  }), { movement: "resume" });
   saveVoyageNow("pirate captive rescued from defeated ship");
   dirty = true;
   return true;
@@ -40177,10 +40124,7 @@ function maybeOpenCastawayQuest(shoreCall) {
     emergencyAid: castawayEmergencyAidNeed(gameState)
   });
   if (!quest) return false;
-  dialogueState = createRescuedTravelerDialogueSession(quest, { phase: "offer" });
-  dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
-  ensureDialoguePortraitLoaded();
+  activateDialogueSession(createRescuedTravelerDialogueSession(quest, { phase: "offer" }), { movement: "stop" });
   saveVoyageNow("found castaway while weighing anchor");
   dirty = true;
   return true;
