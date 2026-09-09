@@ -7,7 +7,7 @@ import { EXETER_CITY_ID, TOPSHAM_CITY_ID, exeterCanalStage, exeterCanalQuestView
 import { exeterCanalNavigation, exeterCanalPort } from "./exeterCanalNavigation.js";
 import { sailingCorrectionDistancePx } from "./sailingContinuity.js";
 import { playerShipyardSnapshot, restorePlayerShipyardSnapshot, snapshotPlayerShipyards } from "./playerShipyardPersistence.js";
-import { planPlaytestRoute, playtestSteeringTarget } from "./playtestNavigation.js";
+import { planPlaytestRoute, playtestSteeringTarget, playtestDockSteeringInput, playtestArrivalTile } from "./playtestNavigation.js";
 import { playerActionId } from "./playerActionIdentity.js";
 import { coastalWaterBands } from "./terrainDistance.js";
 import { landmassChannelNavigationAnchor } from "./landmassChannels.js";
@@ -17180,23 +17180,45 @@ async function runBrowserJourneyCommand(command) {
       for (let frame = 0; frame < command.frames; frame++) {
         if (city) {
           if (!browserJourneyRoute || browserJourneyRoute.cityId !== city.cityId) {
-            const destination = tileCenterVector(city.tileId);
+            const arrivalTileId = playtestArrivalTile(city.tileId, id => graph.neighbors[id], isShipBaseNavigableTile);
             browserJourneyRoute = { cityId: city.cityId, index: 1,
               tiles: planPlaytestRoute({ startId: ship.tileId, neighbors: (id) => graph.neighbors[id],
                 isNavigable: isShipBaseNavigableTile, canTraverseEdge: canShipMoveBetween,
-                isDestination: (id) => vectorArcDistance(tileCenterVector(id), destination) * PIXELS_PER_RADIAN < PORT_INTERACTION_RADIUS_PX * 1.7 }) };
+                isDestination: (id) => id === arrivalTileId }) };
           }
           const route = browserJourneyRoute;
           const toward = tileCenterVector(playtestSteeringTarget(route, ship.tileId, city.tileId));
           browserJourneySteering = normalizeOrNull(projectTangentVector([
             toward[0] - ship.position[0], toward[1] - ship.position[1], toward[2] - ship.position[2]
           ], ship.position));
+          if (route.approachingPort) {
+            const arrival = chart.cityCalls.find(call => call.cityId === city.cityId);
+            if (!arrival) throw new Error(`Pilot arrival port is missing from the local chart: ${city.cityId}`);
+            const input = playtestDockSteeringInput(localLayout, arrival);
+            browserJourneySteering = cameraSpaceHeadingForShip(input.dx, input.dy);
+          }
           // Follow the rendered channel, not the land tile's geometric center.
           const localDirection = tangentToScreenDirection(browserJourneySteering);
           const guide = npcRiverNavigationDirection({ tileId: ship.tileId,
             x: localLayout.viewX, y: localLayout.viewY, heading: ship.heading }, localDirection,
             shipIsInRiverWater() ? "river" : "openWater");
-          if (guide) browserJourneySteering = cameraSpaceHeadingForShip(guide.x, -guide.y);
+          if (guide && !route.approachingPort) browserJourneySteering = cameraSpaceHeadingForShip(guide.x, -guide.y);
+          const stats = currentPlayerEffectiveShipStats();
+          if (!shipIsInRiverWater() && !shipCanUseOars(stats)) {
+            const legComplete = route.tackStart &&
+              vectorArcDistance(ship.position, route.tackStart) * PIXELS_PER_RADIAN >= 24;
+            const tack = chooseNpcSailingDirection({
+              desiredDirection: tangentToScreenDirection(browserJourneySteering),
+              windFlowDirection: tangentToScreenDirection(windFlowVectorAtShip(windForShip())),
+              stallAngleRad: stats.upwindStallAngleRad,
+              currentDirection: tangentToScreenDirection(ship.heading),
+              preferredTackSide: legComplete ? -route.tackSide : (route.tackSide || 0),
+              committedTackSide: legComplete ? 0 : (route.tackSide || 0)
+            });
+            if (tack.tacking && (tack.tackSide !== route.tackSide || legComplete)) route.tackStart = ship.position.slice();
+            route.tackSide = tack.tackSide;
+            browserJourneySteering = cameraSpaceHeadingForShip(tack.direction.x, -tack.direction.y);
+          }
         }
         runFrame(lastFrameMs + 1000 / 60, { scheduleNextFrame: false, forceRender: true });
       }
@@ -17224,6 +17246,8 @@ async function runBrowserJourneyCommand(command) {
   const options = offered();
   return {
     navigation: browserJourneyRoute ? { index: browserJourneyRoute.index,
+      crew: gameState.ship.crew, anchored, gameOverReason, inRiver: shipIsInRiverWater(),
+      sailEfficiency: sailingEfficiency(ship.heading, windFlowVectorAtShip(windForShip())),
       tileId: ship.tileId, approachingPort: browserJourneyRoute.approachingPort === true,
       nearbyTiles: browserJourneyRoute.tiles.slice(Math.max(0, browserJourneyRoute.index - 2), browserJourneyRoute.index + 3),
       lastTile: browserJourneyRoute.tiles.at(-1) } : null,

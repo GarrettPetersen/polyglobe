@@ -42,6 +42,8 @@ export function checklistMenuCommand(state, goal) {
   const back = () => choose(action => action.nodeId === "root" || action.type === "leave-market") ||
     choose(action => ["inn-drink", "equipment"].includes(action.nodeId));
   switch (goal) {
+    case "provision": return choose(action => action.type === "select-loadout" && action.loadoutId === state.gameState.ship.loadoutId) ||
+      node("loadout") || location("port-authority") || location("market") || back();
     case "buy-cargo": return choose(action => action.type === "buy") ||
       choose(action => action.type === "switch-market-mode" && action.mode === "buy") || location("market") || node("market") || back();
     case "sell-cargo":
@@ -101,9 +103,24 @@ export async function runBrowserChecklist({ command, initialState, random, check
     return false;
   };
   const leave = async () => {
+    let provisioning = false;
+    let provisioned = false;
     for (let attempt = 0; attempt < 30; attempt++) {
       if (await clearOverlay()) continue;
       if (!state.nodeId && !state.options.length) return;
+      if (!provisioned && (provisioning || state.locations.includes("market") && checklistNeedsProvisions(state.gameState))) {
+        provisioning = true;
+        const input = checklistMenuCommand(state, "provision");
+        assert.ok(input, `No offered provision action at ${state.nodeId}`);
+        const action = state.options.find(option => option.id === input.id)?.action;
+        await act(input);
+        if (action?.type === "select-loadout") {
+          provisioned = true;
+          assert.ok(state.gameState.ship.crew > 0 && Object.entries(state.gameState.cargo).some(([id, amount]) =>
+            amount > 0 && tradeGoodById(id).category === "food"), "Pilot could not obtain crew and provisions before departure");
+        }
+        continue;
+      }
       if (state.locations.includes("set-sail")) { await act({ type: "location", id: "set-sail" }); continue; }
       const option = state.options.find(option => !option.disabled &&
         (option.action.type === "close" || option.action.nodeId === "root" || option.action.type === "leave-market"));
@@ -233,4 +250,10 @@ export async function runBrowserChecklist({ command, initialState, random, check
   if (goals.includes("teleport-and-dock")) assert.ok(report.travel.some(leg => leg.teleport));
   if (goals.includes("sail-and-dock")) assert.ok(report.travel.some(leg => !leg.teleport && leg.sailingCommands > 0));
   return report;
+}
+
+export function checklistNeedsProvisions(state) {
+  const food = Object.entries(state.cargo).reduce((total, [id, amount]) =>
+    total + (tradeGoodById(id).category === "food" ? amount : 0), 0);
+  return state.ship.crew < 1 || food < Math.max(1, state.ship.loadoutTargets.foodUnits / 2);
 }

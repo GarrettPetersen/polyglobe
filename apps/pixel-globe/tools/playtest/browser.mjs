@@ -95,6 +95,7 @@ try {
         }), value.cityId);
         report.sailingFrames = (report.sailingFrames || 0) + 120;
         lastState = result;
+        assert.equal(result.navigation?.gameOverReason, null, `Pilot voyage ended while sailing: ${result.navigation?.gameOverReason}`);
         assert.deepEqual(failures, [], "Browser emitted a runtime error while sailing");
         if (result.modal || result.menu || result.nodeId || result.options.length ||
             result.ports.some((port) => port.cityId === value.cityId && port.inRange)) break;

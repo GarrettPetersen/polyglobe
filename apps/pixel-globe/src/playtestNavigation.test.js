@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { planPlaytestRoute, playtestRouteIndexForTile, playtestSteeringTarget } from "./playtestNavigation.js";
+import { planPlaytestRoute, playtestRouteIndexForTile, playtestSteeringTarget, playtestDockSteeringInput, playtestArrivalTile } from "./playtestNavigation.js";
 import { playerActionId } from "./playerActionIdentity.js";
 
 test("test pilot routes around land and refuses disconnected destinations", () => {
@@ -46,4 +46,17 @@ test("port approach continues after leaving the final route tile", () => {
   assert.equal(playtestSteeringTarget(route, 13, 20), 20);
   assert.equal(playtestSteeringTarget(route, 11, 20), 20);
   assert.equal(playtestSteeringTarget({ tiles: [12], index: 1 }, 12, 20), 20);
+});
+
+test("final docking aims at the offset interaction point with screen-y converted once", () => {
+  const port = { x: 100, y: 100, interactionX: 38, interactionY: -12 };
+  assert.deepEqual(playtestDockSteeringInput({ viewX: 2, viewY: -6 }, port), { dx: 36, dy: 6 });
+  assert.deepEqual(playtestDockSteeringInput({ viewX: 50, viewY: -20 }, port), { dx: -12, dy: -8 });
+  assert.throws(() => playtestDockSteeringInput({ viewX: 0, viewY: 0 }, { x: 10, y: 10 }), /interaction point/);
+});
+
+test("arrival uses the actual river port tile or an adjacent coastal water tile", () => {
+  assert.equal(playtestArrivalTile(10, () => [11, 12], () => true), 10);
+  assert.equal(playtestArrivalTile(10, () => [11, 12], id => id === 12), 12);
+  assert.throws(() => playtestArrivalTile(10, () => [11, 12], () => false), /no navigable arrival/);
 });

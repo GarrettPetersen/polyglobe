@@ -34,3 +34,17 @@ export function playtestSteeringTarget(route, tileId, portTileId) {
   route.approachingPort = route.approachingPort === true || tileId === route.tiles.at(-1);
   return route.approachingPort ? portTileId : route.tiles[route.index];
 }
+
+/** Local chart y increases downward; camera steering y increases upward. */
+export function playtestDockSteeringInput({ viewX, viewY }, { interactionX, interactionY }) {
+  if (![viewX, viewY, interactionX, interactionY].every(Number.isFinite)) {
+    throw new Error("Pilot docking requires a finite port interaction point and ship position");
+  }
+  return { dx: interactionX - viewX, dy: viewY - interactionY };
+}
+
+export function playtestArrivalTile(cityTileId, neighbors, isNavigable) {
+  const tileId = [cityTileId, ...neighbors(cityTileId)].find(isNavigable);
+  if (tileId === undefined) throw new Error(`Pilot port has no navigable arrival tile: ${cityTileId}`);
+  return tileId;
+}

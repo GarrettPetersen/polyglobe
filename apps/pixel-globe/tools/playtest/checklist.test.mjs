@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CHECKLIST_GOALS, checklistTravelDestination, shuffledChecklist, checklistMenuCommand, singleDialogueOptionCommand, runBrowserChecklist } from "./checklist.mjs";
+import { CHECKLIST_GOALS, checklistNeedsProvisions, checklistTravelDestination, shuffledChecklist, checklistMenuCommand, singleDialogueOptionCommand, runBrowserChecklist } from "./checklist.mjs";
 import { randomForSeed } from "./journey.mjs";
 
 test("every seeded checklist includes every objective once, in reproducible varied orders", () => {
@@ -113,4 +113,15 @@ test("travel goals select current canonical destinations instead of inventing po
   assert.equal(checklistTravelDestination({ cityId: "lisbon|portugal", destinations: destinations.filter(p => p.cityId !== "oporto|portugal") }), "cadiz|spain");
   assert.throws(() => checklistTravelDestination({ cityId: "lisbon|portugal", destinations: destinations.slice(0, 1) }), /No accessible alternative/);
   assert.deepEqual(destinations.map(p => p.cityId), ["lisbon|portugal", "oporto|portugal", "cadiz|spain"]);
+});
+
+test("departure maintenance requests real loadout service before stores or crew are exhausted", () => {
+  const gameState = { ship: { crew: 4, loadoutId: "short-haul", loadoutTargets: { foodUnits: 20 } }, cargo: { hardtack: 20 } };
+  assert.equal(checklistNeedsProvisions(gameState), false);
+  gameState.cargo.hardtack = 3;
+  assert.equal(checklistNeedsProvisions(gameState), true);
+  const state = { gameState, locations: [], options: [{ id: "refill", action: { type: "select-loadout", loadoutId: "short-haul" } }] };
+  assert.deepEqual(checklistMenuCommand(state, "provision"), { type: "choose", id: "refill" });
+  gameState.cargo.hardtack = 20; gameState.ship.crew = 0;
+  assert.equal(checklistNeedsProvisions(gameState), true);
 });
