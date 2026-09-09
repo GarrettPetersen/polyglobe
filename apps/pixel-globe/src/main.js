@@ -7,7 +7,7 @@ import { EXETER_CITY_ID, TOPSHAM_CITY_ID, exeterCanalStage, exeterCanalQuestView
 import { exeterCanalNavigation, exeterCanalPort } from "./exeterCanalNavigation.js";
 import { sailingCorrectionDistancePx } from "./sailingContinuity.js";
 import { playerShipyardSnapshot, restorePlayerShipyardSnapshot, snapshotPlayerShipyards } from "./playerShipyardPersistence.js";
-import { planPlaytestRoute, playtestRouteIndexForTile } from "./playtestNavigation.js";
+import { planPlaytestRoute, playtestSteeringTarget } from "./playtestNavigation.js";
 import { playerActionId } from "./playerActionIdentity.js";
 import { coastalWaterBands } from "./terrainDistance.js";
 import { landmassChannelNavigationAnchor } from "./landmassChannels.js";
@@ -17187,10 +17187,7 @@ async function runBrowserJourneyCommand(command) {
                 isDestination: (id) => vectorArcDistance(tileCenterVector(id), destination) * PIXELS_PER_RADIAN < PORT_INTERACTION_RADIUS_PX * 1.7 }) };
           }
           const route = browserJourneyRoute;
-          route.index = playtestRouteIndexForTile(route.tiles, route.index, ship.tileId);
-          const lastTile = route.tiles[route.tiles.length - 1];
-          const approachingPort = vectorArcDistance(ship.position, tileCenterVector(lastTile)) * PIXELS_PER_RADIAN < 8;
-          const toward = tileCenterVector(approachingPort ? city.tileId : route.tiles[Math.min(route.index, route.tiles.length - 1)]);
+          const toward = tileCenterVector(playtestSteeringTarget(route, ship.tileId, city.tileId));
           browserJourneySteering = normalizeOrNull(projectTangentVector([
             toward[0] - ship.position[0], toward[1] - ship.position[1], toward[2] - ship.position[2]
           ], ship.position));
@@ -17226,6 +17223,10 @@ async function runBrowserJourneyCommand(command) {
   validateGameState(gameState);
   const options = offered();
   return {
+    navigation: browserJourneyRoute ? { index: browserJourneyRoute.index,
+      tileId: ship.tileId, approachingPort: browserJourneyRoute.approachingPort === true,
+      nearbyTiles: browserJourneyRoute.tiles.slice(Math.max(0, browserJourneyRoute.index - 2), browserJourneyRoute.index + 3),
+      lastTile: browserJourneyRoute.tiles.at(-1) } : null,
     gameState: structuredClone(gameState), playerShip: snapshotPlayerShip(), minute: weatherClockMinutes,
     nodeId: dialogueState?.nodeId || dialogueState?.kind || null, cityId: dialogueState?.cityId || null,
     menu: aboardMenu.isOpen || politicsMenu.isOpen || captainMenu.isOpen || Boolean(portWaitState),

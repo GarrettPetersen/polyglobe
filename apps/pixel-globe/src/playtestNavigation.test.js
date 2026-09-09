@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { planPlaytestRoute, playtestRouteIndexForTile } from "./playtestNavigation.js";
+import { planPlaytestRoute, playtestRouteIndexForTile, playtestSteeringTarget } from "./playtestNavigation.js";
 import { playerActionId } from "./playerActionIdentity.js";
 
 test("test pilot routes around land and refuses disconnected destinations", () => {
@@ -36,4 +36,14 @@ test("river waypoints advance on tile entry and recover after channel backtracki
   assert.equal(playtestRouteIndexForTile(tiles, 3, 10), 1);
   assert.equal(playtestRouteIndexForTile(tiles, 3, 13), 3);
   assert.equal(playtestRouteIndexForTile(tiles, 2, 99), 2);
+});
+
+test("port approach continues after leaving the final route tile", () => {
+  const route = { tiles: [10, 11, 12], index: 1 };
+  assert.equal(playtestSteeringTarget(route, 10, 20), 11);
+  assert.equal(playtestSteeringTarget(route, 11, 20), 12);
+  assert.equal(playtestSteeringTarget(route, 12, 20), 20);
+  assert.equal(playtestSteeringTarget(route, 13, 20), 20);
+  assert.equal(playtestSteeringTarget(route, 11, 20), 20);
+  assert.equal(playtestSteeringTarget({ tiles: [12], index: 1 }, 12, 20), 20);
 });

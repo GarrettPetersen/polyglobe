@@ -86,6 +86,9 @@ try {
     if (value.type === "sail") {
       // Replay the player's destination intent, not worker-timing-dependent
       // frame counts. Interruptions still require their recorded real choices.
+      const checkpoint = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.journey({ type: "save" }));
+      writeFileSync(resolve(output, "sailing-replay.json"), JSON.stringify({ version: 1, revision, dirty, seed,
+        initial: checkpoint.serialized, trace: [{ type: "observe" }, value] }));
       for (let batch = 0; batch < 400; batch++) {
         result = await page.evaluate((cityId) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.journey({
           type: "step", frames: 120, cityId

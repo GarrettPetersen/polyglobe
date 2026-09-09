@@ -26,3 +26,11 @@ export function playtestRouteIndexForTile(tiles, index, tileId) {
   const current = tiles.indexOf(tileId);
   return current < 0 ? index : Math.min(current + 1, tiles.length - 1);
 }
+
+/** Advance the pilot's route state and return its steering target tile. Once
+ * the arrival tile is reached, continue toward port even after leaving it. */
+export function playtestSteeringTarget(route, tileId, portTileId) {
+  route.index = playtestRouteIndexForTile(route.tiles, route.index, tileId);
+  route.approachingPort = route.approachingPort === true || tileId === route.tiles.at(-1);
+  return route.approachingPort ? portTileId : route.tiles[route.index];
+}
