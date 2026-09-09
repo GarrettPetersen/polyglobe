@@ -123,7 +123,8 @@ export async function runBrowserChecklist({ command, initialState, random, check
       }
       if (state.locations.includes("set-sail")) { await act({ type: "location", id: "set-sail" }); continue; }
       const option = state.options.find(option => !option.disabled &&
-        (option.action.type === "close" || option.action.nodeId === "root" || option.action.type === "leave-market"));
+        (option.action.type === "close" || ["root", "inn-drink", "equipment"].includes(option.action.nodeId) ||
+          option.action.type === "leave-market"));
       assert.ok(option, `No ordinary exit from ${state.nodeId}`);
       await act({ type: "choose", id: option.id });
     }

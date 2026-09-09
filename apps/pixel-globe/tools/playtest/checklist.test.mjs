@@ -136,9 +136,14 @@ test("recruitment leaves an empty muster and hires at another port in the same v
     trace.push(input);
     if (input.type === "location" && input.id === "inn") state = { ...state, nodeId: "crew-recruitment", locations: [], options: [
       ...(state.cityId === "lisbon|portugal" ? [{ id: "hire", action: { type: "hire-crew-member", memberId: "new" } }] : []),
-      { id: "exit", action: { type: "node", nodeId: "root" } }
+      { id: "exit", action: { type: "node", nodeId: "inn-drink" } }
     ] };
-    if (input.type === "choose" && input.id === "exit") state = { ...state, nodeId: "root", locations: ["inn", "set-sail"], options: [] };
+    if (input.type === "choose" && input.id === "exit") state = { ...state, nodeId: "inn-drink", locations: [], options: [
+      { id: "back-to-city", action: { type: "node", nodeId: "root" } }
+    ] };
+    if (input.type === "choose" && input.id === "back-to-city") {
+      state = { ...state, nodeId: "root", locations: ["inn", "set-sail"], options: [] };
+    }
     if (input.type === "location" && input.id === "set-sail") state = { ...state, cityId: null, nodeId: null, locations: [], options: [] };
     if (input.type === "teleport") state = { ...state, ports: [{ cityId: input.cityId, inRange: true }] };
     if (input.type === "dock") state = { ...state, cityId: input.cityId, nodeId: "root", locations: ["inn", "set-sail"], options: [] };
