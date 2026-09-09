@@ -398,3 +398,16 @@ test("sail-only ships still stall head to wind", () => {
   assert.equal(performance.rowing, false);
   assert.equal(performance.maxSpeedRad, Infinity);
 });
+
+test("attainable speed remains finite when a stalled sail leaves coasting momentum uncapped", () => {
+  for (const stats of SHIP_STATS) for (const sailEfficiency of [0, .5, 1]) {
+    const performance = shipPropulsionPerformance(stats, { windStrength: 1, sailEfficiency });
+    assert.ok(Number.isFinite(performance.attainableSpeedRad));
+    assert.ok(performance.attainableSpeedRad >= 0 && performance.attainableSpeedRad <= stats.topSpeedRad);
+    assert.equal(performance.attainableSpeedRad * 0, 0, `${stats.slug}: stationary staging must not produce NaN`);
+    if (stats.propulsion === SHIP_PROPULSION_SAIL && sailEfficiency === 0) {
+      assert.equal(performance.attainableSpeedRad, 0);
+      assert.equal(performance.maxSpeedRad, Infinity, "coasting momentum still uses drag, not an instant speed clamp");
+    } else assert.equal(performance.attainableSpeedRad, performance.maxSpeedRad);
+  }
+});

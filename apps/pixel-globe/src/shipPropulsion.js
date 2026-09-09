@@ -137,9 +137,11 @@ export function shipPropulsionPerformance(stats, {
   const asternAccelerationScale = rowingDirection < 0 ? ROWING_ASTERN_ACCELERATION_RATIO : 1;
 
   if (stats.propulsion === SHIP_PROPULSION_OAR) {
+    const maxSpeedRad = stats.topSpeedRad * rowingPower * asternSpeedScale;
     return Object.freeze({
       accelerationFactor: rowingPower * asternAccelerationScale,
-      maxSpeedRad: stats.topSpeedRad * rowingPower * asternSpeedScale,
+      maxSpeedRad,
+      attainableSpeedRad: maxSpeedRad,
       stalled: rowingPower <= 0,
       rowing: rowingPower > 0,
       propulsionDirection: rowingPower > 0 ? rowingDirection : 0
@@ -161,11 +163,11 @@ export function shipPropulsionPerformance(stats, {
     const rowingMaxSpeed = stats.topSpeedRad * HYBRID_ROWING_SPEED_RATIO * rowingPower * asternSpeedScale;
     const rowingAcceleration = HYBRID_ROWING_ACCELERATION_RATIO * rowingPower * asternAccelerationScale;
     const rowing = rowingPower > 0;
+    const maxSpeedRad = backing ? rowingMaxSpeed : Math.min(stats.topSpeedRad, sailMaxSpeed + rowingMaxSpeed);
     return Object.freeze({
       accelerationFactor: backing ? rowingAcceleration : sailAcceleration + rowingAcceleration,
-      maxSpeedRad: backing
-        ? rowingMaxSpeed
-        : Math.min(stats.topSpeedRad, sailMaxSpeed + rowingMaxSpeed),
+      maxSpeedRad,
+      attainableSpeedRad: maxSpeedRad,
       stalled: backing ? rowingMaxSpeed <= 0 : sailMaxSpeed <= 0 && rowingMaxSpeed <= 0,
       rowing,
       propulsionDirection: backing ? -1 : 1
@@ -177,7 +179,10 @@ export function shipPropulsionPerformance(stats, {
   }
   return Object.freeze({
     accelerationFactor: sailAcceleration,
+    // Infinity leaves existing momentum uncapped while the sails are stalled;
+    // it is not a speed that propulsion can produce.
     maxSpeedRad: sailEfficiency <= 0 ? Infinity : sailMaxSpeed,
+    attainableSpeedRad: sailMaxSpeed,
     stalled: sailEfficiency <= 0,
     rowing: false,
     propulsionDirection: 1

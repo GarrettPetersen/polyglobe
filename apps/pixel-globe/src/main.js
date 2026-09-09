@@ -13648,8 +13648,8 @@ function captureSailingPerformance() {
   const speedRad = vectorLength(ship.velocity);
   return {
     angleFromWindDeg: Math.acos(clamp(-alignment, -1, 1)) * 180 / Math.PI,
-    attainableSpeedRad: propulsion.maxSpeedRad,
-    attainableSpeedRatio: speedRad / propulsion.maxSpeedRad,
+    attainableSpeedRad: propulsion.attainableSpeedRad,
+    attainableSpeedRatio: propulsion.attainableSpeedRad > 0 ? speedRad / propulsion.attainableSpeedRad : 0,
     hullTopSpeedRatio: speedRad / stats.topSpeedRad
   };
 }
