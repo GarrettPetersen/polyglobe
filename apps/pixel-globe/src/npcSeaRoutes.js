@@ -4516,6 +4516,23 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
     ? Math.max(maxPlans, NPC_ENCOUNTER_SETTLEMENT_PLAN_LIMIT)
     : maxPlans;
   while (ship.plan && clockMinutes >= ship.plan.endMinute && guard < detailedPlanLimit) {
+    if (isSavedEncounterPoint(ship.plan.destination)) {
+      // A spatial encounter endpoint is not a port. Keep the encounter present
+      // for its owning quest without trading, repairing or choosing a port route.
+      const destination = ship.plan.destination;
+      const origin = ship.plan.origin;
+      const heading = headingVectorForVectors(latLonToVector(destination.lat, destination.lon),
+        latLonToVector(origin.lat, origin.lon), latLonToVector(destination.lat, destination.lon));
+      const startMinute = ship.plan.endMinute;
+      ship.currentPort = destination;
+      ship.finalDestination = null;
+      ship.visualNavigation = { vector: latLonToVector(destination.lat, destination.lon), heading };
+      ship.plan = { origin, destination, startMinute,
+        endMinute: clockMinutes + WEATHER_MINUTES_PER_DAY,
+        segments: [{ kind: "wait", startMinute, endMinute: clockMinutes + WEATHER_MINUTES_PER_DAY }] };
+      changed = true;
+      break;
+    }
     ship.currentPort = ship.plan.destination;
     ship.portVisits += 1;
     if (system.onForeignPortCall && !ship.currentPort.isFishingGround && !ship.currentPort.isWhalingGround &&

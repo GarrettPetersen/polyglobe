@@ -3894,3 +3894,27 @@ for (const phase of ["snapshot-ships", "preserved-ships", "validate-ships", "hid
     assert.deepEqual(routes.replacementQueue.filter(entry => entry.shipId === victim.id), [replacement]);
   });
 }
+
+test("offshore encounters outlive their route without inventing a port arrival", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const ship = configureNpcEncounter(routes, { id: "long-lived-offshore", captainHomeCityId: PORTS[0].cityId,
+    factionId: "portugal", role: NPC_ROLE_WARSHIP, shipSlug: "fusta", lat: 38.5, lon: -10.12,
+    headingDeg: 0, durationDays: 1, encounter: { kind: "capture-fight", forceAttack: true } }, 1000);
+  const endMinute = ship.plan.endMinute;
+  damageNpcShip(routes, ship.id, 1, { bypassArmor: true });
+  const hull = ship.hitPoints;
+  updateNpcSeaRouteEvents(routes, endMinute + 1, [ship.id]);
+  assert.equal(ship.plan.segments[0].kind, "wait");
+  assert.equal(ship.portVisits, 0);
+  assert.equal(ship.hitPoints, hull);
+  assert.equal(ship.finalDestination, null);
+  releaseNpcShipVisualNavigation(routes, ship.id, endMinute + 1, ship.visualNavigation.vector);
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  applyNpcSeaRouteSimulationSnapshot(routes, snapshot);
+  updateNpcSeaRouteEvents(routes, endMinute + 365 * 1440, [ship.id]);
+  const held = routes.shipById.get(ship.id);
+  assert.equal(held.portVisits, 0);
+  assert.equal(held.hitPoints, hull);
+  assert.ok(held.plan.endMinute > endMinute + 365 * 1440);
+});
