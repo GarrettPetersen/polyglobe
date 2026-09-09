@@ -8809,3 +8809,33 @@ test("repeated buying and selling never resolve unrelated shipyard rumours", () 
     assert.equal(state.accounts.ledger.at(-1).simMinute, 123);
   }
 });
+
+
+test("seasonally icebound colonies warn before embarkation and during resupply", () => {
+  for (const cityId of ["quebec|canada", "port royal|canada"]) {
+    const target = { ...colonizationTargetForCity({ cityId }), tileId: 900 };
+    const origin = { cityId: "bordeaux|france", city: "Bordeaux", country: "France", factionId: "france",
+      tileId: 901, lat: 51.5, lon: 0, cityType: "northern-european", population: 60000,
+      character: { name: "Thomas Ward", role: "harbour-master" } };
+    const stats = shipStatsForSlug("galleon");
+    const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+    assignColonizationQuest(state.memory.colonization, { target, origin });
+    const economy = createWorldEconomy({ ports: [origin], startMinute: 0 });
+    const check = (city) => {
+      const session = createPortDialogueSession(city, { initialNodeId: "colonization" });
+      const view = portDialogueView(session, city, state, economy, [origin], { shipStats: stats, simMinute: 101 });
+      assert.equal(/ice closes the passage/.test(view.text), cityId === "quebec|canada", view.text);
+    };
+    check(origin);
+    for (const stage of colonizationQuestView(state).history.fetchStages) completeColonizationFetchStage(state.memory.colonization, stage.id);
+    check(origin);
+    beginColonizationExpedition(state.memory.colonization);
+    const settlement = { ...target, character: origin.character };
+    check(settlement);
+    landColonists(state.memory.colonization, 100);
+    check(settlement);
+    advanceColonizationQuest(state.memory.colonization, 101, { awayFromColony: true });
+    check(settlement);
+    check(origin);
+  }
+});

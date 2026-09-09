@@ -1,3 +1,4 @@
+import { colonySeasonalAccessWarning } from "./colonySeasonalAccess.js";
 import { activeQuestById } from "./activeQuests.js";
 import { purchaseShipyardUpgrade, shipyardHasAdvancedFacilities } from "./shipyards.js";
 import { SHIPYARD_UPGRADE_IDS, shipyardUpgradeOffers } from "./shipyardUpgrades.js";
@@ -5968,6 +5969,8 @@ function colonizationView(session, city, gameState, context) {
     };
   }
 
+  const seasonalWarning = colonySeasonalAccessWarning(quest.target.cityId);
+
   if (quest.stage === COLONIZATION_STAGE_FETCH) {
     if (!atOrigin) throw new Error(`${targetName} site exists before its expedition departed`);
     const stage = quest.fetchStage;
@@ -5983,6 +5986,7 @@ function colonizationView(session, city, gameState, context) {
       expressionId: quest.canDeliverFetch ? "pleased" : "attentive",
       text: `${introduction} ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ` +
         `${stage.purpose}. I will pay ${stage.reward} doubloons when the order is complete.` +
+        (seasonalWarning ? ` ${seasonalWarning}` : "") +
         `${quest.fetchDelivered > 0
           ? ` You have already delivered ${quest.fetchDelivered} of ${stage.quantity}.`
           : ""}`,
@@ -6025,7 +6029,7 @@ function colonizationView(session, city, gameState, context) {
     return {
       speaker: `${organizer}, ${history.sponsorRole}`,
       expressionId: eligibility?.eligible && quest.approvalCargoReady ? "happy" : "concerned",
-      text: `${tradeWarning} ${history.ready} ${travelers} need 24 hold spaces.${negotiationCargo} ${targetName} lies ${Math.round(quest.target.distanceKm || 0).toLocaleString("en-US")} km away.${route} They need a capacious, seaworthy ship.`,
+      text: `${tradeWarning} ${history.ready} ${travelers} need 24 hold spaces.${negotiationCargo} ${targetName} lies ${Math.round(quest.target.distanceKm || 0).toLocaleString("en-US")} km away.${route} They need a capacious, seaworthy ship.${seasonalWarning ? ` ${seasonalWarning}` : ""}`,
       feedback: session.feedback,
       options: [
         option(developsExistingPort ? "Take the delegation aboard" : "Take the colonists aboard", {
@@ -6064,7 +6068,7 @@ function colonizationView(session, city, gameState, context) {
     return {
       speaker: `${organizer}, ${history.sponsorRole}`,
       expressionId: "happy",
-      text: history.landing,
+      text: `${history.landing}${seasonalWarning ? ` ${seasonalWarning}` : ""}`,
       feedback: session.feedback,
       options: [
         option(history.landingAction, { type: "land-colonists" }),
@@ -6078,7 +6082,7 @@ function colonizationView(session, city, gameState, context) {
       return {
         speaker: `${organizer}, ${history.sponsorRole}`,
         expressionId: "attentive",
-        text: history.resupply.originReminder,
+        text: `${history.resupply.originReminder}${seasonalWarning ? ` ${seasonalWarning}` : ""}`,
         feedback: session.feedback,
         options: [back]
       };
@@ -6093,6 +6097,7 @@ function colonizationView(session, city, gameState, context) {
       expressionId: canDeliver ? "happy" : "concerned",
       text: `${deadlineText} A timely resupply earns ${quest.resupply.reward} doubloons and ` +
         `gives ${targetName} the stores it needs to become a permanent city.` +
+        (seasonalWarning ? ` ${seasonalWarning}` : "") +
         `${quest.resupply.delivered > 0
           ? ` You have already delivered ${quest.resupply.delivered} of ` +
             `${quest.resupply.quantity}.`

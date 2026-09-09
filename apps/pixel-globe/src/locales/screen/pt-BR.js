@@ -16,6 +16,7 @@ export default Object.freeze({
   "{0} A timely resupply earns {1} doubloons and": "{0} Um reabastecimento oportuno rende {1} dobrões e",
   "{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.": "{0} Um reabastecimento oportuno rende {1} dobrões e dá a {2} os estoques necessários para se tornar uma cidade permanente.",
   "{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.{3}": "{0} Um reabastecimento oportuno rende {1} dobrões e dá a {2} os estoques necessários para se tornar uma cidade permanente.{3}",
+  "{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.{3}{4}": "{0} Um reabastecimento oportuno rende {1} dobrões e dá a {2} os estoques necessários para se tornar uma cidade permanente.{3}{4}",
   "{0} ABOARD": "{0} A BORDO",
   "{0} ABOARD{1}": "{0} A BORDO{1}",
   "{0} accepted. Monsignor": "{0} aceito. Monsenhor",

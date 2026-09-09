@@ -28,7 +28,8 @@ export const CATALOG_BUILD_TOOLS = Object.freeze([
 export const CATALOG_ARTIFACT_PATHS = Object.freeze([
   "public/assets/data/port-sailing-distances.json",
   "public/assets/data/land-roads.json",
-  "city-visualizer/data/cities.json"
+  "city-visualizer/data/cities.json",
+  "src/colonySeasonalAccessData.js"
 ]);
 const SHARED_ROOT = "../../examples/globe-demo/public";
 const CATALOG_DATA_INPUTS = Object.freeze([
@@ -84,7 +85,7 @@ export async function currentCatalogSnapshot(appRoot = APP_ROOT) {
     readFile(resolve(sharedRoot, "datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"), "utf8"),
     ...CATALOG_ARTIFACT_PATHS.map((path) => readFile(resolve(appRoot, path), "utf8"))
   ]);
-  const [sailing, roads, scenes] = artifacts.map((text) => JSON.parse(text));
+  const [sailing, roads, scenes] = artifacts.slice(0, 3).map((text) => JSON.parse(text));
   const earth = JSON.parse(earthText);
   const graph = decodeGeodesicGraphBake(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), WORLD_GLOBE_SUBDIVISIONS);
   const earthRows = applyManualTerrainOverrides(earth.tiles, WORLD_GLOBE_SUBDIVISIONS);

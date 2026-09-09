@@ -16,6 +16,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "{0} A timely resupply earns {1} doubloons and",
   "{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.",
   "{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.{3}",
+  "{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.{3}{4}",
   "{0} ABOARD",
   "{0} ABOARD{1}",
   "{0} accepted. Monsignor",

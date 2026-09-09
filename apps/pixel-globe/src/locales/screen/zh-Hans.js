@@ -16,6 +16,7 @@ export default Object.freeze({
   "{0} A timely resupply earns {1} doubloons and": "{0}及时补给可赚取{1}达布隆和",
   "{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.": "{0}及时补给可赚取{1}达布隆，并为{2}提供成为永久城市所需的商店。",
   "{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.{3}": "{0} 及时补给可赚取 {1} 达布隆，并为 {2} 提供成为永久城市所需的商店。{3}",
+  "{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.{3}{4}": "{0}及时补给可赚取{1}达布隆，并为{2}提供成为永久城市所需的商店。{3}{4}",
   "{0} ABOARD": "{0} 上船",
   "{0} ABOARD{1}": "{0} 登上{1}",
   "{0} accepted. Monsignor": "{0} 已接受。蒙席格诺尔",
