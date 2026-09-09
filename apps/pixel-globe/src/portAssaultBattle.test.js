@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   PORT_ASSAULT_OUTCOME,
+  PORT_ASSAULT_RESULT_PRESENTATION_DURATION_MS,
   PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS,
   PORT_ASSAULT_MAX_GARRISON,
   PORT_ASSAULT_MIN_GARRISON,
@@ -335,6 +336,34 @@ test("shield blocks negate damage and are represented in the battle timeline", (
   const battle = results[0];
   const presentation = portAssaultPresentationAt(battle, Math.min(1000, battle.durationMs));
   assert.ok(Array.isArray(presentation.units));
+});
+
+test("victorious attackers keep marching into the city while the result is shown", () => {
+  const battle = simulatePortAssault(scenario({ attackerCount: 12, defenderCount: 8 }), 1);
+  assert.equal(battle.outcome, PORT_ASSAULT_OUTCOME.VICTORY);
+  const resultFrame = portAssaultPresentationAt(battle, battle.durationMs);
+  const marchingFrame = portAssaultPresentationAt(battle, battle.durationMs + 1_000);
+  const survivingAttackers = resultFrame.units.filter((unit) => (
+    unit.side === "attacker" && unit.alive
+  ));
+  const marchingById = new Map(marchingFrame.units.map((unit) => [unit.id, unit]));
+
+  assert.ok(survivingAttackers.length > 0);
+  assert.ok(survivingAttackers.some((unit) => (
+    marchingById.get(unit.id)?.position > unit.position
+  )));
+  assert.ok([...marchingById.values()].some((unit) => (
+    unit.side === "attacker" && unit.alive && unit.animationId === "walk"
+  )));
+
+  const enteredCity = portAssaultPresentationAt(
+    battle,
+    battle.durationMs + PORT_ASSAULT_RESULT_PRESENTATION_DURATION_MS
+  );
+  assert.equal(
+    enteredCity.units.filter((unit) => unit.side === "attacker" && unit.alive).length,
+    0
+  );
 });
 
 test("a fallen combatant retains the exact start time of its terminal death animation", () => {

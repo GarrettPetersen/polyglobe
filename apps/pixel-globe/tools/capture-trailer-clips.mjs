@@ -779,7 +779,9 @@ function verifyFeaturedSfx(sidecar, scenarioId) {
       throw new Error(`${scenarioId} did not pair the whale killing blow with its SFX`);
     }
   }
-  const requiresPlayerCannons = (sequence.kind === "fight" && sequence.variant !== "small-arms") ||
+  const requiresPlayerCannons = (
+    sequence.kind === "fight" && !["small-arms", "flee"].includes(sequence.variant)
+  ) ||
     (sequence.kind === "pillage" && sequence.variant === "bombard");
   if (requiresPlayerCannons) {
     const cannonEvents = sidecar.events.filter((event) => (
@@ -833,6 +835,26 @@ function verifyFeaturedSfx(sidecar, scenarioId) {
         `${scenarioId} needs two-way crossbow and matchlock fire; ` +
         `found player=${playerVolleys.length}, enemy=${enemyVolleys.length}, ` +
         `weapons=${[...firedWeapons].join(",")}`
+      );
+    }
+  }
+  if (sequence.kind === "fight" && sequence.variant === "flee") {
+    const pursuit = sidecar.events.find((event) => (
+      event.type === "capture-beat" && event.data?.action === "flee-under-fire"
+    ));
+    const enemyCannons = sidecar.events.filter((event) => (
+      event.type === "weapon-fired" && event.data?.ownerId !== "player" &&
+      event.data?.weapon === "cannon"
+    ));
+    const playerWeapons = sidecar.events.filter((event) => (
+      event.type === "weapon-fired" && event.data?.ownerId === "player"
+    ));
+    if (!pursuit || pursuit.data?.attackerIds?.length !== sequence.attackerIds.length ||
+        enemyCannons.length < 1 || playerWeapons.length !== 0) {
+      throw new Error(
+        `${scenarioId} did not show a clean multi-ship pursuit: ` +
+        `attackers=${pursuit?.data?.attackerIds?.length ?? 0}, ` +
+        `enemy cannons=${enemyCannons.length}, player weapons=${playerWeapons.length}`
       );
     }
   }

@@ -17,20 +17,33 @@
       "loop": "public/assets/music/combat-big-loop.ogg",
       "bpm": 87.5
     },
-    "fightStartFrame": 369,
+    "fightStartFrame": 489,
     "crossfadeFrames": 54,
     "combatSyncAttackFrame": 27,
     "transitionHeading": "Fight",
     "requiredPreviousHeading": "Commission",
     "syncCutFrames": [
-      60, 180, 240, 315, 369, 489, 609, 699, 753,
-      807, 861, 885, 909, 933, 957, 981, 1005, 1029
+      120, 180, 300, 360, 435, 489, 609, 729, 819,
+      873, 927, 981, 1005, 1029, 1053, 1077, 1101, 1125, 1149
     ]
   },
   "chapters": [
     {
       "heading": "Opening",
       "clips": [
+        {
+          "source": "demo/trailer-demo-launch-flee-ionian.mp4",
+          "startFrame": 15,
+          "durationFrames": 120,
+          "audioGain": 0.65,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredIncomingFire": {
+            "minimumAttackers": 2,
+            "minimumVolleys": 1,
+            "requirePlayerSilent": true
+          }
+        },
         {
           "source": "demo/trailer-demo-launch-sail-bosphorus.mp4",
           "startFrame": 27,
@@ -129,9 +142,9 @@
         },
         {
           "source": "demo/trailer-demo-launch-assault-rhodes.mp4",
-          "startFrame": 180,
+          "startFrame": 150,
           "durationFrames": 54,
-          "audioGain": 0.7,
+          "audioGain": 0.5,
           "requiredModalPolicy": "show",
           "requiredNaturalAssaultMoment": "landing",
           "requiredPlayerPortraitSourceId": "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait"
@@ -140,16 +153,16 @@
           "source": "demo/trailer-demo-launch-assault-rhodes.mp4",
           "startFrame": 1308,
           "durationFrames": 54,
-          "audioGain": 0.7,
+          "audioGain": 0.5,
           "requiredModalPolicy": "show",
           "requiredNaturalAssaultMoment": "battle",
           "requiredPlayerPortraitSourceId": "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait"
         },
         {
           "source": "demo/trailer-demo-launch-assault-rhodes.mp4",
-          "startFrame": 2322,
+          "startFrame": 2586,
           "durationFrames": 54,
-          "audioGain": 0.7,
+          "audioGain": 0.5,
           "requiredModalPolicy": "show",
           "requiredNaturalAssaultMoment": "victory",
           "requiredPlayerPortraitSourceId": "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait"

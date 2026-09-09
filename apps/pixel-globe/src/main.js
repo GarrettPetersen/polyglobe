@@ -11907,7 +11907,7 @@ function updateCaptureDirectorFrame(nowMs) {
 
 function captureSailingSimulationSeconds(seconds) {
   const sequence = captureDirector?.sequence;
-  return sequence?.kind === "sail" && sequence.sailingSimulationRate !== undefined
+  return sequence?.sailingSimulationRate !== undefined
     ? seconds * sequence.sailingSimulationRate
     : seconds;
 }
@@ -12477,6 +12477,29 @@ function captureUpwindVoyageCalloutData(sequence) {
 
 function updateCaptureFight(sequence) {
   if (captureDirector.elapsedSeconds >= 1.2) dismissCaptureOverlays();
+  if (sequence.variant === "flee") {
+    for (const attackerId of sequence.attackerIds) {
+      const attacker = npcVisualShips.get(attackerId);
+      if (attacker) {
+        attacker.portableWeaponItemIds = Object.freeze([]);
+      }
+    }
+    if (captureCue("verify-pursuit", 0.8)) {
+      const pursuingIds = sequence.attackerIds.filter((attackerId) => (
+        shipCombatState.engagements.has(engagementKey(PLAYER_COMBAT_ID, attackerId))
+      ));
+      if (pursuingIds.length !== sequence.attackerIds.length) {
+        throw new Error(
+          `Capture escape engaged ${pursuingIds.length}/${sequence.attackerIds.length} attackers`
+        );
+      }
+      emitCaptureEvent("capture-beat", {
+        action: "flee-under-fire",
+        attackerIds: pursuingIds
+      });
+    }
+    return;
+  }
   if (sequence.variant === "2v2-broadside") {
     captureDirector.steeringTarget = null;
     ship.velocity = [0, 0, 0];
@@ -13681,6 +13704,21 @@ function maximizeCaptureCombatLoadout(options = {}) {
 
 function stageCaptureFight(sequence) {
   maximizeCaptureCombatLoadout();
+  if (sequence.variant === "flee") {
+    gameState.ship.cannons = 0;
+    gameState.inventory.items = {};
+    syncShipCargoFromGameState();
+    const heading = captureHeadingVector(ship.position, sequence.escapeHeadingDeg);
+    ship.heading = heading;
+    ship.targetHeading = heading.slice();
+    const performance = captureSailingPerformance();
+    ship.velocity = scaleVector(
+      heading,
+      performance.attainableSpeedRad * sequence.escapeSpeedRatio
+    );
+    captureDirector.steeringTarget = captureSailingTarget(heading);
+    return;
+  }
   const encounters = CAPTURE_SCENARIO.encounters.filter((entry) => entry.id === sequence.encounterId);
   if (encounters.length !== 1) {
     throw new Error(`Capture encounter ${sequence.encounterId} matched ${encounters.length} scenarios`);

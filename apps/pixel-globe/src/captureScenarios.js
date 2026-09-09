@@ -1666,6 +1666,52 @@ const CAPTURE_SCENARIOS = Object.freeze({
       modalPolicy: "suppress"
     })
   }),
+  "trailer-demo-launch-flee-ionian": trailerScenario({
+    id: "trailer-demo-launch-flee-ionian",
+    debugCaption: "An Ottoman Felucca Escapes an Enemy Squadron",
+    seed: "trailer-demo-launch-flee-ionian-v1",
+    player: capturePlayer("ottoman", "felucca", 34.0, 17.0, 0, {
+      characterPortraitSourceId: DEMO_LAUNCH_OTTOMAN_CAPTAIN_SOURCE_ID,
+      homeCityId: DEMO_LAUNCH_OTTOMAN_HOME_CITY,
+      religionId: "sunni-islam"
+    }),
+    world: captureWorld(118, 13, 50),
+    diplomacy: [
+      { factionAId: "ottoman", factionBId: "venice", relation: "war" },
+      { factionAId: "ottoman", factionBId: "hospitallers", relation: "war" }
+    ],
+    encounters: [
+      captureFightEncounter(
+        "trailer-demo-launch-flee-ionian-venetian-west",
+        "venice",
+        "small-cog",
+        33.9,
+        16.35,
+        0
+      ),
+      captureFightEncounter(
+        "trailer-demo-launch-flee-ionian-hospitaller",
+        "hospitallers",
+        "fusta",
+        33.9,
+        17.65,
+        0
+      )
+    ],
+    sequence: trailerSequence("fight", "flee", {
+      durationSeconds: 7,
+      encounterId: "trailer-demo-launch-flee-ionian-hospitaller",
+      attackerIds: [
+        "trailer-demo-launch-flee-ionian-venetian-west",
+        "trailer-demo-launch-flee-ionian-hospitaller"
+      ],
+      escapeHeadingDeg: 0,
+      escapeSpeedRatio: 0.96,
+      sailingSimulationRate: 0.16,
+      requireOpenWaterCourse: true,
+      modalPolicy: "suppress"
+    })
+  }),
   "trailer-demo-launch-trade-istanbul": trailerScenario({
     id: "trailer-demo-launch-trade-istanbul",
     debugCaption: "Sell Wine in Thessaloniki",
@@ -2601,11 +2647,11 @@ export function validateCaptureScenario(value) {
       numberInRange(iceberg.headingDeg, 0, 360, "capture iceberg heading");
     }
   }
-  if (value.sequence !== undefined) validateCaptureSequence(value.sequence);
+  if (value.sequence !== undefined) validateCaptureSequence(value.sequence, encounterIds);
   return value;
 }
 
-function validateCaptureSequence(value) {
+function validateCaptureSequence(value, encounterIds) {
   if (!value || typeof value !== "object") throw new Error("Capture sequence must be an object");
   if (!["explore", "trade", "city", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive", "panda", "papal", "loadout", "religion", "companions"].includes(value.kind)) {
     throw new Error(`Invalid capture sequence kind: ${value.kind}`);
@@ -2693,7 +2739,7 @@ function validateCaptureSequence(value) {
       "Capture harbour master portrait source requires a city shipyard-purchase sequence"
     );
   }
-  if ((value.kind === "fight" && value.variant !== "small-arms") ||
+  if ((value.kind === "fight" && !["small-arms", "flee"].includes(value.variant)) ||
       (value.kind === "pillage" && value.variant === "bombard") ||
       (value.kind === "companions" && value.variant === "pirate-revenge")) {
     if (!["port", "starboard"].includes(value.broadsideSide)) {
@@ -2706,13 +2752,34 @@ function validateCaptureSequence(value) {
     throw new Error("Capture broadside aim hold must be boolean");
   }
   const isBroadsideSequence =
-    (value.kind === "fight" && value.variant !== "small-arms") ||
+    (value.kind === "fight" && !["small-arms", "flee"].includes(value.variant)) ||
     (value.kind === "pillage" && value.variant === "bombard") ||
     (value.kind === "companions" && value.variant === "pirate-revenge");
   if (isBroadsideSequence && value.broadsideSpeedRatio !== undefined) {
     numberInRange(value.broadsideSpeedRatio, 0.1, 1, "capture broadside speed ratio");
   } else if (value.broadsideSpeedRatio !== undefined) {
     throw new Error("Capture broadside speed ratio requires a broadside sequence");
+  }
+  if (value.kind === "fight" && value.variant === "flee") {
+    numberInRange(value.escapeHeadingDeg, 0, 360, "capture escape heading");
+    numberInRange(value.escapeSpeedRatio, 0.1, 1, "capture escape speed ratio");
+    numberInRange(value.sailingSimulationRate, 0.01, 1, "capture escape simulation rate");
+    if (!Array.isArray(value.attackerIds) || value.attackerIds.length < 2) {
+      throw new Error("Capture escape requires at least two attacker ids");
+    }
+    for (const attackerId of value.attackerIds) {
+      requiredString(attackerId, "capture escape attacker id");
+      if (!encounterIds.has(attackerId)) {
+        throw new Error(`Capture escape attacker is not a staged encounter: ${attackerId}`);
+      }
+    }
+    if (value.requireOpenWaterCourse !== true) {
+      throw new Error("Capture escape must require an open-water course");
+    }
+  } else if (value.escapeHeadingDeg !== undefined || value.escapeSpeedRatio !== undefined ||
+      value.attackerIds !== undefined ||
+      (value.kind !== "sail" && value.sailingSimulationRate !== undefined)) {
+    throw new Error("Capture escape fields require a fleeing fight sequence");
   }
   if (value.kind === "pillage" && value.variant === "bombard" &&
       value.broadsideApproachBearingDeg !== undefined) {

@@ -78,6 +78,10 @@ const PORT_ASSAULT_FIRST_WAVE_DELAY_MS = 300;
 const PORT_ASSAULT_WAVE_INTERVAL_MS = 1_200;
 const PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS = 200;
 const PORT_ASSAULT_WAVE_JITTER_MS = 120;
+const PORT_ASSAULT_VICTORY_MARCH_DELAY_MS = 100;
+const PORT_ASSAULT_VICTORY_MARCH_STAGGER_SPAN_MS = 180;
+const PORT_ASSAULT_VICTORY_MARCH_DURATION_MS = 1_720;
+const PORT_ASSAULT_VICTORY_MARCH_DESTINATION = 1;
 const PORT_ASSAULT_VICTORY_WOUND_CHANCE = 0.48;
 const PORT_ASSAULT_DEFEAT_WOUND_CHANCE = 0.24;
 const PORT_ASSAULT_EXPERIENCE_WOUND_CHANCE_PER_STAR = 0.06;
@@ -745,10 +749,24 @@ export function portAssaultPresentationAt(battle, elapsedMs) {
     throw new Error(`Invalid port assault presentation time: ${elapsedMs}`);
   }
   const units = [];
+  const attackerCount = battle.combatants.filter(({ side }) => (
+    side === PORT_ASSAULT_SIDE.ATTACKER
+  )).length;
+  let attackerIndex = 0;
   for (const combatant of battle.combatants) {
     const track = battle.tracks[combatant.id];
     if (!track) throw new Error(`Port assault has no track for ${combatant.id}`);
-    const frame = trackFrameAt(track, elapsedMs);
+    let frame = trackFrameAt(track, elapsedMs);
+    if (combatant.side === PORT_ASSAULT_SIDE.ATTACKER) {
+      frame = portAssaultVictoryMarchFrame({
+        frame,
+        battle,
+        elapsedMs,
+        attackerIndex,
+        attackerCount
+      });
+      attackerIndex += 1;
+    }
     if (!frame || frame.hidden) continue;
     units.push(Object.freeze({ ...combatant, ...frame }));
   }
@@ -765,6 +783,38 @@ export function portAssaultPresentationAt(battle, elapsedMs) {
     events: Object.freeze(battle.events.filter((event) => (
       event.timeMs > elapsedMs - eventPresentationDurationMs(event) && event.timeMs <= elapsedMs
     )))
+  });
+}
+
+function portAssaultVictoryMarchFrame({
+  frame,
+  battle,
+  elapsedMs,
+  attackerIndex,
+  attackerCount
+}) {
+  if (!frame || frame.hidden || !frame.alive ||
+      battle.outcome !== PORT_ASSAULT_OUTCOME.VICTORY || elapsedMs <= battle.durationMs) {
+    return frame;
+  }
+  const staggerMs = attackerCount <= 1
+    ? 0
+    : attackerIndex / (attackerCount - 1) * PORT_ASSAULT_VICTORY_MARCH_STAGGER_SPAN_MS;
+  const marchStartedAtMs = battle.durationMs + PORT_ASSAULT_VICTORY_MARCH_DELAY_MS + staggerMs;
+  const progress = clamp(
+    (elapsedMs - marchStartedAtMs) / PORT_ASSAULT_VICTORY_MARCH_DURATION_MS,
+    0,
+    1
+  );
+  if (progress === 0) return frame;
+  if (progress === 1) return Object.freeze({ ...frame, hidden: true });
+  return Object.freeze({
+    ...frame,
+    position: frame.position + (PORT_ASSAULT_VICTORY_MARCH_DESTINATION - frame.position) * progress,
+    facingRight: true,
+    animationId: "walk",
+    animationStartedAtMs: marchStartedAtMs,
+    inWater: false
   });
 }
 

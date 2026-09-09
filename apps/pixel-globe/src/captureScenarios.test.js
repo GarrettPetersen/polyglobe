@@ -181,7 +181,7 @@ test("the demo trailer roster replaces colonization with Mediterranean fleet com
 
 test("the demo launch trailer follows one Ottoman captain through trade, war, and conquest", () => {
   const ids = captureScenarioIds().filter((id) => id.startsWith("trailer-demo-launch-"));
-  assert.equal(ids.length, 16);
+  assert.equal(ids.length, 17);
   const captures = ids.map((id) => captureScenarioFromSearch(`?capture=${id}`));
   assert.deepEqual(Object.fromEntries(
     [...new Set(captures.map((capture) => capture.sequence.kind))].map((kind) => [
@@ -192,7 +192,7 @@ test("the demo launch trailer follows one Ottoman captain through trade, war, an
     sail: 9,
     trade: 1,
     city: 2,
-    fight: 2,
+    fight: 3,
     pillage: 2
   });
   assert.ok(captures.every((capture) => capture.player.factionId === "ottoman"));
@@ -283,17 +283,39 @@ test("the demo launch trailer follows one Ottoman captain through trade, war, an
   );
 
   const battles = captures.filter((capture) => capture.sequence.kind === "fight");
-  assert.ok(battles.every((capture) => capture.sequence.broadsideSpeedRatio === 0.42));
+  const broadsideBattles = battles.filter((capture) => capture.sequence.variant === "broadside");
+  assert.equal(broadsideBattles.length, 2);
+  assert.ok(broadsideBattles.every((capture) => capture.sequence.broadsideSpeedRatio === 0.42));
   assert.notEqual(
-    battles[0].encounters[0].headingDeg,
-    battles[1].encounters[0].headingDeg
+    broadsideBattles[0].encounters[0].headingDeg,
+    broadsideBattles[1].encounters[0].headingDeg
   );
-  assert.ok(battles.every((capture) => {
+  assert.ok(broadsideBattles.every((capture) => {
     const target = capture.encounters.find((encounter) => (
       encounter.id === capture.sequence.encounterId
     ));
     return target.lat !== capture.player.lat && target.lon !== capture.player.lon;
   }));
+  const escape = battles.find((capture) => capture.sequence.variant === "flee");
+  assert.equal(escape.player.shipSlug, "felucca");
+  assert.equal(escape.sequence.attackerIds.length, 2);
+  assert.equal(escape.sequence.escapeSpeedRatio, 0.96);
+  assert.equal(escape.sequence.sailingSimulationRate, 0.16);
+  assert.ok(escape.sequence.attackerIds.every((attackerId) => (
+    escape.encounters.some((encounter) => encounter.id === attackerId)
+  )));
+  const escapeWithUnknownAttacker = structuredClone(escape);
+  escapeWithUnknownAttacker.sequence.attackerIds[0] = "missing-pursuer";
+  assert.throws(
+    () => validateCaptureScenario(escapeWithUnknownAttacker),
+    /not a staged encounter/
+  );
+  const escapeWithoutOpenWater = structuredClone(escape);
+  escapeWithoutOpenWater.sequence.requireOpenWaterCourse = false;
+  assert.throws(
+    () => validateCaptureScenario(escapeWithoutOpenWater),
+    /must require an open-water course/
+  );
 
   const bombardment = captures.find((capture) => capture.sequence.variant === "bombard");
   assert.equal(bombardment.sequence.broadsideSpeedRatio, 0.16);

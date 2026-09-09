@@ -404,6 +404,58 @@ def validate_clip_broadside(source, sidecar, start, duration, required_broadside
         raise RuntimeError(f"{source} broadside did not disable its target in the edit window")
 
 
+def validate_clip_incoming_fire(source, sidecar, start, duration, required_incoming_fire):
+    if required_incoming_fire is None:
+        return
+    if not isinstance(required_incoming_fire, dict):
+        raise RuntimeError(f"requiredIncomingFire must be an object: {source}")
+    minimum_attackers = required_frame_count(
+        required_incoming_fire.get("minimumAttackers"),
+        f"{source} minimum pursuing attackers",
+    )
+    minimum_volleys = required_frame_count(
+        required_incoming_fire.get("minimumVolleys"),
+        f"{source} minimum incoming volleys",
+    )
+    pursuit_events = [
+        event for event in sidecar["events"]
+        if event.get("type") == "capture-beat"
+        and event.get("data", {}).get("action") == "flee-under-fire"
+    ]
+    if len(pursuit_events) != 1:
+        raise RuntimeError(f"{source} needs one verified pursuit event")
+    attacker_ids = pursuit_events[0].get("data", {}).get("attackerIds")
+    if not isinstance(attacker_ids, list) or len(set(attacker_ids)) < minimum_attackers:
+        raise RuntimeError(
+            f"{source} needs at least {minimum_attackers} distinct pursuing attackers"
+        )
+    start_ms = round(start * 1000)
+    end_ms = round((start + duration) * 1000)
+    incoming_volleys = [
+        event for event in sidecar["events"]
+        if event.get("type") == "weapon-fired"
+        and event.get("data", {}).get("ownerId") in attacker_ids
+        and event.get("data", {}).get("targetId") == "player"
+        and event.get("data", {}).get("weapon") == "cannon"
+        and start_ms <= event.get("t", -1) < end_ms
+    ]
+    if len(incoming_volleys) < minimum_volleys:
+        raise RuntimeError(
+            f"{source} needs at least {minimum_volleys} incoming cannon volleys in its edit window; "
+            f"found {len(incoming_volleys)}"
+        )
+    if required_incoming_fire.get("requirePlayerSilent") is not True:
+        raise RuntimeError(f"{source} fleeing-shot validation must require a silent player")
+    player_fire = [
+        event for event in sidecar["events"]
+        if event.get("type") == "weapon-fired"
+        and event.get("data", {}).get("ownerId") == "player"
+        and start_ms <= event.get("t", -1) < end_ms
+    ]
+    if player_fire:
+        raise RuntimeError(f"{source} player returns fire during the fleeing shot")
+
+
 def sfx_duration(asset):
     key = str(asset)
     if key not in SFX_DURATION_CACHE:
@@ -835,6 +887,13 @@ def main():
                 duration,
                 clip.get("requiredBroadside"),
             )
+            validate_clip_incoming_fire(
+                source,
+                sidecar,
+                start,
+                duration,
+                clip.get("requiredIncomingFire"),
+            )
             clip_sfx = layered_sfx_cues(
                 source,
                 sidecar,
@@ -971,7 +1030,7 @@ def main():
     ]
     final_filter_parts.append(
         "[game][music]amix=inputs=2:duration=first:dropout_transition=0,"
-        "alimiter=limit=0.92,loudnorm=I=-14:TP=-1.5:LRA=9[audio]"
+        "alimiter=limit=0.92,loudnorm=I=-14:TP=-2.0:LRA=9[audio]"
     )
     final_filters = ";".join(final_filter_parts)
     run([
