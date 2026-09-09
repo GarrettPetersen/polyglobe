@@ -12594,15 +12594,20 @@ function updateCapturePillage(sequence) {
         targetAlignment: Math.round(geometry.alignment * 1000) / 1000
       });
     }
-    if (captureCue("verify-battery-disabled", 2.2)) {
-      if (!shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes))) {
+    if (captureCue("verify-battery-hit", 2.2)) {
+      const startingHitPoints = sequence.batteryStartingHitPoints ?? battery.maxHitPoints;
+      const disabled = shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes));
+      // Full-health ports may require several volleys. Trailer shots with an
+      // explicitly weakened battery still require their planned destruction.
+      if (battery.hitPoints >= startingHitPoints ||
+          (sequence.batteryStartingHitPoints !== undefined && !disabled)) {
         throw new Error(
-          `Capture volley did not disable ${sequence.cityId} from ` +
-          `${sequence.batteryStartingHitPoints ?? battery.maxHitPoints} hit points`
+          `Capture volley failed at ${sequence.cityId}: battery ${battery.hitPoints}/` +
+          `${startingHitPoints}, disabled ${disabled}`
         );
       }
       emitCaptureEvent("capture-beat", {
-        action: "battery-disabled-by-player-volley",
+        action: disabled ? "battery-disabled-by-player-volley" : "battery-damaged-by-player-volley",
         city: sequence.cityId
       });
     }
