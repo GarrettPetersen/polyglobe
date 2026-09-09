@@ -3872,3 +3872,25 @@ test("a warship waiting in the attacked port departs before a distant reserve an
   assert.ok(npcShipSnapshotForId(routes, local.id, 100));
   assert.equal(npcCapitalNavalReserveStatus(routes, "portugal").activeCount, 0);
 });
+
+for (const phase of ["snapshot-ships", "preserved-ships", "validate-ships", "hideout-danger", "commit"]) {
+  test(`local sinking during worker restore ${phase} preserves retirement and replacement`, () => {
+    const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+    const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+    const victim = routes.ships.find(ship => ship.replaceOnSink !== false);
+    assert.ok(victim);
+    const plan = createNpcSeaRouteSimulationRestorePlan(routes, snapshotNpcSeaRouteStrategicSystem(routes), {
+      preserveShipIds: [victim.id]
+    });
+    while (plan.phase !== phase) {
+      assert.equal(advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 }), false);
+    }
+    assert.equal(damageNpcShip(routes, victim.id, victim.maxHitPoints, { bypassArmor: true }).sunk, true);
+    const { replacement } = sinkNpcShip(routes, victim.id, 1000);
+    assert.ok(replacement);
+    while (!advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 })) {}
+    assert.equal(routes.shipById.has(victim.id), false);
+    assert.equal(routes.ships.some(ship => ship.id === victim.id), false);
+    assert.deepEqual(routes.replacementQueue.filter(entry => entry.shipId === victim.id), [replacement]);
+  });
+}

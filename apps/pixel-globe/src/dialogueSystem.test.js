@@ -3774,12 +3774,22 @@ test(`port crew offers hire and exit correctly from ${returnNodeId || "inn"}`, (
   assert.equal(crewRecruitmentOfferAt(gameState.memory.crewRecruitment, city).candidates.length,
     offeredCount - 1);
 
-  assert.equal(session.nodeId, returnNodeId || "crew-recruitment");
-  assert.equal(session.crewRecruitmentReturnNodeId, null);
-  if (!returnNodeId) {
+  assert.equal(session.nodeId, "crew-recruitment");
+  assert.equal(session.crewRecruitmentReturnNodeId, returnNodeId);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(view.presentation.candidates.some(({ member }) => member.id === candidate.member.id), false);
+  assert.ok(offeredCount > 1);
+  for (let count = 1; count < offeredCount; count++) {
+    assert.equal(view.options[0].disabled, false);
+    selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+    assert.equal(session.nodeId, "crew-recruitment");
     view = portDialogueView(session, city, gameState, economy, [city], context);
-    assert.equal(view.presentation.candidates.some(({ member }) => member.id === candidate.member.id), false);
   }
+  assert.equal(view.presentation.candidates.length, 0);
+  assert.equal(gameState.ship.crew, 1 + offeredCount);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  assert.equal(session.nodeId, returnNodeId || "inn-drink");
+  assert.equal(session.crewRecruitmentReturnNodeId, null);
 });
 }
 

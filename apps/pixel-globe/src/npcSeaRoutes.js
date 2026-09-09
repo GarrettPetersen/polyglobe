@@ -1269,7 +1269,7 @@ export function advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems = 12 } 
       for (; plan.itemIndex < end; plan.itemIndex++) {
         const simulatedShip = plan.snapshot.ships[plan.itemIndex];
         const ship = plan.preservedIds.has(simulatedShip.id)
-          ? plan.currentShipById.get(simulatedShip.id)
+          ? plan.system.shipById.get(simulatedShip.id)
           : {
               ...simulatedShip,
               cargo: { ...simulatedShip.cargo },
@@ -1323,6 +1323,12 @@ export function advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems = 12 } 
         const ship = plan.ships[plan.itemIndex];
         if (!ship || typeof ship.id !== "string" || ship.id === "" || plan.shipById.has(ship.id)) {
           throw new Error(`Invalid simulated NPC ship id: ${ship?.id}`);
+        }
+        // A local sinking can remove this live object between restore batches.
+        // Its zero hull is historical; it must never be validated or revived.
+        if (plan.preservedIds.has(ship.id) && !plan.system.shipById.has(ship.id)) {
+          remaining--;
+          continue;
         }
         reconcileRestoredNpcShip(ship, "worker simulation");
         if (plan.preservedIds.has(ship.id)) {
@@ -1395,7 +1401,10 @@ export function advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems = 12 } 
       refreshLocallyAuthoritativeNpcRestoreState(plan);
       system.ships = plan.ships;
       system.shipById = plan.shipById;
-      system.replacementQueue = plan.snapshot.replacementQueue;
+      system.replacementQueue = [
+        ...plan.snapshot.replacementQueue.filter((entry) => !plan.preservedIds.has(entry.shipId)),
+        ...system.replacementQueue.filter((entry) => plan.preservedIds.has(entry.shipId))
+      ];
       system.capitalNavalReserveSlots = plan.reserveSlots;
       reconcileCapitalNavalReserveShipsWithSnapshot(system, plan.ships);
       reconcileCapitalNavalReservePortsAfterOwnershipChange(system, new Set());

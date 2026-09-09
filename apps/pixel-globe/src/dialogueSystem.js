@@ -2168,10 +2168,6 @@ export function selectPortDialogueAction(
     const hired = hireCrewMemberAtPort(gameState, city, action.memberId, context);
     session.feedback = `${hired.member.name} joined the crew.`;
     session.selectedIndex = 0;
-    if (session.crewRecruitmentReturnNodeId) {
-      session.nodeId = session.crewRecruitmentReturnNodeId;
-      session.crewRecruitmentReturnNodeId = null;
-    }
     return { closed: false, crewHire: hired };
   }
   if (action.type === "dismiss-crew-member") {
