@@ -17,8 +17,8 @@ export function shuffledChecklist(random, selectedGoals = CHECKLIST_GOALS) {
   return goals;
 }
 
-export function checklistTravelDestination(state, previousCityId) {
-  const candidates = state.destinations.filter(port => port.cityId !== (state.cityId || previousCityId));
+export function checklistTravelDestination(state, previousCityId, excludedCityIds = new Set()) {
+  const candidates = state.destinations.filter(port => port.cityId !== (state.cityId || previousCityId) && !excludedCityIds.has(port.cityId));
   const target = candidates.sort((a, b) => a.distancePx - b.distancePx || a.cityId.localeCompare(b.cityId))[0];
   assert.ok(target, "No accessible alternative checklist destination");
   return target.cityId;
@@ -210,7 +210,17 @@ export async function runBrowserChecklist({ command, initialState, random, check
     } else {
       if (!state.cityId) { await arrive(destination, false); sailed = true; }
       let done = false;
+      const recruitmentPorts = new Set();
       for (let attempt = 0; attempt < 65; attempt++) {
+        // An empty muster is ordinary game state. Check before the sole-option
+        // continuation leaves it, otherwise the planner reopens it forever.
+        if (goal === "recruit" && state.nodeId === "crew-recruitment" &&
+            !state.options.some(option => !option.disabled && option.action.type === "hire-crew-member")) {
+          recruitmentPorts.add(state.cityId);
+          assert.ok(recruitmentPorts.size < 8, "No hireable crew after inspecting eight ports");
+          await arrive(checklistTravelDestination(state, destination, recruitmentPorts), true);
+          continue;
+        }
         if (await clearOverlay()) continue;
         if (goal === "mission" && state.gameState.memory.quests.active &&
             state.gameState.memory.quests.active.destinationCityId !== state.cityId) {

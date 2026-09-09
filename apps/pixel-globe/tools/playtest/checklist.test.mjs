@@ -125,3 +125,31 @@ test("departure maintenance requests real loadout service before stores or crew 
   gameState.cargo.hardtack = 20; gameState.ship.crew = 0;
   assert.equal(checklistNeedsProvisions(gameState), true);
 });
+
+test("recruitment leaves an empty muster and hires at another port in the same voyage", async () => {
+  const destinations = [{ cityId: "coimbra|portugal", distancePx: 0 }, { cityId: "lisbon|portugal", distancePx: 10 }];
+  let state = { cityId: destinations[0].cityId, nodeId: "root", locations: ["inn", "set-sail"], options: [],
+    gameState: { voyageSeed: "persistent", ship: { crew: 1, crewCapacity: 4 }, crewRoster: [{ id: "original" }] },
+    destinations, ports: [], minute: 1 };
+  const trace = [];
+  const command = async input => {
+    trace.push(input);
+    if (input.type === "location" && input.id === "inn") state = { ...state, nodeId: "crew-recruitment", locations: [], options: [
+      ...(state.cityId === "lisbon|portugal" ? [{ id: "hire", action: { type: "hire-crew-member", memberId: "new" } }] : []),
+      { id: "exit", action: { type: "node", nodeId: "root" } }
+    ] };
+    if (input.type === "choose" && input.id === "exit") state = { ...state, nodeId: "root", locations: ["inn", "set-sail"], options: [] };
+    if (input.type === "location" && input.id === "set-sail") state = { ...state, cityId: null, nodeId: null, locations: [], options: [] };
+    if (input.type === "teleport") state = { ...state, ports: [{ cityId: input.cityId, inRange: true }] };
+    if (input.type === "dock") state = { ...state, cityId: input.cityId, nodeId: "root", locations: ["inn", "set-sail"], options: [] };
+    if (input.type === "choose" && input.id === "hire") state = { ...state, gameState: { ...state.gameState,
+      ship: { ...state.gameState.ship, crew: 2 }, crewRoster: [...state.gameState.crewRoster, { id: "new" }] } };
+    return state;
+  };
+  const report = await runBrowserChecklist({ command, initialState: state, random: randomForSeed(13), checkpoint() {}, goals: ["recruit"] });
+  assert.deepEqual(report.completed, ["recruit"]);
+  assert.equal(report.actionCoverage["hire-crew-member"], 1);
+  assert.equal(trace.filter(input => input.type === "location" && input.id === "inn").length, 2);
+  assert.equal(state.gameState.voyageSeed, "persistent");
+  assert.throws(() => checklistTravelDestination(state, null, new Set(destinations.map(port => port.cityId))), /No accessible alternative/);
+});
