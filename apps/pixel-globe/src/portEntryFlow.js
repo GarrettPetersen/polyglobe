@@ -86,3 +86,13 @@ export function resolvePortArrivalDialogueNode({
     ? "root"
     : requestedNodeId;
 }
+
+// The legacy root menu remains a data source for scene navigation, never a
+// player-visible substitute. A thrown invariant reaches runtime crash telemetry.
+export function assertPortRootScene(session, scene, { ruinedSite = false } = {}) {
+  if (session?.kind !== "port" || session.nodeId !== "root") return;
+  if (!scene || scene.cityId !== session.cityId ||
+      (session.admittedToPort !== true && !ruinedSite)) {
+    throw new Error(`City root escaped the interactive scene: ${session.cityId}; scene=${scene?.cityId ?? "none"}; admitted=${session.admittedToPort === true}`);
+  }
+}

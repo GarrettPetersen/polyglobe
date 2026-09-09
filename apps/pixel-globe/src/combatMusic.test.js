@@ -58,3 +58,10 @@ test("the port bombardment music handoff rejects malformed combat state", () => 
     /Invalid port bombardment gun count/
   );
 });
+
+test("raid confirmation keeps combat music after disabling clears the active attack flag", () => {
+  assert.equal(continuingPortBombardmentThreat({ playerAttackActive: false,
+    assaultAvailable: true, batteryDisabled: true, gunCount: 4 }), COMBAT_THREAT_BIG);
+  assert.equal(continuingPortBombardmentThreat({ playerAttackActive: false,
+    assaultAvailable: false, batteryDisabled: true, gunCount: 4 }), null);
+});

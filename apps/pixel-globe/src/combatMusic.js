@@ -9,6 +9,7 @@ export function combatMusicTrackForThreat(threat) {
 
 export function continuingPortBombardmentThreat({
   playerAttackActive,
+  assaultAvailable = false,
   batteryDisabled,
   gunCount
 }) {
@@ -21,6 +22,7 @@ export function continuingPortBombardmentThreat({
   if (!Number.isInteger(gunCount) || gunCount <= 0) {
     throw new Error(`Invalid port bombardment gun count: ${gunCount}`);
   }
-  if (!playerAttackActive || !batteryDisabled) return null;
+  if (typeof assaultAvailable !== "boolean") throw new Error("Invalid port assault availability");
+  if ((!playerAttackActive && !assaultAvailable) || !batteryDisabled) return null;
   return gunCount >= 2 ? COMBAT_THREAT_BIG : COMBAT_THREAT_SMALL;
 }

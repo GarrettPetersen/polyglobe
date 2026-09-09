@@ -709,7 +709,8 @@ import {
 import {
   recoveringPortBlocksArrival,
   resolvePortArrivalDialogueNode,
-  resolvePortDialogueContinuation
+  resolvePortDialogueContinuation,
+  assertPortRootScene
 } from "./portEntryFlow.js";
 import {
   QUEST_CARGO_PROMPT_CHEF,
@@ -22089,6 +22090,10 @@ function portCityRootNavigationIsActive() {
 }
 
 function portCityRootPresentationIsOwned() {
+  assertPortRootScene(dialogueState, portCityView, {
+    ruinedSite: dialogueState?.kind === "port" && dialogueState.nodeId === "root" &&
+      colonizationSiteIsRuined(currentDialogueCity())
+  });
   return Boolean(
     portCityView &&
     dialogueState?.kind === "port" &&
@@ -22128,7 +22133,7 @@ function openPortDialogue(cityCall) {
   if (!gameState) throw new Error("Cannot open port dialogue before game state is ready");
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
   clearPortNavigationWaypointsAt(gameState, cityCall.cityId);
-  const arrivingBattery = shoreBatteryStates.get(shoreBatteryId(cityCall));
+  const arrivingBattery = ensureShoreBatteryState(cityCall);
   const continuingBombardment = arrivingBattery
     ? continuingPortBombardmentThreat({
         playerAttackActive: arrivingBattery.playerAttackActive,
@@ -25607,6 +25612,7 @@ function createWorldPassengerDialogueSession(cityCall, quest, options = {}) {
 function openPassengerDialogue(cityCall, quest) {
   if (!gameState) throw new Error("Cannot open passenger dialogue before game state is ready");
   markPassengerOfferSeen(gameState, quest);
+  if (portCityView?.cityId !== cityCall.cityId) activatePortCityView(cityCall);
   dialogueState = createWorldPassengerDialogueSession(cityCall, quest, {
     admittedToPort: true,
     continueToPortOnClose: true,
@@ -25621,10 +25627,10 @@ function openPassengerDialogue(cityCall, quest) {
 function continuePortDialogueAfterQuestCharacter() {
   const city = currentDialogueCity();
   const requestedNodeId = dialogueState.nextPortNodeId || "greeting";
-  const admittedToPort = dialogueState.admittedToPort === true;
+  let admittedToPort = dialogueState.admittedToPort === true;
   const context = portDialogueContext();
-  const initialNodeId = resolvePortDialogueContinuation({
-    requestedNodeId,
+  let initialNodeId = resolvePortDialogueContinuation({
+    requestedNodeId: !admittedToPort && requestedNodeId !== "recovering" ? "barred" : requestedNodeId,
     admittedToPort,
     arrivalGreetingPresented: currentPortArrivalGreetingPresented(city),
     entryStatus: context.portEntryStatus,
@@ -25632,6 +25638,13 @@ function continuePortDialogueAfterQuestCharacter() {
     attackStatus: context.portAttackStatus,
     conquestStatus: context.portConquestStatus
   });
+  // A mission can finish before admission (for example at a barred port).
+  // If its outcome opens entry, perform admission before exposing city services.
+  if (!admittedToPort && !["barred", "recovering"].includes(initialNodeId)) {
+    const needsLoadout = admitPlayerToPort(city);
+    admittedToPort = true;
+    if (needsLoadout) initialNodeId = "loadout";
+  }
   dialogueState = createPortDialogueSession(city, {
     initialNodeId,
     admittedToPort,
@@ -28030,6 +28043,10 @@ function invalidateDialogueView() {
 
 function currentDialogueView() {
   if (!dialogueState) throw new Error("Dialogue view requested without an active session");
+  assertPortRootScene(dialogueState, portCityView, {
+    ruinedSite: dialogueState.kind === "port" && dialogueState.nodeId === "root" &&
+      colonizationSiteIsRuined(currentDialogueCity())
+  });
   return cachedPausedView(dialogueViewCache, dialogueState, buildCurrentDialogueView);
 }
 

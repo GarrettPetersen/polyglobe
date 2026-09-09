@@ -16,6 +16,7 @@ const files = [
   "src/npcSeaRoutes.test.js",
   "src/colonizationWorldBinding.test.js",
   "src/saveRestoreInterruption.test.js",
+  "src/portQuestSceneReturn.test.js",
   "tools/playtest/politics-contract.test.mjs"
 ];
 // Node's test discovery can ignore nonexistent positional paths. A release
