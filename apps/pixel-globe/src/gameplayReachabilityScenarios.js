@@ -11,10 +11,10 @@ const FAST_SCENARIO_IDS = Object.freeze([
 
 export const GAMEPLAY_REACHABILITY_SCENARIOS = deepFreeze({
   "reachability-fight-lisbon-journey": {
-    id: "reachability-fight-lisbon-journey", title: "Sailing ship", seed: "fight-lisbon-journey-v1",
+    id: "reachability-fight-lisbon-journey", title: "Sailing ship", seed: "fight-lisbon-journey-v2",
     player: vessel("portugal", "portuguese-carrack", 38.5, -9.5, 0),
     world: world(150, 10, 0), diplomacy: [relation("portugal", "spain", "war")],
-    encounters: [{ ...encounter("journey-spanish-raider", "spain", "seville|spain", "fusta", 38.5, -10.12, 0),
+    encounters: [{ ...encounter("journey-spanish-raider", "spain", "seville|spain", "galleon", 38.5, -10.12, 0),
       encounter: { kind: "capture-fight", forceAttack: true } }],
     sequence: { kind: "fight", variant: "broadside", durationSeconds: 16,
       encounterId: "journey-spanish-raider", broadsideSide: "starboard", modalPolicy: "suppress" }

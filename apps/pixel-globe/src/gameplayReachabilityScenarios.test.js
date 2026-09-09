@@ -6,6 +6,8 @@ import {
   GAMEPLAY_REACHABILITY_SCENARIOS,
   gameplayReachabilityScenarioIds
 } from "./gameplayReachabilityScenarios.js";
+import { broadsideCannonCount } from "./navalWeapons.js";
+import { shipStatsForSlug } from "./shipStats.js";
 
 test("gameplay reachability uses a dedicated catalog independent of promotional captures", () => {
   const fastIds = gameplayReachabilityScenarioIds("fast");
@@ -69,4 +71,17 @@ test("the 2v2 reachability focus survives long enough to exercise delayed NPC fi
     new Set(scenario.sequence.evaluatedNpcIds),
     new Set(scenario.encounters.map(({ id }) => id))
   );
+});
+
+test("the browser journey opponent survives the opening broadside and can return fire", () => {
+  const scenario = GAMEPLAY_REACHABILITY_SCENARIOS["reachability-fight-lisbon-journey"];
+  const opponent = scenario.encounters.find(({ id }) => id === scenario.sequence.encounterId);
+  const playerStats = shipStatsForSlug(scenario.player.shipSlug);
+
+  assert.ok(opponent);
+  const opponentStats = shipStatsForSlug(opponent.shipSlug);
+  const opponentHitPoints = opponent.hitPoints ?? opponentStats.hitPoints;
+
+  assert.ok(opponentStats.cannons > 0);
+  assert.ok(opponentHitPoints > broadsideCannonCount(playerStats.cannons));
 });
