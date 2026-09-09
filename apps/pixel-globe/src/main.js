@@ -840,6 +840,7 @@ import {
 import { CITY_ANIMATION_PLAYBACK } from "../city-visualizer/cityAnimationFrame.js";
 import {
   PORT_ASSAULT_OUTCOME,
+  PORT_ASSAULT_RESULT_PRESENTATION_DURATION_MS,
   createPortAssaultScenario,
   forecastPortAssault,
   portAssaultGarrisonCount,
@@ -11828,17 +11829,17 @@ function stageCaptureDiscoveryMemory(sequence) {
   }
 }
 
-function stageCaptureFactorPortrait(sequence, city) {
+function stageCapturePortStaffPortrait(city, role, sourceId, { forceMediterranean = false } = {}) {
   const previous = requirePortCityStaffMember(
     portCityStaffByCityId,
     city.cityId,
-    PORT_CITY_STAFF_ROLE.MERCHANT
+    role
   );
   usedCharacterNames.delete(previous.name);
-  const merchant = assignPortCityStaffMemberFromSource(
-    city,
-    PORT_CITY_STAFF_ROLE.MERCHANT,
-    sequence.factorPortraitSourceId,
+  const staffMember = assignPortCityStaffMemberFromSource(
+    forceMediterranean ? { ...city, cityType: "mediterranean" } : city,
+    role,
+    sourceId,
     characterPortraitManifest,
     usedCharacterNames,
     { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
@@ -11846,10 +11847,19 @@ function stageCaptureFactorPortrait(sequence, city) {
   const staff = portCityStaffByCityId.get(city.cityId);
   portCityStaffByCityId.set(city.cityId, Object.freeze({
     ...staff,
-    [PORT_CITY_STAFF_ROLE.MERCHANT]: merchant
+    [role]: staffMember
   }));
-  usedCharacterNames.add(merchant.name);
+  usedCharacterNames.add(staffMember.name);
   chart = buildChart(camera);
+  return staffMember;
+}
+
+function stageCaptureFactorPortrait(sequence, city) {
+  stageCapturePortStaffPortrait(
+    city,
+    PORT_CITY_STAFF_ROLE.MERCHANT,
+    sequence.factorPortraitSourceId
+  );
 }
 
 function updateCaptureDirectorFrame(nowMs) {
@@ -11916,8 +11926,15 @@ function updateCaptureExplore(sequence, nowMs) {
 }
 
 function updateCaptureTrade(sequence) {
-  if (captureCue("open-market", 0.7)) {
-    const cityCall = capturePortCallById(sequence.cityId);
+  const cityCall = capturePortCallById(sequence.cityId);
+  if (captureCue("enter-market-city", 0.1)) {
+    activatePortCityView(cityCall);
+  }
+  if (captureCue("open-market", 1.1)) {
+    if (!portCityView?.sceneReady || portCityTransition ||
+        portCityView.cityId !== sequence.cityId) {
+      throw new Error(`Capture market city backdrop is not ready: ${sequence.cityId}`);
+    }
     const merchant = requirePortCityStaffMember(
       portCityStaffByCityId,
       cityCall.cityId,
@@ -11945,7 +11962,7 @@ function updateCaptureTrade(sequence) {
     dirty = true;
   }
   for (let index = 0; index < sequence.transactionCount; index += 1) {
-    const atSeconds = 1.45 + index * 0.36;
+    const atSeconds = 1.75 + index * 0.36;
     if (captureCue(`trade-${index + 1}`, atSeconds)) captureChooseTradeGood(sequence);
   }
 }
@@ -12096,30 +12113,21 @@ function updateCaptureCity(sequence) {
 
 function stageCaptureGarrisonOfficer(sequence, city) {
   if (sequence.garrisonPortraitSourceId === undefined) return;
-  const previous = requirePortCityStaffMember(
-    portCityStaffByCityId,
-    city.cityId,
-    PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER
-  );
-  usedCharacterNames.delete(previous.name);
-  const officer = assignPortCityStaffMemberFromSource(
-    { ...city, cityType: "mediterranean" },
+  stageCapturePortStaffPortrait(
+    city,
     PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER,
     sequence.garrisonPortraitSourceId,
-    characterPortraitManifest,
-    usedCharacterNames,
-    { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
+    { forceMediterranean: true }
   );
-  const staff = portCityStaffByCityId.get(city.cityId);
-  portCityStaffByCityId.set(city.cityId, Object.freeze({
-    ...staff,
-    [PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER]: officer
-  }));
-  usedCharacterNames.add(officer.name);
-  chart = buildChart(camera);
 }
 
 function stageCaptureShipyardPurchase(sequence, city) {
+  stageCapturePortStaffPortrait(
+    city,
+    PORT_CITY_STAFF_ROLE.HARBOUR_MASTER,
+    sequence.harbourMasterPortraitSourceId,
+    { forceMediterranean: true }
+  );
   const yard = shipyardAtPort(worldEconomy.shipyards, city);
   const builtMinute = Math.floor(weatherClockMinutes) - WEATHER_MINUTES_PER_DAY;
   const price = shipConstructionPrice(sequence.shipSlug);
@@ -12143,6 +12151,22 @@ function stageCaptureShipyardPurchase(sequence, city) {
 function updateCaptureCityShipyardPurchase(sequence) {
   if (captureCue("open-shipyard", 0.5)) {
     openCapturePortNode(sequence.cityId, "shipyard");
+    const harbourMaster = requirePortCityStaffMember(
+      portCityStaffByCityId,
+      sequence.cityId,
+      PORT_CITY_STAFF_ROLE.HARBOUR_MASTER
+    );
+    if (harbourMaster.sourceId !== sequence.harbourMasterPortraitSourceId) {
+      throw new Error(
+        `Capture shipyard harbour master mismatch for ${sequence.cityId}: ` +
+        harbourMaster.sourceId
+      );
+    }
+    emitCaptureEvent("capture-portrait", {
+      role: "harbour-master",
+      city: sequence.cityId,
+      sourceId: harbourMaster.sourceId
+    });
     emitCaptureEvent("capture-beat", {
       action: "inspect-shipyard",
       city: sequence.cityId,
@@ -12460,7 +12484,12 @@ function updateCaptureFight(sequence) {
   const target = npcVisualShips.get(sequence.encounterId);
   if (!target) return;
   if (sequence.holdBroadsideAim && captureDirector.elapsedSeconds <= 1.4) {
-    aimCaptureBroadsideAt(target.vector, sequence.broadsideSide, sequence.encounterId);
+    aimCaptureBroadsideAt(
+      target.vector,
+      sequence.broadsideSide,
+      sequence.encounterId,
+      sequence.broadsideSpeedRatio
+    );
   }
   if (sequence.variant === "small-arms" && !captureDirector.smallArmsTargetStaged) {
     target.navalWeapon = null;
@@ -12520,7 +12549,12 @@ function updateCapturePillage(sequence) {
   const battery = ensureShoreBatteryState(cityCall);
   if (sequence.variant === "bombard") {
     if (sequence.holdBroadsideAim && captureDirector.elapsedSeconds <= 1.0) {
-      aimCaptureBroadsideAt(tileCenterVector(cityCall.tileId), sequence.broadsideSide, sequence.cityId);
+      aimCaptureBroadsideAt(
+        tileCenterVector(cityCall.tileId),
+        sequence.broadsideSide,
+        sequence.cityId,
+        sequence.broadsideSpeedRatio
+      );
     }
     battery.engagedTargetIds.add(PLAYER_COMBAT_ID);
     if (captureCue("fire-on-port", 1.0)) {
@@ -12537,16 +12571,17 @@ function updateCapturePillage(sequence) {
         targetAlignment: Math.round(geometry.alignment * 1000) / 1000
       });
     }
-    if (captureCue("disable-battery", 2.6)) {
-      damageShoreBattery(
-        battery,
-        gameState.memory.flags,
-        Math.max(1, battery.hitPoints),
-        Math.floor(weatherClockMinutes),
-        shoreBatteryAttackerShipLabel(PLAYER_COMBAT_ID)
-      );
-      showSurvivalNotice(shoreBatteryDisabledNotice(battery), "good");
-      dirty = true;
+    if (captureCue("verify-battery-disabled", 2.2)) {
+      if (!shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes))) {
+        throw new Error(
+          `Capture volley did not disable ${sequence.cityId} from ` +
+          `${sequence.batteryStartingHitPoints ?? battery.maxHitPoints} hit points`
+        );
+      }
+      emitCaptureEvent("capture-beat", {
+        action: "battery-disabled-by-player-volley",
+        city: sequence.cityId
+      });
     }
     return;
   }
@@ -12555,8 +12590,24 @@ function updateCapturePillage(sequence) {
   if (captureCue("open-assault", openSeconds)) openPortDialogue(cityCall);
   if (captureDirector.elapsedSeconds >= landingSeconds && portCityView?.sceneReady &&
       captureCue("land-marines", landingSeconds)) {
-    attemptPlayerPortConquest(cityCall, () => 0);
-    emitCaptureEvent("capture-beat", { action: "land-marines", city: sequence.cityId });
+    attemptPlayerPortConquest(cityCall, () => sequence.assaultRandomValue ?? 0);
+    if (!portAssaultState) throw new Error("Capture assault did not create an active battle");
+    emitCaptureEvent("capture-beat", {
+      action: "land-marines",
+      city: sequence.cityId,
+      naturalTimeline: true,
+      battleDurationMs: portAssaultState.battle.durationMs,
+      outcome: portAssaultState.battle.outcome
+    });
+  }
+  if (portAssaultState && portAssaultElapsedMs() >= portAssaultState.battle.durationMs &&
+      !captureDirector.assaultVictoryVisible) {
+    captureDirector.assaultVictoryVisible = true;
+    emitCaptureEvent("capture-beat", {
+      action: "assault-victory-visible",
+      city: sequence.cityId,
+      result: "VICTORY"
+    });
   }
 }
 
@@ -13619,8 +13670,11 @@ function captureWhalePlacement() {
   throw new Error("Capture whale could not be placed in visible open water");
 }
 
-function maximizeCaptureCombatLoadout() {
-  setScenarioCrewCount(gameState.ship.crewCapacity);
+function maximizeCaptureCombatLoadout(options = {}) {
+  setScenarioCrewCount(gameState.ship.crewCapacity, {
+    homePortCityId: options.crewHomeCityId,
+    appearanceIds: options.crewAppearanceIds
+  });
   gameState.ship.cannons = gameState.ship.cannonCapacity;
   syncShipCargoFromGameState();
 }
@@ -13641,11 +13695,12 @@ function stageCaptureFight(sequence) {
   aimCaptureBroadsideAt(
     latLonToDirection(encounters[0].lat, encounters[0].lon),
     sequence.broadsideSide || "starboard",
-    sequence.encounterId
+    sequence.encounterId,
+    sequence.broadsideSpeedRatio
   );
 }
 
-function aimCaptureBroadsideAt(targetVector, side, targetLabel) {
+function aimCaptureBroadsideAt(targetVector, side, targetLabel, speedRatio = 0) {
   const toward = normalizeOrNull(projectTangentVector([
     targetVector[0] - ship.position[0],
     targetVector[1] - ship.position[1],
@@ -13657,7 +13712,8 @@ function aimCaptureBroadsideAt(targetVector, side, targetLabel) {
   const heading = side === "starboard" ? starboardHeading : scaleVector(starboardHeading, -1);
   ship.heading = heading;
   ship.targetHeading = heading.slice();
-  ship.velocity = [0, 0, 0];
+  const performance = captureSailingPerformance();
+  ship.velocity = scaleVector(heading, performance.attainableSpeedRad * speedRatio);
   captureDirector.steeringTarget = normalize3([
     ship.position[0] + heading[0] * 0.25,
     ship.position[1] + heading[1] * 0.25,
@@ -13699,16 +13755,38 @@ function stageCapturePillage(sequence) {
   const city = captureCityById(sequence.cityId);
   if (sequence.variant === "assault") stageCaptureGarrisonOfficer(sequence, city);
   if (sequence.variant === "bombard") {
-    placeCapturePlayerForBroadsideTarget(city.tileId, sequence.cityId);
+    placeCapturePlayerForBroadsideTarget(
+      city.tileId,
+      sequence.cityId,
+      sequence.broadsideApproachBearingDeg,
+      sequence.broadsideTargetDistancePx
+    );
   } else {
     placeCapturePlayerNearTile(city.tileId);
   }
-  maximizeCaptureCombatLoadout();
+  maximizeCaptureCombatLoadout(sequence.variant === "assault" ? {
+    crewHomeCityId: sequence.assaultCrewHomeCityId,
+    crewAppearanceIds: sequence.assaultCrewAppearanceIds
+  } : {});
   const call = capturePortCallById(sequence.cityId);
   const battery = ensureShoreBatteryState(call);
   markPlayerPortAssault(gameState.memory.flags, call, weatherClockMinutes + WEATHER_MINUTES_PER_DAY);
   if (sequence.variant === "bombard") {
-    aimCaptureBroadsideAt(tileCenterVector(call.tileId), sequence.broadsideSide, sequence.cityId);
+    if (sequence.batteryStartingHitPoints !== undefined) {
+      if (sequence.batteryStartingHitPoints > battery.maxHitPoints) {
+        throw new Error(
+          `Capture battery starting hit points exceed ${sequence.cityId} maximum: ` +
+          `${sequence.batteryStartingHitPoints}/${battery.maxHitPoints}`
+        );
+      }
+      battery.hitPoints = sequence.batteryStartingHitPoints;
+    }
+    aimCaptureBroadsideAt(
+      tileCenterVector(call.tileId),
+      sequence.broadsideSide,
+      sequence.cityId,
+      sequence.broadsideSpeedRatio
+    );
   }
   if (sequence.variant === "assault") {
     damageShoreBattery(
@@ -13728,16 +13806,40 @@ function stageCapturePillage(sequence) {
   }
 }
 
-function placeCapturePlayerForBroadsideTarget(targetTileId, targetLabel) {
+function placeCapturePlayerForBroadsideTarget(
+  targetTileId,
+  targetLabel,
+  approachBearingDeg,
+  targetDistancePx = 48
+) {
   const targetVector = tileCenterVector(targetTileId);
+  const targetCamera = northUpCamera(targetVector);
   const visited = new Set([targetTileId]);
   let frontier = [targetTileId];
   const candidates = [];
   for (let depth = 0; depth <= 7; depth += 1) {
     for (const tileId of frontier) {
       if (!isShipBaseNavigableTile(tileId)) continue;
-      const distancePx = vectorArcDistance(tileCenterVector(tileId), targetVector) * PIXELS_PER_RADIAN;
-      if (distancePx >= 32 && distancePx <= 58) candidates.push({ tileId, distancePx });
+      const candidateVector = tileCenterVector(tileId);
+      const distancePx = vectorArcDistance(candidateVector, targetVector) * PIXELS_PER_RADIAN;
+      if (distancePx < 32 || distancePx > 58) continue;
+      const fromTarget = normalizeOrNull(projectTangentVector([
+        candidateVector[0] - targetVector[0],
+        candidateVector[1] - targetVector[1],
+        candidateVector[2] - targetVector[2]
+      ], targetVector));
+      if (!fromTarget) continue;
+      const bearingRad = normalizeAngleRad(Math.atan2(
+        dot3(fromTarget, targetCamera.right),
+        dot3(fromTarget, targetCamera.up)
+      ));
+      const bearingDifferenceRad = approachBearingDeg === undefined
+        ? 0
+        : Math.abs(Math.atan2(
+            Math.sin(bearingRad - approachBearingDeg * Math.PI / 180),
+            Math.cos(bearingRad - approachBearingDeg * Math.PI / 180)
+          ));
+      candidates.push({ tileId, distancePx, bearingDifferenceRad });
     }
     const next = [];
     for (const tileId of frontier) {
@@ -13749,7 +13851,11 @@ function placeCapturePlayerForBroadsideTarget(targetTileId, targetLabel) {
     }
     frontier = next;
   }
-  candidates.sort((a, b) => Math.abs(a.distancePx - 48) - Math.abs(b.distancePx - 48));
+  candidates.sort((a, b) => (
+    a.bearingDifferenceRad - b.bearingDifferenceRad ||
+    Math.abs(a.distancePx - targetDistancePx) - Math.abs(b.distancePx - targetDistancePx) ||
+    a.tileId - b.tileId
+  ));
   const selected = candidates[0];
   if (!selected) throw new Error(`Capture could not find broadside water near ${targetLabel}`);
   placeCapturePlayerOnTile(selected.tileId);
@@ -17122,19 +17228,29 @@ function crewGenerationContextForHomePort(homePortCityId) {
   });
 }
 
-function setScenarioCrewCount(count) {
+function setScenarioCrewCount(count, options = {}) {
   if (!Number.isInteger(count) || count < 1 || count > gameState.ship.crewCapacity) {
     throw new Error(`Invalid capture crew count: ${count}/${gameState.ship.crewCapacity}`);
   }
   const ordinaryCount = count - 1 - gameState.namedCrew.length;
   if (ordinaryCount < 0) throw new Error(`Capture crew count is below named commitments: ${count}`);
-  const generation = crewGenerationContextForHomePort(gameState.playerCharacter.homePortCityId);
+  const homePortCityId = options.homePortCityId ?? gameState.playerCharacter.homePortCityId;
+  const generation = crewGenerationContextForHomePort(homePortCityId);
+  const appearances = options.appearanceIds === undefined
+    ? generation.appearances
+    : options.appearanceIds.map((appearanceId) => Object.freeze({
+        appearanceId,
+        crewTypeId: cityCrewTypeForAppearance(appearanceId)
+      }));
+  if (appearances.length === 0) {
+    throw new Error("Capture crew appearance pool must not be empty");
+  }
   gameState.crewRoster = createMigratedCrewRoster({
     count: ordinaryCount,
     voyageSeed: `${gameState.voyageSeed}|capture|${count}`,
     homePort: generation.homePort,
     currentMinute: Math.floor(weatherClockMinutes),
-    appearances: generation.appearances,
+    appearances,
     identityForKey: generation.identityForKey
   });
   gameState.ship.crew = count;
@@ -24907,7 +25023,9 @@ function updatePortAssault(nowMs) {
     }
   }
   if (!assault.completionApplied && elapsedMs >= assault.battle.durationMs +
-      (assault.battle.finalShipHitPoints === 0 ? SHIP_SINK_EFFECT_DURATION_MS + 400 : 1400)) {
+      (assault.battle.finalShipHitPoints === 0
+        ? SHIP_SINK_EFFECT_DURATION_MS + 400
+        : PORT_ASSAULT_RESULT_PRESENTATION_DURATION_MS)) {
     assault.completionApplied = true;
     completePlayerPortAssault(assault.cityCall, assault.status, assault.battle);
   }

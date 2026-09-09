@@ -263,6 +263,29 @@ def validate_clip_portraits(source, sidecar, clip):
                 f"{source} player portrait is {actual_player}; expected {expected_player}"
             )
 
+    expected_harbour_master = clip.get("requiredHarbourMasterPortraitSourceId")
+    if expected_harbour_master is not None:
+        if not isinstance(expected_harbour_master, str) or not expected_harbour_master:
+            raise RuntimeError(f"Invalid required harbour master portrait source: {source}")
+        actual_harbour_master = (
+            sequence.get("harbourMasterPortraitSourceId") if isinstance(sequence, dict) else None
+        )
+        if actual_harbour_master != expected_harbour_master:
+            raise RuntimeError(
+                f"{source} harbour master portrait is {actual_harbour_master}; "
+                f"expected {expected_harbour_master}"
+            )
+        portrait_events = [
+            event for event in sidecar["events"]
+            if event.get("type") == "capture-portrait"
+            and event.get("data", {}).get("role") == "harbour-master"
+        ]
+        if (
+            len(portrait_events) != 1
+            or portrait_events[0].get("data", {}).get("sourceId") != expected_harbour_master
+        ):
+            raise RuntimeError(f"{source} did not render the required harbour master portrait")
+
 
 def validate_clip_modal_policy(source, sidecar, clip):
     expected = clip.get("requiredModalPolicy")
@@ -273,6 +296,54 @@ def validate_clip_modal_policy(source, sidecar, clip):
     actual = sidecar.get("scenario", {}).get("sequence", {}).get("modalPolicy")
     if actual != expected:
         raise RuntimeError(f"{source} modal policy is {actual}; expected {expected}")
+
+
+def validate_clip_natural_assault_moment(source, sidecar, clip, start, duration):
+    expected = clip.get("requiredNaturalAssaultMoment")
+    if expected is None:
+        return
+    if expected not in {"landing", "battle", "victory"}:
+        raise RuntimeError(f"Invalid required natural assault moment for {source}: {expected}")
+    sequence = sidecar.get("scenario", {}).get("sequence", {})
+    if (
+        sequence.get("kind") != "pillage"
+        or sequence.get("variant") != "assault"
+        or sequence.get("captureEntireAssault") is not True
+    ):
+        raise RuntimeError(f"{source} is not a complete natural assault capture")
+    staged = [
+        event for event in sidecar["events"]
+        if event.get("type") == "capture-beat"
+        and event.get("data", {}).get("action") == "assault-phase-staged"
+    ]
+    if staged:
+        raise RuntimeError(f"{source} contains staged assault movement")
+    landings = [
+        event for event in sidecar["events"]
+        if event.get("type") == "capture-beat"
+        and event.get("data", {}).get("action") == "land-marines"
+    ]
+    if len(landings) != 1 or landings[0].get("data", {}).get("naturalTimeline") is not True:
+        raise RuntimeError(f"{source} has no single natural assault start")
+    battle_duration_ms = landings[0].get("data", {}).get("battleDurationMs")
+    if not isinstance(battle_duration_ms, (int, float)) or battle_duration_ms <= 0:
+        raise RuntimeError(f"{source} has no recorded natural assault duration")
+    landing_time = landings[0].get("t", -1) / 1000
+    victory_time = landing_time + battle_duration_ms / 1000
+    clip_end = start + duration
+    epsilon = 1 / FPS
+    if expected == "landing" and not (
+        start + epsilon >= landing_time and start <= landing_time + 2
+    ):
+        raise RuntimeError(f"{source} landing edit does not begin with the natural landing")
+    if expected == "battle" and not (
+        start > landing_time + 2 and clip_end < victory_time
+    ):
+        raise RuntimeError(f"{source} battle edit is outside the natural battle")
+    if expected == "victory" and not (
+        start + epsilon >= victory_time and clip_end <= victory_time + 2
+    ):
+        raise RuntimeError(f"{source} victory edit is outside the normal result presentation")
 
 
 def validate_clip_broadside(source, sidecar, start, duration, required_broadside):
@@ -324,6 +395,13 @@ def validate_clip_broadside(source, sidecar, start, duration, required_broadside
         raise RuntimeError(
             f"{source} needs at least {minimum_hits} visible player cannon hits; found {len(hits)}"
         )
+    require_disable = required_broadside.get("requireDisable", False)
+    if not isinstance(require_disable, bool):
+        raise RuntimeError(f"{source} broadside requireDisable must be boolean")
+    if require_disable and not any(
+        hit.get("data", {}).get("remainingHitPoints") == 0 for hit in hits
+    ):
+        raise RuntimeError(f"{source} broadside did not disable its target in the edit window")
 
 
 def sfx_duration(asset):
@@ -627,8 +705,8 @@ def main():
     )
     if not isinstance(chapters, list) or len(chapters) != chapter_count:
         raise RuntimeError(f"Trailer plan must define exactly {chapter_count} chapters")
-    if any(len(chapter.get("clips", [])) < 2 for chapter in chapters):
-        raise RuntimeError("Every trailer chapter requires at least two clips")
+    if any(len(chapter.get("clips", [])) < 1 for chapter in chapters):
+        raise RuntimeError("Every trailer chapter requires at least one clip")
     music = plan.get("music")
     if not isinstance(music, dict):
         raise RuntimeError("Trailer plan must define music synchronization")
@@ -749,6 +827,7 @@ def main():
             )
             validate_clip_portraits(source, sidecar, clip)
             validate_clip_modal_policy(source, sidecar, clip)
+            validate_clip_natural_assault_moment(source, sidecar, clip, start, duration)
             validate_clip_broadside(
                 source,
                 sidecar,

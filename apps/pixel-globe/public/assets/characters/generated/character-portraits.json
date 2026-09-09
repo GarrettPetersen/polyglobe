@@ -7396,8 +7396,8 @@
       "expressionCount": 6,
       "expressions": [
         {
-          "id": "concerned",
-          "label": "Concerned",
+          "id": "neutral",
+          "label": "Neutral",
           "index": 1,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait1.png",
           "width": 64,
@@ -7420,8 +7420,8 @@
           "height": 64
         },
         {
-          "id": "neutral",
-          "label": "Neutral",
+          "id": "concerned",
+          "label": "Concerned",
           "index": 4,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait4.png",
           "width": 64,

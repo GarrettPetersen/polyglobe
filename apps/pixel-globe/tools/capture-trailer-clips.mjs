@@ -562,7 +562,10 @@ function verifySidecar(sidecar, scenarioId, format) {
     if (!types.has(required)) throw new Error(`${scenarioId} sidecar is missing ${required}`);
   }
   if (!types.has("capture-beat")) throw new Error(`${scenarioId} sidecar has no capture beats`);
+  verifyReviewedPortraits(sidecar, scenarioId);
   verifyFeaturedSfx(sidecar, scenarioId);
+  verifyNaturalAssaultTimeline(sidecar, scenarioId);
+  verifyBombardmentBatteryDisable(sidecar, scenarioId);
   if (sidecar.scenario.sequence.kind === "sail") {
     verifySailingCapture(sidecar, scenarioId);
   }
@@ -579,6 +582,68 @@ function verifySidecar(sidecar, scenarioId, format) {
       `${scenarioId} frame pass reports ${captureStart.data.frameRate} fps; expected ` +
       `${AUTOMATIC_CAPTURE_FRAME_RATE}`
     );
+  }
+}
+
+function verifyBombardmentBatteryDisable(sidecar, scenarioId) {
+  const sequence = sidecar.scenario.sequence;
+  if (sequence.batteryStartingHitPoints === undefined) return;
+  const disablingHits = sidecar.events.filter((event) => (
+    event.type === "projectile-hit" &&
+    event.data?.ownerId === "player" &&
+    event.data?.weapon === "cannon" &&
+    event.data?.targetId === `shore-battery:${sequence.cityId}` &&
+    event.data?.remainingHitPoints === 0
+  ));
+  const verified = sidecar.events.filter((event) => (
+    event.type === "capture-beat" &&
+    event.data?.action === "battery-disabled-by-player-volley" &&
+    event.data?.city === sequence.cityId
+  ));
+  if (disablingHits.length < 1 || verified.length !== 1) {
+    throw new Error(`${scenarioId} did not disable its battery with the recorded player volley`);
+  }
+}
+
+function verifyNaturalAssaultTimeline(sidecar, scenarioId) {
+  const sequence = sidecar.scenario.sequence;
+  if (sequence.kind !== "pillage" || sequence.variant !== "assault") return;
+  const staged = sidecar.events.filter((event) => (
+    event.type === "capture-beat" && event.data?.action === "assault-phase-staged"
+  ));
+  if (staged.length !== 0) {
+    throw new Error(`${scenarioId} contains staged assault movement`);
+  }
+  const landing = sidecar.events.filter((event) => (
+    event.type === "capture-beat" && event.data?.action === "land-marines"
+  ));
+  if (landing.length !== 1 || landing[0].data?.naturalTimeline !== true ||
+      !Number.isFinite(landing[0].data?.battleDurationMs) ||
+      landing[0].data.battleDurationMs <= 0) {
+    throw new Error(`${scenarioId} did not record one natural assault timeline`);
+  }
+  if (sequence.captureEntireAssault !== true) return;
+  const victory = sidecar.events.filter((event) => (
+    event.type === "capture-beat" && event.data?.action === "assault-victory-visible"
+  ));
+  if (victory.length !== 1 || victory[0].data?.result !== "VICTORY") {
+    throw new Error(`${scenarioId} did not naturally reach its in-scene victory title`);
+  }
+}
+
+function verifyReviewedPortraits(sidecar, scenarioId) {
+  const sequence = sidecar.scenario.sequence;
+  const reviewedPortraits = [
+    ["factor", sequence.factorPortraitSourceId],
+    ["harbour-master", sequence.harbourMasterPortraitSourceId]
+  ].filter(([, sourceId]) => sourceId !== undefined);
+  for (const [role, sourceId] of reviewedPortraits) {
+    const events = sidecar.events.filter((event) => (
+      event.type === "capture-portrait" && event.data?.role === role
+    ));
+    if (events.length !== 1 || events[0].data?.sourceId !== sourceId) {
+      throw new Error(`${scenarioId} did not render its reviewed ${role} portrait`);
+    }
   }
 }
 
@@ -684,13 +749,6 @@ function verifyFeaturedSfx(sidecar, scenarioId) {
         `${scenarioId} expected ${sequence.transactionCount} ${sequence.variant} actions and coin cues, ` +
         `got ${actions.length} actions and ${coins.length} cues`
       );
-    }
-    const portraitEvents = sidecar.events.filter((event) => (
-      event.type === "capture-portrait" && event.data?.role === "factor"
-    ));
-    if (portraitEvents.length !== 1 ||
-        portraitEvents[0].data?.sourceId !== sequence.factorPortraitSourceId) {
-      throw new Error(`${scenarioId} did not render its reviewed factor portrait`);
     }
   }
   if (sequence.kind === "fish" || (sequence.kind === "panda" && sequence.variant === "fish")) {

@@ -5,7 +5,9 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 
 const source=ts.createSourceFile("main.js",readFileSync(new URL("./main.js",import.meta.url),"utf8"),ts.ScriptTarget.Latest,true);
+const staffDeclaration=source.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==="stageCapturePortStaffPortrait");
 const declaration=source.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==="stageCaptureGarrisonOfficer");
+assert.ok(staffDeclaration);
 assert.ok(declaration);
 test("capture garrison portraits are optional; an unspecified portrait preserves the generated officer",()=>{
   const stage=runInNewContext(declaration.getText(source)+";stageCaptureGarrisonOfficer");
@@ -24,7 +26,10 @@ test("an explicit capture portrait replaces the officer and refreshes the chart"
     assignPortCityStaffMemberFromSource:(_city,_role,sourceId)=>{
       assert.equal(sourceId,"portrait-a");return officer;
     },camera:{},buildChart:()=>({refreshed:true}),chart:null};
-  const stage=runInNewContext(declaration.getText(source)+";stageCaptureGarrisonOfficer",context);
+  const stage=runInNewContext(
+    staffDeclaration.getText(source)+declaration.getText(source)+";stageCaptureGarrisonOfficer",
+    context
+  );
   stage({garrisonPortraitSourceId:"portrait-a"},city);
   assert.equal(staff.get(city.cityId).garrison,officer);
   assert.deepEqual([...names],[officer.name]);

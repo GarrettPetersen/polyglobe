@@ -55,7 +55,7 @@ test("a fatal assault hit keeps the scene active for the whole sink before apply
   const state = { battle: { durationMs: 1000, finalShipHitPoints: 0 }, pausedAtMs: null,
     pausedDurationMs: 0, breakOffPrompt: true, completionApplied: false };
   const context = { portAssaultState: state, menusAreOpen: () => false,
-    portAssaultElapsedMs: timeMs => timeMs, capturePortAssaultElapsedMs: (_, timeMs) => timeMs,
+    portAssaultElapsedMs: timeMs => timeMs,
     SHIP_SINK_EFFECT_DURATION_MS: 5200,
     completePlayerPortAssault: () => { completed++; } };
   const update = runInNewContext(`${code}; updatePortAssault`, context);

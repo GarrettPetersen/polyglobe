@@ -783,7 +783,7 @@ test("visually reviewed expression packs use calm neutral frames", () => {
     ["old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard", 3],
     ["peasant-portrait-pack-by-captainskeleto-peasant-portrait", 4],
     ["merchant-portrait-pack-by-captainskolot-portrait-merchant", 1],
-    ["ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait", 4],
+    ["ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait", 1],
     ["ultimate-portrait-pack-v1-0-village-elder-villager-elder-portrait", 4],
     ["ultimate-portrait-pack-v1-0-young-peasant-girl-villager-young-girl-portrait", 4],
     ["ultimate-portrait-pack-v1-0-women-baker-women-baker-portrait", 6],
@@ -803,6 +803,21 @@ test("visually reviewed expression packs use calm neutral frames", () => {
       `${source.label} neutral frame`
     );
   }
+});
+
+test("the Ottoman trailer captain uses the calm tavern keeper frame", () => {
+  const source = GENERATED_MANIFEST.sourceCharacters.find(
+    (character) => character.id === "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait"
+  );
+  assert.ok(source);
+  const expressionIndices = Object.fromEntries(
+    source.expressions.map((expression) => [expression.id, expression.index])
+  );
+
+  assert.equal(expressionIndices.neutral, 1);
+  assert.equal(expressionIndices.concerned, 4);
+  assert.equal(expressionIndices.sad, 6);
+  assert.match(characterExpression(source, "neutral").src, /Tavern%20Keeper%20Portrait1\.png$/);
 });
 
 test("the blond villager portrait uses its visually reviewed expression frames", () => {

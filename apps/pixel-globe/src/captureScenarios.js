@@ -25,12 +25,21 @@ const TRAILER_TERNATE_CAPTAIN_SOURCE_ID = TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID;
 const TRAILER_LISBON_CAPTAIN_SOURCE_ID =
   "merchant-portrait-pack-by-captainskolot-portrait-merchant";
 const DEMO_LAUNCH_OTTOMAN_CAPTAIN_SOURCE_ID =
-  "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard";
+  "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait";
 const DEMO_LAUNCH_OTTOMAN_HOME_CITY = "thessaloniki|greece";
+const DEMO_LAUNCH_OTTOMAN_FACTOR_SOURCE_ID =
+  "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-10";
+const DEMO_LAUNCH_OTTOMAN_HARBOUR_MASTER_SOURCE_ID =
+  "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard";
 const DEMO_LAUNCH_OTTOMAN_OFFICER_SOURCE_ID =
-  "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait";
+  "warrior-with-beard-pack-by-captainskolot-warrior-with-beard";
 const DEMO_LAUNCH_RHODES_GUARD_SOURCE_ID =
   "knight-portrait-pack-by-captainskeleto-knight-portrait";
+const DEMO_LAUNCH_OTTOMAN_ASSAULT_CREW_HOME_CITY = "istanbul|turkey";
+const DEMO_LAUNCH_OTTOMAN_ASSAULT_CREW_APPEARANCE_IDS = Object.freeze([
+  "islamicate-warrior-medium",
+  "gunner-medium"
+]);
 const PAPAL_SHORT_CAPTAIN_SOURCE_ID = TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID;
 const PAPAL_SHORT_NUNCIO_SOURCE_ID =
   "curated-historical-portraits-by-captainskolot-old-scholar";
@@ -1641,18 +1650,18 @@ const CAPTURE_SCENARIOS = Object.freeze({
   "trailer-demo-launch-sail-bosphorus": trailerScenario({
     id: "trailer-demo-launch-sail-bosphorus",
     debugCaption: "An Ottoman Felucca Leaves Istanbul",
-    seed: "trailer-demo-launch-sail-bosphorus-v1",
-    player: capturePlayer("ottoman", "felucca", 40.8, 28.8, 0, {
+    seed: "trailer-demo-launch-sail-bosphorus-v3",
+    player: capturePlayer("ottoman", "felucca", 40.55, 28.6, 0, {
       characterPortraitSourceId: DEMO_LAUNCH_OTTOMAN_CAPTAIN_SOURCE_ID,
       homeCityId: DEMO_LAUNCH_OTTOMAN_HOME_CITY,
       religionId: "sunni-islam"
     }),
-    world: captureWorld(118, 12, 20),
+    world: captureWorld(118, 14, 20),
     sequence: trailerSequence("sail", "beam-reach", {
-      durationSeconds: 5,
-      beamSide: "port",
-      speedRatio: 0.1,
-      sailingSimulationRate: 0.04,
+      durationSeconds: 3,
+      beamSide: "starboard",
+      speedRatio: 0.96,
+      sailingSimulationRate: 0.16,
       requireOpenWaterCourse: true,
       modalPolicy: "suppress"
     })
@@ -1672,7 +1681,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
       cityId: DEMO_LAUNCH_OTTOMAN_HOME_CITY,
       goodId: "wine",
       transactionCount: 5,
-      factorPortraitSourceId: TRAILER_LISBON_CAPTAIN_SOURCE_ID,
+      factorPortraitSourceId: DEMO_LAUNCH_OTTOMAN_FACTOR_SOURCE_ID,
       modalPolicy: "show"
     })
   }),
@@ -1690,24 +1699,25 @@ const CAPTURE_SCENARIOS = Object.freeze({
       durationSeconds: 10,
       cityId: DEMO_LAUNCH_OTTOMAN_HOME_CITY,
       shipSlug: "mediterranean-galley",
+      harbourMasterPortraitSourceId: DEMO_LAUNCH_OTTOMAN_HARBOUR_MASTER_SOURCE_ID,
       modalPolicy: "show"
     })
   }),
   "trailer-demo-launch-sail-galley": trailerScenario({
     id: "trailer-demo-launch-sail-galley",
     debugCaption: "An Ottoman Galley Crosses the Aegean",
-    seed: "trailer-demo-launch-sail-galley-v1",
+    seed: "trailer-demo-launch-sail-galley-v2",
     player: capturePlayer("ottoman", "mediterranean-galley", 38.0, 25.4, 0, {
       characterPortraitSourceId: DEMO_LAUNCH_OTTOMAN_CAPTAIN_SOURCE_ID,
       homeCityId: DEMO_LAUNCH_OTTOMAN_HOME_CITY,
       religionId: "sunni-islam"
     }),
-    world: captureWorld(121, 12, 30),
+    world: captureWorld(121, 14, 30),
     sequence: trailerSequence("sail", "beam-reach", {
       durationSeconds: 5,
       beamSide: "starboard",
-      speedRatio: 0.1,
-      sailingSimulationRate: 0.04,
+      speedRatio: 0.94,
+      sailingSimulationRate: 0.16,
       requireOpenWaterCourse: true,
       modalPolicy: "suppress"
     })
@@ -1742,7 +1752,9 @@ const CAPTURE_SCENARIOS = Object.freeze({
     side: "starboard",
     targetFactionId: "venice",
     targetShipSlug: "galleass",
-    targetOffsetDeg: 0.52,
+    targetLatOffsetDeg: 0.28,
+    targetLonOffsetDeg: 0.43,
+    targetHeadingDeg: 235,
     escortFactionId: "venice",
     escortShipSlug: "brigantine"
   }),
@@ -1750,12 +1762,14 @@ const CAPTURE_SCENARIOS = Object.freeze({
     id: "trailer-demo-launch-fight-hospitallers",
     debugCaption: "An Ottoman Galley Battles the Knights of Rhodes",
     seed: "trailer-demo-launch-fight-hospitallers-v1",
-    lat: 35.7,
-    lon: 26.4,
+    lat: 34.0,
+    lon: 28.0,
     side: "port",
     targetFactionId: "hospitallers",
     targetShipSlug: "fusta",
-    targetOffsetDeg: 0.54,
+    targetLatOffsetDeg: -0.31,
+    targetLonOffsetDeg: -0.39,
+    targetHeadingDeg: 45,
     escortFactionId: "venice",
     escortShipSlug: "small-cog"
   }),
@@ -1775,35 +1789,23 @@ const CAPTURE_SCENARIOS = Object.freeze({
       cityId: "rhodes|greece",
       broadsideSide: "starboard",
       holdBroadsideAim: true,
+      broadsideSpeedRatio: 0.16,
+      broadsideApproachBearingDeg: 225,
+      broadsideTargetDistancePx: 56,
+      batteryStartingHitPoints: 1,
       modalPolicy: "suppress"
     })
   }),
-  "trailer-demo-launch-assault-rhodes": trailerScenario({
+  "trailer-demo-launch-assault-rhodes": demoLaunchRhodesAssaultScenario({
     id: "trailer-demo-launch-assault-rhodes",
-    debugCaption: "Land Ottoman Marines at Rhodes",
-    seed: "trailer-demo-launch-assault-rhodes-v1",
-    player: capturePlayer("ottoman", "mediterranean-galley", 36.43, 28.22, 180, {
-      characterPortraitSourceId: DEMO_LAUNCH_OTTOMAN_CAPTAIN_SOURCE_ID,
-      homeCityId: DEMO_LAUNCH_OTTOMAN_HOME_CITY,
-      religionId: "sunni-islam"
-    }),
-    world: captureWorld(124, 15, 20),
-    diplomacy: [{ factionAId: "ottoman", factionBId: "hospitallers", relation: "war" }],
-    sequence: trailerSequence("pillage", "assault", {
-      durationSeconds: 10,
-      cityId: "rhodes|greece",
-      assaultOpenSeconds: 0.5,
-      assaultLandingSeconds: 4.8,
-      garrisonPortraitSourceId: DEMO_LAUNCH_RHODES_GUARD_SOURCE_ID,
-      modalPolicy: "show"
-    })
+    debugCaption: "Ottoman Marines Conquer Rhodes"
   }),
   "trailer-demo-launch-ottoman-west": demoLaunchOttomanControlScenario({
     id: "trailer-demo-launch-ottoman-west",
-    debugCaption: "Ottoman Ports across the Western Mediterranean",
+    debugCaption: "Ottoman Ports on the Iberian Coast",
     seed: "trailer-demo-launch-ottoman-west-v1",
-    lat: 40.72,
-    lon: 12.15,
+    lat: 40.3,
+    lon: 1.3,
     beamSide: "starboard",
     day: 128,
     hour: 13,
@@ -1830,6 +1832,52 @@ const CAPTURE_SCENARIOS = Object.freeze({
     day: 128,
     hour: 13,
     minute: 40
+  }),
+  "trailer-demo-launch-ottoman-aegean": demoLaunchOttomanControlScenario({
+    id: "trailer-demo-launch-ottoman-aegean",
+    debugCaption: "Ottoman Ports around the Bosphorus",
+    seed: "trailer-demo-launch-ottoman-aegean-v1",
+    lat: 40.65,
+    lon: 27.7,
+    beamSide: "port",
+    speedRatio: 0.52,
+    day: 129,
+    hour: 12,
+    minute: 10
+  }),
+  "trailer-demo-launch-ottoman-alexandria": demoLaunchOttomanControlScenario({
+    id: "trailer-demo-launch-ottoman-alexandria",
+    debugCaption: "Ottoman Flags at the Nile Mouth",
+    seed: "trailer-demo-launch-ottoman-alexandria-v1",
+    lat: 31.0,
+    lon: 29.1,
+    beamSide: "starboard",
+    speedRatio: 0.44,
+    day: 129,
+    hour: 12,
+    minute: 30
+  }),
+  "trailer-demo-launch-ottoman-black-sea": demoLaunchOttomanControlScenario({
+    id: "trailer-demo-launch-ottoman-black-sea",
+    debugCaption: "Ottoman Ports around the Black Sea",
+    seed: "trailer-demo-launch-ottoman-black-sea-v1",
+    lat: 45.0,
+    lon: 31.5,
+    beamSide: "port",
+    speedRatio: 0.64,
+    day: 129,
+    hour: 13,
+    minute: 10
+  }),
+  "trailer-demo-launch-ottoman-vienna": demoLaunchOttomanRiverControlScenario({
+    id: "trailer-demo-launch-ottoman-vienna",
+    debugCaption: "An Ottoman Galley Reaches Vienna",
+    seed: "trailer-demo-launch-ottoman-vienna-v1",
+    riverStart: { lat: 48.21, lon: 16.0 },
+    sailingTarget: { lat: 48.19, lon: 16.45 },
+    day: 129,
+    hour: 13,
+    minute: 50
   }),
   "short-storm-lightning-sinking": trailerScenario({
     id: "short-storm-lightning-sinking",
@@ -2563,7 +2611,12 @@ function validateCaptureSequence(value) {
     throw new Error(`Invalid capture sequence kind: ${value.kind}`);
   }
   requiredString(value.variant, "capture sequence variant");
-  const maximumDuration = value.kind === "sail" && value.variant === "upwind-voyage" ? 40 : 30;
+  if (value.captureEntireAssault !== undefined && value.captureEntireAssault !== true) {
+    throw new Error("Capture entire assault must be true when specified");
+  }
+  const maximumDuration = value.captureEntireAssault === true
+    ? CAPTURE_MAX_SECONDS
+    : value.kind === "sail" && value.variant === "upwind-voyage" ? 40 : 30;
   numberInRange(value.durationSeconds, 3, maximumDuration, "capture sequence duration");
   const requiredByKind = {
     explore: ["discoveryId"],
@@ -2613,9 +2666,13 @@ function validateCaptureSequence(value) {
     }
     if (value.variant === "shipyard-purchase") {
       requiredString(value.shipSlug, "city shipyard-purchase ship slug");
+      requiredString(
+        value.harbourMasterPortraitSourceId,
+        "city shipyard-purchase harbour master portrait source id"
+      );
       shipStatsForSlug(value.shipSlug);
-    } else if (value.shipSlug !== undefined) {
-      throw new Error("City ship slug requires the shipyard-purchase variant");
+    } else if (value.shipSlug !== undefined || value.harbourMasterPortraitSourceId !== undefined) {
+      throw new Error("City shipyard fields require the shipyard-purchase variant");
     }
   }
   if (value.kind === "city" && value.variant === "letter-of-marque") {
@@ -2630,6 +2687,12 @@ function validateCaptureSequence(value) {
   if (value.factorPortraitSourceId !== undefined && !["trade", "city"].includes(value.kind)) {
     throw new Error("Capture factor portrait source requires a trade or city sequence");
   }
+  if (value.harbourMasterPortraitSourceId !== undefined &&
+      !(value.kind === "city" && value.variant === "shipyard-purchase")) {
+    throw new Error(
+      "Capture harbour master portrait source requires a city shipyard-purchase sequence"
+    );
+  }
   if ((value.kind === "fight" && value.variant !== "small-arms") ||
       (value.kind === "pillage" && value.variant === "bombard") ||
       (value.kind === "companions" && value.variant === "pirate-revenge")) {
@@ -2642,6 +2705,47 @@ function validateCaptureSequence(value) {
   if (value.holdBroadsideAim !== undefined && typeof value.holdBroadsideAim !== "boolean") {
     throw new Error("Capture broadside aim hold must be boolean");
   }
+  const isBroadsideSequence =
+    (value.kind === "fight" && value.variant !== "small-arms") ||
+    (value.kind === "pillage" && value.variant === "bombard") ||
+    (value.kind === "companions" && value.variant === "pirate-revenge");
+  if (isBroadsideSequence && value.broadsideSpeedRatio !== undefined) {
+    numberInRange(value.broadsideSpeedRatio, 0.1, 1, "capture broadside speed ratio");
+  } else if (value.broadsideSpeedRatio !== undefined) {
+    throw new Error("Capture broadside speed ratio requires a broadside sequence");
+  }
+  if (value.kind === "pillage" && value.variant === "bombard" &&
+      value.broadsideApproachBearingDeg !== undefined) {
+    numberInRange(
+      value.broadsideApproachBearingDeg,
+      0,
+      360,
+      "capture broadside approach bearing"
+    );
+  } else if (value.broadsideApproachBearingDeg !== undefined) {
+    throw new Error("Capture broadside approach bearing requires a bombardment sequence");
+  }
+  if (value.kind === "pillage" && value.variant === "bombard") {
+    if (value.broadsideTargetDistancePx !== undefined) {
+      numberInRange(
+        value.broadsideTargetDistancePx,
+        32,
+        58,
+        "capture broadside target distance"
+      );
+    }
+    if (value.batteryStartingHitPoints !== undefined) {
+      integerInRange(
+        value.batteryStartingHitPoints,
+        1,
+        999,
+        "capture battery starting hit points"
+      );
+    }
+  } else if (value.broadsideTargetDistancePx !== undefined ||
+      value.batteryStartingHitPoints !== undefined) {
+    throw new Error("Capture battery staging requires a bombardment sequence");
+  }
   if (value.kind === "pillage" && value.variant === "assault") {
     if (value.assaultOpenSeconds !== undefined || value.assaultLandingSeconds !== undefined) {
       numberInRange(value.assaultOpenSeconds, 0.1, value.durationSeconds - 1, "assault modal open seconds");
@@ -2650,7 +2754,24 @@ function validateCaptureSequence(value) {
         throw new Error("Capture assault landing must follow its modal opening");
       }
     }
-  } else if (value.assaultOpenSeconds !== undefined || value.assaultLandingSeconds !== undefined) {
+    if (value.assaultRandomValue !== undefined) {
+      numberInRange(value.assaultRandomValue, 0, 0.999999, "capture assault random value");
+    }
+    if (value.assaultCrewHomeCityId !== undefined) {
+      requiredCityId(value.assaultCrewHomeCityId, "capture assault crew home city");
+    }
+    if (value.assaultCrewAppearanceIds !== undefined) {
+      if (!Array.isArray(value.assaultCrewAppearanceIds) ||
+          value.assaultCrewAppearanceIds.length === 0) {
+        throw new Error("Capture assault crew appearances must be a non-empty array");
+      }
+      for (const appearanceId of value.assaultCrewAppearanceIds) {
+        requiredString(appearanceId, "capture assault crew appearance id");
+      }
+    }
+  } else if (value.assaultOpenSeconds !== undefined || value.assaultLandingSeconds !== undefined ||
+      value.captureEntireAssault !== undefined || value.assaultRandomValue !== undefined ||
+      value.assaultCrewHomeCityId !== undefined || value.assaultCrewAppearanceIds !== undefined) {
     throw new Error("Capture assault timing requires a pillage assault sequence");
   }
   if (value.kind === "sail") {
@@ -2999,9 +3120,9 @@ function demoTrailerGalleassFleetScenario(value) {
 }
 
 function demoLaunchOttomanBattleScenario(value) {
-  const direction = value.side === "starboard" ? 1 : -1;
   const targetId = `${value.id}-target`;
-  const targetLon = value.lon + direction * value.targetOffsetDeg;
+  const targetLat = value.lat + value.targetLatOffsetDeg;
+  const targetLon = value.lon + value.targetLonOffsetDeg;
   return trailerScenario({
     id: value.id,
     debugCaption: value.debugCaption,
@@ -3023,25 +3144,25 @@ function demoLaunchOttomanBattleScenario(value) {
         targetId,
         value.targetFactionId,
         value.targetShipSlug,
-        value.lat,
+        targetLat,
         targetLon,
-        0
+        value.targetHeadingDeg
       ),
       captureEncounter(
         `${value.id}-escort`,
         value.escortFactionId,
         value.escortShipSlug,
-        value.lat + 0.58,
-        value.lon + direction * (value.targetOffsetDeg + 0.58),
-        210
+        targetLat + 0.48,
+        targetLon + 0.44,
+        (value.targetHeadingDeg + 70) % 360
       ),
       captureEncounter(
         `${value.id}-merchant`,
         value.targetFactionId,
         "small-cog",
-        value.lat - 0.52,
-        value.lon + direction * (value.targetOffsetDeg + 0.52),
-        330
+        targetLat - 0.46,
+        targetLon - 0.5,
+        (value.targetHeadingDeg + 250) % 360
       )
     ],
     sequence: trailerSequence("fight", "broadside", {
@@ -3049,8 +3170,36 @@ function demoLaunchOttomanBattleScenario(value) {
       encounterId: targetId,
       broadsideSide: value.side,
       holdBroadsideAim: true,
+      broadsideSpeedRatio: 0.42,
       requireOpenWaterCourse: true,
       modalPolicy: "suppress"
+    })
+  });
+}
+
+function demoLaunchRhodesAssaultScenario({ id, debugCaption }) {
+  return trailerScenario({
+    id,
+    debugCaption,
+    seed: "trailer-demo-launch-assault-rhodes-v2",
+    player: capturePlayer("ottoman", "mediterranean-galley", 36.43, 28.22, 180, {
+      characterPortraitSourceId: DEMO_LAUNCH_OTTOMAN_CAPTAIN_SOURCE_ID,
+      homeCityId: DEMO_LAUNCH_OTTOMAN_HOME_CITY,
+      religionId: "sunni-islam"
+    }),
+    world: captureWorld(124, 15, 20),
+    diplomacy: [{ factionAId: "ottoman", factionBId: "hospitallers", relation: "war" }],
+    sequence: trailerSequence("pillage", "assault", {
+      durationSeconds: 90,
+      cityId: "rhodes|greece",
+      assaultOpenSeconds: 0.5,
+      assaultLandingSeconds: 4.8,
+      captureEntireAssault: true,
+      assaultRandomValue: 0.5,
+      assaultCrewHomeCityId: DEMO_LAUNCH_OTTOMAN_ASSAULT_CREW_HOME_CITY,
+      assaultCrewAppearanceIds: DEMO_LAUNCH_OTTOMAN_ASSAULT_CREW_APPEARANCE_IDS,
+      garrisonPortraitSourceId: DEMO_LAUNCH_RHODES_GUARD_SOURCE_ID,
+      modalPolicy: "show"
     })
   });
 }
@@ -3067,10 +3216,41 @@ function demoLaunchOttomanControlScenario(value) {
     }),
     world: captureWorld(value.day, value.hour, value.minute),
     sequence: trailerSequence("sail", "beam-reach", {
-      durationSeconds: 5,
+      durationSeconds: 3,
       beamSide: value.beamSide,
-      speedRatio: 0.1,
+      speedRatio: value.speedRatio ?? 0.68,
       sailingSimulationRate: 0.04,
+      requireOpenWaterCourse: true,
+      modalPolicy: "suppress",
+      conquerDemoPortsForFactionId: "ottoman"
+    })
+  });
+}
+
+function demoLaunchOttomanRiverControlScenario(value) {
+  return trailerScenario({
+    id: value.id,
+    debugCaption: value.debugCaption,
+    seed: value.seed,
+    player: capturePlayer(
+      "ottoman",
+      "mediterranean-galley",
+      value.riverStart.lat,
+      value.riverStart.lon,
+      90,
+      {
+        characterPortraitSourceId: DEMO_LAUNCH_OTTOMAN_CAPTAIN_SOURCE_ID,
+        homeCityId: DEMO_LAUNCH_OTTOMAN_HOME_CITY,
+        religionId: "sunni-islam"
+      }
+    ),
+    world: captureWorld(value.day, value.hour, value.minute),
+    sequence: trailerSequence("sail", "river-cruise", {
+      durationSeconds: 3,
+      riverStart: value.riverStart,
+      sailingTarget: value.sailingTarget,
+      speedRatio: 0.18,
+      sailingSimulationRate: 0.15,
       requireOpenWaterCourse: true,
       modalPolicy: "suppress",
       conquerDemoPortsForFactionId: "ottoman"

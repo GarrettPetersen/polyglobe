@@ -297,10 +297,10 @@ const expressionLabelOverrides = new Map([
     ["smile", "Smile"]
   ]),
   labels("Ultimate Portrait Pack V1.0/Tavern Keeper/Tavern Keeper Portrait", [
-    ["concerned", "Concerned"],
+    ["neutral", "Neutral"],
     ["happy", "Happy"],
     ["angry", "Angry"],
-    ["neutral", "Neutral"],
+    ["concerned", "Concerned"],
     ["laughing", "Laughing"],
     ["sad", "Sad"]
   ]),

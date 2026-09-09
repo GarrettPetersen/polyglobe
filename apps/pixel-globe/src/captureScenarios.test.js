@@ -181,7 +181,7 @@ test("the demo trailer roster replaces colonization with Mediterranean fleet com
 
 test("the demo launch trailer follows one Ottoman captain through trade, war, and conquest", () => {
   const ids = captureScenarioIds().filter((id) => id.startsWith("trailer-demo-launch-"));
-  assert.equal(ids.length, 12);
+  assert.equal(ids.length, 16);
   const captures = ids.map((id) => captureScenarioFromSearch(`?capture=${id}`));
   assert.deepEqual(Object.fromEntries(
     [...new Set(captures.map((capture) => capture.sequence.kind))].map((kind) => [
@@ -189,7 +189,7 @@ test("the demo launch trailer follows one Ottoman captain through trade, war, an
       captures.filter((capture) => capture.sequence.kind === kind).length
     ])
   ), {
-    sail: 5,
+    sail: 9,
     trade: 1,
     city: 2,
     fight: 2,
@@ -200,31 +200,136 @@ test("the demo launch trailer follows one Ottoman captain through trade, war, an
     new Set(captures.map((capture) => capture.player.characterPortraitSourceId)).size,
     1
   );
+  assert.ok(captures.every((capture) => (
+    capture.player.characterPortraitSourceId ===
+      "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait"
+  )));
   assert.ok(captures.every((capture) => capture.player.homeCityId === "thessaloniki|greece"));
   assert.ok(captures.every((capture) => capture.player.religionId === "sunni-islam"));
   assert.ok(captures.every((capture) => ["show", "suppress"].includes(capture.sequence.modalPolicy)));
-  assert.ok(captures.every((capture) => capture.sequence.durationSeconds <= 10));
+  assert.ok(captures.every((capture) => (
+    capture.sequence.durationSeconds <= 10 || capture.sequence.captureEntireAssault === true
+  )));
 
   const shipyard = captures.find((capture) => capture.sequence.variant === "shipyard-purchase");
   assert.equal(shipyard.sequence.shipSlug, "mediterranean-galley");
+  assert.equal(
+    shipyard.sequence.harbourMasterPortraitSourceId,
+    "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
+  );
+  const trade = captures.find((capture) => capture.sequence.kind === "trade");
+  assert.equal(
+    trade.sequence.factorPortraitSourceId,
+    "master-chef-portrait-pack-by-captainskolot-master-chef-portrait-10"
+  );
   const marque = captures.find((capture) => capture.sequence.variant === "letter-of-marque");
   assert.equal(marque.sequence.cityId, "istanbul|turkey");
   assert.equal(
     marque.sequence.garrisonPortraitSourceId,
-    "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait"
+    "warrior-with-beard-pack-by-captainskolot-warrior-with-beard"
   );
   const rhodes = captures.filter((capture) => capture.sequence.cityId === "rhodes|greece");
-  assert.deepEqual(rhodes.map((capture) => capture.sequence.variant), ["bombard", "assault"]);
-  assert.equal(
-    rhodes.find((capture) => capture.sequence.variant === "assault").sequence.garrisonPortraitSourceId,
-    "knight-portrait-pack-by-captainskeleto-knight-portrait"
+  assert.deepEqual(
+    rhodes.map((capture) => capture.sequence.variant),
+    ["bombard", "assault"]
   );
+  const assaults = rhodes.filter((capture) => capture.sequence.variant === "assault");
+  assert.equal(assaults.length, 1);
+  assert.equal(assaults[0].sequence.captureEntireAssault, true);
+  assert.equal(assaults[0].sequence.durationSeconds, 90);
+  assert.equal(assaults[0].sequence.assaultPhase, undefined);
+  assert.ok(assaults.every((capture) => capture.sequence.assaultRandomValue === 0.5));
+  assert.ok(assaults.every((capture) => (
+    capture.sequence.assaultCrewHomeCityId === "istanbul|turkey"
+  )));
+  assert.ok(assaults.every((capture) => (
+    JSON.stringify(capture.sequence.assaultCrewAppearanceIds) ===
+      JSON.stringify(["islamicate-warrior-medium", "gunner-medium"])
+  )));
+  assert.ok(assaults.every((capture) => (
+    capture.sequence.garrisonPortraitSourceId ===
+      "knight-portrait-pack-by-captainskeleto-knight-portrait"
+  )));
 
   const victoryPans = captures.filter((capture) => (
     capture.sequence.conquerDemoPortsForFactionId === "ottoman"
   ));
-  assert.equal(victoryPans.length, 3);
+  assert.equal(victoryPans.length, 7);
   assert.ok(victoryPans.every((capture) => capture.sequence.kind === "sail"));
+  const sailingShots = captures.filter((capture) => capture.sequence.kind === "sail");
+  assert.ok(sailingShots.every((capture) => capture.sequence.speedRatio >= 0.18));
+  for (const id of [
+    "trailer-demo-launch-sail-bosphorus",
+    "trailer-demo-launch-sail-galley"
+  ]) {
+    const sailingShot = captures.find((capture) => capture.id === id);
+    assert.ok(sailingShot.sequence.speedRatio >= 0.94, `${id} starts near full speed`);
+    assert.ok(
+      sailingShot.sequence.sailingSimulationRate >= 0.16,
+      `${id} shows visible travel rather than capture slow motion`
+    );
+  }
+  assert.deepEqual(
+    victoryPans.map((capture) => capture.title),
+    [
+      "Ottoman Ports on the Iberian Coast",
+      "Ottoman Ports across the Central Mediterranean",
+      "Ottoman Ports across the Eastern Mediterranean",
+      "Ottoman Ports around the Bosphorus",
+      "Ottoman Flags at the Nile Mouth",
+      "Ottoman Ports around the Black Sea",
+      "An Ottoman Galley Reaches Vienna"
+    ]
+  );
+
+  const battles = captures.filter((capture) => capture.sequence.kind === "fight");
+  assert.ok(battles.every((capture) => capture.sequence.broadsideSpeedRatio === 0.42));
+  assert.notEqual(
+    battles[0].encounters[0].headingDeg,
+    battles[1].encounters[0].headingDeg
+  );
+  assert.ok(battles.every((capture) => {
+    const target = capture.encounters.find((encounter) => (
+      encounter.id === capture.sequence.encounterId
+    ));
+    return target.lat !== capture.player.lat && target.lon !== capture.player.lon;
+  }));
+
+  const bombardment = captures.find((capture) => capture.sequence.variant === "bombard");
+  assert.equal(bombardment.sequence.broadsideSpeedRatio, 0.16);
+  assert.equal(bombardment.sequence.broadsideApproachBearingDeg, 225);
+  assert.equal(bombardment.sequence.broadsideTargetDistancePx, 56);
+  assert.equal(bombardment.sequence.batteryStartingHitPoints, 1);
+
+  const malformedEntireAssault = structuredClone(assaults[0]);
+  malformedEntireAssault.sequence.captureEntireAssault = false;
+  assert.throws(() => validateCaptureScenario(malformedEntireAssault), /entire assault/);
+  const sailingWithEntireAssault = structuredClone(sailingShots[0]);
+  sailingWithEntireAssault.sequence.captureEntireAssault = true;
+  assert.throws(
+    () => validateCaptureScenario(sailingWithEntireAssault),
+    /assault timing requires a pillage assault sequence/
+  );
+  const sailingWithAssaultCrew = structuredClone(sailingShots[0]);
+  sailingWithAssaultCrew.sequence.assaultCrewAppearanceIds = ["gunner-medium"];
+  assert.throws(
+    () => validateCaptureScenario(sailingWithAssaultCrew),
+    /assault timing requires a pillage assault sequence/
+  );
+
+  const shipyardWithoutPortrait = structuredClone(shipyard);
+  delete shipyardWithoutPortrait.sequence.harbourMasterPortraitSourceId;
+  assert.throws(
+    () => validateCaptureScenario(shipyardWithoutPortrait),
+    /shipyard-purchase harbour master portrait/
+  );
+  const sailingWithHarbourMaster = structuredClone(sailingShots[0]);
+  sailingWithHarbourMaster.sequence.harbourMasterPortraitSourceId =
+    shipyard.sequence.harbourMasterPortraitSourceId;
+  assert.throws(
+    () => validateCaptureScenario(sailingWithHarbourMaster),
+    /requires a city shipyard-purchase sequence/
+  );
 });
 
 test("the boarding-duel Short stages three long distinct small-arms fights", () => {

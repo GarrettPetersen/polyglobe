@@ -54,6 +54,7 @@ export const PORT_ASSAULT_PROFILE_ID = Object.freeze({
 export const PORT_ASSAULT_STEP_MS = 200;
 // Large crews need time for retreat plus stationary loading between volleys.
 export const PORT_ASSAULT_MAX_DURATION_MS = 180_000;
+export const PORT_ASSAULT_RESULT_PRESENTATION_DURATION_MS = 2_000;
 export const PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS = 4_000;
 export const PORT_ASSAULT_FORECAST_SAMPLES = 32;
 export const PORT_ASSAULT_MIN_GARRISON = 5;

@@ -17,14 +17,14 @@
       "loop": "public/assets/music/combat-big-loop.ogg",
       "bpm": 87.5
     },
-    "fightStartFrame": 657,
+    "fightStartFrame": 369,
     "crossfadeFrames": 54,
     "combatSyncAttackFrame": 27,
     "transitionHeading": "Fight",
     "requiredPreviousHeading": "Commission",
     "syncCutFrames": [
-      60, 210, 291, 372, 447, 552, 657, 777, 897, 1017,
-      1301, 1376, 1451, 1526
+      60, 180, 240, 315, 369, 489, 609, 699, 753,
+      807, 861, 885, 909, 933, 957, 981, 1005, 1029
     ]
   },
   "chapters": [
@@ -33,17 +33,17 @@
       "clips": [
         {
           "source": "demo/trailer-demo-launch-sail-bosphorus.mp4",
-          "startFrame": 15,
+          "startFrame": 27,
           "durationFrames": 60,
           "requiredModalPolicy": "suppress"
         },
         {
           "source": "demo/trailer-demo-launch-trade-istanbul.mp4",
-          "startFrame": 21,
-          "durationFrames": 150,
+          "startFrame": 36,
+          "durationFrames": 120,
           "audioGain": 1.1,
           "requiredModalPolicy": "show",
-          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard",
+          "requiredPlayerPortraitSourceId": "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait",
           "requiredSfx": { "kind": "coin", "minimum": 5 }
         }
       ]
@@ -54,16 +54,10 @@
         {
           "source": "demo/trailer-demo-launch-buy-galley.mp4",
           "startFrame": 15,
-          "durationFrames": 81,
+          "durationFrames": 60,
           "requiredModalPolicy": "show",
-          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
-        },
-        {
-          "source": "demo/trailer-demo-launch-buy-galley.mp4",
-          "startFrame": 96,
-          "durationFrames": 81,
-          "requiredModalPolicy": "show",
-          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
+          "requiredHarbourMasterPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard",
+          "requiredPlayerPortraitSourceId": "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait"
         },
         {
           "source": "demo/trailer-demo-launch-sail-galley.mp4",
@@ -78,17 +72,10 @@
       "clips": [
         {
           "source": "demo/trailer-demo-launch-letter-of-marque.mp4",
-          "startFrame": 15,
-          "durationFrames": 105,
+          "startFrame": 45,
+          "durationFrames": 54,
           "requiredModalPolicy": "show",
-          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
-        },
-        {
-          "source": "demo/trailer-demo-launch-letter-of-marque.mp4",
-          "startFrame": 120,
-          "durationFrames": 105,
-          "requiredModalPolicy": "show",
-          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
+          "requiredPlayerPortraitSourceId": "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait"
         }
       ]
     },
@@ -129,23 +116,43 @@
         {
           "source": "demo/trailer-demo-launch-bombard-rhodes.mp4",
           "startFrame": 12,
-          "durationFrames": 120,
+          "durationFrames": 90,
           "audioGain": 0.82,
           "requiredModalPolicy": "suppress",
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
             "side": "starboard",
             "targetIdPrefix": "shore-battery:",
-            "minimumHits": 1
+            "minimumHits": 1,
+            "requireDisable": true
           }
         },
         {
           "source": "demo/trailer-demo-launch-assault-rhodes.mp4",
-          "startFrame": 16,
-          "durationFrames": 284,
+          "startFrame": 180,
+          "durationFrames": 54,
           "audioGain": 0.7,
           "requiredModalPolicy": "show",
-          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
+          "requiredNaturalAssaultMoment": "landing",
+          "requiredPlayerPortraitSourceId": "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait"
+        },
+        {
+          "source": "demo/trailer-demo-launch-assault-rhodes.mp4",
+          "startFrame": 1308,
+          "durationFrames": 54,
+          "audioGain": 0.7,
+          "requiredModalPolicy": "show",
+          "requiredNaturalAssaultMoment": "battle",
+          "requiredPlayerPortraitSourceId": "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait"
+        },
+        {
+          "source": "demo/trailer-demo-launch-assault-rhodes.mp4",
+          "startFrame": 2322,
+          "durationFrames": 54,
+          "audioGain": 0.7,
+          "requiredModalPolicy": "show",
+          "requiredNaturalAssaultMoment": "victory",
+          "requiredPlayerPortraitSourceId": "ultimate-portrait-pack-v1-0-tavern-keeper-tavern-keeper-portrait"
         }
       ]
     },
@@ -155,19 +162,43 @@
         {
           "source": "demo/trailer-demo-launch-ottoman-west.mp4",
           "startFrame": 15,
-          "durationFrames": 75,
+          "durationFrames": 24,
           "requiredModalPolicy": "suppress"
         },
         {
           "source": "demo/trailer-demo-launch-ottoman-central.mp4",
           "startFrame": 15,
-          "durationFrames": 75,
+          "durationFrames": 24,
           "requiredModalPolicy": "suppress"
         },
         {
           "source": "demo/trailer-demo-launch-ottoman-east.mp4",
           "startFrame": 15,
-          "durationFrames": 75,
+          "durationFrames": 24,
+          "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "demo/trailer-demo-launch-ottoman-aegean.mp4",
+          "startFrame": 15,
+          "durationFrames": 24,
+          "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "demo/trailer-demo-launch-ottoman-alexandria.mp4",
+          "startFrame": 15,
+          "durationFrames": 24,
+          "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "demo/trailer-demo-launch-ottoman-black-sea.mp4",
+          "startFrame": 15,
+          "durationFrames": 24,
+          "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "demo/trailer-demo-launch-ottoman-vienna.mp4",
+          "startFrame": 15,
+          "durationFrames": 24,
           "requiredModalPolicy": "suppress"
         }
       ]
