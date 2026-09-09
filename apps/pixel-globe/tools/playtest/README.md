@@ -250,3 +250,19 @@ node tools/playtest/browser.mjs --checklist=destroyed-port --seed=42
 
 The setup does not yet make the checklist an autonomous city-assault strategist.
 The separate assault fixtures still exercise combat itself.
+
+## Runtime transitions and seasonal colony access
+
+Each cycle requires the player/world transaction tests (in-flight, queued,
+comparison and partial worker restore phases), staged-save interruption tests,
+dialogue exit/effect tests, and settlement-access tests. These supplement the
+browser's canal stages, colony restoration, destroyed-port visits and persistent
+checklist; they deliberately force timing boundaries a random journey may miss.
+
+The seasonal-access regressions cover sea and river ice, downstream chokepoints,
+alternate open routes, year wraparound and invalid geography. Production dialogue
+tests check every relevant quest stage. Every browser-enabled cycle additionally
+renders expedition offers and colony/origin resupply dialogue for every currently
+icebound colony and an ice-free control, before and after saving and restoring.
+The browser asserts both the warning and the matching city scene. This is a
+materialized quest scenario, not a claim that the bot sailed through winter ice.

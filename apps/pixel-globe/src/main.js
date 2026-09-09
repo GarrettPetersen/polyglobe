@@ -16943,6 +16943,17 @@ function installSaveRestoreSmokeHarness() {
       return { mode, cityId: city.cityId, nextNodeId, actionDurationMs,
         serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
     },
+    async inspectColonizationDialogue(cityId) {
+      if (running) throw new Error("Colony dialogue smoke requires an idle restored voyage");
+      if (playerIntroModal) closePlayerIntroModal();
+      openCapturePortNode(cityId, "colonization");
+      await synchronizePortCityScene();
+      const view = currentDialogueView();
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      await waitForSaveRestoreSmokePersistence();
+      return { text: view.text, nodeId: dialogueState.nodeId, sceneCityId: portCityView.cityId,
+        serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
+    },
     async inspectExeterCanal() {
       if (running) throw new Error("Canal smoke requires an idle restored voyage");
       if (playerIntroModal) closePlayerIntroModal();

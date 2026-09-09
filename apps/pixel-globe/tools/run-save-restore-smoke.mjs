@@ -1,3 +1,4 @@
+import { exerciseSeasonalColonyDialogues } from "./reachability/seasonal-colony-dialogues.mjs";
 import { exerciseSavedStartMenu } from "./reachability/saved-start-menu.mjs";
 import { exerciseExeterCanalSaveRoundTrips } from "./reachability/exeter-canal-restore.mjs";
 import { exercisePlayerShipyardSaveRoundTrips } from "./reachability/player-shipyard-restore.mjs";
@@ -207,6 +208,7 @@ try {
   await exerciseInaccessibleDiscoverySaveRoundTrips(page, browserErrors);
   await exerciseRetiredPortraitSaveRoundTrips(page, browserErrors);
   await exerciseColonySaveRoundTrips(page, browserErrors);
+  await exerciseSeasonalColonyDialogues(page, fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION).serialized, browserErrors);
   await exerciseChefSaveRoundTrips(page, browserErrors);
   await exerciseLandmassChannelRestore(page, browserErrors);
   await exerciseSoundDuesRoundTrips(page, browserErrors);
