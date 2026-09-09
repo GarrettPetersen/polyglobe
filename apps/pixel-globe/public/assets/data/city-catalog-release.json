@@ -113,7 +113,7 @@
     "src/worldGeographyAudit.js": "f8a3ea98844c2361163dc9a551c709951a90ce98de7197df773ceb2ea649dc94",
     "src/worldNavigationTopology.js": "ac4c850620152a38bd49effdbe18e142c65279c4756d0636a8cdc9a739efde43",
     "src/worldPortPlacement.js": "093937219d6ea97f6d6fabdb8945aab849e5dc64922cef27b359359504ea5999",
-    "src/worldScale.js": "b690dceab0dc8fb0105a5cf48b85e8b715f1717e5b2b9347e23431980e99bbfb",
+    "src/worldScale.js": "9a0ee07028c638d692de5be1b20535b871a8d21e4a5ecec87858df0442a68ec6",
     "tools/build-city-visualizer-catalog.mjs": "ba23d86012acea8c364670a6ac2d0ad27ec20227a81bfb5f61855230979db5e7",
     "tools/build-land-roads.mjs": "78e6d4317213db674e1e60cf006df4528b3783c6345b65f5f420b20cb58a4f00",
     "tools/build-port-sailing-distances.mjs": "b3556002fb80bbd9f6676f8faf5da388e78f068f78a2d84739de085b3381fb22",

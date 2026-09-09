@@ -8,6 +8,13 @@ import {
   graphCenter,
   normalize3
 } from "./geodesic.js";
+import { decodeGeodesicGraphBake } from "./geodesicBake.js";
+import {
+  WORLD_CHART_MARGIN_PX,
+  WORLD_CHART_REBUILD_RADIUS_PX,
+  WORLD_GLOBE_SUBDIVISIONS,
+  WORLD_PIXELS_PER_RADIAN
+} from "./worldScale.js";
 import {
   MAX_ELASTIC_FRAME_CORRECTION_PX,
   MAX_PROTECTED_ADMISSION_SLACK_PX,
@@ -125,6 +132,13 @@ const TRAVERSAL_SCREEN_H = 256;
 const TRAVERSAL_MARGIN = 72;
 const TRAVERSAL_PIXELS_PER_RADIAN = 620;
 const TRAVERSAL_REBUILD_DISTANCE_PX = 28;
+const PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS = Object.freeze({
+  subdivisions: WORLD_GLOBE_SUBDIVISIONS,
+  pixelsPerRadian: WORLD_PIXELS_PER_RADIAN,
+  chartMargin: WORLD_CHART_MARGIN_PX,
+  rebuildDistancePx: WORLD_CHART_REBUILD_RADIUS_PX,
+  useGameWorld: true
+});
 const TEST_CONTINUITY_CORRECTION_LIMITS_BY_CLASS = new Map([
   [1, MAX_PROTECTED_ADMISSION_SLACK_PX * 2],
   [2, MAX_PROTECTED_ADMISSION_SLACK_PX]
@@ -1389,9 +1403,7 @@ worldTraversalTest("a coast-heavy Mediterranean crossing keeps protected geograp
         [34.7, 33.0],
         [31.2, 29.9]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true,
       applyVisualRepairs: false
     }
@@ -1456,10 +1468,7 @@ worldTraversalTest("a northeast Asia coastal passage keeps distortion below tele
         [58.81, 152.29],
         [61.43, 162.65]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -1497,10 +1506,7 @@ worldTraversalTest("the western approaches off Ireland stay below integrity tele
         [49.5, -11.2],
         [50.0, -13.0]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -1533,10 +1539,7 @@ worldTraversalTest("the New England approaches stay below integrity telemetry li
         [39.0, -72.0],
         [40.81, -69.18]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -1566,10 +1569,7 @@ worldTraversalTest("the Bering Sea west of Alaska stays below integrity telemetr
         [56.14, -177.62],
         [55.5, -169.0]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -1609,10 +1609,7 @@ worldTraversalTest("the western Aleutian approaches stay below integrity telemet
         [49.57, 170.48],
         [51.0, 163.0]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -1651,10 +1648,7 @@ worldTraversalTest("reported protected-stitch regions retain continuous terrain 
       MAX_PROTECTED_ADMISSION_SLACK_PX,
       {
         routeWaypoints: region.waypoints,
-        subdivisions: 7,
-        pixelsPerRadian: 2450,
-        chartMargin: 218,
-        useGameWorld: true,
+        ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
         usePolarFogRepairs: true
       }
     );
@@ -1687,10 +1681,7 @@ worldTraversalTest("a Cape-to-Portugal Atlantic loop reaches Madeira with an int
         [36.0, -12.0],
         [38.72, -9.14]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: false
     }
   );
@@ -1740,9 +1731,7 @@ worldTraversalTest("an east-to-west Scandinavia traversal escalates concealed re
         [57.0, -2.0],
         [55.8, -5.0]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -1807,10 +1796,7 @@ worldTraversalTest("a Scandinavia traversal into the Baltic reaches Gotland with
         [59.5, 24.0],
         [59.8, 29.0]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -1847,15 +1833,19 @@ worldTraversalTest("an urgent closing fog settles a tilted Oresund approach befo
         [56.0, 15.0],
         [57.0, 18.0]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
-      usePolarFogRepairs: false
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
+      usePolarFogRepairs: false,
+      // Exercise the emergency presentation independently of incidental
+      // projection drift, which fell below this threshold on subdivision 8.
+      chartFaultInjection: {
+        afterChartBuilds: 2,
+        rotationDeg: 12
+      }
     }
   );
   reportChartBenchmark("oresund-closing-fog", result);
 
+  assert.equal(result.chartFaultInjected, true, "Oresund chart fault was not injected");
   assert.equal(result.visibleProtectedRedraws, 0);
   assert.equal(result.visibleLandRedraws, 0);
   assert.ok(
@@ -1886,9 +1876,7 @@ worldTraversalTest("a northbound Scotland-to-Arctic-Norway voyage never outruns 
         [71.5, 25.0],
         [73.0, 30.0]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -1926,10 +1914,7 @@ worldTraversalTest("a Scotland-to-Iceland voyage repairs North Atlantic distorti
         [63.0, -20.0],
         [64.15, -21.94]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -1971,9 +1956,7 @@ worldTraversalTest("a south-to-north Argentina coastal traversal cannot tear adj
         [-35.0, -58.0],
         [-32.0, -53.0]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS
     }
   );
   reportChartBenchmark("argentina", result);
@@ -2013,10 +1996,7 @@ worldTraversalTest("a western Patagonia fjord traversal repairs broad distortion
         [-45.0, -74.8],
         [-41.0, -73.8]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -2055,10 +2035,7 @@ worldTraversalTest("an English Channel passage stays below integrity telemetry l
         [50.95, 1.25],
         [51.4, 2.5]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -2090,10 +2067,7 @@ worldTraversalTest("a subantarctic passage east of New Zealand stays below integ
         [-48.0, 170.0],
         [-44.0, 173.0]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true,
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS,
       usePolarFogRepairs: true
     }
   );
@@ -2131,10 +2105,7 @@ worldTraversalTest("a moving river voyage to Smolensk cannot tear visible land",
         [53.5, 32.0],
         [54.78, 32.04]
       ],
-      subdivisions: 7,
-      pixelsPerRadian: 2450,
-      chartMargin: 218,
-      useGameWorld: true
+      ...PRODUCTION_GAME_WORLD_TRAVERSAL_OPTIONS
     }
   );
   reportChartBenchmark("smolensk", result);
@@ -2313,13 +2284,26 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     subdivisions = 5,
     pixelsPerRadian = TRAVERSAL_PIXELS_PER_RADIAN,
     chartMargin = TRAVERSAL_MARGIN,
+    rebuildDistancePx = TRAVERSAL_REBUILD_DISTANCE_PX,
     useGameWorld = false,
     usePolarFogRepairs = true,
-    applyVisualRepairs = true
+    applyVisualRepairs = true,
+    chartFaultInjection = null
   } = {}
 ) {
-  const graph = buildGeodesicGraph(subdivisions);
-  const directionIndex = createDirectionIndex(graph);
+  if (chartFaultInjection !== null && (
+    !Number.isInteger(chartFaultInjection.afterChartBuilds) ||
+    chartFaultInjection.afterChartBuilds < 2 ||
+    !Number.isFinite(chartFaultInjection.rotationDeg) ||
+    chartFaultInjection.rotationDeg === 0
+  )) {
+    throw new Error(
+      "Traversal chart fault injection requires afterChartBuilds >= 2 and non-zero rotationDeg"
+    );
+  }
+  const gameWorld = useGameWorld ? gameWorldProtection(subdivisions) : null;
+  const graph = gameWorld?.graph || buildGeodesicGraph(subdivisions);
+  const directionIndex = gameWorld?.directionIndex || createDirectionIndex(graph);
   const route = geographicRouteDirections(routeWaypoints || [
     [38.72, -9.14],
     [20.0, -17.0],
@@ -2358,17 +2342,22 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     [25.0, -20.0],
     [38.72, -9.14]
   ], 0.1);
-  const { protectionById, terrainClassByTileId } = useGameWorld
-    ? gameWorldProtection(graph)
+  const { protectionById, terrainClassByTileId } = gameWorld
+    ? gameWorld
     : worldCoastProtection(graph);
-  const continuityMaskById = Uint8Array.from(
+  const continuityMaskById = gameWorld?.continuityMaskById || Uint8Array.from(
     terrainClassByTileId,
     (terrainClass) => terrainClass === "water" ? 1 : 2
   );
-  const directProtectionComponentById = buildDirectChartProtectionComponents({
-    graph,
-    protection: protectionById
-  });
+  const elasticityMaskById = gameWorld?.elasticityMaskById || Uint8Array.from(
+    terrainClassByTileId,
+    (terrainClass) => terrainClass === "water" ? 1 : 0
+  );
+  const directProtectionComponentById = gameWorld?.directProtectionComponentById ||
+    buildDirectChartProtectionComponents({
+      graph,
+      protection: protectionById
+    });
   const positions = new Map();
   const admittedStepById = new Map();
   let camera = northUpFrame(route[0]);
@@ -2413,6 +2402,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
   let distanceSinceBuildPx = Number.POSITIVE_INFINITY;
   const rotationSamples = [];
   const repairDemand = createTraversalRepairDemand();
+  let chartFaultInjected = false;
 
   for (let step = 0; step < route.length; step++) {
     const direction = route[step];
@@ -2432,7 +2422,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     }
     if (
       step < route.length - 1 &&
-      distanceSinceBuildPx < TRAVERSAL_REBUILD_DISTANCE_PX
+      distanceSinceBuildPx < rebuildDistancePx
     ) {
       const coverage = measureTraversalViewportCoverage(positions, viewX, viewY);
       if (coverage.gapPx > maxViewportCoverageGapPx) {
@@ -2473,6 +2463,20 @@ function simulateLisbonToKamchatkaCoastalVoyage(
       collectedIds.add(id);
     }
     const projectedById = new Map(projectedTiles.map((point) => [point.id, point]));
+    if (
+      !chartFaultInjected &&
+      chartFaultInjection &&
+      chartBuilds >= chartFaultInjection.afterChartBuilds &&
+      positions.size > 0
+    ) {
+      rotateTraversalChartPositions({
+        positions,
+        viewX,
+        viewY,
+        rotationDeg: chartFaultInjection.rotationDeg
+      });
+      chartFaultInjected = true;
+    }
     const hadCenter = positions.has(centerId);
     const admissionAnchorId = resolveLocalLayoutAnchor({
       positions,
@@ -2485,10 +2489,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     const support = viewportElasticCorrectionSupport({
       projectedTiles,
       protectionById,
-      elasticityMaskById: Uint8Array.from(
-        terrainClassByTileId,
-        (terrainClass) => terrainClass === "water" ? 1 : 0
-      ),
+      elasticityMaskById,
       viewportWidth: TRAVERSAL_SCREEN_W,
       viewportHeight: TRAVERSAL_SCREEN_H,
       tileVisualRadius: 18,
@@ -2516,10 +2517,7 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     const correctionPolicy = chartAdmissionCorrectionPolicy({
       support: liveSupport,
       protectionById,
-      elasticityMaskById: Uint8Array.from(
-        terrainClassByTileId,
-        (terrainClass) => terrainClass === "water" ? 1 : 0
-      ),
+      elasticityMaskById,
       continuityMaskById,
       viewportWidth: TRAVERSAL_SCREEN_W,
       viewportHeight: TRAVERSAL_SCREEN_H
@@ -3077,8 +3075,21 @@ function simulateLisbonToKamchatkaCoastalVoyage(
     visibleLandRedraws,
     protectedEdgeSamples,
     rotationSamples,
+    chartFaultInjected,
     repairDemand: finishTraversalRepairDemand(repairDemand)
   };
+}
+
+function rotateTraversalChartPositions({ positions, viewX, viewY, rotationDeg }) {
+  const radians = rotationDeg * Math.PI / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  for (const position of positions.values()) {
+    const dx = position.x - viewX;
+    const dy = position.y - viewY;
+    position.x = viewX + dx * cosine - dy * sine;
+    position.y = viewY + dx * sine + dy * cosine;
+  }
 }
 
 function measureTraversalViewportCoverage(positions, viewX, viewY) {
@@ -3645,9 +3656,26 @@ function worldCoastProtection(graph) {
   return { protectionById, terrainClassByTileId };
 }
 
-function gameWorldProtection(graph) {
+let cachedGameWorldProtection = null;
+
+function gameWorldProtection(subdivisions) {
+  if (subdivisions !== WORLD_GLOBE_SUBDIVISIONS) {
+    throw new Error(
+      `Game-world traversal requires production subdivision ${WORLD_GLOBE_SUBDIVISIONS}, ` +
+      `got ${subdivisions}`
+    );
+  }
+  if (cachedGameWorldProtection) return cachedGameWorldProtection;
+
+  const graphBytes = readFileSync(
+    new URL("../../../examples/globe-demo/public/geodesic-graph-8.bin", import.meta.url)
+  );
+  const graph = decodeGeodesicGraphBake(
+    graphBytes.buffer.slice(graphBytes.byteOffset, graphBytes.byteOffset + graphBytes.byteLength),
+    WORLD_GLOBE_SUBDIVISIONS
+  );
   const earth = JSON.parse(readFileSync(
-    new URL("../../../examples/globe-demo/public/earth-globe-cache-7.json", import.meta.url),
+    new URL("../../../examples/globe-demo/public/earth-globe-cache-8.json", import.meta.url),
     "utf8"
   ));
   if (earth.subdivisions !== graph.subdivisions) {
@@ -3682,7 +3710,27 @@ function gameWorldProtection(graph) {
     featureTileIds,
     pentagonNeedsProtection: (tileId) => terrainClassByTileId[tileId] !== "water"
   });
-  return { protectionById, terrainClassByTileId };
+  const continuityMaskById = Uint8Array.from(
+    terrainClassByTileId,
+    (terrainClass) => terrainClass === "water" ? 1 : 2
+  );
+  const elasticityMaskById = Uint8Array.from(
+    terrainClassByTileId,
+    (terrainClass) => terrainClass === "water" ? 1 : 0
+  );
+  cachedGameWorldProtection = Object.freeze({
+    graph,
+    directionIndex: createDirectionIndex(graph),
+    protectionById,
+    terrainClassByTileId,
+    continuityMaskById,
+    elasticityMaskById,
+    directProtectionComponentById: buildDirectChartProtectionComponents({
+      graph,
+      protection: protectionById
+    })
+  });
+  return cachedGameWorldProtection;
 }
 
 function gameTerrainProtectionClass(row) {

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { buildGeodesicGraph } from "./geodesic.js";
 import {
+  WORLD_CHART_MARGIN_PX,
   WORLD_GAME_TIME_SCALE,
   WORLD_GLOBE_SUBDIVISIONS,
   WORLD_KINEMATIC_SCALE,
@@ -20,6 +21,7 @@ test("the larger globe balances screen speed, longer days, and longer voyages", 
   assert.equal(WORLD_RUNTIME_WEATHER_SUBDIVISIONS, 7);
   assert.equal(WORLD_RENDER_SCALE, 2.5);
   assert.equal(WORLD_PIXELS_PER_RADIAN, 6125);
+  assert.equal(WORLD_CHART_MARGIN_PX, 230);
   assert.equal(WORLD_KINEMATIC_SCALE, 0.48);
   assert.equal(WORLD_RENDER_SCALE * WORLD_KINEMATIC_SCALE, WORLD_SHIP_SCREEN_SPEED_SCALE);
   assert.equal(86400 / WORLD_GAME_TIME_SCALE, 32);
