@@ -128,3 +128,39 @@ test("deferral rejects a funded purse and an absent offer", () => {
   assert.throws(() => deferSovereignWarLoanOffer(offeredMemory(1_000_000), 1_000_000), /assembling the full million/);
   assert.throws(() => deferSovereignWarLoanOffer(createSovereignWarLoanMemory(), 900_000), /No sovereign war-loan offer/);
 });
+
+test("restoring a building canal publishes the saved clock before rebuilding quest readiness", async () => {
+  const { exeterCanalQuestView, TOPSHAM_CITY_ID, EXETER_CANAL_STAGE_MINUTES } = await import("./exeterCanal.js");
+  const restore = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name.text === "restoreSavedVoyage");
+  const statements = restore.body.statements;
+  const stateIndex = statements.findIndex(node => node.getText(source) === "gameState = restoredGameState;");
+  const readinessIndex = statements.findIndex(node => node.getText(source) === "initializeFetchQuestReadiness();");
+  // Execute the production activation sequence, including clock publication
+  // immediately preceding it. Unrelated asset/economy services are boundary fakes.
+  const clockIndex = statements.findIndex(node => node.getText(source) === "weatherClockMinutes = restoredWorldClock.currentMinute;");
+  const code = statements.slice(Math.min(stateIndex, clockIndex), readinessIndex + 1).map(node => node.getText(source)).join("\n");
+  for (const elapsed of [0, EXETER_CANAL_STAGE_MINUTES, 3 * EXETER_CANAL_STAGE_MINUTES]) {
+    const startMinute = 8_000_000;
+    const state = { cargo: {}, memory: { quests: { cargoDeliveries: {}, exeterCanal: {
+      version: 1, accepted: true, startedMinute: startMinute
+    } } } };
+    let observed;
+    const runtime = {
+      gameState: null, restoredGameState: state, weatherClockMinutes: 0, voyageStartClockMinutes: 0,
+      restoredWorldClock: { currentMinute: startMinute + elapsed, voyageStartMinute: 10 },
+      weatherClockParts: minute => ({ minute }), savedShip: { typeSlug: "galleon" },
+      payload: {}, savedWorldTopology: {}, legacyCityIdForPortReference() {}, migratedDiscoveryReferenceCount: 0,
+      syncExeterCanalWorldState() {}, syncColonizationWorldState() {}, applyCurrentPortConquestOwnership() {},
+      loadShipAssetSet: async () => ({}), restoreSavedDerivedWorld: () => [],
+      ensureColonizationDefenseEncounter() {}, ensureTreasureCampaignEncounters() {},
+      pendingWineCaptainDialogues: [], pendingFetchQuestCaptainDialogues: [],
+      initializeFetchQuestReadiness() {
+        observed = exeterCanalQuestView(runtime.gameState, { cityId: TOPSHAM_CITY_ID }, runtime.weatherClockMinutes);
+      }
+    };
+    await runInNewContext(`(async () => { ${code} })()`, runtime);
+    assert.equal(observed.stage, elapsed / EXETER_CANAL_STAGE_MINUTES);
+    assert.equal(runtime.voyageStartClockMinutes, 10);
+    assert.equal(runtime.weatherParts.minute, startMinute + elapsed);
+  }
+});

@@ -17420,6 +17420,10 @@ async function restoreSavedVoyage(payload) {
       `[pixel-globe] migrated ${migratedDiscoveryReferenceCount} saved discovery catalog references`
     );
   }
+  // Publish the saved state and its clock together before rebuilding quest views.
+  weatherClockMinutes = restoredWorldClock.currentMinute;
+  voyageStartClockMinutes = restoredWorldClock.voyageStartMinute;
+  weatherParts = weatherClockParts(weatherClockMinutes);
   gameState = restoredGameState;
   syncExeterCanalWorldState(restoredGameState, restoredWorldClock.currentMinute, { restoring: true });
   syncColonizationWorldState(restoredGameState, {
@@ -17463,9 +17467,6 @@ async function restoreSavedVoyage(payload) {
   shipSinkDepthImage = assets.sinkDepthImage;
   shipWakeAnchors = requiredShipWakeAnchors(savedShip.typeSlug);
   shipLighting = assets.lighting;
-  weatherClockMinutes = restoredWorldClock.currentMinute;
-  voyageStartClockMinutes = restoredWorldClock.voyageStartMinute;
-  weatherParts = weatherClockParts(weatherClockMinutes);
   ensureWokouHuntEncounter({ assignCaptains: false });
   ensureNingboMissionEncounters({ assignCaptains: false });
   ensureTeaRaceEncounters({ assignCaptains: false });

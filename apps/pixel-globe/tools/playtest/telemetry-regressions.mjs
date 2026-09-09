@@ -15,6 +15,7 @@ const files = [
   "src/stormWave.test.js",
   "src/npcSeaRoutes.test.js",
   "src/colonizationWorldBinding.test.js",
+  "src/saveRestoreInterruption.test.js",
   "tools/playtest/politics-contract.test.mjs"
 ];
 // Node's test discovery can ignore nonexistent positional paths. A release
@@ -22,6 +23,8 @@ const files = [
 for (const path of files) if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing telemetry regression: ${path}`);
 execFileSync(process.execPath, ["--test", ...files], { cwd: root, stdio: "inherit", timeout: 9 * 60_000 });
 console.log(JSON.stringify({ status: "passed", files, fingerprints: [
+  "a3069b42c03aa6ce771faa94b7b4e136e414a677ba4f4d74e33a86389f8046d1",
+  "a69a460ab5a00d3131fcccb271d10dd8a0f4d85153b9f8d25ac3786579c931a9",
   "c91f3b7befbc9bf2f24ae8cece01b6c55e684b586cf38e5879caa88f19629e07",
   "a15f6871364db3037588d84e2ac193fc8fec10345f0e24eb62b1390660080c0c",
   "b7ff60cc05b63c45201d5992fd5037ac90fe0b9114ee4b82b60ab3e39fb666bc",
