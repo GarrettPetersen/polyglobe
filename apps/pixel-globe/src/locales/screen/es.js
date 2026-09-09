@@ -1662,6 +1662,7 @@ export default Object.freeze({
   "Giant Panda": "panda gigante",
   "Ginger Farmer": "Granjero de jengibre",
   "Giraffe": "Jirafa",
+  "Give me a moment, Captain, to reckon our chances against the garrison.": "Déme un momento, Capitán, para calcular nuestras posibilidades contra la guarnición.",
   "Give me the treasure account after breakfast. For now, try not to bury yourself.": "Dame la cuenta del tesoro después del desayuno. Por ahora, intenta no enterrarte.",
   "gives {0} the stores it needs to become a permanent city.": "proporciona a {0} las tiendas que necesita para convertirse en una ciudad permanente.",
   "Giza": "Guiza",

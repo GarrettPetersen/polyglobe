@@ -1662,6 +1662,7 @@ export default Object.freeze({
   "Giant Panda": "자이언트 판다",
   "Ginger Farmer": "생강 농부",
   "Giraffe": "기린",
+  "Give me a moment, Captain, to reckon our chances against the garrison.": "잠시 시간을 내어 주둔군을 상대할 기회를 생각해 보십시오.",
   "Give me the treasure account after breakfast. For now, try not to bury yourself.": "아침 식사 후에 보물 계좌를 주세요. 지금은 자신을 묻어두지 마십시오.",
   "gives {0} the stores it needs to become a permanent city.": "{0}에 영구 도시가 되기 위해 필요한 매장을 제공합니다.",
   "Giza": "기자",

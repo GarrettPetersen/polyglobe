@@ -1,3 +1,4 @@
+import { createPortAssaultForecastClient } from "./portAssaultForecastClient.js";
 import { createWorldMutationBoundary, dispatchActionEffects } from "./runtimeTransitions.js";
 import { runShipReplacement } from "./shipReplacementLifecycle.js";
 import { questOfferDirections } from "./questOfferDirections.js";
@@ -850,7 +851,6 @@ import {
   PORT_ASSAULT_OUTCOME,
   PORT_ASSAULT_RESULT_PRESENTATION_DURATION_MS,
   createPortAssaultScenario,
-  forecastPortAssault,
   portAssaultGarrisonCount,
   portAssaultPresentationAt,
   portAssaultShipHitPointsAt,
@@ -3680,7 +3680,10 @@ let portCityView = null;
 let portCityTransition = null;
 let portCityIllicitEvent = null;
 let portAssaultState = null;
-let portAssaultForecastCache = null;
+const portAssaultForecastClient = createPortAssaultForecastClient({
+  workerUrl: new URL("./portAssaultForecastWorker.js", import.meta.url),
+  onReady: () => { invalidateDialogueView(); dirty = true; }
+});
 let portCitySceneSyncKey = null;
 let portCityWeatherCache = null;
 let portCitySceneSelectionSerial = 0;
@@ -16943,6 +16946,32 @@ function installSaveRestoreSmokeHarness() {
       return { mode, cityId: city.cityId, nextNodeId, actionDurationMs,
         serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
     },
+    async inspectAssaultForecast() {
+      if (running) throw new Error("Assault forecast smoke requires an idle restored voyage");
+      if (playerIntroModal) closePlayerIntroModal();
+      const city = chart.cityCalls.find(call => call.factionId !== ship.factionId && portCitiesByTileId.has(call.tileId));
+      if (!city) throw new Error("Assault forecast smoke requires a visible foreign port");
+      const battery = ensureShoreBatteryState(city);
+      damageShoreBattery(battery, gameState.memory.flags, battery.maxHitPoints, Math.floor(weatherClockMinutes), "the test squadron");
+      portAssaultForecastClient.clear();
+      const startedAtMs = performance.now();
+      openPortMenu(city, { initialNodeId: "barred" });
+      const first = currentDialogueView().options.find(option => option.action.type === "land-marines");
+      if (!first?.disabled) throw new Error("Assault forecast did not present its pending action");
+      const requestDurationMs = performance.now() - startedAtMs;
+      let ticks = 0;
+      await synchronizePortCityScene();
+      while (currentDialogueView().options.find(option => option.action.type === "land-marines")?.disabled) {
+        if (performance.now() - startedAtMs > 60_000) throw new Error("Assault forecast worker timed out");
+        await new Promise(resolve => setTimeout(resolve, 10));
+        ticks++;
+        render(performance.now(), { allowColdCoveredWorldRender: true });
+      }
+      const ready = currentDialogueView().options.find(option => option.action.type === "land-marines");
+      if (!ready || ready.disabled || !ready.detail) throw new Error("Assault forecast never enabled the attack with odds");
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      return { requestDurationMs, durationMs: performance.now() - startedAtMs, ticks, detail: ready.detail };
+    },
     async inspectColonizationDialogue(cityId) {
       if (running) throw new Error("Colony dialogue smoke requires an idle restored voyage");
       if (playerIntroModal) closePlayerIntroModal();
@@ -24859,18 +24888,11 @@ function playerPortConquestStatus(cityCall) {
     attackerWoundSurvivalBonus: perks.crewCasualtyResistanceChance,
     attackerModifiers
   });
-  if (portAssaultForecastCache?.key !== forecastKey) {
-    portAssaultForecastCache = Object.freeze({
-      key: forecastKey,
-      forecast: measurePerformanceBenchmarkStage("battle.assault.forecast", () => (
-        forecastPortAssault(scenario, {
-          seedKey: `${gameState.voyageSeed}|${cityCall.cityId}|${forecastKey}`
-        })
-      ))
-    });
-  }
+  const forecast = portAssaultForecastClient.request(scenario,
+    `${gameState.voyageSeed}|${cityCall.cityId}|${forecastKey}`);
   return {
-    ...portAssaultForecastCache.forecast,
+    ...forecast,
+    forecastPending: forecast === null,
     ...baseStatus,
     scenario,
     landingForce: attackers.length
@@ -25073,7 +25095,7 @@ function restorePortAssaultDialogue() {
   dialogueLayout = createDialogueLayoutState();
   portCityRuntime.setAssaultPresentation(null);
   portAssaultState = null;
-  portAssaultForecastCache = null;
+  portAssaultForecastClient.clear();
 }
 
 function portAssaultElapsedMs(nowMs = lastFrameMs) {

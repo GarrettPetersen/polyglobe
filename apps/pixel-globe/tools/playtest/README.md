@@ -266,3 +266,9 @@ renders expedition offers and colony/origin resupply dialogue for every currentl
 icebound colony and an ice-free control, before and after saving and restoring.
 The browser asserts both the warning and the matching city scene. This is a
 materialized quest scenario, not a claim that the bot sailed through winter ice.
+
+The assault-forecast regression uses the real worker and checks seeded results
+against the synchronous battle model. Browser cycles require the pending attack
+button to become enabled with odds and reject entry stalls over 500 ms. Worker
+errors and stale/replaced requests are tested explicitly; no odds are fabricated
+while the calculation is pending.

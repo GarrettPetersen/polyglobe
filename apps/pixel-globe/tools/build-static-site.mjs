@@ -568,7 +568,8 @@ async function bundleBrowserRuntime() {
       bootstrap: join(appRoot, "src/bootstrap.js"),
       loadingScreenWorker: join(appRoot, "src/loadingScreenWorker.js"),
       distantWorldWorker: join(appRoot, "src/distantWorldWorker.js"),
-      localSaveCompressionWorker: join(appRoot, "src/localSaveCompressionWorker.js")
+      localSaveCompressionWorker: join(appRoot, "src/localSaveCompressionWorker.js"),
+      portAssaultForecastWorker: join(appRoot, "src/portAssaultForecastWorker.js")
     }
   });
 }
@@ -629,7 +630,8 @@ assertExactModuleGraph(runtimeModuleGraph, [
   "src/bootstrap.js",
   "src/distantWorldWorker.js",
   "src/loadingScreenWorker.js",
-  "src/localSaveCompressionWorker.js"
+  "src/localSaveCompressionWorker.js",
+  "src/portAssaultForecastWorker.js"
 ]);
 
 console.log(`Built Marque & Reprisal ${edition} static site at ${distRoot}`);

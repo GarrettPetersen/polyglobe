@@ -4677,7 +4677,11 @@ function barredPortView(city, gameState, context) {
     };
   }
   const options = [];
-  if (conquest?.canAttempt) {
+  if (conquest?.canAttempt && conquest.forecastPending) {
+    options.push(option(attack?.mode === "raid" ? "Start the raid" : "Start the assault",
+      { type: "land-marines" }, { disabled: true,
+        disabledReason: "Give me a moment, Captain, to reckon our chances against the garrison." }));
+  } else if (conquest?.canAttempt) {
     if (!Number.isInteger(conquest.successPercent) || conquest.successPercent < 0 ||
         conquest.successPercent > 100 || !Number.isInteger(conquest.casualtyRangeLow) ||
         !Number.isInteger(conquest.casualtyRangeHigh) || conquest.casualtyRangeLow < 0 ||

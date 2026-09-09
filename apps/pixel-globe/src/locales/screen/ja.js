@@ -1662,6 +1662,7 @@ export default Object.freeze({
   "Giant Panda": "ジャイアントパンダ",
   "Ginger Farmer": "ショウガ農家",
   "Giraffe": "キリン",
+  "Give me a moment, Captain, to reckon our chances against the garrison.": "ちょっと待ってください、大尉、守備隊に対するチャンスを考えてください。",
   "Give me the treasure account after breakfast. For now, try not to bury yourself.": "朝食後にお宝アカウントを渡してください。とりあえずは埋没しないようにしてください。",
   "gives {0} the stores it needs to become a permanent city.": "{0} が恒久的な都市になるために必要な店舗を提供します。",
   "Giza": "ギザ",

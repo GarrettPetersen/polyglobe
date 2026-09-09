@@ -202,6 +202,12 @@ try {
   await exerciseSavedStartMenu(context, baseUrl);
   await exercisePlayerShipyardSaveRoundTrips(page, fixtures.at(-1).serialized, browserErrors);
   await exerciseExeterCanalSaveRoundTrips(page, fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION).serialized, browserErrors);
+  await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.find(fixture => fixture.gameStateVersion === GAME_STATE_VERSION).serialized);
+  const forecast = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectAssaultForecast());
+  assert.ok(forecast.requestDurationMs < 500, `Assault forecast blocked entry for ${forecast.requestDurationMs} ms`);
+  await assertNoBrowserFailure(page, browserErrors, "asynchronous assault forecast");
+  process.stdout.write(`  Assault forecast: entry ${Math.round(forecast.requestDurationMs)} ms, completed ${Math.round(forecast.durationMs)} ms, ${forecast.ticks} responsive waits.\n`);
+  await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.find(fixture => fixture.gameStateVersion === GAME_STATE_VERSION).serialized);
   await exerciseMarketExits(page, browserErrors);
   await exerciseCrewManagementSaveRoundTrips(page, browserErrors);
   await exerciseDjenneSaveRoundTrips(page, browserErrors);

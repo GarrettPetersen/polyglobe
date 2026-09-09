@@ -1662,6 +1662,7 @@ export default Object.freeze({
   "Giant Panda": "大熊猫",
   "Ginger Farmer": "姜农",
   "Giraffe": "长颈鹿",
+  "Give me a moment, Captain, to reckon our chances against the garrison.": "队长，请给我一点时间，计算一下我们对抗驻军的机会。",
   "Give me the treasure account after breakfast. For now, try not to bury yourself.": "早餐后把宝库给我。现在，尽量不要埋葬自己。",
   "gives {0} the stores it needs to become a permanent city.": "为 {0} 提供成为永久城市所需的商店。",
   "Giza": "吉萨",

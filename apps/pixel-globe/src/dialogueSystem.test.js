@@ -4334,6 +4334,14 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
   assert.match(view.text, /harbor guns are silent/i);
   assert.equal(view.options[0].label, "Start the assault");
   assert.equal(view.options[0].detail, "57% victory • expect 9 dead / 7 wounded (12–21 total)");
+  const pendingContext = { ...context, portConquestStatus: { canAttempt: true, forecastPending: true } };
+  const pending = portDialogueView(session, city, gameState, economy, [city], pendingContext);
+  assert.equal(pending.options[0].disabled, true);
+  assert.match(pending.options[0].disabledReason, /reckon our chances/);
+  const beforePendingClick = JSON.stringify(gameState);
+  assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, pendingContext), { closed: false });
+  assert.equal(JSON.stringify(gameState), beforePendingClick);
+
   assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context), {
     closed: false,
     action: { type: "land-marines" }

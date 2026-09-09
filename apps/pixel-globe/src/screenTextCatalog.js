@@ -1662,6 +1662,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Giant Panda",
   "Ginger Farmer",
   "Giraffe",
+  "Give me a moment, Captain, to reckon our chances against the garrison.",
   "Give me the treasure account after breakfast. For now, try not to bury yourself.",
   "gives {0} the stores it needs to become a permanent city.",
   "Giza",

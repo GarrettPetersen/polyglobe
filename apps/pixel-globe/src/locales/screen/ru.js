@@ -1662,6 +1662,7 @@ export default Object.freeze({
   "Giant Panda": "Гигантская панда",
   "Ginger Farmer": "Джинджер Фермер",
   "Giraffe": "Жираф",
+  "Give me a moment, Captain, to reckon our chances against the garrison.": "Дайте мне минутку, капитан, чтобы оценить наши шансы против гарнизона.",
   "Give me the treasure account after breakfast. For now, try not to bury yourself.": "Отдай мне счет с сокровищами после завтрака. А пока постарайтесь не хоронить себя.",
   "gives {0} the stores it needs to become a permanent city.": "дает {0} магазины, необходимые для того, чтобы стать постоянным городом.",
   "Giza": "Гиза",
