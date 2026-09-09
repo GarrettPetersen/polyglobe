@@ -196,13 +196,15 @@ test("yielding responds to the nearest withdrawing comrade regardless of roster 
   }
 });
 
-test("reloading gunners make room for other gunners while passing infantry needs only body clearance", () => {
+test("covered gunners reload in close quarters but yield to a retreating comrade", () => {
   const gun = unit("gun", "gunner", .5, 1);
   gun.lastRangedAttackPosition=.56;
   gun.firearmReload={durationMs:4000,remainingMs:2000};
   const friend=unit("friend", "gunner", .52,1);
   const enemy=unit("enemy", "swordsman",.8,1,"defender");
-  assert.equal(portAssaultTacticalDecision(gun,[gun,friend],[enemy],2000).mode,"make-room");
+  assert.equal(portAssaultTacticalDecision(gun,[gun,friend],[enemy],2000).mode,"reload");
+  friend.retreating = true;
+  assert.equal(portAssaultTacticalDecision(gun,[gun,friend],[enemy],2000).mode,"yield");
   const infantry=unit("infantry","spearman",.52,1);
   assert.equal(portAssaultTacticalDecision(gun,[gun,infantry],[enemy],2000).mode,"reload");
 });

@@ -120,8 +120,6 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
   const reloading = unit.stats.attackType === "firearm"
     ? unit.firearmReload !== null : timeMs < unit.nextPrimaryAttackAtMs;
   const rearDirection = unit.side === "attacker" ? -1 : 1;
-  const crowded = friends.some(ally => !ally.retreating && ranged(ally) &&
-    portAssaultGroundDistance(unit, ally) < (portAssaultBodyRadius(unit) + portAssaultBodyRadius(ally)) * 2.1);
   const withdrawing = withdrawingComradeInPath(unit, friends, timeMs);
   if (!threatened && withdrawing) {
     return yieldToWithdrawingComrade(unit, withdrawing, allies, enemies);
@@ -141,7 +139,9 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
       (destination === (rearDirection > 0 ? 1 : 0) && Math.abs(destination - unit.position) < SCREEN_GAP);
     const protectedByInfantry = friends.some(ally => !ranged(ally) &&
       (ally.position - unit.position) * -rearDirection >= portAssaultBodyRadius(unit) + portAssaultBodyRadius(ally));
-    if (reachedCover || protectedByInfantry) return move(crowded ? "make-room" : "reload", unit.position, unit.lane);
+    // Personal-space preferences cannot postpone loading indefinitely. The
+    // retreat-corridor check above still makes a covered gunner yield.
+    if (reachedCover || protectedByInfantry) return move("reload", unit.position, unit.lane);
     return move("seek-cover", destination, unit.lane);
   }
   // A skirmisher pressed against the rear boundary must still defend itself.
@@ -151,7 +151,7 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
   if (clearTarget && !reloading) return { mode: "fire", target: clearTarget };
   // The initial readiness delay is not a reload: newly landed troops must
   // still advance into firing position before their first shot.
-  if (reloading && unit.lastRangedAttackPosition !== null) return move(crowded ? "make-room" : "reload", unit.position, unit.lane);
+  if (reloading && unit.lastRangedAttackPosition !== null) return move("reload", unit.position, unit.lane);
   // Advance beyond the local screen to open a firing lane. The collision solver
   // still requires an actual route around bodies; this is only a steering goal.
   const ahead = friends.filter(ally => (ally.position - unit.position) * direction > 0 &&
