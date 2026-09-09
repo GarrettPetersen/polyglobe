@@ -113,7 +113,7 @@ export const GAMEPLAY_REACHABILITY_SCENARIOS = deepFreeze({
   "reachability-fight-2v2": {
     id: "reachability-fight-2v2",
     title: "Sailing ship",
-    seed: "reachability-fight-2v2-v1",
+    seed: "reachability-fight-2v2-v2",
     player: vessel("portugal", "portuguese-carrack", 36.25, -29, 90),
     world: world(205, 16, 10),
     diplomacy: [
@@ -132,7 +132,10 @@ export const GAMEPLAY_REACHABILITY_SCENARIOS = deepFreeze({
         -28.42,
         90
         ),
-        hitPoints: 20
+        // NPC batteries now enter combat half loaded. Keep the focus ship damaged
+        // enough to sink during the exchange, but intact through its first reload
+        // so the scenario still covers every combatant before opportunistic retargeting.
+        hitPoints: 32
       },
       encounter(
         "reachability-2v2-spanish-caravel",

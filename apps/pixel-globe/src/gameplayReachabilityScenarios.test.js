@@ -57,3 +57,16 @@ test("gameplay reachability uses a dedicated catalog independent of promotional 
 test("reachability profiles fail loudly instead of selecting an implicit default", () => {
   assert.throws(() => gameplayReachabilityScenarioIds("nightly"), /Unknown gameplay reachability profile/);
 });
+
+test("the 2v2 reachability focus survives long enough to exercise delayed NPC fire", () => {
+  const scenario = GAMEPLAY_REACHABILITY_SCENARIOS["reachability-fight-2v2"];
+  const focus = scenario.encounters.find(({ id }) => id === scenario.sequence.encounterId);
+
+  assert.ok(focus);
+  assert.ok(focus.hitPoints >= 32);
+  assert.ok(focus.hitPoints < 36);
+  assert.deepEqual(
+    new Set(scenario.sequence.evaluatedNpcIds),
+    new Set(scenario.encounters.map(({ id }) => id))
+  );
+});
