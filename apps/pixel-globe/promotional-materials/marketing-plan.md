@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **September 7, 2026**.
+Last updated: **September 8, 2026**.
 
 ## Dated marketing calendar
 
@@ -8,8 +8,9 @@ Last updated: **September 7, 2026**.
   the published status in
   [youtube-shorts-release-log.md](youtube-shorts-release-log.md), then schedule
   the next batch and cross-post it to X.
-- **September 2:** Follow up on Galaxies Autumn; its August 24 selection-notice
-  date has passed without a recorded result. Also confirm whether the submitted
+- **September 8:** Garrett sent the Galaxies Autumn follow-up to
+  `hello@galaxiesshow.com`; awaiting a reply. Its August 24 selection-notice
+  date passed without a recorded result. Also confirm whether the submitted
   SCHMOOVEMENT application was accepted before its September 22 start.
 - **September 2:** Indie Game Award 2027 pre-selection materials submitted.
 - **September 3:** Mobidictum Steam Showcase application submitted. Watch for
@@ -411,6 +412,8 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
   - Application: https://docs.google.com/forms/d/e/1FAIpQLScDvtE9Sk40Kvk_FXODPa-Z_EcwsW5SbqxdVvxeJMyPCBbeNw/viewform
 
 - [x] **Galaxies Autumn 2026 — submitted August 2**
+  - September 8: Garrett confirmed sending a follow-up to
+    `hello@galaxiesshow.com`. Awaiting a reply; selection remains unconfirmed.
   - Google Forms confirmed that the response was recorded. Application answers
     are recorded in
     [festival-application-workbench-2026.md](festival-application-workbench-2026.md).
@@ -628,7 +631,7 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
 
 In deadline order now: wait for the IGF fee-waiver decision and submit IGF by
 September 13; prepare INDIE Live Expo for September 28; submit the public demo
-to Support the Indies by late September. In parallel, follow up on Galaxies and
+to Support the Indies by late September. In parallel, await the Galaxies follow-up reply and
 confirm SCHMOOVEMENT
 selection; complete the BiteMe demo
 release-blocker, onboarding, audio/settings and store-asset audits; add the
