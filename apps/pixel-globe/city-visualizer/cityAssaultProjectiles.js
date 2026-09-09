@@ -1,9 +1,11 @@
+import { portAssaultProjectileFlightMs } from "../src/portAssaultAttackTiming.js";
+
 export function cityAssaultProjectile(attackType, start, end, ageMs) {
   if (!["arrow", "firearm"].includes(attackType) ||
       ![start?.x, start?.y, end?.x, end?.y, ageMs].every(Number.isFinite)) {
     throw new Error("Invalid city assault projectile geometry");
   }
-  const durationMs = attackType === "arrow" ? 320 : 180;
+  const durationMs = portAssaultProjectileFlightMs(attackType);
   if (ageMs < 0 || ageMs >= durationMs) return null;
   const progress = ageMs / durationMs;
   const dx = end.x - start.x;

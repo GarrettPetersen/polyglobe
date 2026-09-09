@@ -1,3 +1,4 @@
+import { portAssaultGroundLaneBounds } from "./portAssaultGround.js";
 import {
   PORT_ASSAULT_LANE_COUNT, PORT_ASSAULT_LANE_SPACING,
   portAssaultBodyRadius, portAssaultFormationSpacing, portAssaultFormationStep, portAssaultGroundDistance
@@ -30,24 +31,35 @@ export function portAssaultMoveInFormation(unit, destination, movement, occupanc
   const standOff = Math.sqrt(Math.max(0, (range * 0.95) ** 2 -
     ((destination.lane - lane) * PORT_ASSAULT_LANE_SPACING) ** 2));
   const goal = { position: clamp(destination.position - direction * standOff, 0, 1), lane };
+  if (unit.dockKind !== undefined) {
+    const bounds = portAssaultGroundLaneBounds(clamp(unit.position + direction * movement, 0, 1), unit.dockKind);
+    goal.lane = clamp(goal.lane, bounds.minimum, bounds.maximum);
+  }
+  const requestedGoal = { ...goal };
   const goalDistance = portAssaultGroundDistance(unit, goal);
   let attractionScale = goalDistance > 0 ? Math.min(1, movement / goalDistance) : 0;
   const retreating = direction === (unit.side === "attacker" ? -1 : 1);
   const neighbors = occupancy.nearby(unit, unit, 0, 3);
   // Ignore comfort pressure from the ranks we are withdrawing into. Comrades
   // ahead can still push us back or sideways so they too have room to retreat.
+  const passingScreen = direction !== 0 && !retreating;
+  const spacingNeighbors = passingScreen
+    ? neighbors.filter(other => (other.stats.attackType === "melee") === (unit.stats.attackType === "melee") && !other.retreating)
+    : neighbors;
   const spacing = portAssaultFormationSpacing(unit, retreating
     ? neighbors.filter(other => (other.position - unit.position) * direction <= 0)
-    : neighbors, { advancing: leaveRetreatGaps && !retreating && direction !== 0 && unit.stats.attackType === "melee" && !clearingLanding });
+    : spacingNeighbors, { advancing: leaveRetreatGaps && !retreating && direction !== 0 && unit.stats.attackType === "melee" && !clearingLanding });
   const spacingLength = Math.hypot(spacing.positionOffset, spacing.laneOffset * PORT_ASSAULT_LANE_SPACING);
-  // Skirmishers threading the infantry screen need only physical clearance.
-  // The infantry's generous personal space must not repel them out of a gap.
-  const threadingScreen = (unit.stats.attackType === "arrow" || unit.stats.attackType === "firearm") && direction !== 0;
-  const maximumSpacingForce = holdingScreen ? 1.5 : 0.65;
-  const spacingScale = threadingScreen && !retreating ? 0 :
-    spacingLength > maximumSpacingForce ? maximumSpacingForce / spacingLength : 1;
-  if (holdingScreen && !threadingScreen && !retreating && !clearingLanding) {
-    attractionScale *= Math.max(0, 1 - spacingLength);
+  // Passing the other arm of the formation needs only physical clearance;
+  // soldiers still keep personal space among their own firing line or ranks.
+  const keepingFormation = !unit.stats.mounted && !retreating && !clearingLanding;
+  const maximumSpacingForce = holdingScreen || keepingFormation ? 1.5 : 0.65;
+  const spacingScale = spacingLength > maximumSpacingForce ? maximumSpacingForce / spacingLength : 1;
+  // Walking toward an enemy is not permission to collapse the ranks ahead.
+  // Equal attraction and repulsion settled at half the desired separation,
+  // leaving gaps too small for a body. Brake before that gap collapses.
+  if ((holdingScreen || keepingFormation) && !retreating && !clearingLanding) {
+    attractionScale *= Math.max(0, 1 - Math.max(0, -spacing.positionOffset * direction) * 4);
   }
   goal.position = clamp(unit.position + (goal.position - unit.position) * attractionScale +
     spacing.positionOffset * movement * spacingScale, 0, 1);
@@ -75,9 +87,7 @@ export function portAssaultMoveInFormation(unit, destination, movement, occupanc
       if (score > bestScore + 1e-9) { next = probe; bestScore = score; }
     }
   }
-  const progress = goalDistance - portAssaultGroundDistance(next, {
-    position: clamp(destination.position - direction * standOff, 0, 1), lane
-  });
+  const progress = goalDistance - portAssaultGroundDistance(next, requestedGoal);
   if (progress > movement * 0.25 || goalDistance < movement) return next;
 
   // Probe relative depth offsets, independent of the original landing lanes.

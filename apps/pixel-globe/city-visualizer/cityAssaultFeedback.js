@@ -32,3 +32,18 @@ export class CityAssaultHitFlashes {
     return true;
   }
 }
+
+// Three short-lived clothing/armour flecks per impact. No simulation pause,
+// random render state, blood palette, or per-soldier particle lifecycle.
+export function cityAssaultImpactParticles({ ageMs, incomingX, incomingY, colors }) {
+  if (!Number.isFinite(ageMs) || ageMs < 0 || !Number.isFinite(incomingX) ||
+      !Number.isFinite(incomingY) || Math.hypot(incomingX, incomingY) < 0.99 ||
+      !Array.isArray(colors) || colors.length === 0) throw new Error("Invalid assault impact particle input");
+  if (ageMs >= 360) return [];
+  const seconds = ageMs / 1000;
+  return [0, 1, 2].map(index => ({
+    x: Math.round((incomingX * (18 + index * 9) - incomingY * (index - 1) * 12) * seconds),
+    y: Math.round((incomingY * 12 + incomingX * (index - 1) * 8 - 26) * seconds + 65 * seconds ** 2),
+    color: colors[index % colors.length]
+  }));
+}

@@ -1,3 +1,5 @@
+import { portAssaultGroundLaneBounds } from "./portAssaultGround.js";
+import { portAssaultAttackTiming, portAssaultProjectileFlightMs } from "./portAssaultAttackTiming.js";
 import { portAssaultMoveInFormation } from "./portAssaultSteering.js";
 import { portAssaultTacticalDecision, portAssaultShotIsClear } from "./portAssaultTactics.js";
 import {
@@ -6,6 +8,7 @@ import {
   PortAssaultOccupancy,
   portAssaultFormationStep,
   portAssaultGroundDistance,
+  portAssaultBodyRadius,
   portAssaultPositionIsFree
 } from "./portAssaultFormation.js";
 
@@ -461,13 +464,13 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
     scenario.attackers,
     PORT_ASSAULT_SIDE.ATTACKER,
     scenario.attackerModifiers,
-    random, seed
+    random, seed, scenario.dockKind
   );
   const defenders = createBattleUnits(
     scenario.defenders,
     PORT_ASSAULT_SIDE.DEFENDER,
     scenario.defenderModifiers,
-    random, seed
+    random, seed, scenario.dockKind
   );
   const units = [...attackers, ...defenders];
   const attackerSkirmishers = attackers.filter(unit => unit.stats.attackType !== "melee");
@@ -480,11 +483,13 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
   const tracks = collectPresentation
     ? Object.fromEntries(units.map((unit) => [unit.id, []]))
     : null;
+  const pendingAttacks = [];
   let shipHitPoints = scenario.shipHitPoints;
   let timeMs = 0;
   let winner = null;
   let nextTrackMs = 0;
   let defenderMusterTimeMs = PORT_ASSAULT_DEFENDER_MUSTER_DELAY_MS;
+  let nextAttackerToSpawn = 0;
 
   while (winner === null && timeMs <= PORT_ASSAULT_MAX_DURATION_MS) {
     // A fast charge raises the alarm before the normal muster delay expires.
@@ -504,6 +509,8 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       break;
     }
 
+    shipHitPoints = resolvePendingAttacks(pendingAttacks, timeMs, random, events, occupancy, shipHitPoints);
+    if (shipHitPoints === 0) { winner = PORT_ASSAULT_SIDE.DEFENDER; break; }
     for (const unit of initiativeOrder) {
       if (!unit.alive || timeMs < unit.spawnAtMs) continue;
       if (!unit.moving && unit.momentum > 0) {
@@ -512,10 +519,14 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       unit.moving = false;
       unit.reloadAnimationStartedAtMs = null;
       if (!unit.spawned) {
+        // A blocked landing point delays this place in the queue; later troops
+        // must not bypass the cavalry/skirmisher deployment order.
+        if (unit.side === PORT_ASSAULT_SIDE.ATTACKER && attackers[nextAttackerToSpawn] !== unit) continue;
         if (!portAssaultPositionIsFree(unit, occupancy.nearby(unit))) continue;
         unit.spawned = true;
         occupancy.add(unit);
         if (unit.side === PORT_ASSAULT_SIDE.ATTACKER) {
+          nextAttackerToSpawn++;
           unit.jumpStartedAtMs = timeMs;
           pushEvent(events, { timeMs, type: "jump", unitId: unit.id, dockKind: scenario.dockKind });
         }
@@ -532,7 +543,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         });
       }
       if (!unit.landed) continue;
-      if (unit.actionUntilMs > timeMs) continue;
+      if (unit.actionUntilMs > timeMs && unit.actionAnimationId === "attack") continue;
       const opponents = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? defenders : attackers;
       const allies = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackers : defenders;
       const tactic = portAssaultTacticalDecision(unit, allies, opponents, timeMs,
@@ -544,6 +555,8 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         // hit reactions and melee interruptions leave the remaining work intact.
         unit.laneGoal = null;
         unit.facingRight = unit.side === PORT_ASSAULT_SIDE.ATTACKER;
+        // Firing and ramming the next charge cannot occupy the same frames.
+        if (unit.actionUntilMs > timeMs) continue;
         const reload = unit.firearmReload;
         unit.reloadAnimationStartedAtMs = timeMs - (reload.durationMs - reload.remainingMs);
         unit.reloadAnimationDurationMs = reload.durationMs;
@@ -563,8 +576,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         unit.laneGoal = null;
         if (timeMs >= nextAttackAtMs(unit, attackProfile) &&
             (attackProfile.attackType !== "firearm" || unit.firearmReload === null)) {
-          attackUnit(unit, target, attackProfile, timeMs, random, events, occupancy);
-          if (!target.alive) occupancy.remove(target);
+          attackUnit(unit, target, attackProfile, timeMs, random, pendingAttacks, occupancy);
         }
         continue;
       }
@@ -577,21 +589,10 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         }
         const closeAttack = portAssaultAttackProfileAtDistance(unit.stats, 0);
         if (timeMs >= nextAttackAtMs(unit, closeAttack)) {
-          const damage = Math.max(1, Math.round(closeAttack.attack * (0.38 + random() * 0.18)));
-          shipHitPoints = Math.max(0, shipHitPoints - damage);
           setNextAttackAtMs(unit, closeAttack, timeMs + closeAttack.cooldownMs);
-          unit.actionAnimationId = "attack";
-          unit.actionStartedAtMs = timeMs;
-          unit.actionUntilMs = timeMs + attackActionDurationMs(closeAttack.attackType);
-          pushEvent(events, {
-            timeMs,
-            type: "ship-hit",
-            unitId: unit.id,
-            attackType: closeAttack.attackType,
-            damage,
-            shipHitPoints
-          });
-          if (shipHitPoints === 0) winner = PORT_ASSAULT_SIDE.DEFENDER;
+          const timing = beginAttackAnimation(unit, closeAttack.attackType, timeMs);
+          pendingAttacks.push({ kind: "ship", attacker: unit, attackProfile: closeAttack,
+            releaseAtMs: timeMs + timing.contactMs });
         }
         continue;
       }
@@ -604,10 +605,11 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const next = portAssaultMoveInFormation(unit, destination, movement, occupancy, tactic?.range ?? (target ? unit.stats.range : 0), timeMs, {
         holdingScreen: tactic?.mode === "support",
         leaveRetreatGaps: (unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackerSkirmishers : defenderSkirmishers).length > 0,
-        clearingLanding: unit.side === PORT_ASSAULT_SIDE.ATTACKER &&
-          timeMs <= unit.landedAtMs + 1000
+        clearingLanding: tactic?.mode === "clear-quay" || (unit.side === PORT_ASSAULT_SIDE.ATTACKER &&
+          timeMs <= unit.landedAtMs + 1000)
       });
       unit.position = next.position;
+      if (unit.position >= .36) unit.clearedQuay = true;
       unit.lane = next.lane;
       occupancy.update(unit);
       unit.moving = portAssaultGroundDistance({ position: previousPosition, lane: previousLane }, unit) > 1e-9;
@@ -815,7 +817,8 @@ function eventPresentationDurationMs(event) {
     return PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS;
   }
   if (["splash", "dock-land", "death"].includes(type)) return 500;
-  if (["attack", "hit"].includes(type)) return 360;
+  if (type === "attack") return Math.max(360, portAssaultProjectileFlightMs(event.attackType));
+  if (type === "hit") return 360;
   if (type === "block") return 220;
   if (type === "ship-hit") return 1200;
   return PORT_ASSAULT_STEP_MS;
@@ -842,7 +845,7 @@ function validateShipHitEvent(event, maxShipHitPoints) {
   }
 }
 
-function createBattleUnits(combatants, side, modifiers, random, seed) {
+function createBattleUnits(combatants, side, modifiers, random, seed, dockKind) {
   const firstLane = Math.floor(random() * PORT_ASSAULT_LANE_COUNT);
   // Deployment order is independent of crew identity and the menu roster.
   // Rotate exposure within each troop type without depending on hire seniority.
@@ -872,9 +875,12 @@ function createBattleUnits(combatants, side, modifiers, random, seed) {
       wave * PORT_ASSAULT_WAVE_INTERVAL_MS +
       wavePosition * PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS +
       Math.floor(random() * PORT_ASSAULT_WAVE_JITTER_MS);
+    const position = side === PORT_ASSAULT_SIDE.ATTACKER ? PORT_ASSAULT_ATTACKER_ENTRY_POSITION : .96;
+    const bounds = portAssaultGroundLaneBounds(position, dockKind);
     return {
       ...combatant,
       side,
+      dockKind,
       stats,
       hitPoints: stats.hitPoints,
       alive: true,
@@ -883,18 +889,19 @@ function createBattleUnits(combatants, side, modifiers, random, seed) {
       lastRangedAttackPosition: null,
       firearmReload: null,
       retreating: false,
+      clearedQuay: side === PORT_ASSAULT_SIDE.DEFENDER,
       landedAtMs: null,
       reloadAnimationStartedAtMs: null,
       reloadAnimationDurationMs: null,
       nextMeleeAttackAtMs: stats.meleeFallback
         ? spawnAtMs + Math.floor(random() * stats.meleeFallback.cooldownMs)
         : null,
-      position: side === PORT_ASSAULT_SIDE.ATTACKER
-        ? PORT_ASSAULT_ATTACKER_ENTRY_POSITION
-        : 0.96,
+      position,
       // Grouped troop types spread across all files while the regular lane
       // cadence leaves each landing site time to clear before its next arrival.
-      lane: (firstLane + index) % PORT_ASSAULT_LANE_COUNT,
+      deploymentLane: (firstLane + index) % PORT_ASSAULT_LANE_COUNT,
+      lane: bounds.minimum + ((firstLane + index) % PORT_ASSAULT_LANE_COUNT) /
+        (PORT_ASSAULT_LANE_COUNT - 1) * (bounds.maximum - bounds.minimum),
       laneGoal: null,
       nextLaneChangeAtMs: 0,
       facingRight: side === PORT_ASSAULT_SIDE.ATTACKER,
@@ -911,7 +918,7 @@ function createBattleUnits(combatants, side, modifiers, random, seed) {
   });
 }
 
-function attackUnit(attacker, target, attackProfile, timeMs, random, events, occupancy) {
+function attackUnit(attacker, target, attackProfile, timeMs, random, pendingAttacks, occupancy) {
   if (!target.alive || !target.spawned || !target.landed ||
       portAssaultGroundDistance(attacker, target) > attackProfile.range) {
     throw new Error(`Port assault target is outside attack reach: ${attacker.id}/${target.id}`);
@@ -922,10 +929,6 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events, occ
   }
   if (attackProfile.attackType !== "melee") attacker.lastRangedAttackPosition = attacker.position;
   const chargeMomentum = attacker.momentum;
-  const chargeDamageMultiplier = 1 +
-    (attacker.stats.chargeDamageMultiplier - 1) * chargeMomentum;
-  const chargeKnockbackMultiplier = 1 +
-    (attacker.stats.chargeKnockbackMultiplier - 1) * chargeMomentum;
   attacker.momentum = 0;
   setNextAttackAtMs(
     attacker,
@@ -936,22 +939,90 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events, occ
     const durationMs = attacker.nextPrimaryAttackAtMs - timeMs;
     attacker.firearmReload = { durationMs, remainingMs: durationMs };
   }
-  attacker.actionAnimationId = "attack";
-  attacker.actionStartedAtMs = timeMs;
-  attacker.actionUntilMs = timeMs + attackActionDurationMs(attackProfile.attackType);
-  pushEvent(events, {
-    timeMs,
-    type: "attack",
-    unitId: attacker.id,
-    targetId: target.id,
-    attackType: attackProfile.attackType,
-    position: attacker.position,
-    lane: attacker.lane,
-    facingRight: attacker.facingRight,
-    targetPosition: target.position,
-    targetLane: target.lane,
-    chargeMomentum
-  });
+  const timing = beginAttackAnimation(attacker, attackProfile.attackType, timeMs);
+  pendingAttacks.push({ kind: "unit", attacker, target, attackProfile, chargeMomentum,
+    startedAtMs: timeMs, releaseAtMs: timeMs + timing.contactMs,
+    impactAtMs: timeMs + timing.contactMs + portAssaultProjectileFlightMs(attackProfile.attackType), released: false });
+}
+
+function beginAttackAnimation(unit, attackType, timeMs) {
+  const timing = portAssaultAttackTiming(unit.combatProfileId, attackType);
+  unit.actionAnimationId = "attack";
+  unit.actionStartedAtMs = timeMs;
+  unit.attackAnimationDurationMs = timing.durationMs;
+  unit.actionUntilMs = timeMs + timing.durationMs;
+  return timing;
+}
+
+function resolvePendingAttacks(pending, timeMs, random, events, occupancy, shipHitPoints) {
+  for (let index = 0; index < pending.length;) {
+    const strike = pending[index];
+    const { attacker, target, attackProfile } = strike;
+    if (!strike.released && !attacker.alive) { pending.splice(index, 1); continue; }
+    if (strike.releaseAtMs > timeMs) { index++; continue; }
+    if (strike.kind === "ship") {
+      // A defender knocked away from the hull during windup cannot hit it.
+      if (attacker.position <= 0.015) {
+        const damage = Math.max(1, Math.round(attackProfile.attack * (0.38 + random() * 0.18)));
+        shipHitPoints = Math.max(0, shipHitPoints - damage);
+        pushEvent(events, { timeMs, type: "ship-hit", unitId: attacker.id,
+          attackType: attackProfile.attackType, damage, shipHitPoints,
+          animationStartedAtMs: attacker.actionStartedAtMs });
+      }
+      pending.splice(index, 1);
+      continue;
+    }
+    if (strike.kind !== "unit") throw new Error(`Unknown assault strike: ${strike.kind}`);
+    if (!strike.released) {
+      // A comrade can cross the line of fire during windup. Hold the shot;
+      // never fire through their back merely because the line was clear earlier.
+      const distance = portAssaultGroundDistance(attacker, target);
+      if (!target.alive || distance > attackProfile.range ||
+          portAssaultAttackProfileAtDistance(attacker.stats, distance) !== attackProfile ||
+          (attackProfile.attackType !== "melee" &&
+          !portAssaultShotIsClear(attacker, target, occupancy.nearby(attacker, target, attackProfile.range)))) {
+        if (attackProfile.attackType === "firearm") attacker.firearmReload = null;
+        attacker.actionUntilMs = timeMs;
+        pending.splice(index, 1);
+        continue;
+      }
+      strike.released = true;
+      strike.event = { timeMs, type: "attack", unitId: attacker.id, targetId: target.id,
+        attackType: attackProfile.attackType, position: attacker.position, lane: attacker.lane,
+        facingRight: target.position === attacker.position ? attacker.facingRight : target.position > attacker.position,
+        targetPosition: target.position, targetLane: target.lane,
+        animationStartedAtMs: strike.startedAtMs, chargeMomentum: strike.chargeMomentum,
+        lungePositionDelta: 0, lungeLaneDelta: 0 };
+      pushEvent(events, strike.event);
+    }
+    if (strike.impactAtMs > timeMs) { index++; continue; }
+    // Released projectiles keep their origin even if the shooter moves or dies.
+    const origin = strike.event;
+    const aimedPoint = { position: origin.targetPosition, lane: origin.targetLane };
+    const connects = attackProfile.attackType === "melee"
+      ? portAssaultGroundDistance(origin, target) <= attackProfile.range
+      : portAssaultGroundDistance(aimedPoint, target) <= portAssaultBodyRadius(target);
+    if (target.alive && connects) {
+      resolveAttackImpact(strike, timeMs, random, events, occupancy);
+      if (!target.alive) occupancy.remove(target);
+    }
+    if (attackProfile.attackType === "melee" && attacker.alive) {
+      const step = portAssaultFormationStep(attacker, target, 0.016, occupancy.nearby(attacker, target, 0.016));
+      strike.event.lungePositionDelta = step.position - attacker.position;
+      strike.event.lungeLaneDelta = step.lane - attacker.lane;
+      attacker.position = step.position;
+      attacker.lane = step.lane;
+      attacker.displacedAtMs = timeMs;
+      occupancy.update(attacker);
+    }
+    pending.splice(index, 1);
+  }
+  return shipHitPoints;
+}
+
+function resolveAttackImpact({ attacker, target, attackProfile, chargeMomentum, event }, timeMs, random, events, occupancy) {
+  const chargeDamageMultiplier = 1 + (attacker.stats.chargeDamageMultiplier - 1) * chargeMomentum;
+  const chargeKnockbackMultiplier = 1 + (attacker.stats.chargeKnockbackMultiplier - 1) * chargeMomentum;
   const matchupMultiplier = target.stats.mounted
     ? attacker.stats.antiMountedDamageMultiplier
     : 1;
@@ -960,9 +1031,7 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events, occ
   const hitChance = clamp(0.42 + Math.log2(attackRatio) * 0.16, 0.18, 0.82);
   if (random() >= hitChance) return;
   if (target.stats.blockChance > 0 && random() < target.stats.blockChance) {
-    target.actionAnimationId = "block";
-    target.actionStartedAtMs = timeMs;
-    target.actionUntilMs = timeMs + 480;
+    showHitReaction(target, "block", timeMs);
     pushEvent(events, { timeMs, type: "block", unitId: target.id, attackerId: attacker.id });
     return;
   }
@@ -974,7 +1043,11 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events, occ
     targetArmorCoverage: target.stats.armorCoverage
   });
   const positionBeforeHit = target.position;
-  const direction = attacker.facingRight ? 1 : -1;
+  const laneBeforeHit = target.lane;
+  const directionDistance = portAssaultGroundDistance(event, { position: event.targetPosition, lane: event.targetLane });
+  if (directionDistance <= 0) throw new Error(`Overlapping assault combatants: ${attacker.id}/${target.id}`);
+  const directionX = (event.targetPosition - event.position) / directionDistance;
+  const directionLane = (event.targetLane - event.lane) / directionDistance;
   const knockbackDistance = portAssaultKnockbackDistance({
     attackType: attackProfile.attackType,
     damage,
@@ -982,18 +1055,18 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events, occ
     chargeKnockbackMultiplier
   });
   const knockbackGoal = {
-    position: clamp(target.position + direction * knockbackDistance, 0, 1),
-    lane: target.lane
+    position: clamp(target.position + directionX * knockbackDistance, 0, 1),
+    lane: clamp(target.lane + directionLane * knockbackDistance, 0, PORT_ASSAULT_LANE_COUNT - 1)
   };
   const knockedBack = portAssaultFormationStep(target, knockbackGoal, knockbackDistance,
     occupancy.nearby(target, knockbackGoal, knockbackDistance));
   target.position = knockedBack.position;
+  target.lane = knockedBack.lane;
   occupancy.update(target);
   const knockbackPositionDelta = target.position - positionBeforeHit;
   target.hitPoints = Math.max(0, target.hitPoints - damage);
-  target.actionAnimationId = target.hitPoints === 0 ? "death" : "hit";
-  target.actionStartedAtMs = timeMs;
-  target.actionUntilMs = target.hitPoints === 0 ? Number.POSITIVE_INFINITY : timeMs + 360;
+  target.displacedAtMs = timeMs;
+  showHitReaction(target, target.hitPoints === 0 ? "death" : "hit", timeMs);
   pushEvent(events, {
     timeMs,
     type: target.hitPoints === 0 ? "death" : "hit",
@@ -1002,10 +1075,23 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events, occ
     attackType: attackProfile.attackType,
     chargeMomentum,
     knockbackPositionDelta,
+    knockbackLaneDelta: target.lane - laneBeforeHit,
+    position: positionBeforeHit, lane: laneBeforeHit,
+    incomingX: directionX, incomingY: directionLane * PORT_ASSAULT_LANE_SPACING,
     damage,
     hitPoints: target.hitPoints
   });
   if (target.hitPoints === 0) target.alive = false;
+}
+
+
+function showHitReaction(unit, animationId, timeMs) {
+  // Damage never interrupts a living soldier's windup or locks their decisions.
+  // The independent flash/particles still show hits during attacks and reloads.
+  if (animationId !== "death" && unit.actionAnimationId === "attack" && unit.actionUntilMs > timeMs) return;
+  unit.actionAnimationId = animationId;
+  unit.actionStartedAtMs = timeMs;
+  unit.actionUntilMs = animationId === "death" ? Infinity : timeMs + 200;
 }
 
 
@@ -1026,15 +1112,16 @@ function recordTracks(tracks, units, timeMs, dockKind) {
     const entry = {
       timeMs,
       hidden,
+      retreating: unit.retreating === true,
+      displacedAtMs: unit.displacedAtMs,
       position: unit.position,
       lane: unit.lane,
       facingRight: unit.facingRight,
       animationId,
       animationStartedAtMs,
-      ...(animationId === "reload" ? { animationDurationMs: unit.reloadAnimationDurationMs } : {}),
-      alive: unit.alive,
-      inWater: unit.side === PORT_ASSAULT_SIDE.ATTACKER && dockKind === "none" &&
-        unit.landed && timeMs < unit.jumpStartedAtMs + 1250
+      ...(animationId === "reload" ? { animationDurationMs: unit.reloadAnimationDurationMs } :
+        animationId === "attack" ? { animationDurationMs: unit.attackAnimationDurationMs } : {}),
+      alive: unit.alive
     };
     tracks[unit.id].push(Object.freeze(entry));
   }
@@ -1068,13 +1155,8 @@ function trackFrameAt(track, elapsedMs) {
   const before = track[low];
   const after = track[Math.min(track.length - 1, low + 1)];
   if (before.hidden || ["death", "reload"].includes(before.animationId) || after.timeMs === before.timeMs) return before;
-  if (
-    after.position !== before.position &&
-    ["hit", "death"].includes(after.animationId) &&
-    after.animationStartedAtMs === after.timeMs
-  ) {
-    return before;
-  }
+  // Impact displacement is animated from its event, never anticipated between ticks.
+  if (after.displacedAtMs === after.timeMs) return before;
   const t = clamp((elapsedMs - before.timeMs) / (after.timeMs - before.timeMs), 0, 1);
   return Object.freeze({
     ...before,
@@ -1108,13 +1190,6 @@ function damageMultiplierForType(attackType, modifiers) {
   if (attackType === PORT_ASSAULT_ATTACK_TYPE.MELEE) return modifiers.meleeDamageMultiplier;
   if (attackType === PORT_ASSAULT_ATTACK_TYPE.ARROW) return modifiers.arrowDamageMultiplier;
   if (attackType === PORT_ASSAULT_ATTACK_TYPE.FIREARM) return modifiers.firearmDamageMultiplier;
-  throw new Error(`Unknown port assault attack type: ${attackType}`);
-}
-
-function attackActionDurationMs(attackType) {
-  if (attackType === PORT_ASSAULT_ATTACK_TYPE.MELEE) return 1000;
-  if (attackType === PORT_ASSAULT_ATTACK_TYPE.ARROW) return 1500;
-  if (attackType === PORT_ASSAULT_ATTACK_TYPE.FIREARM) return 1100;
   throw new Error(`Unknown port assault attack type: ${attackType}`);
 }
 

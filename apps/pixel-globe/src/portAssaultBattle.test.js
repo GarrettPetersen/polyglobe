@@ -316,7 +316,8 @@ test("harder hits and cavalry charge momentum produce longer knockback", () => {
     (event.type === "hit" || event.type === "death") && event.attackerId === "cavalier"
   );
   assert.ok(chargeHit.chargeMomentum > 0.5);
-  assert.ok(Math.abs(chargeHit.knockbackPositionDelta) > 0.04);
+  assert.ok(Math.hypot(chargeHit.knockbackPositionDelta,
+    chargeHit.knockbackLaneDelta * PORT_ASSAULT_LANE_SPACING) > 0.04);
 });
 
 test("shield blocks negate damage and are represented in the battle timeline", () => {

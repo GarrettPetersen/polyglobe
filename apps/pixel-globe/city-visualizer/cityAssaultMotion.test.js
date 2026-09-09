@@ -50,26 +50,23 @@ test("a shipboard landing always advances right without shifting the gate", () =
   }), baselineEntryX);
 });
 
-test("melee lunge and knockback motion return to authoritative battle positions", () => {
-  assert.deepEqual(cityAssaultMeleeLungeOffset("attacker", 0), { x: 0, y: 0 });
-  assert.deepEqual(
-    cityAssaultMeleeLungeOffset("attacker", CITY_ASSAULT_MELEE_LUNGE_DURATION_MS / 2),
-    { x: 5, y: -2 }
-  );
-  assert.deepEqual(
-    cityAssaultMeleeLungeOffset("defender", CITY_ASSAULT_MELEE_LUNGE_DURATION_MS / 2),
-    { x: -5, y: -2 }
-  );
-  assert.deepEqual(cityAssaultMeleeLungeOffset("attacker", CITY_ASSAULT_MELEE_LUNGE_DURATION_MS), { x: 0, y: 0 });
-
-  assert.deepEqual(cityAssaultKnockbackOffset({ knockbackPx: 6, elapsedMs: 0 }), { x: -6, y: 0 });
-  const airborne = cityAssaultKnockbackOffset({ knockbackPx: 6, elapsedMs: 180 });
-  assert.ok(airborne.x > -6 && airborne.x < 0);
-  assert.equal(airborne.y, -5);
-  assert.deepEqual(
-    cityAssaultKnockbackOffset({ knockbackPx: 6, elapsedMs: CITY_ASSAULT_KNOCKBACK_DURATION_MS }),
-    { x: 0, y: 0 }
-  );
+test("lunges retain actual forward or lateral displacement without snapping back", () => {
+  for (const deltaX of [-10, 0, 10]) for (const deltaY of [-3, 0, 3]) {
+    const move = { deltaX, deltaY };
+    const start = cityAssaultMeleeLungeOffset({ ...move, elapsedMs: 0 });
+    assert.equal(deltaX + start.x, 0);
+    assert.equal(deltaY + start.y, 0);
+    let previousDistance = Math.abs(start.x);
+    for (let elapsedMs = 10; elapsedMs <= CITY_ASSAULT_MELEE_LUNGE_DURATION_MS; elapsedMs += 10) {
+      const offset = cityAssaultMeleeLungeOffset({ ...move, elapsedMs });
+      assert.ok(Math.abs(offset.x) <= previousDistance, "never moves back after advancing");
+      previousDistance = Math.abs(offset.x);
+    }
+    assert.deepEqual(cityAssaultMeleeLungeOffset({ ...move, elapsedMs: 500 }), { x: 0, y: 0 });
+    assert.deepEqual(cityAssaultKnockbackOffset({ ...move, elapsedMs: CITY_ASSAULT_KNOCKBACK_DURATION_MS }), { x: 0, y: 0 });
+  }
+  assert.deepEqual(cityAssaultMeleeLungeOffset({ deltaX: 0, deltaY: 0, elapsedMs: 60 }), { x: 0, y: 0 });
+  assert.ok(cityAssaultKnockbackOffset({ deltaX: 6, deltaY: 0, elapsedMs: 120 }).y < 0);
 });
 
 test("city assault motion rejects malformed spatial and timing contracts", () => {
@@ -79,8 +76,8 @@ test("city assault motion rejects malformed spatial and timing contracts", () =>
     elapsedMs: 0,
     durationMs: 1
   }), /jump start/);
-  assert.throws(() => cityAssaultMeleeLungeOffset("neutral", 0), /side/);
-  assert.throws(() => cityAssaultKnockbackOffset({ knockbackPx: 0, elapsedMs: 0 }), /distance/);
+  assert.throws(() => cityAssaultMeleeLungeOffset({ deltaX: NaN, deltaY: 0, elapsedMs: 0 }), /displacement/);
+  assert.throws(() => cityAssaultKnockbackOffset({ deltaX: 1, deltaY: 0, elapsedMs: -1 }), /timing/);
   assert.throws(() => cityAssaultLaneX({
     baselineX: 0,
     position: -0.1,

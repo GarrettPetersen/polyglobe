@@ -8,7 +8,7 @@ test("holding soldiers back away from crowding after the landing run", () => {
     const direction = side === "attacker" ? 1 : -1;
     const position = side === "attacker" ? .04 : .96;
     const soldier = { id: "landing", position, lane: 1, side,
-      alive: true, stats: { mounted: false }, laneGoal: null, nextLaneChangeAtMs: 0 };
+      alive: true, stats: { mounted: false, attackType: "melee" }, laneGoal: null, nextLaneChangeAtMs: 0 };
     const neighbor = { ...soldier, id: "neighbor", position: position + direction * .025 };
     const occupancy = new PortAssaultOccupancy();
     occupancy.add(soldier);
@@ -34,7 +34,7 @@ test("skirmishers can pass both ways through a standing four-file infantry forma
   for (const direction of [-1, 1]) {
     for (const entryLane of [0, 1, 2, 3]) {
       const soldier = (id, position, lane) => ({ id, position, lane, side: "attacker",
-        alive: true, stats: { mounted: false }, laneGoal: null, nextLaneChangeAtMs: 0 });
+        alive: true, stats: { mounted: false, attackType: "melee" }, laneGoal: null, nextLaneChangeAtMs: 0 });
       const infantry = Array.from({ length: 4 }, (_, lane) => soldier(`pike-${lane}`, .5, lane));
       const gunner = soldier("gunner", .5 - direction * .07, entryLane);
       gunner.stats.attackType = "firearm";
@@ -91,4 +91,20 @@ test("retreating soldiers ignore personal-space pressure from comrades behind th
   }
   assert.equal(step("firearm").position, .496, "the body fits, so retreat at full speed");
   assert.equal(step("melee").position, .496, "ordered infantry retreats also ignore pressure from behind");
+});
+
+test("rear infantry back off instead of driving an advance into a comrade", () => {
+  for (const side of ["attacker","defender"]) {
+    const forward=side==="attacker"?1:-1;
+    const unit={id:"rear",side,position:.5,lane:1,alive:true,
+      stats:{mounted:false,attackType:"melee"},laneGoal:null,nextLaneChangeAtMs:0};
+    const front={...unit,id:"front",position:.5+forward*.04};
+    const occupancy=new PortAssaultOccupancy();
+    occupancy.add(unit);occupancy.add(front);
+    const next=portAssaultMoveInFormation(unit,{position:.5+forward*.2,lane:1},.004,
+      occupancy,0,2000,{leaveRetreatGaps:true});
+    assert.ok((next.position-unit.position)*forward<=0,"an advance order must yield to formation clearance");
+    assert.ok(portAssaultGroundDistance(next,front)>portAssaultGroundDistance(unit,front),"back up or step aside to open space");
+    assert.ok(portAssaultPositionIsFree({...unit,...next},[front]));
+  }
 });

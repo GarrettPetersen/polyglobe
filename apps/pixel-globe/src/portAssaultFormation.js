@@ -1,9 +1,10 @@
 // Both axes use fractions of the battlefield's length. The city view projects
 // depth at half scale. Lane centers leave room for infantry to pass between
 // two standing comrades rather than forming an impenetrable shoulder-to-shoulder wall.
-export const PORT_ASSAULT_LANE_COUNT = 4;
+import { PORT_ASSAULT_LANE_COUNT, PORT_ASSAULT_LANE_SPACING, portAssaultGroundStepFraction } from "./portAssaultGround.js";
+export { PORT_ASSAULT_LANE_COUNT, PORT_ASSAULT_LANE_SPACING } from "./portAssaultGround.js";
 // Enough continuous ground depth for a full crew and its retreat corridors.
-export const PORT_ASSAULT_LANE_SPACING = 0.06;
+
 export const PORT_ASSAULT_INFANTRY_RADIUS = 0.009;
 export const PORT_ASSAULT_MOUNTED_RADIUS = 0.013;
 const CONTACT_EPSILON = 1e-9;
@@ -123,7 +124,9 @@ export function portAssaultFormationStep(unit, destination, distance, occupants)
   const maximumX = Math.max(0, dx);
   const minimumY = Math.min(0, dy);
   const maximumY = Math.max(0, dy);
-  let fraction = 1;
+  let fraction = portAssaultGroundStepFraction(unit, {
+    position: unit.position + dx, lane: unit.lane + dy / PORT_ASSAULT_LANE_SPACING
+  });
   for (const other of occupants) {
     if (other.id === unit.id) continue;
     const separationX = unit.position - other.position;

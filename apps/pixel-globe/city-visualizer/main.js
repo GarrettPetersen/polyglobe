@@ -1,5 +1,9 @@
+import { cityAssaultWaterDepthPx } from "./cityAssaultGround.js";
+import { PORT_ASSAULT_TRACK_START_X } from "../src/portAssaultGround.js";
+import { PORT_ASSAULT_LANE_SPACING } from "../src/portAssaultFormation.js";
+import { spriteSplinterColors } from "../src/hullSplinters.js";
 import { createCityAssaultShipEffects, cityAssaultShipEffectsFrame, cityAssaultEscapeUrgency } from "./cityAssaultShipEffects.js";
-import { CityAssaultHitFlashes, cityAssaultDepthBand, cityAssaultDepthOrder } from "./cityAssaultFeedback.js";
+import { CityAssaultHitFlashes, cityAssaultDepthBand, cityAssaultDepthOrder, cityAssaultImpactParticles } from "./cityAssaultFeedback.js";
 import { CROATOAN_CLUE, cityRuinsDamage, croatoanClueScreenRect, croatoanClueContainsPoint } from "./cityColonyRuins.js";
 import { GAME_ICON_ASSET_VERSION, gameIconAtlasRect, gameIconAtlasDimensions } from "../src/gameIcons.js";
 import { requirePixelPerfectSpriteScale } from "../src/pixelPerfectSpriteScale.js";
@@ -117,6 +121,7 @@ import {
   cityAssaultKnockbackOffset,
   cityAssaultLaneX,
   CITY_ASSAULT_TRACK_SPAN_PX,
+  CITY_ASSAULT_GROUND_DEPTH_SCALE,
   cityAssaultMeleeLungeOffset
 } from "./cityAssaultMotion.js";
 import { cityMatchlockSmokeParticles, drawCityMatchlockSmokeCluster } from "./cityMatchlockSmoke.js";
@@ -326,9 +331,10 @@ const BACKGROUND_CITY_UNDERLAY_LAYER_NAMES = new Set(
 const CITY_VISUALIZER_DEFAULT_CITY_ID = "london|united kingdom";
 const SUSPICIOUS_MERCHANT_HIT_PADDING_PX = 8;
 const SHIPYARD_BUILDING_HIT_PADDING_PX = 4;
-const CITY_PORT_ASSAULT_TRACK_START_X = 666;
+const CITY_PORT_ASSAULT_TRACK_START_X = PORT_ASSAULT_TRACK_START_X;
 let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
+let assaultBeachFrame = null;
 let renderFrameId = null;
 let bombardmentOverlayFrameCache = null;
 let skySourceColorsByRow = null;
@@ -560,6 +566,7 @@ function prepareScenePixelCaches() {
   const beach = state.portManifest.staticFrames.find((frame) => frame.layer === "Sand Beach");
   if (!beach) throw new Error("Port scene is missing its beach frame");
   beachOpaqueRuns(beach);
+  assaultBeachFrame = beach;
   dockShadowRows();
   for (const frame of state.portManifest.animated.Waves.frames) {
     animatedOpaqueLeftEdges(state.waveAtlas, frame);
@@ -3873,7 +3880,12 @@ function drawPortAssaultPresentation(lane) {
       shipboardStart
     );
     const groundY = unit.animationId === "jump" ? feetY : point.y + window.y;
-    if (cityAssaultDepthBand(groundY) === lane) placements.push({ unit, point, groundY });
+    const waterDepthPx = state.features.dock === "none" && unit.animationId !== "jump"
+      ? assaultWaterDepthPx(laneX + window.x, feetY) : 0;
+    if (cityAssaultDepthBand(groundY) === lane) placements.push({
+      unit: { ...unit, inWater: waterDepthPx > 0, waterDepthPx },
+      point: { x: point.x, y: point.y + waterDepthPx }, groundY
+    });
   }
   for (const { unit, point } of placements.sort(cityAssaultDepthOrder)) {
     const hitFlash = assaultHitFlashes.consume(unit.id, presentation.events, battleTimeMs);
@@ -3882,9 +3894,19 @@ function drawPortAssaultPresentation(lane) {
   }
   for (const event of presentation.events) {
     const unit = presentation.units.find(({ id }) => id === event.unitId);
-    if (!unit || Math.round(event.type === "attack" ? event.lane : unit.lane) !== lane) continue;
+    if (!unit || Math.round(["attack", "hit", "death"].includes(event.type) ? event.lane : unit.lane) !== lane) continue;
     drawAssaultEvent(event, unit, window, battleTimeMs, entryShiftX);
   }
+}
+
+// Beach water follows the authored shoreline for attackers and pursuing defenders.
+function assaultWaterDepthPx(masterX, masterY) {
+  const beach = assaultBeachFrame;
+  const offsetX = layerSceneOffsetX("Sand Beach", 0, state.features.approach);
+  const offsetY = layerSceneOffsetY("Sand Beach", 0, state.features.approach);
+  const row = Math.round(masterY - beach.spriteSourceSize.y - offsetY);
+  const x = Math.round(masterX - beach.spriteSourceSize.x - offsetX);
+  return cityAssaultWaterDepthPx(x, row, beachOpaqueRuns(beach));
 }
 
 function assaultShipboardStartPoint(timeMs) {
@@ -3920,7 +3942,11 @@ function assaultPersonScreenPoint(unit, landingPoint, events, timeMs, shipboardS
   let offsetX = 0;
   let offsetY = 0;
   if (latestLunge) {
-    const offset = cityAssaultMeleeLungeOffset(latestLunge.facingRight ? "attacker" : "defender", timeMs - latestLunge.timeMs);
+    const offset = cityAssaultMeleeLungeOffset({
+      deltaX: latestLunge.lungePositionDelta * CITY_ASSAULT_TRACK_SPAN_PX,
+      deltaY: latestLunge.lungeLaneDelta * PORT_ASSAULT_LANE_SPACING * CITY_ASSAULT_TRACK_SPAN_PX * CITY_ASSAULT_GROUND_DEPTH_SCALE,
+      elapsedMs: timeMs - latestLunge.timeMs
+    });
     offsetX += offset.x;
     offsetY += offset.y;
   }
@@ -3928,9 +3954,10 @@ function assaultPersonScreenPoint(unit, landingPoint, events, timeMs, shipboardS
     if (!Number.isFinite(latestKnockback.knockbackPositionDelta)) {
       throw new Error(`Port-assault hit has invalid knockback: ${unit.id}`);
     }
-    if (latestKnockback.knockbackPositionDelta !== 0) {
+    if (latestKnockback.knockbackPositionDelta !== 0 || latestKnockback.knockbackLaneDelta !== 0) {
       const offset = cityAssaultKnockbackOffset({
-        knockbackPx: latestKnockback.knockbackPositionDelta * CITY_ASSAULT_TRACK_SPAN_PX,
+        deltaX: latestKnockback.knockbackPositionDelta * CITY_ASSAULT_TRACK_SPAN_PX,
+        deltaY: latestKnockback.knockbackLaneDelta * PORT_ASSAULT_LANE_SPACING * CITY_ASSAULT_TRACK_SPAN_PX * CITY_ASSAULT_GROUND_DEPTH_SCALE,
         elapsedMs: timeMs - latestKnockback.timeMs
       });
       offsetX += offset.x;
@@ -3995,11 +4022,11 @@ function drawGroundPersonSprite(unit, screenX, screenFeetY, timeMs, hitFlash = f
     unit.animationId === "attack" || unit.animationId === "reload"
     ? CITY_ANIMATION_PLAYBACK.ONCE
     : CITY_ANIMATION_PLAYBACK.LOOP;
-  if (unit.animationId === "reload" && (!Number.isFinite(unit.animationDurationMs) || unit.animationDurationMs <= 0)) {
-    throw new Error(`Invalid city ground reload duration for ${unit.id}`);
+  if (["reload", "attack"].includes(unit.animationId) && (!Number.isFinite(unit.animationDurationMs) || unit.animationDurationMs <= 0)) {
+    throw new Error(`Invalid city ground action duration for ${unit.id}`);
   }
   const frame = cityAnimationFrame(animation, animationElapsedMs, playback,
-    { durationMs: unit.animationId === "reload" ? unit.animationDurationMs : null });
+    { durationMs: ["reload", "attack"].includes(unit.animationId) ? unit.animationDurationMs : null });
   const dx = Math.round(screenX + frame.spriteSourceSize.x - frame.sourceSize.w / 2);
   const dy = Math.round(screenFeetY - frame.sourceSize.h + frame.spriteSourceSize.y);
   const facingRight = unit.facingRight;
@@ -4007,7 +4034,7 @@ function drawGroundPersonSprite(unit, screenX, screenFeetY, timeMs, hitFlash = f
   context.imageSmoothingEnabled = false;
   if (unit.inWater) {
     context.beginPath();
-    context.rect(0, 0, canvas.width, Math.max(0, Math.round(screenFeetY) - 1));
+    context.rect(0, 0, canvas.width, Math.max(0, Math.round(screenFeetY - (unit.waterDepthPx ?? 0)) - 1));
     context.clip();
   }
   const image = hitFlash ? tintedFrameCanvas(state.peopleAtlas, frame, "#ffffff") : state.peopleAtlas;
@@ -4017,6 +4044,7 @@ function drawGroundPersonSprite(unit, screenX, screenFeetY, timeMs, hitFlash = f
 }
 
 function drawWadingWater(unit, x, feetY, timeMs) {
+  feetY -= unit.waterDepthPx ?? 0;
   const phase = Math.floor(timeMs / 140 + unit.lane) % 2;
   context.fillStyle = phase === 0 ? "#8fd3ff" : "#4d9be6";
   context.fillRect(Math.round(x) - 3 - phase, Math.round(feetY) - 2, 7 + phase * 2, 1);
@@ -4032,7 +4060,7 @@ function drawLandingSplash(x, y, ageMs) {
 }
 
 function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
-  const eventTracksShot = event.type === "attack";
+  const eventTracksShot = ["attack", "hit", "death"].includes(event.type);
   const position = eventTracksShot ? event.position : unit.position;
   const lane = eventTracksShot ? event.lane : unit.lane;
   if (!Number.isFinite(position) || position < 0 || position > 1) {
@@ -4047,7 +4075,9 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
     entryShiftX
   }));
   const feetY = cityPortAssaultLaneFeetY(lane);
-  const y = Math.round(feetY - window.y);
+  const depthPx = state.features.dock === "none" && ["attack", "hit", "death"].includes(event.type)
+    ? assaultWaterDepthPx(x + window.x, feetY) : 0;
+  const y = Math.round(feetY - window.y + depthPx);
   if (event.type === "attack" && event.attackType === "firearm") {
     drawMatchlockSmoke(event, x, y, timeMs);
     if (timeMs - event.timeMs < 100) {
@@ -4065,9 +4095,14 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
     context.fillStyle = event.dockKind === "stone" ? "#9babb2" : "#c7dcd0";
     context.fillRect(x - 3 - spread, y - 1, 2, 1);
     context.fillRect(x + 2 + spread, y - 1, 2, 1);
-  } else if (event.type === "death" && timeMs - event.timeMs < 500) {
-    context.fillStyle = "#ae2334";
-    context.fillRect(x - 2 - Math.floor((timeMs - event.timeMs) / 180), y - 3, 2, 1);
+  } else if (event.type === "hit" || event.type === "death") {
+    const particles = cityAssaultImpactParticles({ ageMs: timeMs - event.timeMs,
+      incomingX: event.incomingX, incomingY: event.incomingY,
+      colors: assaultImpactColors(unit.appearanceId) });
+    for (const particle of particles) {
+      context.fillStyle = `rgb(${particle.color})`;
+      context.fillRect(x + particle.x, y - 10 + particle.y, 1, 1);
+    }
   }
   if (event.type === "attack" && ["arrow", "firearm"].includes(event.attackType)) {
     const targetX = cityAssaultLaneX({
@@ -4076,11 +4111,30 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
       entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
       entryShiftX
     });
+    const targetFeetY = cityPortAssaultLaneFeetY(event.targetLane);
+    const targetDepthPx = state.features.dock === "none"
+      ? assaultWaterDepthPx(targetX + window.x, targetFeetY) : 0;
     drawCityAssaultProjectile(context, event.attackType,
       { x: x + (event.facingRight ? 6 : -6), y: y - 10 },
-      { x: targetX, y: cityPortAssaultLaneFeetY(event.targetLane) - window.y - 10 },
+      { x: targetX, y: targetFeetY + targetDepthPx - window.y - 10 },
       timeMs - event.timeMs);
   }
+}
+
+// One small atlas read per appearance, shared by every subsequent hit.
+const assaultImpactPaletteCache = new Map();
+function assaultImpactColors(appearanceId) {
+  if (assaultImpactPaletteCache.has(appearanceId)) return assaultImpactPaletteCache.get(appearanceId);
+  const appearance = state.peopleById.get(appearanceId);
+  if (!appearance) throw new Error(`Unknown assault impact appearance: ${appearanceId}`);
+  const { x, y, w, h } = appearance.animations.idle[0].frame;
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const sampler = canvas.getContext("2d", { willReadFrequently: true });
+  sampler.drawImage(state.peopleAtlas, x, y, w, h, 0, 0, w, h);
+  const colors = spriteSplinterColors(sampler.getImageData(0, 0, w, h).data);
+  assaultImpactPaletteCache.set(appearanceId, colors);
+  return colors;
 }
 
 function drawMatchlockSmoke(event, x, feetY, timeMs) {

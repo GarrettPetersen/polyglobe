@@ -195,3 +195,26 @@ test("yielding responds to the nearest withdrawing comrade regardless of roster 
     assert.deepEqual(portAssaultTacticalDecision(pike, allies, [enemy], 2000), expected);
   }
 });
+
+test("reloading gunners make room for other gunners while passing infantry needs only body clearance", () => {
+  const gun = unit("gun", "gunner", .5, 1);
+  gun.lastRangedAttackPosition=.56;
+  gun.firearmReload={durationMs:4000,remainingMs:2000};
+  const friend=unit("friend", "gunner", .52,1);
+  const enemy=unit("enemy", "swordsman",.8,1,"defender");
+  assert.equal(portAssaultTacticalDecision(gun,[gun,friend],[enemy],2000).mode,"make-room");
+  const infantry=unit("infantry","spearman",.52,1);
+  assert.equal(portAssaultTacticalDecision(gun,[gun,infantry],[enemy],2000).mode,"reload");
+});
+
+test("clearing the quay is a one-time landing order, never an order to reverse a retreat", () => {
+  const soldier = { ...unit("infantry", "spearman", .34), dockKind: "wood", deploymentLane: 1,
+    clearedQuay: false };
+  const enemy = unit("enemy", "swordsman", .7, 1, "defender");
+  const retreating = { ...unit("retreating", "gunner", .37), retreating: true };
+  assert.equal(portAssaultTacticalDecision(soldier, [soldier], [], 2000).mode, "clear-quay");
+  assert.equal(portAssaultTacticalDecision(soldier, [soldier], [enemy], 2000).mode, "clear-quay");
+  soldier.clearedQuay = true;
+  assert.equal(portAssaultTacticalDecision(soldier, [soldier, retreating], [enemy], 2000).mode, "yield",
+    "infantry returning toward the quay must clear the gunner's retreat route");
+});

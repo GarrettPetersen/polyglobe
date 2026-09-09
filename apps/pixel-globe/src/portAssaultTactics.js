@@ -59,8 +59,10 @@ function yieldToWithdrawingComrade(unit, comrade, allies, enemies) {
   const occupants = [...allies, ...enemies].filter(ready);
   let best = null;
   let bestProgress = -1;
-  for (const lane of candidates) {
-    const decision = move("yield", unit.position + rearDirection * .01, lane);
+  const destinations = candidates.map(lane => ({ position: unit.position + rearDirection * .01, lane }));
+  destinations.push({ position: unit.position + rearDirection * .035, lane: unit.lane });
+  for (const destination of destinations) {
+    const decision = move("yield", destination.position, destination.lane);
     const distance = portAssaultGroundDistance(unit, decision.destination);
     const step = portAssaultFormationStep(unit, decision.destination, distance, occupants);
     const progress = portAssaultGroundDistance(unit, step) / distance;
@@ -75,9 +77,18 @@ function yieldToWithdrawingComrade(unit, comrade, allies, enemies) {
 export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, rangedAllies = allies.filter(ranged)) {
   const enemies = opponents;
   const target = nearest(unit, enemies);
+  if (!target && unit.side === "attacker" && !unit.clearedQuay && ["wood", "stone"].includes(unit.dockKind) && unit.position < .36) {
+    return move("clear-quay", .38, unit.deploymentLane);
+  }
   if (!target) return null;
   const direction = Math.sign(target.position - unit.position) || (unit.side === "attacker" ? 1 : -1);
   const distance = portAssaultGroundDistance(unit, target);
+  // Cross the narrow quay before forming a firing line. Stopping on the
+  // gangway traps both incoming infantry and comrades withdrawing from shore.
+  if (unit.side === "attacker" && !unit.clearedQuay && ["wood", "stone"].includes(unit.dockKind) &&
+      unit.position < .36 && distance > PROTECTION_DISTANCE) {
+    return move("clear-quay", .38, unit.deploymentLane);
+  }
   if (!ranged(unit) || unit.stats.mounted) {
     if (!unit.stats.mounted && distance > unit.stats.range) {
       const localScreen = rangedAllies.filter(ally => portAssaultGroundDistance(unit, ally) <= LOCAL_RADIUS);
@@ -109,6 +120,8 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
   const reloading = unit.stats.attackType === "firearm"
     ? unit.firearmReload !== null : timeMs < unit.nextPrimaryAttackAtMs;
   const rearDirection = unit.side === "attacker" ? -1 : 1;
+  const crowded = friends.some(ally => !ally.retreating && ranged(ally) &&
+    portAssaultGroundDistance(unit, ally) < (portAssaultBodyRadius(unit) + portAssaultBodyRadius(ally)) * 2.1);
   const withdrawing = withdrawingComradeInPath(unit, friends, timeMs);
   if (!threatened && withdrawing) {
     return yieldToWithdrawingComrade(unit, withdrawing, allies, enemies);
@@ -116,16 +129,19 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
   if (threatened) {
     // Retreat from immediate danger without needing to select a protector.
     const retreat = move("withdraw", unit.position + rearDirection * SCREEN_GAP, unit.lane);
-    if (Math.abs(retreat.destination.position - unit.position) > 1e-9) return retreat;
+    // At the field edge there is no room to withdraw behind another rank.
+    // Stand and defend instead of endlessly trying to retreat into the wall.
+    if (Math.abs(retreat.destination.position - unit.position) >= SCREEN_GAP * .9) return retreat;
   } else if (reloading && unit.lastRangedAttackPosition !== null && unit.stats.attackType === "firearm") {
     // Reload behind the firing position, not an additional step back every tick.
     // Never advance during this retreat if an enemy already drove us farther back.
     const coverPosition = unit.lastRangedAttackPosition + rearDirection * SCREEN_GAP;
     const destination = Math.max(0, Math.min(1, coverPosition));
-    const reachedCover = (unit.position - destination) * rearDirection >= -0.003;
+    const reachedCover = (unit.position - destination) * rearDirection >= -0.003 ||
+      (destination === (rearDirection > 0 ? 1 : 0) && Math.abs(destination - unit.position) < SCREEN_GAP);
     const protectedByInfantry = friends.some(ally => !ranged(ally) &&
       (ally.position - unit.position) * -rearDirection >= portAssaultBodyRadius(unit) + portAssaultBodyRadius(ally));
-    if (reachedCover || protectedByInfantry) return move("reload", unit.position, unit.lane);
+    if (reachedCover || protectedByInfantry) return move(crowded ? "make-room" : "reload", unit.position, unit.lane);
     return move("seek-cover", destination, unit.lane);
   }
   // A skirmisher pressed against the rear boundary must still defend itself.
@@ -135,7 +151,7 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
   if (clearTarget && !reloading) return { mode: "fire", target: clearTarget };
   // The initial readiness delay is not a reload: newly landed troops must
   // still advance into firing position before their first shot.
-  if (reloading && unit.lastRangedAttackPosition !== null) return move("reload", unit.position, unit.lane);
+  if (reloading && unit.lastRangedAttackPosition !== null) return move(crowded ? "make-room" : "reload", unit.position, unit.lane);
   // Advance beyond the local screen to open a firing lane. The collision solver
   // still requires an actual route around bodies; this is only a steering goal.
   const ahead = friends.filter(ally => (ally.position - unit.position) * direction > 0 &&

@@ -1545,3 +1545,23 @@ test("a retained supply captain keeps his homeland and identity after visiting a
   }).get(ship.id);
   for (const key of ["id", "name", "sourceId", "nameCulture"]) assert.equal(restored[key], initial[key], key);
 });
+
+test("reported Mediterranean captain survives changed portrait eligibility on restore", () => {
+  const sourceId = "ultimate-portrait-pack-v1-0-man-knight-man-knight-portrait";
+  const identity = { id: `${sourceId}-2378aa85`, name: "Manuel Pereira" };
+  const port = { cityId: "lisbon|portugal", city: "Lisbon", country: "Portugal", factionId: "portugal",
+    cityType: "mediterranean", routeRegion: "mediterranean", lat: 38.7, lon: -9.1 };
+  for (const role of ["merchant", "pirate"]) {
+    const ship = { id: "mediterranean-11", role, profileId: "mediterranean", currentPort: port };
+    const options = { excludedSourceIds: [sourceId],
+      captainIdentitiesByShipId: new Map([[ship.id, identity]]) };
+    const captain = assignNpcShipCaptains([ship], GENERATED_MANIFEST, new Set(), options).get(ship.id);
+    assert.equal(captain.id,identity.id);
+    assert.equal(captain.name,identity.name);
+    assert.equal(captain.sourceId,sourceId);
+    const unknown = { ...identity, id: "missing-portrait-2378aa85" };
+    assert.throws(()=>assignNpcShipCaptains([ship],GENERATED_MANIFEST,new Set(),{
+      ...options,captainIdentitiesByShipId:new Map([[ship.id,unknown]])
+    }), /Stored character identity is incompatible/);
+  }
+});

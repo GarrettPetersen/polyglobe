@@ -405,7 +405,7 @@ export function assignNpcShipCaptains(
     const identityKey = `captain|${ship.id}`;
     const storedIdentity = captainIdentitiesByShipId.get(ship.id) || null;
     const character = storedIdentity
-      ? assignStoredCharacterSprite(identityKey, region, sourcePool, used, storedIdentity)
+      ? assignStoredCharacterSprite(identityKey, region, manifest.sourceCharacters, used, storedIdentity)
       : assignCharacterSprite(identityKey, region, sourcePool, used);
     assignments.set(ship.id, {
       ...character,
@@ -863,7 +863,7 @@ function assignCharacterSprite(key, region, sourcePool, used, { minimumAge = nul
   );
 }
 
-function assignStoredCharacterSprite(key, region, sourcePool, used, storedIdentity) {
+function assignStoredCharacterSprite(key, region, sourceCatalog, used, storedIdentity) {
   if (typeof storedIdentity?.id !== "string" || storedIdentity.id === "") {
     throw new Error(`Stored character has no canonical id: ${key}`);
   }
@@ -878,7 +878,10 @@ function assignStoredCharacterSprite(key, region, sourcePool, used, storedIdenti
     ? storedIdentity.id.slice(0, -suffix.length)
     : null;
   const sourceId = retiredCharacterPortrait(savedSourceId)?.replacementSourceId ?? savedSourceId;
-  const source = sourcePool.find(({ id }) => id === sourceId);
+  // Eligibility filters select newly generated captains. A change of allegiance,
+  // occupation, or portrait policy must not erase an existing person. Retired
+  // artwork still uses its explicit replacement; unknown assets remain errors.
+  const source = sourceCatalog.find(({ id }) => id === sourceId);
   if (!source) {
     throw new Error(`Stored character identity is incompatible with ${key}: ${storedIdentity.id}`);
   }

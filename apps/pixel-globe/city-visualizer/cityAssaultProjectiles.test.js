@@ -7,12 +7,12 @@ test("arrows arc across the shot while balls travel on a straight line in either
   for (const direction of [-1, 1]) {
     const start = { x: direction > 0 ? 20 : 180, y: 40 };
     const end = { x: direction > 0 ? 180 : 20, y: 40 };
-    const arrow = cityAssaultProjectile("arrow", start, end, 160);
-    const ball = cityAssaultProjectile("firearm", start, end, 90);
+    const arrow = cityAssaultProjectile("arrow", start, end, 200);
+    const ball = cityAssaultProjectile("firearm", start, end, 100);
     assert.equal(arrow.head.x, 100);
     assert.ok(arrow.head.y < 40);
     assert.deepEqual(ball.head, { x: 100, y: 40 });
-    for (const [kind, duration] of [["arrow", 320], ["firearm", 180]]) {
+    for (const [kind, duration] of [["arrow", 400], ["firearm", 200]]) {
       assert.equal(cityAssaultProjectile(kind, start, end, -1), null);
       assert.equal(cityAssaultProjectile(kind, start, end, duration), null);
       assert.ok(Math.abs(cityAssaultProjectile(kind, start, end, duration - 1).head.x - end.x) <= 1);
@@ -21,7 +21,7 @@ test("arrows arc across the shot while balls travel on a straight line in either
 });
 
 test("projectile pixels appear in flight away from the muzzle, then disappear", () => {
-  for (const [kind, age] of [["arrow", 160], ["firearm", 90]]) {
+  for (const [kind, age] of [["arrow", 200], ["firearm", 100]]) {
     const canvas = createCanvas(200, 80);
     const context = canvas.getContext("2d");
     drawCityAssaultProjectile(context, kind, { x: 20, y: 40 }, { x: 180, y: 40 }, age);
