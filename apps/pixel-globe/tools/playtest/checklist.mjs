@@ -200,10 +200,10 @@ export async function runBrowserChecklist({ command, initialState, random, check
     } else if (goal === "sail-and-dock") {
       // Mandatory real first leg from the battle location, or a nearby next
       // port if another objective has already sailed that leg.
-      if (!sailed && !state.cityId) { await arrive(destination, false); sailed = true; }
-      else {
-        await arrive(checklistTravelDestination(state, destination), false); sailed = true;
-      }
+      const dockableNow = new Set(state.ports.filter(port => port.inRange).map(port => port.cityId));
+      const target = !sailed && !state.cityId && !dockableNow.has(destination)
+        ? destination : checklistTravelDestination(state, destination, dockableNow);
+      await arrive(target, false); sailed = true;
       assert.ok(report.travel.at(-1).sailingCommands > 0, "Real sailing goal did not sail");
     } else if (goal === "teleport-and-dock") {
       await arrive(checklistTravelDestination(state, destination), true);

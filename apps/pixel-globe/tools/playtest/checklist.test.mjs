@@ -153,3 +153,27 @@ test("recruitment leaves an empty muster and hires at another port in the same v
   assert.equal(state.gameState.voyageSeed, "persistent");
   assert.throws(() => checklistTravelDestination(state, null, new Set(destinations.map(port => port.cityId))), /No accessible alternative/);
 });
+
+
+test("teleport then reload cannot satisfy the real sailing goal by redocking", async () => {
+  const destinations = [{ cityId: "lisbon|portugal", distancePx: 20 },
+    { cityId: "coimbra|portugal", distancePx: 10 }, { cityId: "oporto|portugal", distancePx: 30 }];
+  let state = { cityId: null, nodeId: null, locations: [], options: [], minute: 1,
+    gameState: { voyageSeed: "same-voyage" }, destinations, ports: [] };
+  const trace = [];
+  const command = async input => {
+    trace.push(input);
+    if (["teleport", "sail"].includes(input.type)) state = { ...state,
+      ports: [{ cityId: input.cityId, inRange: true }], minute: state.minute + (input.type === "sail" ? 1 : 0) };
+    if (input.type === "dock") state = { ...state, cityId: input.cityId, nodeId: "root", locations: ["set-sail"] };
+    if (input.type === "reload" || input.type === "location") state = { ...state, cityId: null, nodeId: null, locations: [] };
+    return state;
+  };
+  const report = await runBrowserChecklist({ command, initialState: state, random: () => 0.99,
+    checkpoint() {}, goals: ["teleport-and-dock", "sail-and-dock"] });
+  assert.equal(report.travel[0].cityId, "coimbra|portugal");
+  assert.equal(report.travel[0].sailingCommands, 0);
+  assert.notEqual(report.travel[1].cityId, "coimbra|portugal");
+  assert.equal(report.travel[1].sailingCommands, 1);
+  assert.equal(trace.filter(input => input.type === "sail").length, 1);
+});
