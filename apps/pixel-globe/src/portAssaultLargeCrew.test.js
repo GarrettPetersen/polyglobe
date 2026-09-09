@@ -42,3 +42,28 @@ for (const seed of [19, 37, 71]) {
     assert.ok(withdrew >= shots.length * .35, "skirmishers must physically withdraw through the full formation");
   });
 }
+
+for (const profile of ["gunner", "teppo-ashigaru"]) {
+  test(`15 ${profile} crew against two guards can reload and fire repeated volleys`, () => {
+    for (const seed of [1, 19, 37]) {
+      const battle = simulatePortAssault(createPortAssaultScenario({
+        cityId: "tunis|tunisia", dockKind: "wood", fortified: true,
+        attackers: Array.from({ length: 15 }, (_, i) => ({ ...soldier(`a${i}`, 0),
+          crewTypeId: profile, combatProfileId: profile, appearanceId: `${profile}-light`, experienceStars: 0 })),
+        defenders: Array.from({ length: 2 }, (_, i) => ({ ...soldier(`d${i}`, 0),
+          crewTypeId: "shieldman", combatProfileId: "shieldman", appearanceId: "shieldman-light", experienceStars: 3 })),
+        shipHitPoints: 100, shipMaxHitPoints: 100
+      }), seed);
+      const shots = battle.events.filter(event => event.type === "attack" && event.attackType === "firearm" && event.unitId.startsWith("a"));
+      const shooters = new Map();
+      for (const shot of shots) shooters.set(shot.unitId, (shooters.get(shot.unitId) ?? 0) + 1);
+      assert.ok([...shooters.values()].some(count => count > 1), `seed ${seed}: must reload and shoot again`);
+      for (const [id, track] of Object.entries(battle.tracks).filter(([id]) => id.startsWith("a"))) {
+        for (let index = 1; index < track.length; index++) if (track[index].animationId === "reload") {
+          assert.equal(track[index].position, track[index - 1].position, `${id}: reload must remain stationary`);
+          assert.equal(track[index].lane, track[index - 1].lane, `${id}: reload must remain stationary`);
+        }
+      }
+    }
+  });
+}

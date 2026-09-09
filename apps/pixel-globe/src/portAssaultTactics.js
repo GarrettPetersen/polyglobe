@@ -112,10 +112,12 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
   const friends = allies.filter(ally => ally.id !== unit.id && ready(ally) &&
     portAssaultGroundDistance(unit, ally) <= LOCAL_RADIUS);
   const threat = nearest(unit, enemies.filter(enemy => ready(enemy) && !ranged(enemy)));
-  // Once an infantry body stands between us and the approaching enemy, hold
-  // its protection instead of repeatedly fleeing and pulling every rank back.
-  const infantryScreen = friends.filter(ally => !ranged(ally));
-  const screenedFromThreat = threat && !portAssaultShotIsClear(unit, threat, infantryScreen);
+  // Prefer nearby infantry protection so mixed formations retain their screen.
+  // Without infantry, other ranged troops must cover the rear ranks instead
+  // of making an all-ranged crew flee as one mass.
+  const infantry = friends.filter(ally => !ranged(ally));
+  const screen = infantry.length > 0 ? infantry : friends;
+  const screenedFromThreat = threat && !portAssaultShotIsClear(unit, threat, screen);
   const threatened = threat && portAssaultGroundDistance(unit, threat) < PROTECTION_DISTANCE && !screenedFromThreat;
   const reloading = unit.stats.attackType === "firearm"
     ? unit.firearmReload !== null : timeMs < unit.nextPrimaryAttackAtMs;
@@ -137,11 +139,11 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
     const destination = Math.max(0, Math.min(1, coverPosition));
     const reachedCover = (unit.position - destination) * rearDirection >= -0.003 ||
       (destination === (rearDirection > 0 ? 1 : 0) && Math.abs(destination - unit.position) < SCREEN_GAP);
-    const protectedByInfantry = friends.some(ally => !ranged(ally) &&
+    const protectedByComrade = screen.some(ally =>
       (ally.position - unit.position) * -rearDirection >= portAssaultBodyRadius(unit) + portAssaultBodyRadius(ally));
     // Personal-space preferences cannot postpone loading indefinitely. The
     // retreat-corridor check above still makes a covered gunner yield.
-    if (reachedCover || protectedByInfantry) return move("reload", unit.position, unit.lane);
+    if (reachedCover || protectedByComrade) return move("reload", unit.position, unit.lane);
     return move("seek-cover", destination, unit.lane);
   }
   // A skirmisher pressed against the rear boundary must still defend itself.

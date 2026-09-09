@@ -220,3 +220,23 @@ test("clearing the quay is a one-time landing order, never an order to reverse a
   assert.equal(portAssaultTacticalDecision(soldier, [soldier, retreating], [enemy], 2000).mode, "yield",
     "infantry returning toward the quay must clear the gunner's retreat route");
 });
+
+test("an all-ranged crew can reload behind its own screen near either rear boundary", () => {
+  for (const side of ["attacker", "defender"]) for (const type of ["gunner", "teppo-ashigaru", "archer", "hunter"]) {
+    const position = x => side === "attacker" ? x : 1 - x;
+    const gun = unit("rear-gunner", type, position(.075), 1.6, side);
+    gun.lastRangedAttackPosition = position(.1);
+    gun.nextPrimaryAttackAtMs = 6000;
+    if (gun.stats.attackType === "firearm") gun.firearmReload = { durationMs: 4000, remainingMs: 2000 };
+    const comrade = unit("front-gunner", type, position(.105), 1.6, side);
+    const enemy = unit("pursuer", "swordsman", position(.135), 1.6,
+      side === "attacker" ? "defender" : "attacker");
+    assert.equal(portAssaultTacticalDecision(gun, [gun, comrade], [enemy], 2000).mode, "reload",
+      "a ranged comrade can protect the rear rank when there is no infantry");
+    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 2000).mode, "withdraw",
+      "an exposed gunner must still respond to the pursuer");
+    comrade.lane = 0;
+    assert.equal(portAssaultTacticalDecision(gun, [gun, comrade], [enemy], 2000).mode, "withdraw",
+      "an off-line comrade does not block the enemy's approach");
+  }
+});
