@@ -37119,10 +37119,17 @@ function updateNpcShips(dt) {
   if (!distantWorldWorkerClient) {
     throw new Error("NPC simulation requires the distant-world worker");
   }
-  if (distantWorldWorkerResetPending) resetDistantWorldWorkerSchedule();
-  const workerApplyPending = Boolean(distantWorldApplyState) || pendingDistantWorldEvents.length > 0;
-  if (!workerApplyPending) {
-    distantWorldWorkerClient.requestAdvance(weatherClockMinutes, distantWorldRuntimeState);
+  // Capture fixtures own their complete strategic world and may deliberately
+  // jump the clock by years to stage historical states. Replaying ordinary
+  // distant traffic across that artificial cut both mutates the fixture and
+  // makes frame capture depend on asynchronous worker timing.
+  const captureOwnsStrategicWorld = Boolean(CAPTURE_SCENARIO);
+  if (!captureOwnsStrategicWorld) {
+    if (distantWorldWorkerResetPending) resetDistantWorldWorkerSchedule();
+    const workerApplyPending = Boolean(distantWorldApplyState) || pendingDistantWorldEvents.length > 0;
+    if (!workerApplyPending) {
+      distantWorldWorkerClient.requestAdvance(weatherClockMinutes, distantWorldRuntimeState);
+    }
   }
   let scheduledChanged = false;
   // Worker results are compared and restored incrementally across frames. That
@@ -37134,14 +37141,16 @@ function updateNpcShips(dt) {
   );
   for (const result of scheduled.values()) scheduledChanged ||= result.changed;
   let distantChanged = false;
-  if (!distantWorldApplyState && pendingDistantWorldEvents.length > 0) {
-    distantWorldApplyState = createDistantWorldApplyState(pendingDistantWorldEvents.shift());
-  }
-  if (distantWorldApplyState) {
-    distantChanged = measurePerformanceBenchmarkStage(
-      "npcShips.workerApply",
-      () => advanceDistantWorldSimulationApply()
-    );
+  if (!captureOwnsStrategicWorld) {
+    if (!distantWorldApplyState && pendingDistantWorldEvents.length > 0) {
+      distantWorldApplyState = createDistantWorldApplyState(pendingDistantWorldEvents.shift());
+    }
+    if (distantWorldApplyState) {
+      distantChanged = measurePerformanceBenchmarkStage(
+        "npcShips.workerApply",
+        () => advanceDistantWorldSimulationApply()
+      );
+    }
   }
   const teaRaceChanged = maybeRecordTeaRaceRivalArrival();
   return distantChanged || scheduledChanged || teaRaceChanged;
