@@ -31825,8 +31825,10 @@ function bindColonizationQuestSelection(state, memory = state.memory.colonizatio
   if (!target) {
     throw new Error(`Saved colony is not a water-accessible sailing target: ${quest.target.city}`);
   }
-  const origin = portCities.find((candidate) => candidate.cityId === quest.origin?.cityId);
-  if (!origin) throw new Error(`Saved colony origin is not a dockable port: ${quest.origin?.city || "unknown"}`);
+  // After departure the origin records expedition history, even if its harbor closes.
+  // Pre-departure origins are reconciled against navigable ports above.
+  const origin = cityById.get(quest.origin?.cityId);
+  if (!origin) throw new Error(`Saved colony origin is missing from the city catalog: ${quest.origin?.cityId}`);
   const approvalPort = quest.approval
     ? portCities.find((candidate) => candidate.cityId === quest.approval.cityId)
     : null;
