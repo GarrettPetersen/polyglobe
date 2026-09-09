@@ -1,3 +1,4 @@
+import { createWorldMutationBoundary } from "./runtimeTransitions.js";
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
 import { createDirectionIndex } from "./geodesic.js";
 import { placeCityCatalogOnWorld, portCitiesOnWorld, validateCityPortAccessCatalog } from "./worldPortPlacement.js";
@@ -13,7 +14,7 @@ import vm from "node:vm";
 import { createPlayerTestGameState } from "./test-fixtures/createTestGameState.js";
 import { migrateGameState } from "./gameState.js";
 import { createPortDialogueSession, portDialogueView, selectPortDialogueAction } from "./dialogueSystem.js";
-import { createWorldEconomy, worldEconomyHasShipyardPort, addWorldEconomyShipyardPort, worldEconomyHasPort, portMarket } from "./economy.js";
+import { createWorldEconomy, worldEconomyHasShipyardPort, addWorldEconomyShipyardPort, worldEconomyHasPort, worldEconomyPortSettlementType, portMarket } from "./economy.js";
 import { createExeterCanalMemory, exeterCanalStage, exeterCanalQuestView, EXETER_CANAL_STAGE_MINUTES, EXETER_CITY_ID, TOPSHAM_CITY_ID } from "./exeterCanal.js";
 import { exeterCanalNavigation, exeterCanalPort, EXETER_CANAL_TILE_CHAIN } from "./exeterCanalNavigation.js";
 import { decodeGeodesicGraphBake } from "./geodesicBake.js";
@@ -192,7 +193,7 @@ test("real-map canal stages add connected cuts and restore the original map with
 
 test("live canal activation gates every port index, preserves the inland market, and is idempotent", () => {
   const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
-  const start = source.indexOf("function syncExeterCanalWorldState(");
+  const start = source.indexOf("function updateSettlementMaritimeAccess(");
   const end = source.indexOf("function syncColonizationWorldState(", start);
   const state = createPlayerTestGameState({ cargoCapacity: 100 });
   state.memory.quests.exeterCanal = { version: 1, accepted: true, startedMinute: 0 };
@@ -201,20 +202,21 @@ test("live canal activation gates every port index, preserves the inland market,
   const npcPorts = new Set([TOPSHAM_CITY_ID]);
   let invalidations = 0;
   const context = vm.createContext({
-    EXETER_CITY_ID, exeterCanalStage, exeterCanalPort,
+    BUILD_EDITION_ID: "full", EXETER_CITY_ID, exeterCanalStage, exeterCanalPort,
     exeterCanalNavigation: (base, graph, rows, stage) => ({ riverMasks: [stage], reachableNavigationMask: [stage] }),
     appliedExeterCanalStage: 0, exeterCanalBaseNavigation: {}, graph: {}, earthById: [],
     riverMasks: [], oceanReachableNavigationMask: [],
     cityById: new Map([[EXETER_CITY_ID, exeter], [TOPSHAM_CITY_ID, topsham]]),
     portCities: [topsham], portCitiesByTileId: new Map([[topsham.tileId, topsham]]),
     distantWorldWorkerClient: {}, invalidateDistantWorldWorkerState: () => invalidations++,
-    worldEconomy: economy, worldEconomyHasPort, worldEconomyHasShipyardPort, addWorldEconomyShipyardPort,
+    worldEconomy: economy, worldEconomyPortSettlementType, worldEconomyHasPort, worldEconomyHasShipyardPort, addWorldEconomyShipyardPort,
     connectNearbyPortMarkets: () => {}, sailingDistanceBetweenPorts: () => 1,
     npcSeaRoutes: {}, npcSeaRouteHasPort: (_, city) => npcPorts.has(city.cityId),
     addNpcSeaRoutePort: (_, city) => npcPorts.add(city.cityId), ensurePortCityStaffRoster: () => {},
     buildPortArrivalNavigation: ({ ports }) => new Map(ports.map((port) => [port.cityId, {}])),
     portArrivalApproachKind: () => "river", portArrivalNavigationByCityId: new Map(), chart: {}, dirty: false
   });
+  context.runPlayerWorldMutation = createWorldMutationBoundary(context.invalidateDistantWorldWorkerState);
   vm.runInContext(source.slice(start, end), context);
   for (const stage of [1, 2]) {
     context.syncExeterCanalWorldState(state, stage * EXETER_CANAL_STAGE_MINUTES);

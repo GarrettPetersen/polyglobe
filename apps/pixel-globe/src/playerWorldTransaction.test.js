@@ -1,3 +1,4 @@
+import { createWorldMutationBoundary } from "./runtimeTransitions.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
@@ -12,7 +13,7 @@ import { assertPlayerShipyardInvestmentWorldConsistency, SHIPYARD_INVESTMENT_MAT
 import { shipyardAtPort } from "./shipyards.js";
 
 const source = ts.createSourceFile("main.js", readFileSync(new URL("./main.js", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
-const transactionSource = ["finishPendingDistantWorldCommit", "snapshotVoyagePayload", "invalidateDistantWorldWorkerState", "applyDialogueOption",
+const transactionSource = ["finishPendingDistantWorldCommit", "snapshotVoyagePayload", "invalidateDistantWorldWorkerState", "applyDialogueOption", "performDialogueOption",
   "advanceDistantWorldSimulationApply", "advanceDistantWorldPartRestore", "finishDistantWorldSimulationApply"].map((name) => {
   const declaration = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name.text === name);
   assert.ok(declaration, name);
@@ -59,7 +60,7 @@ for (const phase of ["in-flight", "queued", "compare", "restore"]) {
     if (phase === "queued") pending.push(stale);
     const completed = new Error("Transaction completed; stop before unrelated audiovisual effects");
     const runtime = {
-      dialogueState, gameState: state, worldEconomy: economy, distantWorldWorkerClient: client,
+      createWorldMutationBoundary, dialogueState, gameState: state, worldEconomy: economy, distantWorldWorkerClient: client,
       pendingDistantWorldEvents: pending, distantWorldWorkerResetPending: false,
       distantWorldApplyState: ["compare", "restore"].includes(phase)
         ? { phase, result: stale.simulation, partIndex: 0, partRestorePlan: null } : null,
@@ -82,7 +83,7 @@ for (const phase of ["in-flight", "queued", "compare", "restore"]) {
       assert.equal(advanceWorldEconomyRestorePlan(plan, { maxPorts: 1 }), false);
       runtime.distantWorldApplyState.partRestorePlan = plan;
     }
-    const apply = runInNewContext(`${transactionSource}\napplyDialogueOption`, runtime);
+    const apply = runInNewContext(`${transactionSource}\nconst runPlayerWorldMutation = createWorldMutationBoundary(invalidateDistantWorldWorkerState);\napplyDialogueOption`, runtime);
     assert.throws(() => apply(0, option), (error) => error === completed);
     worker.emit({ type: "due", generation, result: stale });
     // Reproduce what the next frame would apply if the transaction did not own

@@ -126,7 +126,10 @@ test("closing historical dialogue replaces stale battle UI with a fresh result s
     /function closeHistoricalBattleDialogue[\s\S]*?\n}\n\nfunction stepHistoricalBattleScenario/
   )?.[0];
   assert.ok(closeSource, "historical dialogue closing transition must remain discoverable");
-  assert.match(closeSource, /clearPausedView\(dialogueViewCache\)/);
+  assert.match(closeSource, /releaseDialogueSession\(\{ destination: "handoff" \}\)/);
+  const releaseSource = mainSource.match(/function releaseDialogueSession[\s\S]*?\n}/)?.[0];
+  assert.ok(releaseSource);
+  assert.match(releaseSource, /clearPausedView\(dialogueViewCache\)/);
   assert.match(closeSource, /lakeBattleMode\.screen = LAKE_BATTLE_SCREEN_RESULT/);
   assert.match(closeSource, /lakeBattleMode\.resultReadyAtMs = null/);
   assert.match(closeSource, /lakeBattleMode\.actionRects = \[\]/);

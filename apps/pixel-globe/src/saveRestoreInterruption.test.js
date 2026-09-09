@@ -151,7 +151,7 @@ test("restoring a building canal publishes the saved clock before rebuilding que
       weatherClockParts: minute => ({ minute }), savedShip: { typeSlug: "galleon" },
       payload: {}, savedWorldTopology: {}, legacyCityIdForPortReference() {}, migratedDiscoveryReferenceCount: 0,
       syncExeterCanalWorldState() {}, syncColonizationWorldState() {}, applyCurrentPortConquestOwnership() {},
-      loadShipAssetSet: async () => ({}), restoreSavedDerivedWorld: () => [],
+      candidateCatalog: { cities: new Map(), ports: [] }, candidateWorld: { recoveredDerivedSystems: [] },
       ensureColonizationDefenseEncounter() {}, ensureTreasureCampaignEncounters() {},
       pendingWineCaptainDialogues: [], pendingFetchQuestCaptainDialogues: [],
       initializeFetchQuestReadiness() {

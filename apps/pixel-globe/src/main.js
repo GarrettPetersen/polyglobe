@@ -1,3 +1,4 @@
+import { createWorldMutationBoundary, dispatchActionEffects } from "./runtimeTransitions.js";
 import { runShipReplacement } from "./shipReplacementLifecycle.js";
 import { questOfferDirections } from "./questOfferDirections.js";
 import { activeQuests } from "./activeQuests.js";
@@ -4851,10 +4852,9 @@ async function main() {
     );
   }
   characterPortraitManifest = loadedCharacterPortraitManifest;
-  portCities = portCitiesOnWorld(cityByTileId, worldPortPlacementOptions());
-  validateCityPortAccessCatalog(cityByTileId, portCities, worldPortPlacementOptions());
-  validateCanonicalPortCatalog(portCities);
-  validateHistoricalGossipCityCatalog([...cityByTileId.values()]);
+  const initialCityPorts = prepareCityPortCatalog(cityByTileId, worldPortPlacementOptions());
+  portCities = initialCityPorts.ports;
+  factionCapitalPorts = initialCityPorts.capitals;
   portSailingDistances = parsePortSailingDistances(loadedPortSailingDistanceData, {
     subdivisions: SUBDIVISIONS,
     earthCacheVersion: String(earth.version)
@@ -4872,7 +4872,6 @@ async function main() {
     `[pixel-globe] port sailing distances: ${portSailingDistances.endpoints.length} ` +
     "current ports and colony sites"
   );
-  factionCapitalPorts = markFactionSeaCapitalsOnPorts(portCities);
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
   if (BUILD_EDITION_ID === "demo") {
     demoAccessiblePortCities = demoAccessiblePortsForMask({
@@ -5035,7 +5034,7 @@ async function main() {
   ensureWhalePopulation(gameState);
   ensureIcebergPopulation(gameState);
   if (CAPTURE_SCENARIO) applyCaptureIcebergs(gameState, CAPTURE_SCENARIO.icebergs || []);
-  syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+  syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes, restoring: true });
   initializeFetchQuestReadiness();
   familyDebtReturnReminderDelivered = false;
   campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
@@ -8304,8 +8303,7 @@ function resolveEscapedPirateCaptiveDefeat(npcShipId, { sunk, lootSummary = null
     ? () => openSurrenderPrizeDecision(npcShipId, lootSummary)
     : null;
   if (dialogueState?.kind === "ship" && dialogueState.npcShipId === npcShipId) {
-    dialogueState = null;
-    dialogueLayout = createDialogueLayoutState();
+    releaseDialogueSession({ destination: "handoff" });
   }
   startCharacterAlertSequence([
     {
@@ -14996,9 +14994,7 @@ function closeHistoricalBattleDialogue(actionType) {
     throw new Error("No historical battle dialogue is open");
   }
   const phase = dialogueState.phase;
-  dialogueState = null;
-  clearPausedView(dialogueViewCache);
-  dialogueLayout = createDialogueLayoutState();
+  releaseDialogueSession({ destination: "handoff" });
   if (phase === HISTORICAL_BATTLE_DIALOGUE_OPENING) {
     if (actionType !== "begin-historical-battle") {
       throw new Error(`Historical opening closed with ${actionType}`);
@@ -15224,8 +15220,7 @@ function returnHistoricalBattleToMap() {
   lakeBattleMode.resultRecorded = false;
   lakeBattleMode.closingDialogueShown = false;
   if (dialogueState?.kind === HISTORICAL_BATTLE_DIALOGUE_KIND) {
-    dialogueState = null;
-    dialogueLayout = createDialogueLayoutState();
+    releaseDialogueSession({ destination: "handoff" });
   }
   clearHistoricalBattlePendingActions();
   combatMusicUntilMs = 0;
@@ -15247,8 +15242,7 @@ function clearHistoricalBattlePendingActions() {
 
 function closeLakeBattleModeToStartMenu() {
   if (dialogueState?.kind === HISTORICAL_BATTLE_DIALOGUE_KIND) {
-    dialogueState = null;
-    dialogueLayout = createDialogueLayoutState();
+    releaseDialogueSession({ destination: "handoff" });
   }
   clearLakeBattlePortAssault();
   lakeBattleMode = null;
@@ -16781,7 +16775,9 @@ async function prepareSavedVoyageForMenu(menu) {
   }
   const payload = localSaveResult.save.payload;
   if (menu.preparedVoyage?.payload === payload) return menu.preparedVoyage.restoration;
-  const restoration = await restoreSavedVoyage(payload);
+  const restoration = await restoreSavedVoyage(payload, {
+    isCurrent: () => menu === startMenu && localSaveResult.save?.payload === payload
+  });
   if (menu !== startMenu || localSaveResult.save?.payload !== payload) {
     throw new Error("Start menu or saved voyage changed during restoration");
   }
@@ -17297,11 +17293,46 @@ function setScenarioCrewCount(count, options = {}) {
   validateCrewAggregate(gameState);
 }
 
-async function restoreSavedVoyage(payload) {
-  clearPoliticalNotices();
-  resetStormPassageState(stormPassageState);
-  resetFogStrengthEnvelope(stormFogStrengthEnvelope);
-  resetStormWaveState(stormWaveState);
+function prepareCityPortCatalog(cities, placement) {
+  const ports = portCitiesOnWorld(cities, placement);
+  validateCityPortAccessCatalog(cities, ports, placement);
+  validateCanonicalPortCatalog(ports);
+  validateHistoricalGossipCityCatalog([...cities.values()]);
+  const capitals = markFactionSeaCapitalsOnPorts(ports);
+  return { ports, capitals };
+}
+
+function prepareSavedVoyageCityCatalog(state, currentMinute) {
+  const canalStage = exeterCanalStage(state.memory.quests.exeterCanal, currentMinute);
+  const navigation = exeterCanalNavigation(exeterCanalBaseNavigation, graph, earthById, canalStage);
+  const placement = { ...worldPortPlacementOptions(), exeterCanalOpen: canalStage === 3,
+    riverMasks: navigation.riverMasks, reachableNavigationMask: navigation.reachableNavigationMask };
+  // Reproject the canonical catalog, not the previous voyage's altered cities.
+  const cities = placeCityCatalogOnWorld({ ...placement, cities: cityCatalog });
+  const basePorts = prepareCityPortCatalog(cities, placement);
+  const portIds = new Set(basePorts.ports.map(city => city.cityId));
+  for (const memory of [...colonizationSettlementMemories(state.memory.colonization), state.memory.colonization]) {
+    const record = colonizationWorldRecord(memory);
+    if (!record) continue;
+    reconcileColonySovereignty(state, memory, record, currentMinute);
+    cities.set(record.tileId, record);
+    const accessible = !record.hiddenSettlement && !record.colonyAbandoned && [
+      COLONIZATION_STAGE_DEFEND, COLONIZATION_STAGE_REPORT_DEFENSE, COLONIZATION_STAGE_ESTABLISHED
+    ].includes(record.colonizationQuestStage);
+    if (accessible) portIds.add(record.cityId);
+    else portIds.delete(record.cityId);
+  }
+  const allCities = [...cities.values()];
+  applyPortConquestOwnership(state.memory.conquest, allCities);
+  const ports = allCities.filter(city => portIds.has(city.cityId));
+  reconcileConquistadorSovereignty(state.memory.quests.conquistador, state.memory.conquest, allCities, { ports });
+  applyPortConquestOwnership(state.memory.conquest, allCities);
+  reconcileColonizationQuestOriginAfterConquest(state, ports);
+  reconcileQuestWorldAssumptions(state, ports, { identityCities: allCities });
+  return { cities, ports, capitals: basePorts.capitals };
+}
+
+async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   const savedWorldTopology = savedVoyageWorldTopology(payload, SUBDIVISIONS);
   const legacyPortTileIds = portReferenceMigrationForSavedVoyage(
     payload,
@@ -17342,7 +17373,6 @@ async function restoreSavedVoyage(payload) {
   const grandfatheredWorldwideDemo = BUILD_EDITION_ID === "demo" &&
     payload.demoVoyageScope === undefined &&
     restoredDemoVoyageScope !== DEMO_VOYAGE_SCOPE_MEDITERRANEAN;
-  demoVoyageScope = restoredDemoVoyageScope;
   const restoredWorldClock = recoverSavedVoyageWorldClock(payload, restoredGameState);
   if (restoredWorldClock.recoveredDebtClockMinutes > 0) {
     console.warn(
@@ -17384,25 +17414,43 @@ async function restoreSavedVoyage(payload) {
       `[pixel-globe] migrated ${migratedDiscoveryReferenceCount} saved discovery catalog references`
     );
   }
-  // Publish the saved state and its clock together before rebuilding quest views.
+  const candidateCatalog = prepareSavedVoyageCityCatalog(restoredGameState, restoredWorldClock.currentMinute);
+  const assets = await loadShipAssetSet(savedShip.typeSlug);
+  await ensureCharacterPortraitLoaded(restoredGameState.playerCharacter, characterExpression(restoredGameState.playerCharacter));
+  if (!isCurrent()) throw new Error("Saved voyage preparation was superseded before activation");
+  const candidateWorld = prepareSavedVoyageWorld(payload, restoredGameState, savedWorldTopology,
+    legacyCityIdForPortReference, candidateCatalog);
+  restoreNpcSurrenderContinuity(candidateWorld.npcSeaRoutes, payload.npcSurrenders);
+  advanceShipyardTradeInSerialsPastFleet(candidateWorld.worldEconomy.shipyards, [
+    ...candidateWorld.npcSeaRoutes.ships.map(entry => entry.id),
+    ...candidateWorld.npcSeaRoutes.replacementQueue.map(entry => entry.shipId)
+  ]);
+  const candidateHull = reconcileShipHullForCurrentStats(stats, savedShip.hitPoints, savedShip.maxHitPoints);
+  const candidateOverboardCrew = restoreOverboardCrew(savedShip.overboardCrew);
+  validateGameState(restoredGameState);
+  // All persisted domain systems and required player assets are prepared before
+  // publishing any of them. The remainder rebuilds transient presentation state.
+  clearPoliticalNotices();
+  resetStormPassageState(stormPassageState);
+  resetFogStrengthEnvelope(stormFogStrengthEnvelope);
+  resetStormWaveState(stormWaveState);
+  demoVoyageScope = restoredDemoVoyageScope;
   weatherClockMinutes = restoredWorldClock.currentMinute;
   voyageStartClockMinutes = restoredWorldClock.voyageStartMinute;
   weatherParts = weatherClockParts(weatherClockMinutes);
   gameState = restoredGameState;
+  cityByTileId = candidateCatalog.cities;
+  cityById = new Map([...cityByTileId.values()].map(city => [city.cityId, city]));
+  portCities = candidateCatalog.ports;
+  factionCapitalPorts = candidateCatalog.capitals;
+  portCitiesByTileId = new Map(portCities.map(city => [city.tileId, city]));
+  worldEconomy = candidateWorld.worldEconomy;
+  landTradeSystem = candidateWorld.landTradeSystem;
+  npcSeaRoutes = candidateWorld.npcSeaRoutes;
+  let recoveredDerivedSystems = candidateWorld.recoveredDerivedSystems;
   syncExeterCanalWorldState(restoredGameState, restoredWorldClock.currentMinute, { restoring: true });
-  syncColonizationWorldState(restoredGameState, {
-    startMinute: Number.isFinite(payload.economy?.lastMinute)
-      ? payload.economy.lastMinute
-      : restoredWorldClock.currentMinute
-  });
+  syncColonizationWorldState(restoredGameState, { startMinute: restoredWorldClock.currentMinute, restoring: true });
   applyCurrentPortConquestOwnership({ refreshMaltaQuest: false });
-  const assets = await loadShipAssetSet(savedShip.typeSlug);
-  let recoveredDerivedSystems = restoreSavedDerivedWorld(
-    payload,
-    restoredGameState,
-    savedWorldTopology,
-    legacyCityIdForPortReference
-  );
   if (migratedDiscoveryReferenceCount > 0) {
     recoveredDerivedSystems = addDerivedSaveRecoveryLabel(
       recoveredDerivedSystems,
@@ -17434,11 +17482,6 @@ async function restoreSavedVoyage(payload) {
   ensureWokouHuntEncounter({ assignCaptains: false });
   ensureNingboMissionEncounters({ assignCaptains: false });
   ensureTeaRaceEncounters({ assignCaptains: false });
-  restoreNpcSurrenderContinuity(npcSeaRoutes, payload.npcSurrenders);
-  advanceShipyardTradeInSerialsPastFleet(worldEconomy.shipyards, [
-    ...npcSeaRoutes.ships.map(entry => entry.id),
-    ...npcSeaRoutes.replacementQueue.map(entry => entry.shipId)
-  ]);
   if (!payload.economy || recoveredDerivedSystems.includes("world economy")) {
     reconcileRebuiltShipyardFleetHistory(worldEconomy.shipyards, [
       ...npcSeaRoutes.ships.map((entry) => entry.id),
@@ -17503,13 +17546,8 @@ async function restoreSavedVoyage(payload) {
   ship.heading = normalizeTangentOrFallback(savedShip.heading, position, WORLD_NORTH);
   ship.targetHeading = normalizeTangentOrFallback(savedShip.targetHeading, position, ship.heading);
   ship.velocity = restorePlacement.stop ? [0, 0, 0] : savedShip.velocity.slice();
-  const restoredHull = reconcileShipHullForCurrentStats(
-    ship.stats,
-    savedShip.hitPoints,
-    savedShip.maxHitPoints
-  );
-  ship.hitPoints = restoredHull.hitPoints;
-  ship.maxHitPoints = restoredHull.maxHitPoints;
+  ship.hitPoints = candidateHull.hitPoints;
+  ship.maxHitPoints = candidateHull.maxHitPoints;
   ship.wakeSeedCounter = savedShip.wakeSeedCounter || 0;
   ship.cannonSequence = savedShip.cannonSequence || 0;
   ship.cannonCooldowns = { port: 0, starboard: 0 };
@@ -17518,7 +17556,7 @@ async function restoreSavedVoyage(payload) {
   ship.lastWakeEmit = null;
   ship.navalProjectiles = [];
   ship.cannonSplashes = [];
-  overboardCrew = restoreOverboardCrew(savedShip.overboardCrew);
+  overboardCrew = candidateOverboardCrew;
   crewDeathEffects = [];
   crewDeathEffectSerial = 0;
   cannonSmokeBursts = [];
@@ -17605,7 +17643,7 @@ async function restoreSavedVoyage(payload) {
   }
   // Regenerating factors clears special quest characters. Rebind the colony
   // organizer before the restored chart creates its interactive city calls.
-  syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+  syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes, restoring: true });
   ensureNaturalistCharacter(gameState);
   for (const character of pirateHideoutCharacters.values()) usedCharacterNames.add(character.name);
   campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
@@ -17629,7 +17667,6 @@ async function restoreSavedVoyage(payload) {
   reconcileEnglishReformationCharacters();
   reconcilePapalAuthorityCharacters();
   synchronizeTreasurePirateCaptains();
-  await ensureCharacterPortraitLoaded(gameState.playerCharacter, characterExpression(gameState.playerCharacter));
   syncShipCargoFromGameState();
   camera = northUpCamera(ship.position);
   centerTileId = ship.tileId;
@@ -17647,165 +17684,182 @@ async function restoreSavedVoyage(payload) {
   return { recoveredDerivedSystems, grandfatheredWorldwideDemo };
 }
 
-function restoreSavedDerivedWorld(payload, restoredGameState, savedWorldTopology, legacyCityIdForPortReference) {
-  const recovered = [];
-  if (!savedWorldTopology || typeof savedWorldTopology.changed !== "boolean") {
-    throw new Error("Saved derived-world restore requires world-topology migration state");
-  }
-  const simulationMinute = Number.isFinite(payload.economy?.lastMinute)
-    ? payload.economy.lastMinute
-    : payload.worldClock.currentMinute;
-  const seedKey = restoredGameState.voyageSeed;
+function prepareSavedVoyageWorld(payload, state, topology, legacyCityIdForPortReference, cityCatalog) {
+  // These bindings belong exclusively to the candidate. Constructors and restore
+  // functions may mutate them without touching the active voyage.
+  const { cities: cityByTileId, ports: portCities } = cityCatalog;
+  const cityById = new Map([...cityByTileId.values()].map(city => [city.cityId, city]));
+  const sailingDistanceBetweenPorts = (a, b) => portSailingDistanceKm(portSailingDistances, a, b);
+  const currentDiplomacyBetween = (a, b) => diplomacyBetweenForState(state, a, b);
+  let worldEconomy, landTradeSystem, npcSeaRoutes;
+  const recoveredDerivedSystems = restoreSavedDerivedWorld(payload, state, topology, legacyCityIdForPortReference);
+  return { worldEconomy, landTradeSystem, npcSeaRoutes, recoveredDerivedSystems };
 
-  if (payload.economy === undefined) {
-    // Compact saves deliberately omit derived world snapshots, just as they
-    // omit land carts and NPC routes. Seed absent data before invoking restore;
-    // absence is not a failed attempt to read a corrupt snapshot.
+  function restoreSavedDerivedWorld(payload, restoredGameState, savedWorldTopology, legacyCityIdForPortReference) {
+    const recovered = [];
+    if (!savedWorldTopology || typeof savedWorldTopology.changed !== "boolean") {
+      throw new Error("Saved derived-world restore requires world-topology migration state");
+    }
+    const simulationMinute = Number.isFinite(payload.economy?.lastMinute)
+      ? payload.economy.lastMinute
+      : payload.worldClock.currentMinute;
+    const seedKey = restoredGameState.voyageSeed;
     worldEconomy = createSavedVoyageEconomy(simulationMinute, seedKey);
-  } else {
-    const economyResult = restoreOrRecreateDerivedSaveState({
-      label: "world economy",
-      current: worldEconomy,
-      recreate: () => createSavedVoyageEconomy(simulationMinute, seedKey),
-      restore: (candidate) => {
-        if (savedWorldTopology.changed) {
-          throw new Error(
-            `World economy snapshot belongs to subdivision ${savedWorldTopology.savedSubdivisions}`
-          );
+
+    // Compact saves intentionally use the freshly seeded candidate economy.
+    if (payload.economy !== undefined) {
+      const economyResult = restoreOrRecreateDerivedSaveState({
+        label: "world economy",
+        current: worldEconomy,
+        recreate: () => createSavedVoyageEconomy(simulationMinute, seedKey),
+        restore: (candidate) => {
+          if (savedWorldTopology.changed) {
+            throw new Error(
+              `World economy snapshot belongs to subdivision ${savedWorldTopology.savedSubdivisions}`
+            );
+          }
+          return restoreWorldEconomy(candidate, payload.economy, { seedKey });
         }
-        return restoreWorldEconomy(candidate, payload.economy, { seedKey });
-      }
-    });
-    worldEconomy = economyResult.value;
-    recordDerivedSaveRecovery(recovered, "world economy", economyResult.error);
-  }
-  const savedPlayerShipyards = payload.playerShipyards !== undefined ? payload.playerShipyards :
-    (payload.economy?.shipyards ? playerShipyardSnapshot(payload.economy.shipyards) : undefined);
-  if (savedPlayerShipyards !== undefined) {
-    restorePlayerShipyardSnapshot(worldEconomy.shipyards, savedPlayerShipyards, {
-      seedKey, legacyCityIdForPortReference,
-      expectedCityIds: payload.playerShipyards !== undefined
-        ? restoredGameState.memory.shipyardInvestment.backedPortCityIds : undefined
-    });
-  }
-  const repairedShipyardPorts = reconcilePlayerShipyardInvestmentWorld(
-    restoredGameState.memory.shipyardInvestment,
-    worldEconomy,
-    cityById,
-    simulationMinute
-  );
-  if (repairedShipyardPorts.length > 0) {
-    console.warn(
-      `[pixel-globe] restored missing player shipyard backing at ${repairedShipyardPorts.join(", ")}`
+      });
+      worldEconomy = economyResult.value;
+      recordDerivedSaveRecovery(recovered, "world economy", economyResult.error);
+    }
+    const savedPlayerShipyards = payload.playerShipyards !== undefined ? payload.playerShipyards :
+      (payload.economy?.shipyards ? playerShipyardSnapshot(payload.economy.shipyards) : undefined);
+    if (savedPlayerShipyards !== undefined) {
+      restorePlayerShipyardSnapshot(worldEconomy.shipyards, savedPlayerShipyards, {
+        seedKey, legacyCityIdForPortReference,
+        expectedCityIds: payload.playerShipyards !== undefined
+          ? restoredGameState.memory.shipyardInvestment.backedPortCityIds : undefined
+      });
+    }
+    const repairedShipyardPorts = reconcilePlayerShipyardInvestmentWorld(
+      restoredGameState.memory.shipyardInvestment,
+      worldEconomy,
+      cityById,
+      simulationMinute
     );
-  }
-  assertPlayerShipyardInvestmentWorldConsistency(
-    restoredGameState.memory.shipyardInvestment,
-    worldEconomy,
-    cityById
-  );
-  syncJapaneseMatchlockIndustry(restoredGameState);
-  syncCaribbeanGingerIndustry(restoredGameState);
+    if (repairedShipyardPorts.length > 0) {
+      console.warn(
+        `[pixel-globe] restored missing player shipyard backing at ${repairedShipyardPorts.join(", ")}`
+      );
+    }
+    assertPlayerShipyardInvestmentWorldConsistency(
+      restoredGameState.memory.shipyardInvestment,
+      worldEconomy,
+      cityById
+    );
+    syncJapaneseMatchlockIndustry(restoredGameState, { economy: worldEconomy, ports: portCities });
+    syncCaribbeanGingerIndustry(restoredGameState, { economy: worldEconomy, ports: portCities });
 
-  const createLandTrade = () => createLandTradeSystem({
-    roads: landRoadNetwork,
-    economy: worldEconomy,
-    cities: [...cityByTileId.values()],
-    startMinute: simulationMinute,
-    seedKey,
-    relationBetween: currentDiplomacyBetween,
-    foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
-    sovereignTradeOpenToFaction: (policyId, factionId) => (
-      sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
-    ),
-    suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
-  });
-  landTradeSystem.economy = worldEconomy;
-  if (payload.landTrade && !savedWorldTopology.changed) {
-    const landTradeResult = restoreOrRecreateDerivedSaveState({
-      label: "land trade",
-      current: landTradeSystem,
-      recreate: createLandTrade,
-      restore: (candidate) => restoreLandTradeSystem(candidate, payload.landTrade, {
-        seedKey,
-        relationBetween: currentDiplomacyBetween,
-        foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
-        sovereignTradeOpenToFaction: (policyId, factionId) => (
-          sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
-        ),
-        suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
-      })
+    const createLandTrade = (seedEconomy = worldEconomy) => createLandTradeSystem({
+      roads: landRoadNetwork,
+      economy: seedEconomy,
+      cities: [...cityByTileId.values()],
+      startMinute: simulationMinute,
+      seedKey,
+      relationBetween: currentDiplomacyBetween,
+      foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
+      sovereignTradeOpenToFaction: (policyId, factionId) => (
+        sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
+      ),
+      suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
     });
-    landTradeSystem = landTradeResult.value;
-    recordDerivedSaveRecovery(recovered, "land trade", landTradeResult.error);
-  } else {
-    console.info("[pixel-globe] migrating voyage save: seeding land carts at the saved economy minute");
-    landTradeSystem = createLandTrade();
+    // Seeding carts buys cargo. When restoring saved carts those provisional
+    // purchases must not consume stock from the candidate's saved economy.
+    landTradeSystem = createLandTrade(payload.landTrade && !savedWorldTopology.changed
+      ? structuredClone(worldEconomy) : worldEconomy);
+    landTradeSystem.economy = worldEconomy;
+    if (payload.landTrade && !savedWorldTopology.changed) {
+      const landTradeResult = restoreOrRecreateDerivedSaveState({
+        label: "land trade",
+        current: landTradeSystem,
+        recreate: () => createLandTrade(),
+        restore: (candidate) => restoreLandTradeSystem(candidate, payload.landTrade, {
+          seedKey,
+          relationBetween: currentDiplomacyBetween,
+          foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
+          sovereignTradeOpenToFaction: (policyId, factionId) => (
+            sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
+          ),
+          suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
+        })
+      });
+      landTradeSystem = landTradeResult.value;
+      recordDerivedSaveRecovery(recovered, "land trade", landTradeResult.error);
+    } else {
+      console.info("[pixel-globe] migrating voyage save: seeding land carts at the saved economy minute");
+    }
+
+    // Initial route assignment also trades. Saved fleets replace these seeded
+    // ships, so isolate their provisional purchases just like land carts.
+    npcSeaRoutes = createSavedVoyageNpcRoutes(simulationMinute, restoredGameState,
+      payload.npcRoutes && !savedWorldTopology.changed ? structuredClone(worldEconomy) : worldEconomy);
+    npcSeaRoutes.economy = worldEconomy;
+    if (payload.npcRoutes && !savedWorldTopology.changed) {
+      const economyBeforeNpcRestore = snapshotWorldEconomy(worldEconomy);
+      const npcRoutesResult = restoreOrRecreateDerivedSaveState({
+        label: "NPC sea routes",
+        current: npcSeaRoutes,
+        recreate: () => {
+          restoreWorldEconomy(worldEconomy, economyBeforeNpcRestore, { seedKey });
+          return createSavedVoyageNpcRoutes(simulationMinute, restoredGameState);
+        },
+        restore: (candidate) => restoreNpcSeaRouteSystem(candidate, payload.npcRoutes, {
+          economy: worldEconomy,
+          fishState: restoredGameState,
+          whaleMemory: restoredGameState.memory.whales,
+          seedKey,
+          relationBetween: currentDiplomacyBetween,
+          foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
+          sovereignTradeOpenToFaction: (policyId, factionId) => (
+            sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
+          ),
+          suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties,
+          tradeEmbargoes: restoredGameState.relations.tradeEmbargoes
+        })
+      });
+      npcSeaRoutes = npcRoutesResult.value;
+      recordDerivedSaveRecovery(recovered, "NPC sea routes", npcRoutesResult.error);
+    } else {
+      console.info("[pixel-globe] seeding NPC sea routes at the saved economy minute");
+      // The candidate already owns freshly seeded routes.
+    }
+    restoreShipyardSupplyShips(npcSeaRoutes, payload.shipyardSupplyShips);
+    return Object.freeze(recovered);
   }
 
-  if (payload.npcRoutes && !savedWorldTopology.changed) {
-    const economyBeforeNpcRestore = snapshotWorldEconomy(worldEconomy);
-    const npcRoutesResult = restoreOrRecreateDerivedSaveState({
-      label: "NPC sea routes",
-      current: npcSeaRoutes,
-      recreate: () => {
-        restoreWorldEconomy(worldEconomy, economyBeforeNpcRestore, { seedKey });
-        return createSavedVoyageNpcRoutes(simulationMinute, restoredGameState);
-      },
-      restore: (candidate) => restoreNpcSeaRouteSystem(candidate, payload.npcRoutes, {
-        economy: worldEconomy,
-        fishState: restoredGameState,
-        whaleMemory: restoredGameState.memory.whales,
-        seedKey,
-        relationBetween: currentDiplomacyBetween,
-        foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
-        sovereignTradeOpenToFaction: (policyId, factionId) => (
-          sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
-        ),
-        suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties,
-        tradeEmbargoes: restoredGameState.relations.tradeEmbargoes
-      })
+  function createSavedVoyageEconomy(simulationMinute, seedKey) {
+    const economy = createWorldEconomy({
+      ports: [...cityByTileId.values()],
+      shipyardPorts: portCities,
+      startMinute: simulationMinute,
+      seedKey
     });
-    npcSeaRoutes = npcRoutesResult.value;
-    recordDerivedSaveRecovery(recovered, "NPC sea routes", npcRoutesResult.error);
-  } else {
-    console.info("[pixel-globe] seeding NPC sea routes at the saved economy minute");
-    npcSeaRoutes = createSavedVoyageNpcRoutes(simulationMinute, restoredGameState);
+    connectNearbyPortMarkets(economy, portCities, sailingDistanceBetweenPorts);
+    return economy;
   }
-  restoreShipyardSupplyShips(npcSeaRoutes, payload.shipyardSupplyShips);
-  return Object.freeze(recovered);
-}
 
-function createSavedVoyageEconomy(simulationMinute, seedKey) {
-  const economy = createWorldEconomy({
-    ports: [...cityByTileId.values()],
-    shipyardPorts: portCities,
-    startMinute: simulationMinute,
-    seedKey
-  });
-  connectNearbyPortMarkets(economy, portCities, sailingDistanceBetweenPorts);
-  return economy;
-}
-
-function createSavedVoyageNpcRoutes(simulationMinute, restoredGameState) {
-  return createNpcSeaRouteSystem({
-    portSailingDistances,
-    ports: portCities,
-    startMinute: simulationMinute,
-    economy: worldEconomy,
-    fishState: restoredGameState,
-    fishingGroundIsNavigable: npcFishingGroundIsNavigable,
-    whaleMemory: restoredGameState.memory.whales,
-    seedKey: restoredGameState.voyageSeed,
-    relationBetween: currentDiplomacyBetween,
-    foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
-    sovereignTradeOpenToFaction: (policyId, factionId) => (
-      sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
-    ),
-    suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties,
-    tradeEmbargoes: restoredGameState.relations.tradeEmbargoes,
-    onForeignPortCall: recordNpcDiplomaticPortCall
-  });
+  function createSavedVoyageNpcRoutes(simulationMinute, restoredGameState, seedEconomy = worldEconomy) {
+    return createNpcSeaRouteSystem({
+      portSailingDistances,
+      ports: portCities,
+      startMinute: simulationMinute,
+      economy: seedEconomy,
+      fishState: restoredGameState,
+      fishingGroundIsNavigable: npcFishingGroundIsNavigable,
+      whaleMemory: restoredGameState.memory.whales,
+      seedKey: restoredGameState.voyageSeed,
+      relationBetween: currentDiplomacyBetween,
+      foreignSettlementExpulsions: restoredGameState.relations.foreignSettlementExpulsions,
+      sovereignTradeOpenToFaction: (policyId, factionId) => (
+        sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
+      ),
+      suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties,
+      tradeEmbargoes: restoredGameState.relations.tradeEmbargoes,
+      onForeignPortCall: (visitor, host, minute) => recordDiplomaticPortCall(restoredGameState.relations.diplomacy, visitor, host, minute)
+    });
+  }
 }
 
 function npcFishingGroundIsNavigable({ lat, lon }) {
@@ -24849,8 +24903,7 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     casualtyReportButtonRects: [],
     pendingResolution: null
   };
-  dialogueState = null;
-  invalidateDialogueView();
+  releaseDialogueSession({ destination: "handoff" });
   invalidateDialogueOptionGeometry();
   portCityRuntime.setAssaultPresentation(portAssaultPresentationAt(battle, 0));
   dirty = true;
@@ -25489,7 +25542,10 @@ function treatyConcessionLabel(treaty) {
 }
 
 function applyAutomaticPortServices(cityCall) {
-  invalidateDistantWorldWorkerState();
+  return runPlayerWorldMutation(() => performAutomaticPortServices(cityCall));
+}
+
+function performAutomaticPortServices(cityCall) {
   const context = portDialogueContext();
   const repaired = repairPlayerShipAtPort();
   const loadout = restockSelectedShipLoadoutAtPort(gameState, cityCall, context);
@@ -26533,11 +26589,7 @@ function startWaitingInPort(city) {
   };
   departureControlFeedback = null;
   resetSurvivalDamageTimers();
-  dialogueState = null;
-  dialogueShipMotionPause = null;
-  dialogueLayout = createDialogueLayoutState();
-  deactivatePortCityView();
-  stopShipForDialogue();
+  releaseDialogueSession({ destination: "port-wait" });
   clearCombatForShip(PLAYER_COMBAT_ID);
   npcCombatProjectiles = npcCombatProjectiles.filter((projectile) => projectile.targetId !== PLAYER_COMBAT_ID);
   saveVoyageNow("waiting in port");
@@ -26598,6 +26650,21 @@ function handlePortWaitKeyDown(event) {
   if (event.key === "Enter" || event.key === " " || event.key === "Escape") stopWaitingInPort();
 }
 
+function releaseDialogueSession({ destination }) {
+  if (!["sailing", "port-wait", "handoff"].includes(destination)) {
+    throw new Error(`Unknown dialogue exit destination: ${destination}`);
+  }
+  dialogueState = null;
+  clearPausedView(dialogueViewCache);
+  dialogueLayout = createDialogueLayoutState();
+  if (destination !== "handoff") deactivatePortCityView();
+  if (destination === "port-wait") {
+    dialogueShipMotionPause = null;
+    stopShipForDialogue();
+  }
+  dirty = true;
+}
+
 function closeDialogue() {
   if (dialogueState?.kind === HISTORICAL_BATTLE_DIALOGUE_KIND) {
     throw new Error("Historical battle dialogue must close through its final action");
@@ -26625,11 +26692,8 @@ function closeDialogue() {
   }
   const releasedAutomaticQuestSiteAnchor =
     closeAutomaticQuestSiteAnchorOverlay(QUEST_SITE_OVERLAY_DIALOGUE);
-  dialogueState = null;
-  clearPausedView(dialogueViewCache);
-  dialogueLayout = createDialogueLayoutState();
+  releaseDialogueSession({ destination: "sailing" });
   if (wasPortDialogue) {
-    deactivatePortCityView();
     combatMusicUntilMs = 0;
     setBackgroundMusicTrack("ship", { force: true });
     if (!releasedAutomaticQuestSiteAnchor) playSailDeploySound();
@@ -26678,7 +26742,81 @@ function chooseDialogueOption(optionIndex) {
   }
 }
 
+function completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOrigin, saveReason }) {
+  const effects = [
+    ...(result.colonizationChanged ? [{ type: "colony-world" }] : []),
+    ...(result.colonyClueInspected ? [{ type: "colony-clue" }] : []),
+    ...(result.colonistLanding ? [{ type: "colonist-landing" }] : []),
+    ...(result.chefFeast ? [{ type: "chef-feast" }] : []),
+    { type: "settlement-politics" },
+    ...(result.colonizationDefenseStarted ? [{ type: "colony-defense" }] : []),
+    { type: "ship-cargo" },
+    ...(gameState.doubloons !== doubloonsBefore ? [{ type: "coins" }] : []),
+    ...(result.marketPurchase ? [{ type: "market-purchase" }] : []),
+    ...(result.marketSale ? [{ type: "market-sale" }] : []),
+    ...(result.questCargoTransfers?.length > 0 ? [{ type: "quest-cargo" }] : []),
+    ...(result.acceptedQuest?.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO ? [{ type: "ningbo-fleet" }] : []),
+    ...(isWokouHuntQuest(result.acceptedQuest) ? [{ type: "wokou-fleet" }] : []),
+    ...(isTeaRaceQuest(result.acceptedQuest) ? [{ type: "tea-fleet" }] : []),
+    ...(result.questCargoTheft?.quest ? [{ type: "tea-theft" }] : []),
+    ...(result.completedQuest ? [{ type: "completed-fleet" }] : []),
+    ...(result.perkItemPurchase ? [{ type: "perk-purchase" }] : []),
+    ...(result.crewHire ? [{ type: "crew-hire" }] : []),
+    ...(saveReason ? [{ type: "save" }] : []),
+  ];
+  dispatchActionEffects(effects, {
+    "save": () => { saveVoyageNow(saveReason); },
+    "colony-world": () => {
+      syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
+    },
+    "colony-clue": () => {
+      showSurvivalNotice("ROANOKE CLUES ACQUIRED", "good");
+      emitCaptureEvent("roanoke-clue-inspected", { cityId: dialogueState.cityId,
+        sceneReady: portCityView?.sceneReady === true });
+    },
+    "colonist-landing": () => { beginColonistLanding(result.colonistLanding); },
+    "chef-feast": () => { beginChefFeastTimeCut(result.chefFeast); },
+    "settlement-politics": () => { reconcileForeignSettlementPolitics({ notify: true }); },
+    "colony-defense": () => { ensureColonizationDefenseEncounter(); },
+    "ship-cargo": () => { syncShipCargoFromGameState(); },
+    "coins": () => { playCoinClinkSound(); },
+    "market-purchase": () => {
+      spawnItemAcquisitionEffect(result.marketPurchase.good.id, purchaseIconOrigin, lastFrameMs);
+      updateFetchQuestReadinessAlerts();
+      presentPendingFetchQuestCaptainDialogue({ allowPortMarket: true });
+    },
+    "market-sale": () => {
+      spawnItemDepartureEffect(result.marketSale.good.id, purchaseIconOrigin, lastFrameMs);
+    },
+    "quest-cargo": () => {
+      presentQuestCargoTransfers(result.questCargoTransfers, purchaseIconOrigin, lastFrameMs);
+    },
+    "ningbo-fleet": () => { ensureNingboMissionEncounters(); },
+    "wokou-fleet": () => { ensureWokouHuntEncounter(); },
+    "tea-fleet": () => { ensureTeaRaceEncounters(); },
+    "tea-theft": () => { retireTeaRaceFleet(result.questCargoTheft.quest); },
+    "completed-fleet": () => { retireTeaRaceFleet(result.completedQuest); },
+    "perk-purchase": () => {
+      playCollectionDingSound();
+      spawnIconAcquisitionEffect(
+        perkItemIconId(result.perkItemPurchase.item.id),
+        purchaseIconOrigin,
+        lastFrameMs
+      );
+      showSurvivalNotice(`${result.perkItemPurchase.item.label.toUpperCase()} ACQUIRED`, "good");
+    },
+    "crew-hire": () => {
+      spawnCrewRecruitmentEffect(result.crewHire.member, purchaseIconOrigin, lastFrameMs);
+      showSurvivalNotice(`${result.crewHire.member.name.toUpperCase()} JOINED THE CREW`, "good");
+    },
+  });
+}
+
 function applyDialogueOption(optionIndex, displayedOption = null) {
+  return runPlayerWorldMutation(() => performDialogueOption(optionIndex, displayedOption));
+}
+
+function performDialogueOption(optionIndex, displayedOption) {
   const selectedDialogueState = dialogueState;
   if (!selectedDialogueState) throw new Error("Dialogue option selected without an active session");
   let result;
@@ -26694,7 +26832,6 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
   invalidateDialogueOptionGeometry();
   if (dialogueState.kind === "port") {
     if (!displayedOption) throw new Error("Port dialogue selection has no displayed option");
-    invalidateDistantWorldWorkerState();
     const doubloonsBefore = gameState.doubloons;
     result = selectPortDialogueAction(
       dialogueState,
@@ -26711,53 +26848,10 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
     if (result.illicitMarketAttempt?.caught === true) {
       beginPortCityIllicitCaughtPresentation();
     }
-    if (result.colonizationChanged) {
-      syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
-    }
-    if (result.colonyClueInspected) {
-      showSurvivalNotice("ROANOKE CLUES ACQUIRED", "good");
-      emitCaptureEvent("roanoke-clue-inspected", { cityId: dialogueState.cityId,
-        sceneReady: portCityView?.sceneReady === true });
-    }
-    if (result.colonistLanding) beginColonistLanding(result.colonistLanding);
-    if (result.chefFeast) beginChefFeastTimeCut(result.chefFeast);
-    reconcileForeignSettlementPolitics({ notify: true });
-    if (result.colonizationDefenseStarted) ensureColonizationDefenseEncounter();
-    syncShipCargoFromGameState();
-    if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
-    if (result.marketPurchase) {
-      spawnItemAcquisitionEffect(result.marketPurchase.good.id, purchaseIconOrigin, lastFrameMs);
-      updateFetchQuestReadinessAlerts();
-      presentPendingFetchQuestCaptainDialogue({ allowPortMarket: true });
-    }
-    if (result.marketSale) {
-      spawnItemDepartureEffect(result.marketSale.good.id, purchaseIconOrigin, lastFrameMs);
-    }
-    if (result.questCargoTransfers?.length > 0) {
-      presentQuestCargoTransfers(result.questCargoTransfers, purchaseIconOrigin, lastFrameMs);
-    }
-    if (isWokouHuntQuest(result.acceptedQuest)) ensureWokouHuntEncounter();
-    if (isTeaRaceQuest(result.acceptedQuest)) ensureTeaRaceEncounters();
-    if (result.questCargoTheft?.quest) retireTeaRaceFleet(result.questCargoTheft.quest);
-    if (result.completedQuest) retireTeaRaceFleet(result.completedQuest);
-    if (result.perkItemPurchase) {
-      playCollectionDingSound();
-      spawnIconAcquisitionEffect(
-        perkItemIconId(result.perkItemPurchase.item.id),
-        purchaseIconOrigin,
-        lastFrameMs
-      );
-      showSurvivalNotice(`${result.perkItemPurchase.item.label.toUpperCase()} ACQUIRED`, "good");
-    }
-    if (result.crewHire) {
-      spawnCrewRecruitmentEffect(result.crewHire.member, purchaseIconOrigin, lastFrameMs);
-      showSurvivalNotice(`${result.crewHire.member.name.toUpperCase()} JOINED THE CREW`, "good");
-    }
-    const marketLedgerOpen = portMarketTransactionSessionOpen(dialogueState);
-    const crewDismissalOpen = dialogueState.kind === "port" && dialogueState.crewDismissal !== null;
-    if (!marketLedgerOpen && !crewDismissalOpen) {
-      saveVoyageNow("port transaction");
-    }
+    completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOrigin,
+      saveReason: portMarketTransactionSessionOpen(dialogueState) || dialogueState.crewDismissal !== null
+        ? null : "port transaction" });
+
     if (result.action?.type === "open-passenger") {
       openPassengerDialogue(currentDialogueCity(), result.action.quest);
       return;
@@ -26820,14 +26914,6 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
       optionIndex,
       portDialogueContext()
     );
-    if (result.questCargoTransfers?.length > 0) {
-      presentQuestCargoTransfers(
-        result.questCargoTransfers,
-        dialogueOptionIconOrigin(optionIndex),
-        lastFrameMs
-      );
-    }
-    reconcileForeignSettlementPolitics({ notify: true });
     if (result.religiousLegDelivery) {
       const converted = reconcilePapalAuthorityCharacters();
       if (converted > 0) chart = null;
@@ -26842,12 +26928,7 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
         "good"
       );
     }
-    if (result.acceptedQuest?.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO) {
-      ensureNingboMissionEncounters();
-    }
-    syncShipCargoFromGameState();
-    if (gameState.doubloons !== doubloonsBefore) playCoinClinkSound();
-    saveVoyageNow(SAVE_REASON_QUEST_DECISION);
+    completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOrigin: dialogueOptionIconOrigin(optionIndex), saveReason: SAVE_REASON_QUEST_DECISION });
     if (result.action?.type === "open-port") {
       continuePortDialogueAfterQuestCharacter();
       return;
@@ -27048,8 +27129,7 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
   if (result.closed) {
     if (dialogueState.kind === "rescued-traveler" && dialogueState.surrenderPrize) {
       const { npcShipId, lootSummary } = dialogueState.surrenderPrize;
-      dialogueState = null;
-      dialogueLayout = createDialogueLayoutState();
+      releaseDialogueSession({ destination: "handoff" });
       openSurrenderPrizeDecision(npcShipId, lootSummary);
       return;
     }
@@ -27271,8 +27351,7 @@ async function performPlayerShipReplacement({ slug, session, stillCurrent = () =
       dialogueState === session && session.nodeId === previousNodeId && stillCurrent(),
     load: () => loadShipAssetSet(slug),
     commit: () => {
-      invalidateDistantWorldWorkerState();
-      const outcome = commit(stats);
+      const outcome = runPlayerWorldMutation(() => commit(stats));
       if (gameState.ship.slug !== slug) throw new Error(`Ship replacement did not install ${slug}`);
       return outcome;
     },
@@ -31617,48 +31696,83 @@ function clearLocalChartTransientEffects() {
   }
 }
 
+// Maritime access owns all derived port indexes. Closed colonies retain their
+// economy/history and NPC record, but leave the list used for new port calls.
+function updateSettlementMaritimeAccess(city, { accessible, startMinute, restoring = false }) {
+  if (!city?.cityId || !Number.isInteger(city.tileId) || typeof accessible !== "boolean") {
+    throw new Error("Settlement access requires a canonical city and explicit access state");
+  }
+  const update = () => {
+    const index = portCities.findIndex(port => port.cityId === city.cityId);
+    if (accessible) {
+      if (index < 0) portCities.push(city);
+      else portCities[index] = city;
+      portCitiesByTileId.set(city.tileId, city);
+      ensurePortCityStaffRoster(city);
+      if (!restoring) {
+        const economyChanged = !worldEconomyHasPort(worldEconomy, city) ||
+          !worldEconomyHasShipyardPort(worldEconomy, city) ||
+          worldEconomyPortSettlementType(worldEconomy, city) !== city.settlementType;
+        if (!worldEconomyHasPort(worldEconomy, city)) addWorldEconomyPort(worldEconomy, city, startMinute);
+        else {
+          if (!worldEconomyHasShipyardPort(worldEconomy, city)) addWorldEconomyShipyardPort(worldEconomy, city, startMinute);
+          if (worldEconomyPortSettlementType(worldEconomy, city) !== city.settlementType) {
+            replaceWorldEconomyPort(worldEconomy, city, startMinute);
+          }
+        }
+        if (economyChanged || index < 0) connectNearbyPortMarkets(worldEconomy, portCities, sailingDistanceBetweenPorts);
+        if (!npcSeaRouteHasPort(npcSeaRoutes, city)) addNpcSeaRoutePort(npcSeaRoutes, city);
+        else if (npcSeaRoutePortSettlementType(npcSeaRoutes, city) !== city.settlementType) replaceNpcSeaRoutePort(npcSeaRoutes, city);
+      }
+    } else {
+      if (index >= 0) portCities.splice(index, 1);
+      portCitiesByTileId.delete(city.tileId);
+      if (!restoring && npcSeaRoutes && npcSeaRouteHasPort(npcSeaRoutes, city)) {
+        replaceNpcSeaRoutePort(npcSeaRoutes, city);
+      }
+    }
+    portArrivalNavigationByCityId = buildPortArrivalNavigation({
+      ports: portCities, sailingDistanceKm: sailingDistanceBetweenPorts, approachKindForPort: portArrivalApproachKind
+    });
+    if (BUILD_EDITION_ID === "demo") {
+      // The demo roster must reference this voyage's canonical city objects too.
+      demoAccessiblePortCities = demoAccessiblePortsForMask({
+        ports: portCities, accessMask: demoMediterraneanAccessMask,
+        accessTileIdsForPort: port => portAccessTileIds(worldPortPlacementOptions(), port.tileId)
+      });
+      demoAccessiblePortIds = new Set(demoAccessiblePortCities.map(port => port.cityId));
+    }
+    chart = null;
+    dirty = true;
+  };
+  return restoring ? update() : runPlayerWorldMutation(update);
+}
+
 function syncExeterCanalWorldState(state, currentMinute, { restoring = false } = {}) {
   const stage = exeterCanalStage(state.memory.quests.exeterCanal, currentMinute);
   if (!restoring && stage === appliedExeterCanalStage) return false;
   const city = exeterCanalPort(cityById.values());
   const navigation = exeterCanalNavigation(exeterCanalBaseNavigation, graph, earthById, stage);
-  if (!restoring && distantWorldWorkerClient) invalidateDistantWorldWorkerState();
-  riverMasks = navigation.riverMasks;
-  oceanReachableNavigationMask = navigation.reachableNavigationMask;
-  appliedExeterCanalStage = stage;
-  const open = stage === 3;
-  const index = portCities.findIndex((port) => port.cityId === EXETER_CITY_ID);
-  if (open) {
-    if (index < 0) portCities.push(city);
-    portCitiesByTileId.set(city.tileId, city);
-    if (!restoring) {
-      // Exeter already has an inland market: preserve its stock, specie,
-      // industries, ownership and history when adding its maritime facilities.
-      if (!worldEconomyHasPort(worldEconomy, city)) throw new Error("Exeter lost its inland market");
-      if (!worldEconomyHasShipyardPort(worldEconomy, city)) addWorldEconomyShipyardPort(worldEconomy, city, currentMinute);
-      connectNearbyPortMarkets(worldEconomy, portCities, sailingDistanceBetweenPorts);
-      if (!npcSeaRouteHasPort(npcSeaRoutes, city)) addNpcSeaRoutePort(npcSeaRoutes, city);
-      ensurePortCityStaffRoster(city);
-    }
-  } else if (index >= 0) {
-    if (!restoring) throw new Error("A completed Exeter canal cannot close during a voyage");
-    portCities.splice(index, 1);
-    portCitiesByTileId.delete(city.tileId);
+  if (!restoring && stage !== 3 && portCities.some(port => port.cityId === city.cityId)) {
+    throw new Error("A completed Exeter canal cannot close during a voyage");
   }
-  portArrivalNavigationByCityId = buildPortArrivalNavigation({
-    ports: portCities, sailingDistanceKm: sailingDistanceBetweenPorts, approachKindForPort: portArrivalApproachKind
-  });
-  chart = null;
-  dirty = true;
+  const update = () => {
+    riverMasks = navigation.riverMasks;
+    oceanReachableNavigationMask = navigation.reachableNavigationMask;
+    appliedExeterCanalStage = stage;
+    updateSettlementMaritimeAccess(city, { accessible: stage === 3, startMinute: currentMinute, restoring });
+  };
+  if (restoring) update();
+  else runPlayerWorldMutation(update);
   return true;
 }
 
-function syncColonizationWorldState(state, { startMinute = weatherClockMinutes } = {}) {
+function syncColonizationWorldState(state, { startMinute = weatherClockMinutes, restoring = false } = {}) {
   if (!state?.memory?.colonization) throw new Error("Cannot sync colonization without quest state");
   for (const settlement of colonizationSettlementMemories(state.memory.colonization)) {
     const binding = bindColonizationQuestSelection(state, settlement);
     if (!binding) throw new Error("Archived colony has no world binding");
-    syncColonizationSettlementWorldState(state, settlement, binding, { startMinute });
+    syncColonizationSettlementWorldState(state, settlement, binding, { startMinute, restoring });
   }
 
   const binding = bindColonizationQuestSelection(state);
@@ -31672,13 +31786,11 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
     state,
     state.memory.colonization,
     binding,
-    { startMinute }
+    { startMinute, restoring }
   );
 }
 
-function syncColonizationSettlementWorldState(state, memory, binding, { startMinute }) {
-  const targetTileId = binding.target.tileId;
-  const record = colonizationWorldRecord(memory);
+function reconcileColonySovereignty(state, memory, record, startMinute) {
   const restoredFactionId = colonizationGovernmentInExileFactionId(
     memory,
     state.memory.conquest.collapsedFactionIds
@@ -31692,6 +31804,12 @@ function syncColonizationSettlementWorldState(state, memory, binding, { startMin
     });
   }
   if (record) applyPortConquestOwnership(state.memory.conquest, [record]);
+}
+
+function syncColonizationSettlementWorldState(state, memory, binding, { startMinute, restoring }) {
+  const targetTileId = binding.target.tileId;
+  const record = colonizationWorldRecord(memory);
+  reconcileColonySovereignty(state, memory, record, startMinute);
   const existing = cityByTileId.get(targetTileId);
   if (!record) {
     if (binding.target.preexistingSettlement) {
@@ -31725,57 +31843,10 @@ function syncColonizationSettlementWorldState(state, memory, binding, { startMin
   cityByTileId.set(record.tileId, record);
   cityById.set(record.cityId, record);
   ensurePortCityStaffRoster(record);
-  if (record.hiddenSettlement || record.colonyAbandoned) {
-    const portIndex = portCities.findIndex((city) => city.tileId === record.tileId);
-    if (portIndex >= 0) portCities.splice(portIndex, 1);
-    portCitiesByTileId.delete(record.tileId);
-    if (npcSeaRoutes && npcSeaRouteHasPort(npcSeaRoutes, record)) {
-      replaceNpcSeaRoutePort(npcSeaRoutes, record);
-    }
-    chart = null;
-    dirty = true;
-    return record;
-  }
-  if (![
-    COLONIZATION_STAGE_DEFEND,
-    COLONIZATION_STAGE_REPORT_DEFENSE,
-    COLONIZATION_STAGE_ESTABLISHED
-  ].includes(record.colonizationQuestStage)) {
-    chart = null;
-    dirty = true;
-    return record;
-  }
-
-  const portIndex = portCities.findIndex((city) => city.tileId === record.tileId);
-  if (portIndex < 0) portCities.push(record);
-  else portCities[portIndex] = record;
-  portCitiesByTileId.set(record.tileId, record);
-  let economyChanged = false;
-  if (!worldEconomyHasPort(worldEconomy, record)) {
-    addWorldEconomyPort(worldEconomy, record, startMinute);
-    economyChanged = true;
-  } else {
-    if (!worldEconomyHasShipyardPort(worldEconomy, record)) {
-      addWorldEconomyShipyardPort(worldEconomy, record, startMinute);
-      economyChanged = true;
-    }
-    if (worldEconomyPortSettlementType(worldEconomy, record) !== record.settlementType) {
-      replaceWorldEconomyPort(worldEconomy, record, startMinute);
-      economyChanged = true;
-    }
-  }
-  if (economyChanged) {
-    connectNearbyPortMarkets(worldEconomy, portCities, sailingDistanceBetweenPorts);
-  }
-  if (npcSeaRoutes) {
-    if (!npcSeaRouteHasPort(npcSeaRoutes, record)) {
-      addNpcSeaRoutePort(npcSeaRoutes, record);
-    } else if (npcSeaRoutePortSettlementType(npcSeaRoutes, record) !== record.settlementType) {
-      replaceNpcSeaRoutePort(npcSeaRoutes, record);
-    }
-  }
-  chart = null;
-  dirty = true;
+  const accessible = !record.hiddenSettlement && !record.colonyAbandoned && [
+    COLONIZATION_STAGE_DEFEND, COLONIZATION_STAGE_REPORT_DEFENSE, COLONIZATION_STAGE_ESTABLISHED
+  ].includes(record.colonizationQuestStage);
+  updateSettlementMaritimeAccess(record, { accessible, startMinute, restoring });
   return record;
 }
 
@@ -31887,14 +31958,14 @@ function ensureJapaneseMatchlockGunsmith(state) {
   return japaneseMatchlockGunsmith;
 }
 
-function syncJapaneseMatchlockIndustry(state) {
+function syncJapaneseMatchlockIndustry(state, { economy = worldEconomy, ports = portCities } = {}) {
   if (!japaneseMatchlockIndustryCompleted(state)) return null;
-  const workshopPort = japaneseMatchlockWorkshopPort();
+  const workshopPort = requireCanonicalPort(ports, CANONICAL_PORTS.KYOTO, "Japanese matchlock workshop");
   if (!workshopPort) {
     throw new Error(`${JAPANESE_MATCHLOCK_WORKSHOP_CITY} is missing from the economy`);
   }
   return establishPortIndustry(
-    worldEconomy,
+    economy,
     workshopPort,
     MATCHLOCKS_GOOD_ID,
     JAPANESE_MATCHLOCK_PRODUCTION_PER_DAY,
@@ -31945,12 +32016,12 @@ function ensureBanquetChef(state, port) {
   return banquetChef;
 }
 
-function syncCaribbeanGingerIndustry(state) {
+function syncCaribbeanGingerIndustry(state, { economy = worldEconomy, ports = portCities } = {}) {
   if (!caribbeanGingerIndustryCompleted(state)) return null;
-  const cultivationPort = currentCaribbeanGingerPort(state);
+  const cultivationPort = caribbeanGingerQuestPort(state, ports);
   if (!cultivationPort) throw new Error("Completed Caribbean ginger industry has no port");
   return establishPortIndustry(
-    worldEconomy,
+    economy,
     cultivationPort,
     GINGER_GOOD_ID,
     CARIBBEAN_GINGER_PRODUCTION_PER_DAY,
@@ -36893,6 +36964,8 @@ function finishPendingDistantWorldCommit() {
   while (distantWorldApplyState?.phase === "restore") advanceDistantWorldSimulationApply();
 }
 
+const runPlayerWorldMutation = createWorldMutationBoundary(() => invalidateDistantWorldWorkerState());
+
 function invalidateDistantWorldWorkerState() {
   if (!distantWorldWorkerClient) throw new Error("Cannot invalidate an uninitialized distant world");
   // Once restoration has started, some ports may already contain the new stock
@@ -38385,10 +38458,15 @@ function openNpcCombatHail(npcShipId) {
 }
 
 function retainSupplyCaptainIdentity(npcShipId, character) {
-  const yard = reservedSupplyShipyard(npcSeaRoutes.economy.shipyards, npcShipId);
-  if (!yard || yard.upgrades.supplyCaptainIdentity !== null) return;
-  yard.upgrades.supplyCaptainIdentity = { id: character.id, name: character.name };
-  invalidateDistantWorldWorkerState();
+  const current = reservedSupplyShipyard(npcSeaRoutes.economy.shipyards, npcShipId);
+  if (!current || current.upgrades.supplyCaptainIdentity !== null) return;
+  runPlayerWorldMutation(() => {
+    // Draining a pending worker commit can replace the yard. Resolve it afterwards.
+    const yard = reservedSupplyShipyard(npcSeaRoutes.economy.shipyards, npcShipId);
+    if (yard && yard.upgrades.supplyCaptainIdentity === null) {
+      yard.upgrades.supplyCaptainIdentity = { id: character.id, name: character.name };
+    }
+  });
 }
 
 function ensureNpcShipCaptain(npcShipId) {
@@ -40340,8 +40418,7 @@ function resolveColonizationDefenseAttacker(loserId, noticeText) {
   deleteNpcVisualShipState(loserId);
   npcShipCaptains?.delete(loserId);
   if (dialogueState?.kind === "ship" && dialogueState.npcShipId === loserId) {
-    dialogueState = null;
-    dialogueLayout = createDialogueLayoutState();
+    releaseDialogueSession({ destination: "handoff" });
     resumeShipAfterOverlayIfReady();
   }
   shipCombatEntryCollisionGrace.delete(loserId);

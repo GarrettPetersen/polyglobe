@@ -1,3 +1,4 @@
+import ts from "typescript";
 import assert from "node:assert/strict";
 
 // Read-only observation is injected into the built module, leaving normal
@@ -11,9 +12,12 @@ export async function exerciseSavedStartMenu(context, baseUrl) {
   await page.route("**/src/bootstrap.js*", async route => {
     const response = await route.fetch();
     const source = await response.text();
-    const signature = "async function restoreSavedVoyage(payload) {";
-    assert.equal(source.split(signature).length, 2, "instrument the actual restore entry point exactly once");
-    await route.fulfill({ response, body: source.replace(signature, `${signature}\n await window.recordStartupRestore();`) + `
+    const parsed = ts.createSourceFile("bootstrap.js", source, ts.ScriptTarget.Latest, true);
+    const entries = parsed.statements.filter(node => ts.isFunctionDeclaration(node) && node.name?.text === "restoreSavedVoyage");
+    assert.equal(entries.length, 1, "instrument the actual restore entry point exactly once");
+    const offset = entries[0].body.getStart(parsed) + 1;
+    const instrumented = source.slice(0, offset) + "\n await window.recordStartupRestore();" + source.slice(offset);
+    await route.fulfill({ response, body: instrumented + `
 window.inspectSavedStartup = () => !regularGameLoopStarted ? { ready: false } : ({
   ready: regularGameLoopStarted && worldFramePresented,
   menu: Boolean(startMenu), started: hasStartedVoyage,

@@ -3,6 +3,7 @@ import test from "node:test";
 import vm from "node:vm";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
+import { createWorldMutationBoundary } from "./runtimeTransitions.js";
 import { runShipReplacement } from "./shipReplacementLifecycle.js";
 
 const source = ts.createSourceFile("main.js", readFileSync(new URL("./main.js", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
@@ -33,7 +34,8 @@ for (const change of ["dialogue", "voyage", "ship", "node", "listing"]) {
       dialogueState: { nodeId: "confirmation" }, shipStatsForSlug: slug => ({ slug }),
       loadShipAssetSet: () => new Promise(done => { resolve = done; }),
       invalidateDistantWorldWorkerState: () => assert.fail("stale request mutated the world") };
-    const api = functions(["performPlayerShipReplacement"], runtime);
+    runtime.runPlayerWorldMutation = createWorldMutationBoundary(runtime.invalidateDistantWorldWorkerState);
+  const api = functions(["performPlayerShipReplacement"], runtime);
     const result = api.performPlayerShipReplacement({ slug: "brigantine", session: runtime.dialogueState,
       stillCurrent: () => eligible, commit: () => assert.fail("stale commit"), present() {}, saveReason: "test" });
     if (change === "dialogue") runtime.dialogueState = { nodeId: "confirmation" };
@@ -106,6 +108,7 @@ test("runtime replacement owns worker synchronization, hull publication and pers
     applyPlayerShipType: slug => { calls.push("hull"); runtime.ship.typeSlug = slug; },
     syncShipCargoFromGameState: () => calls.push("cargo"), playShipHandoverSound: () => calls.push("sound"),
     saveVoyageNow: reason => { assert.equal(reason, "purchase"); calls.push("save"); } };
+  runtime.runPlayerWorldMutation = createWorldMutationBoundary(runtime.invalidateDistantWorldWorkerState);
   const api = functions(["performPlayerShipReplacement"], runtime);
   const result = await api.performPlayerShipReplacement({ slug: "brigantine", session: runtime.dialogueState, saveReason: "purchase",
     commit: stats => { calls.push("commit"); runtime.gameState.ship.slug = stats.slug; }, present: () => calls.push("present") });
