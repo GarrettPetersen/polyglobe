@@ -15477,7 +15477,9 @@ async function beginLakeBattlePortAssault(random = Math.random) {
     });
     if (lakeBattleMode !== mode) return;
     const seed = Math.floor(random() * 0x100000000) >>> 0;
-    const battle = simulatePortAssault(scenario, seed);
+    const battle = measurePerformanceBenchmarkStage(
+      "battle.assault.simulate", () => simulatePortAssault(scenario, seed)
+    );
     mode.portAssault = {
       battle,
       startedAtMs: lastFrameMs,
@@ -24816,9 +24818,11 @@ function playerPortConquestStatus(cityCall) {
   if (portAssaultForecastCache?.key !== forecastKey) {
     portAssaultForecastCache = Object.freeze({
       key: forecastKey,
-      forecast: forecastPortAssault(scenario, {
-        seedKey: `${gameState.voyageSeed}|${cityCall.cityId}|${forecastKey}`
-      })
+      forecast: measurePerformanceBenchmarkStage("battle.assault.forecast", () => (
+        forecastPortAssault(scenario, {
+          seedKey: `${gameState.voyageSeed}|${cityCall.cityId}|${forecastKey}`
+        })
+      ))
     });
   }
   return {
@@ -24842,7 +24846,9 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
   playBladeReadySound();
   startCombatMusicForThreat("big");
   const seed = Math.floor(random() * 0x100000000) >>> 0;
-  const battle = simulatePortAssault(status.scenario, seed);
+  const battle = measurePerformanceBenchmarkStage(
+    "battle.assault.simulate", () => simulatePortAssault(status.scenario, seed)
+  );
   portAssaultState = {
     cityCall,
     status,
@@ -35524,7 +35530,9 @@ function advanceWorldClockFrameSlice(nowMs) {
       presentPendingAboardCalendarDialogue();
   }
   if (!worldClockPeriodIsDue("politicsPeriod")) return false;
-  return updateSovereignWarLoanOutcome() || updateWorldDiplomacy();
+  return measurePerformanceBenchmarkStage("weather.politics", () => (
+    updateSovereignWarLoanOutcome() || updateWorldDiplomacy()
+  ));
 }
 
 function updateCrewPayroll() {
@@ -52177,7 +52185,9 @@ function drawLakeBattleMode(nowMs) {
 function drawLakeBattlePortAssault(nowMs) {
   const assault = lakeBattleMode?.portAssault;
   if (!assault || !portCityRuntime) throw new Error("Duel port assault render state is incomplete");
-  const revision = portCityRuntime.render(nowMs);
+  const revision = measurePerformanceBenchmarkStage(
+    "render.city.raster", () => portCityRuntime.render(nowMs)
+  );
   const elapsedMs = lakeBattlePortAssaultElapsedMs(nowMs);
   const shakeOffset = portAssaultShipImpactShakeAt(assault.battle, elapsedMs, {
     reducedMotion: REDUCED_MOTION_MEDIA_QUERY.matches
@@ -52191,9 +52201,13 @@ function drawLakeBattlePortAssault(nowMs) {
     oceanSwell: null,
     modalReframe: null
   });
-  drawPortCitySceneChunk("duel-port-assault-scene", revision, shakeOffset);
-  worldRenderer.endFrame();
-  portCityRuntime.drawEmissiveOverlay(screenCtx, shakeOffset);
+  measurePerformanceBenchmarkStage("render.city.gpu.upload", () => {
+    drawPortCitySceneChunk("duel-port-assault-scene", revision, shakeOffset);
+  });
+  measurePerformanceBenchmarkStage("render.city.gpu.present", () => worldRenderer.endFrame());
+  measurePerformanceBenchmarkStage("render.city.emissive", () => {
+    portCityRuntime.drawEmissiveOverlay(screenCtx, shakeOffset);
+  });
   drawPortAssaultBattleStatus(assault, elapsedMs);
   if (assault.breakOffPrompt) {
     drawPortAssaultBreakOffPrompt(assault);
