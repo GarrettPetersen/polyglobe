@@ -17,6 +17,13 @@ export function shuffledChecklist(random, selectedGoals = CHECKLIST_GOALS) {
   return goals;
 }
 
+export function checklistTravelDestination(state, previousCityId) {
+  const candidates = state.destinations.filter(port => port.cityId !== (state.cityId || previousCityId));
+  const target = candidates.sort((a, b) => a.distancePx - b.distancePx || a.cityId.localeCompare(b.cityId))[0];
+  assert.ok(target, "No accessible alternative checklist destination");
+  return target.cityId;
+}
+
 export function singleDialogueOptionCommand(state) {
   if (!state.nodeId || state.options.length !== 1 || state.options[0].disabled) return null;
   return { type: "choose", id: state.options[0].id };
@@ -178,14 +185,11 @@ export async function runBrowserChecklist({ command, initialState, random, check
       // port if another objective has already sailed that leg.
       if (!sailed && !state.cityId) { await arrive(destination, false); sailed = true; }
       else {
-        const target = state.destinations.filter(port => port.cityId !== (state.cityId || destination))
-          .sort((a, b) => a.distancePx - b.distancePx || a.cityId.localeCompare(b.cityId))[0];
-        assert.ok(target, "No reachable sailing destination");
-        await arrive(target.cityId, false); sailed = true;
+        await arrive(checklistTravelDestination(state, destination), false); sailed = true;
       }
       assert.ok(report.travel.at(-1).sailingCommands > 0, "Real sailing goal did not sail");
     } else if (goal === "teleport-and-dock") {
-      await arrive(destination === "lisbon|portugal" ? "porto|portugal" : "lisbon|portugal", true);
+      await arrive(checklistTravelDestination(state, destination), true);
     } else {
       if (!state.cityId) { await arrive(destination, false); sailed = true; }
       let done = false;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CHECKLIST_GOALS, shuffledChecklist, checklistMenuCommand, singleDialogueOptionCommand, runBrowserChecklist } from "./checklist.mjs";
+import { CHECKLIST_GOALS, checklistTravelDestination, shuffledChecklist, checklistMenuCommand, singleDialogueOptionCommand, runBrowserChecklist } from "./checklist.mjs";
 import { randomForSeed } from "./journey.mjs";
 
 test("every seeded checklist includes every objective once, in reproducible varied orders", () => {
@@ -99,4 +99,18 @@ test("destroyed-port objective requires rendered recovery and revisits after per
   await exercise(["set-sail"]);
   await assert.rejects(exercise([]), /exposed services or lost its exit/);
   await assert.rejects(exercise(["market", "set-sail"]), /exposed services or lost its exit/);
+});
+
+
+test("travel goals select current canonical destinations instead of inventing port IDs", () => {
+  const destinations = [
+    { cityId: "lisbon|portugal", distancePx: 0 },
+    { cityId: "oporto|portugal", distancePx: 10 },
+    { cityId: "cadiz|spain", distancePx: 20 }
+  ];
+  assert.equal(checklistTravelDestination({ cityId: "lisbon|portugal", destinations }), "oporto|portugal");
+  assert.equal(checklistTravelDestination({ cityId: null, destinations }, "lisbon|portugal"), "oporto|portugal");
+  assert.equal(checklistTravelDestination({ cityId: "lisbon|portugal", destinations: destinations.filter(p => p.cityId !== "oporto|portugal") }), "cadiz|spain");
+  assert.throws(() => checklistTravelDestination({ cityId: "lisbon|portugal", destinations: destinations.slice(0, 1) }), /No accessible alternative/);
+  assert.deepEqual(destinations.map(p => p.cityId), ["lisbon|portugal", "oporto|portugal", "cadiz|spain"]);
 });

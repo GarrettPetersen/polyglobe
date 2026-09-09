@@ -7,7 +7,7 @@ import { EXETER_CITY_ID, TOPSHAM_CITY_ID, exeterCanalStage, exeterCanalQuestView
 import { exeterCanalNavigation, exeterCanalPort } from "./exeterCanalNavigation.js";
 import { sailingCorrectionDistancePx } from "./sailingContinuity.js";
 import { playerShipyardSnapshot, restorePlayerShipyardSnapshot, snapshotPlayerShipyards } from "./playerShipyardPersistence.js";
-import { planPlaytestRoute } from "./playtestNavigation.js";
+import { planPlaytestRoute, playtestRouteIndexForTile } from "./playtestNavigation.js";
 import { playerActionId } from "./playerActionIdentity.js";
 import { coastalWaterBands } from "./terrainDistance.js";
 import { landmassChannelNavigationAnchor } from "./landmassChannels.js";
@@ -17183,18 +17183,23 @@ async function runBrowserJourneyCommand(command) {
             const destination = tileCenterVector(city.tileId);
             browserJourneyRoute = { cityId: city.cityId, index: 1,
               tiles: planPlaytestRoute({ startId: ship.tileId, neighbors: (id) => graph.neighbors[id],
-                isNavigable: isShipBaseNavigableTile,
+                isNavigable: isShipBaseNavigableTile, canTraverseEdge: canShipMoveBetween,
                 isDestination: (id) => vectorArcDistance(tileCenterVector(id), destination) * PIXELS_PER_RADIAN < PORT_INTERACTION_RADIUS_PX * 1.7 }) };
           }
           const route = browserJourneyRoute;
-          while (route.index < route.tiles.length - 1 &&
-            vectorArcDistance(ship.position, tileCenterVector(route.tiles[route.index])) * PIXELS_PER_RADIAN < 24) route.index++;
+          route.index = playtestRouteIndexForTile(route.tiles, route.index, ship.tileId);
           const lastTile = route.tiles[route.tiles.length - 1];
           const approachingPort = vectorArcDistance(ship.position, tileCenterVector(lastTile)) * PIXELS_PER_RADIAN < 8;
           const toward = tileCenterVector(approachingPort ? city.tileId : route.tiles[Math.min(route.index, route.tiles.length - 1)]);
           browserJourneySteering = normalizeOrNull(projectTangentVector([
             toward[0] - ship.position[0], toward[1] - ship.position[1], toward[2] - ship.position[2]
           ], ship.position));
+          // Follow the rendered channel, not the land tile's geometric center.
+          const localDirection = tangentToScreenDirection(browserJourneySteering);
+          const guide = npcRiverNavigationDirection({ tileId: ship.tileId,
+            x: localLayout.viewX, y: localLayout.viewY, heading: ship.heading }, localDirection,
+            shipIsInRiverWater() ? "river" : "openWater");
+          if (guide) browserJourneySteering = cameraSpaceHeadingForShip(guide.x, -guide.y);
         }
         runFrame(lastFrameMs + 1000 / 60, { scheduleNextFrame: false, forceRender: true });
       }
