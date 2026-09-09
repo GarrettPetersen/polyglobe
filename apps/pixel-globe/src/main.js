@@ -11930,7 +11930,7 @@ function updateCaptureExplore(sequence, nowMs) {
 function updateCaptureTrade(sequence) {
   const cityCall = capturePortCallById(sequence.cityId);
   if (captureCue("enter-market-city", 0.1)) {
-    activatePortCityView(cityCall);
+    ensurePortCityView(cityCall);
   }
   if (captureCue("open-market", 1.1)) {
     if (!portCityView?.sceneReady || portCityTransition ||
@@ -11947,14 +11947,11 @@ function updateCaptureTrade(sequence) {
         `Capture trade merchant mismatch for ${sequence.cityId}: ${merchant.sourceId}`
       );
     }
-    dialogueState = createPortDialogueSession(cityCall, {
+    openPortMenu(cityCall, {
       initialNodeId: "market",
       marketMode: sequence.variant,
       admittedToPort: true
     });
-    dialogueLayout = createDialogueLayoutState();
-    stopShipForDialogue();
-    ensureDialoguePortraitLoaded();
     emitCaptureEvent("capture-portrait", {
       role: "factor",
       city: sequence.cityId,
@@ -12057,16 +12054,14 @@ function updateCaptureCity(sequence) {
   }
   const cityCall = capturePortCallById(sequence.cityId);
   if (captureCue("open-city", 0.5)) {
-    activatePortCityView(cityCall);
+    ensurePortCityView(cityCall);
     if (sequence.variant === "architecture-pan") {
       captureShowCityRootMenu(cityCall);
     } else {
-      dialogueState = createPortDialogueSession(cityCall, {
+      openPortMenu(cityCall, {
         initialNodeId: "greeting",
         admittedToPort: true
       });
-      dialogueLayout = createDialogueLayoutState();
-      ensureDialoguePortraitLoaded();
     }
     stopShipForDialogue();
     emitCaptureEvent("capture-beat", {
@@ -12275,13 +12270,10 @@ function updateCaptureCityArchitecturePan(sequence) {
 }
 
 function captureShowCityRootMenu(cityCall) {
-  dialogueState = createPortDialogueSession(cityCall, {
+  openPortMenu(cityCall, {
     initialNodeId: "root",
     admittedToPort: true
   });
-  dialogueLayout = createDialogueLayoutState();
-  ensureDialoguePortraitLoaded();
-  dirty = true;
 }
 
 function updateCaptureFishing(sequence) {
@@ -12768,15 +12760,10 @@ function openCaptureColonizationDialogue(cityName) {
 
 function openCapturePortNode(cityName, nodeId) {
   const cityCall = capturePortCallById(cityName);
-  activatePortCityView(cityCall);
-  dialogueState = createPortDialogueSession(cityCall, {
+  openPortMenu(cityCall, {
     initialNodeId: nodeId,
     admittedToPort: true
   });
-  dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
-  ensureDialoguePortraitLoaded();
-  dirty = true;
 }
 
 function updateCaptureSurvival(sequence) {
@@ -12802,15 +12789,12 @@ function updateCaptureSurvival(sequence) {
   if (sequence.variant === "drunk-arrival") {
     if (captureCue("open-drunk-arrival", 0.8)) {
       const cityCall = capturePortCallById(sequence.cityId);
-      dialogueState = createPortDialogueSession(cityCall, {
+      openPortMenu(cityCall, {
         initialNodeId: "drunk-captain",
         postDrunkNodeId: "greeting",
         drunkVariant: 1,
         admittedToPort: true
       });
-      dialogueLayout = createDialogueLayoutState();
-      stopShipForDialogue();
-      ensureDialoguePortraitLoaded();
       emitCaptureEvent("capture-beat", { action: "arrive-drunk", city: sequence.cityId });
       dirty = true;
     }
@@ -12824,14 +12808,11 @@ function updateCaptureSurvival(sequence) {
   if (sequence.variant === "remembered-arrival") {
     if (captureCue("open-remembered-arrival", 0.8)) {
       const cityCall = capturePortCallById(sequence.cityId);
-      dialogueState = createPortDialogueSession(cityCall, {
+      openPortMenu(cityCall, {
         initialNodeId: "greeting",
         drunkVariant: 1,
         admittedToPort: true
       });
-      dialogueLayout = createDialogueLayoutState();
-      stopShipForDialogue();
-      ensureDialoguePortraitLoaded();
       emitCaptureEvent("capture-beat", {
         action: "factor-remembers-drunk-arrival",
         city: sequence.cityId
@@ -16966,9 +16947,7 @@ function installSaveRestoreSmokeHarness() {
       const city = chart.cityCalls.find((candidate) => portCitiesByTileId.has(candidate.tileId));
       if (!city) throw new Error("Market smoke requires a visible dockable city");
       visitPort(gameState, city, Math.floor(weatherClockMinutes));
-      dialogueState = createPortDialogueSession(city, { initialNodeId: "market", marketMode: mode, admittedToPort: true });
-      dialogueLayout = createDialogueLayoutState();
-      activatePortCityView(city);
+      openPortMenu(city, { initialNodeId: "market", marketMode: mode, admittedToPort: true });
       await synchronizePortCityScene();
       const view = currentDialogueView();
       render(performance.now(), { allowColdCoveredWorldRender: true });
@@ -17135,7 +17114,7 @@ async function runBrowserJourneyCommand(command) {
     }
     const simMinute = Math.floor(weatherClockMinutes);
     // A completed assault already owns the city scene before its result is applied.
-    activatePortCityView(city);
+    ensurePortCityView(city);
     const prize = receivePlayerPortAssaultSpoils(city, "conquest", simMinute);
     const event = recordPortCapture(gameState.memory.conquest, city, ship.factionId, simMinute, "player");
     completePlayerPortConquest(city, event, prize, null);
@@ -21755,6 +21734,37 @@ function openActiveInteractionDialogue() {
   return true;
 }
 
+function ensurePortCityView(cityCall) {
+  const cityId = requireCityId(cityCall, "Port city entry");
+  if (portCityView?.cityId === cityId) return;
+  // Quest sessions may carry catalog cities rather than projected chart calls.
+  const projectedCity = Number.isFinite(cityCall.spriteX) && Number.isFinite(cityCall.spriteY)
+    ? cityCall : chartPortCallById(cityId);
+  if (!projectedCity) throw new Error(`Cannot open city scene without a projected port: ${cityId}`);
+  activatePortCityView(projectedCity);
+}
+
+function openCityDialogue(cityCall, session) {
+  const cityId = requireCityId(cityCall, "City dialogue entry");
+  if (!session || session.cityId !== cityId ||
+      !["port", "passenger", "rescued-traveler", "campaign-goal"].includes(session.kind)) {
+    throw new Error(`City dialogue session does not belong to ${cityId}`);
+  }
+  ensurePortCityView(cityCall);
+  assertPortRootScene(session, portCityView, { ruinedSite: colonizationSiteIsRuined(cityCall) });
+  dialogueState = session;
+  clearPausedView(dialogueViewCache);
+  dialogueLayout = createDialogueLayoutState();
+  stopShipForDialogue();
+  ensureDialoguePortraitLoaded();
+  queuePortCitySceneSync();
+  dirty = true;
+}
+
+function openPortMenu(cityCall, options) {
+  openCityDialogue(cityCall, createPortDialogueSession(cityCall, options));
+}
+
 function activatePortCityView(cityCall) {
   if (!portCityRuntime) throw new Error("Port city runtime is not initialized");
   requireCityId(cityCall, "Port city view");
@@ -22147,27 +22157,21 @@ function openPortDialogue(cityCall) {
     combatMusicUntilMs = 0;
     setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
   }
-  activatePortCityView(cityCall);
+  ensurePortCityView(cityCall);
   if (colonizationSiteIsRuined(cityCall)) {
-    dialogueState = createPortDialogueSession(cityCall, {
+    openPortMenu(cityCall, {
       initialNodeId: "root", admittedToPort: false
     });
-    dialogueLayout = createDialogueLayoutState();
-    stopShipForDialogue();
-    ensureDialoguePortraitLoaded();
     saveVoyageNow(`visited ${cityCall.city} colony site`);
     dirty = true;
     return;
   }
   if (isColonizationQuestTarget(gameState.memory.colonization, cityCall) &&
       cityCall.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED) {
-    dialogueState = createPortDialogueSession(cityCall, {
+    openPortMenu(cityCall, {
       initialNodeId: "colonization",
       admittedToPort: false
     });
-    dialogueLayout = createDialogueLayoutState();
-    stopShipForDialogue();
-    ensureDialoguePortraitLoaded();
     saveVoyageNow(`visited ${cityCall.city} colony site`);
     dirty = true;
     return;
@@ -22194,48 +22198,36 @@ function openPortDialogue(cityCall) {
   );
   const arrivingTravelMission = activeTravelMissionQuests(gameState).find(quest => questHasDestination(quest, cityCall)) || null;
   if (portUnavailable && shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
-    dialogueState = createWorldPassengerDialogueSession(cityCall, arrivingTravelMission, {
+    openCityDialogue(cityCall, createWorldPassengerDialogueSession(cityCall, arrivingTravelMission, {
       admittedToPort: false,
       continueToPortOnClose: true,
       nextPortNodeId: recoveringPortBlocksEntry
         ? "recovering"
         : "barred"
-    });
-    dialogueLayout = createDialogueLayoutState();
-    stopShipForDialogue();
-    ensureDialoguePortraitLoaded();
+    }));
     saveVoyageNow(SAVE_REASON_QUEST_DECISION);
     dirty = true;
     return;
   }
   const rescuedTravelerHomecoming = rescuedTravelerAtHome(cityCall);
   if (rescuedTravelerHomecoming && portUnavailable) {
-    dialogueState = createRescuedTravelerHomecomingSession(cityCall, {
+    openCityDialogue(cityCall, createRescuedTravelerHomecomingSession(cityCall, {
       admittedToPort: false,
       continueToPortOnClose: false
-    });
-    dialogueLayout = createDialogueLayoutState();
-    stopShipForDialogue();
-    ensureDialoguePortraitLoaded();
+    }));
     saveVoyageNow("returned rescued traveler to inaccessible home port");
     dirty = true;
     return;
   }
   if (recoveringPortBlocksEntry) {
-    dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "recovering" });
-    dialogueLayout = createDialogueLayoutState();
-    stopShipForDialogue();
-    ensureDialoguePortraitLoaded();
+    openPortMenu(cityCall, { initialNodeId: "recovering" });
     saveVoyageNow("turned away from recovering port");
     dirty = true;
     return;
   }
   if (((!entryStatus.allowed || conquestStatus.canAttempt || attackStatus.commissioned) && !papalLegationAtPort) ||
       (recoveryStatus && entryStatus.hostile) || conquestStatus.playerAssaultActive) {
-    dialogueState = createPortDialogueSession(cityCall, { initialNodeId: "barred" });
-    dialogueLayout = createDialogueLayoutState();
-    stopShipForDialogue();
-    ensureDialoguePortraitLoaded();
+    openPortMenu(cityCall, { initialNodeId: "barred" });
     saveVoyageNow("barred from port");
     dirty = true;
     return;
@@ -22246,7 +22238,7 @@ function openPortDialogue(cityCall) {
       treasureGoal.treasureRecovered &&
       !treasureAmbushComplete(treasureGoal)) {
     const remaining = TREASURE_MAP_PIECE_COUNT - treasureGoal.ambushDefeatedPirateIds.length;
-    dialogueState = createCampaignDialogueSession({
+    openCityDialogue(cityCall, createCampaignDialogueSession({
       cityId: cityCall.cityId,
       phase: "pirate-treasure-blockade",
       steps: [{
@@ -22255,10 +22247,7 @@ function openPortDialogue(cityCall) {
         text: `${remaining} of Captain ${treasureGoal.treasureCaptainName}'s old crew still block the harbor. ` +
           "They mean to have the treasure before they let us reach the quay."
       }]
-    });
-    dialogueLayout = createDialogueLayoutState();
-    stopShipForDialogue();
-    ensureDialoguePortraitLoaded();
+    }));
     saveVoyageNow("treasure pirates blockaded home");
     dirty = true;
     return;
@@ -22276,16 +22265,13 @@ function openPortDialogue(cityCall) {
     ? null
     : createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk);
   if (rescuedTravelerSession || campaignSession) {
-    dialogueState = rescuedTravelerSession || campaignSession;
+    openCityDialogue(cityCall, rescuedTravelerSession || campaignSession);
   } else {
-    dialogueState = withPortArrivalGossip(
+    openCityDialogue(cityCall, withPortArrivalGossip(
       createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk),
       cityCall
-    );
+    ));
   }
-  dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
-  ensureDialoguePortraitLoaded();
   if (!rescuedTravelerSession && !campaignSession && dialogueState.kind === "port") {
     continuePortArrivalDialogues();
   }
@@ -25325,13 +25311,10 @@ function completePlayerPortConquest(
   const playerRetainsPort = !conquistadorCapture && capturedCity.factionId === ship.factionId;
   if (playerRetainsPort) {
     const needsLoadout = admitPlayerToPort(capturedCity);
-    dialogueState = createPortArrivalDialogueSession(capturedCity, {
+    openCityDialogue(capturedCity, createPortArrivalDialogueSession(capturedCity, {
       needsLoadout,
       recentConquestCityId: capturedCity.cityId
-    });
-    dialogueLayout = createDialogueLayoutState();
-    stopShipForDialogue();
-    ensureDialoguePortraitLoaded();
+    }));
   } else {
     closeDialogue();
   }
@@ -25612,16 +25595,11 @@ function createWorldPassengerDialogueSession(cityCall, quest, options = {}) {
 function openPassengerDialogue(cityCall, quest) {
   if (!gameState) throw new Error("Cannot open passenger dialogue before game state is ready");
   markPassengerOfferSeen(gameState, quest);
-  if (portCityView?.cityId !== cityCall.cityId) activatePortCityView(cityCall);
-  dialogueState = createWorldPassengerDialogueSession(cityCall, quest, {
+  openCityDialogue(cityCall, createWorldPassengerDialogueSession(cityCall, quest, {
     admittedToPort: true,
     continueToPortOnClose: true,
     nextPortNodeId: "root"
-  });
-  dialogueLayout = createDialogueLayoutState();
-  stopShipForDialogue();
-  ensureDialoguePortraitLoaded();
-  dirty = true;
+  }));
 }
 
 function continuePortDialogueAfterQuestCharacter() {
@@ -25645,14 +25623,12 @@ function continuePortDialogueAfterQuestCharacter() {
     admittedToPort = true;
     if (needsLoadout) initialNodeId = "loadout";
   }
-  dialogueState = createPortDialogueSession(city, {
+  openPortMenu(city, {
     initialNodeId,
     admittedToPort,
     postDrunkNodeId: dialogueState.postDrunkNodeId,
     drunkVariant: dialogueState.drunkVariant
   });
-  dialogueLayout = createDialogueLayoutState();
-  ensureDialoguePortraitLoaded();
   continuePortArrivalDialogues();
   dirty = true;
 }
@@ -25665,9 +25641,7 @@ function continuePortDialogueAfterCampaign() {
     requestedNodeId: session.nodeId,
     arrivalGreetingPresented: currentPortArrivalGreetingPresented(city)
   });
-  dialogueState = session;
-  dialogueLayout = createDialogueLayoutState();
-  ensureDialoguePortraitLoaded();
+  openCityDialogue(city, session);
   continuePortArrivalDialogues();
   saveVoyageNow("campaign homecoming complete");
   dirty = true;
@@ -25681,16 +25655,14 @@ function beginCampaignRetirement() {
   const city = currentDialogueCity();
   const retirementObligation = currentCampaignRetirementObligation();
   if (retirementObligation) {
-    dialogueState = createCampaignDialogueSession({
+    openCityDialogue(city, createCampaignDialogueSession({
       cityId: city.cityId,
       steps: campaignRetirementBlockedSteps(retirementObligation),
       phase: `${goal.type}-retirement-blocked`,
       continueToPortOnClose: true,
       nextPortNodeId: "greeting",
       retirementBlockedOnClose: true
-    });
-    dialogueLayout = createDialogueLayoutState();
-    ensureDialoguePortraitLoaded();
+    }));
     saveVoyageNow("retirement postponed for travelers");
     dirty = true;
     return;
@@ -25713,14 +25685,14 @@ function beginCampaignRetirement() {
     completeCampaignVoyage();
     return;
   }
-  dialogueState = createCampaignDialogueSession({
+  openCityDialogue(city, createCampaignDialogueSession({
     cityId: city.cityId,
     steps: retirementSteps,
     phase: `${goal.type}-retirement`,
     victoryOnClose: true,
     companionCharacter: romance?.companion || null,
     participantCharacters: animalCharacters
-  });
+  }));
   dialogueState.victoryRomance = romance || null;
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
@@ -26652,7 +26624,7 @@ function stopWaitingInPort() {
     dirty = true;
     return false;
   }
-  dialogueState = createPortDialogueSession({
+  openPortMenu({
     ...city,
     character,
     portrait: characterExpression(character)
@@ -26664,13 +26636,6 @@ function stopWaitingInPort() {
     illicitTradeAttemptedPolicyId,
     illicitTradeVisit
   });
-  dialogueLayout = createDialogueLayoutState();
-  activatePortCityView({
-    ...city,
-    character,
-    portrait: characterExpression(character)
-  });
-  ensureDialoguePortraitLoaded();
   saveVoyageNow("stopped waiting in port");
   dirty = true;
   return true;
@@ -27149,10 +27114,7 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
         nextPortNodeId: dialogueState.nextPortNodeId || "greeting"
       });
       if (nextHomecoming) {
-        dialogueState = nextHomecoming;
-        dialogueLayout = createDialogueLayoutState();
-        ensureDialoguePortraitLoaded();
-        dirty = true;
+        openCityDialogue(city, nextHomecoming);
         return;
       }
       const campaignSession = createCampaignHomecomingSession(
@@ -27160,10 +27122,7 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
         dialogueState.nextPortNodeId === "loadout"
       );
       if (campaignSession) {
-        dialogueState = campaignSession;
-        dialogueLayout = createDialogueLayoutState();
-        ensureDialoguePortraitLoaded();
-        dirty = true;
+        openCityDialogue(city, campaignSession);
         return;
       }
     }

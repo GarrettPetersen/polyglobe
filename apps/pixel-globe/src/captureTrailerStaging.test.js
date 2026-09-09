@@ -112,12 +112,12 @@ function createTradeCaptureContext() {
     PORT_CITY_STAFF_ROLE: { MERCHANT: "merchant" },
     captureCue: (name) => name === context.activeCue,
     capturePortCallById: (cityId) => ({ cityId }),
-    activatePortCityView: (cityCall) => {
+    ensurePortCityView: (cityCall) => {
       context.portCityView = { cityId: cityCall.cityId, sceneReady: true };
       context.portCityTransition = null;
     },
     requirePortCityStaffMember: () => ({ sourceId: "factor" }),
-    createPortDialogueSession: (_cityCall, options) => ({ nodeId: options.initialNodeId }),
+    openPortMenu: (_cityCall, options) => { context.dialogueState = { nodeId: options.initialNodeId }; },
     createDialogueLayoutState: () => ({}),
     stopShipForDialogue: () => {},
     ensureDialoguePortraitLoaded: () => {},
