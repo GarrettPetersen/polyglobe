@@ -560,6 +560,21 @@ test("Set Sail uses the visible ocean left of the player ship as its hit target"
   );
 });
 
+test("capture staging can focus an assault immediately before recording", () => {
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /setAssaultPresentation\(presentation, \{ immediateCamera = false \} = \{\}\)/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /focusAssaultPresentation\(presentation, \{ immediate: immediateCamera \}\)/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /focusSceneMasterX\(666 \+ position \* 640, \{ immediate \}\)/
+  );
+});
+
 test("ocean depth slices cover the authored water without gaps", () => {
   assert.equal(PORT_SCENE_HORIZON_SHIFT_Y, -20);
   assert.equal(PORT_SCENE_OCEAN_SLICES[0].top, 446 + PORT_SCENE_HORIZON_SHIFT_Y);
