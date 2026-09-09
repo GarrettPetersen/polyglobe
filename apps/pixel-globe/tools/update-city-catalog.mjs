@@ -13,7 +13,7 @@ export function updateCityCatalog(runChild = run) {
   // The scene catalog depends on the sailing bake. Every validation runs in a
   // child so it imports the completed generation, not the parent's cached map.
   for (const tool of CATALOG_BUILD_TOOLS) runChild([tool]);
-  runChild(["--test", "src/worldMapInvariants.test.js", "src/landRoadNetwork.test.js",
+  runChild(["--test", "--test-concurrency=1", "src/worldMapInvariants.test.js", "src/landRoadNetwork.test.js",
     "src/portSailingDistances.test.js", "src/colonySeasonalAccess.test.js", "src/portCatalogMigration.test.js",
     "src/subdivisionSevenPortMigration.test.js", "src/gameStateQuest.test.js"]);
   runChild(["tools/finalize-city-catalog.mjs"]);

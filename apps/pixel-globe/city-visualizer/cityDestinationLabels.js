@@ -29,9 +29,9 @@ export function layoutCityDestinationLabels({
           : entry.preferredSide === "right"
             ? entry.anchor.x + CITY_DESTINATION_LABEL_ANCHOR_GAP_PX
             : entry.anchor.x - entry.width / 2;
-    const desiredY = anchorVisible && entry.preferredSide === "above"
+    const desiredY = entry.fixedY ?? (entry.preferredSide === "above"
       ? entry.anchor.y - entry.height - CITY_DESTINATION_LABEL_ANCHOR_GAP_PX
-      : entry.anchor.y - entry.height / 2;
+      : entry.anchor.y - entry.height / 2);
     return {
       ...entry,
       anchorVisible,
@@ -59,13 +59,7 @@ export function layoutCityDestinationLabels({
   }
 
   const placed = [];
-  const placementOrder = pin
-    ? [
-        prepared.find(({ id }) => id === pin.id),
-        ...prepared.filter(({ id }) => id !== pin.id)
-      ]
-    : prepared;
-  for (const entry of placementOrder) {
+  for (const entry of prepared) {
     const maximumY = viewportHeight - CITY_DESTINATION_LABEL_BOTTOM_PX - entry.height;
     const y = nearestFreeY(entry, placed, maximumY);
     placed.push(Object.freeze({
@@ -158,7 +152,7 @@ function nearestFreeY(entry, placed, maximumY) {
         width: entry.width,
         height: entry.height
       };
-      if (!placed.some((other) => rectanglesOverlapWithGap(
+      if (!placed.some((other) => verticalRowsOverlapWithGap(
         candidate,
         other,
         CITY_DESTINATION_LABEL_GAP_PX
@@ -170,10 +164,10 @@ function nearestFreeY(entry, placed, maximumY) {
   );
 }
 
-function rectanglesOverlapWithGap(left, right, gap) {
-  return left.x < right.x + right.width + gap &&
-    left.x + left.width + gap > right.x &&
-    left.y < right.y + right.height + gap &&
+function verticalRowsOverlapWithGap(left, right, gap) {
+  // Reserve each vertical row even when labels are far apart horizontally.
+  // They can meet at a viewport edge during a pan.
+  return left.y < right.y + right.height + gap &&
     left.y + left.height + gap > right.y;
 }
 
@@ -223,6 +217,9 @@ function validateEntry(entry, viewportWidth, viewportHeight) {
   }
   if (!["above", "left", "right"].includes(entry.preferredSide)) {
     throw new Error(`City destination label has invalid preferred side: ${entry.id}`);
+  }
+  if (entry.fixedY !== undefined && !Number.isInteger(entry.fixedY)) {
+    throw new Error(`City destination has an invalid fixed row: ${entry.id}`);
   }
   const availableWidth = viewportWidth - CITY_DESTINATION_LABEL_MARGIN_PX * 2;
   const availableHeight = viewportHeight -

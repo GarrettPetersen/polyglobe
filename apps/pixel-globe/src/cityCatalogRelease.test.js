@@ -65,6 +65,7 @@ test("catalog updates validate in a fresh process after generation and stop on a
   updateCityCatalog((args) => commands.push(args));
   assert.deepEqual(commands.slice(0, CATALOG_BUILD_TOOLS.length), CATALOG_BUILD_TOOLS.map(tool => [tool]));
   assert.equal(commands.at(-2)[0], "--test");
+  assert.ok(commands.at(-2).includes("--test-concurrency=1"), "Geography validations must not compete for memory");
   assert.deepEqual(commands.at(-1), ["tools/finalize-city-catalog.mjs"]);
   for (let failureIndex = 0; failureIndex < commands.length - 1; failureIndex++) {
     const attempted = [];

@@ -1,3 +1,4 @@
+import { aboardRoster } from "../../src/aboardRoster.js";
 import { nextSeededRandom } from "../../src/seededRandom.js";
 import { readFileSync } from "node:fs";
 import { loadCityCatalogFromCsv } from "../../src/cityCatalogData.js";
@@ -458,6 +459,14 @@ export function transitionScenario(scenario, offered, { executeHostEffects = fal
   if (executeHostEffects && result.action) {
     const city = cityForSession(next);
     switch (result.action.type) {
+      case "open-crew-management": {
+        const roster = aboardRoster({ captain: next.gameState.playerCharacter,
+          crewCount: next.gameState.ship.crew, crewMembers: next.gameState.crewRoster });
+        assert.ok(roster.named.length > 0, "Crew management must present the captain");
+        assert.equal(next.session.nodeId, scenario.session.nodeId,
+          "Crew management must preserve its return dialogue");
+        break;
+      }
       case "accept-viking-longship-reward":
       case "purchase-viking-longship":
         next.shipStats = completeVikingLongshipAcquisition(next.gameState, city, result.action, context);

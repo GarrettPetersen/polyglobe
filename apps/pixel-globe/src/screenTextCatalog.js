@@ -842,7 +842,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Back down",
   "Back from another honest voyage, are you? Tie up before the patrol rounds the cape.",
   "Back to city",
-  "BACK TO CITY",
+  "BACK TO HIRE CREW",
   "Back to inn",
   "BACK TO INN",
   "Back to the bamboo hills with you. A ship is no place for a bear.",

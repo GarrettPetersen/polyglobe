@@ -842,7 +842,7 @@ export default Object.freeze({
   "Back down": "Reculer",
   "Back from another honest voyage, are you? Tie up before the patrol rounds the cape.": "Vous revenez d'un autre voyage honnête, n'est-ce pas ? Attachez-vous avant que la patrouille ne contourne le cap.",
   "Back to city": "Retour en ville",
-  "BACK TO CITY": "RETOUR EN VILLE",
+  "BACK TO HIRE CREW": "RETOUR AU RECRUTEMENT",
   "Back to inn": "Retour à l'auberge",
   "BACK TO INN": "RETOUR À L'AUBERGE",
   "Back to the bamboo hills with you. A ship is no place for a bear.": "Retour aux collines de bambous avec vous. Un bateau n’est pas un endroit pour un ours.",

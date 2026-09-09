@@ -87,3 +87,17 @@ test("bow fire and arrow hit sounds are packaged as repo-local Ogg assets", asyn
     assert.ok(bytes.length > 1000);
   }
 });
+
+test("entering combat starts both cannons half loaded without shortening or restarting reloads", async () => {
+  const { prepareNpcCannonsForCombat, navalWeaponForShip } = await import('./navalWeapons.js');
+  const weapon = navalWeaponForShip({ cannons: 20 });
+  const ship = { id: 'inspector', combatMode: null, broadsideCooldowns: { port: 0, starboard: 8 } };
+  prepareNpcCannonsForCombat(ship, 'attack', weapon);
+  assert.deepEqual(ship.broadsideCooldowns, {port: 5, starboard: 8});
+  ship.combatMode = 'attack'; ship.broadsideCooldowns.port = 1;
+  prepareNpcCannonsForCombat(ship, 'flee', weapon);
+  assert.equal(ship.broadsideCooldowns.port, 1);
+  ship.combatMode = null;
+  prepareNpcCannonsForCombat(ship, null, weapon);
+  assert.equal(ship.broadsideCooldowns.port, 1);
+});

@@ -5224,6 +5224,7 @@ function crewRecruitmentView(session, city, gameState) {
           disabledReason: !boardingEligible ? boarding.disabledReason : `${cost} doubloons required.`
         }
       )),
+      option("Manage crew", { type: "open-crew-management" }),
       option(session.crewRecruitmentReturnNodeId ? "Continue" : "Back to inn", {
         type: "node", nodeId: session.crewRecruitmentReturnNodeId || "inn-drink"
       })
@@ -7362,7 +7363,7 @@ function buyView(session, city, gameState, economy, context) {
     currentMinute: context.simMinute ?? 0
   });
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
-  const tradeRows = marketBuyGoodIds(session, market).map((goodId) => {
+  const tradeRows = marketBuyGoodIds(session, market, economy, city).map((goodId) => {
     const row = market.get(goodId);
     if (!row) throw new Error(`${cityLabel(city)} market has no quote for ${goodId}`);
     return row;
@@ -7552,13 +7553,12 @@ function executePortMarketPurchase(session, gameState, economy, city, action, co
   return { closed: false, marketPurchase: result };
 }
 
-function marketBuyGoodIds(session, market) {
+function marketBuyGoodIds(session, market, economy, city) {
   const supplyIds = new Set([FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID]);
   const availableGoodIds = [...market.values()]
     .filter((row) => row.listedForSale && row.stock > 0 && !supplyIds.has(row.good.id))
-    .sort((a, b) => b.productionPerDay - a.productionPerDay || a.good.id.localeCompare(b.good.id))
     .map((row) => row.good.id);
-  return stableMarketGoodIds(session, "marketBuyGoodIds", availableGoodIds);
+  return stableMarketGoodIds(session, "marketBuyGoodIds", availableGoodIds, economy, city, "buy");
 }
 
 function tradeTipView(session, city) {
@@ -8220,7 +8220,7 @@ function sellView(session, city, gameState, economy, context) {
   const requiredQuestCargo = activeQuestCargoReservedQuantities(gameState, {
     currentMinute: context.simMinute ?? 0
   });
-  const rows = marketSaleGoodIds(session, gameState).flatMap((goodId) => {
+  const rows = marketSaleGoodIds(session, gameState, economy, city).flatMap((goodId) => {
     const good = tradeGoodById(goodId);
     const quantity = gameState.cargo[goodId] || 0;
     const heldLots = marketTradeLotCount(quantity);
@@ -8393,19 +8393,24 @@ function questCargoSaleWarningView(session, gameState) {
   };
 }
 
-function marketSaleGoodIds(session, gameState) {
+function marketSaleGoodIds(session, gameState, economy, city) {
   const saleGoodIds = cargoRows(gameState)
     .filter((cargo) => cargo.good.sellable !== false && cargo.quantity >= 1)
     .map((cargo) => cargo.good.id);
-  return stableMarketGoodIds(session, "marketSaleGoodIds", saleGoodIds);
+  return stableMarketGoodIds(session, "marketSaleGoodIds", saleGoodIds, economy, city, "sell");
 }
 
-function stableMarketGoodIds(session, rosterKey, candidateGoodIds) {
+function stableMarketGoodIds(session, rosterKey, candidateGoodIds, economy, city, side) {
   const roster = session[rosterKey];
   if (!Array.isArray(roster)) throw new Error(`Port dialogue session has no stable market roster: ${rosterKey}`);
   if (!Array.isArray(candidateGoodIds)) throw new Error(`Market roster candidates must be an array: ${rosterKey}`);
   const knownIds = new Set(roster);
-  for (const goodId of candidateGoodIds) {
+  // Quote new rows once; subsequent trades must not move the button under a click.
+  const additions = candidateGoodIds.filter((id) => !knownIds.has(id)).map((id) => {
+    const { localPrice, worldPrice } = worldMarketPriceComparison(economy, city, id, side);
+    return { id, ratio: localPrice / worldPrice };
+  }).sort((a, b) => (side === "buy" ? a.ratio - b.ratio : b.ratio - a.ratio) || a.id.localeCompare(b.id));
+  for (const { id: goodId } of additions) {
     if (typeof goodId !== "string" || goodId === "") throw new Error(`Invalid market roster good: ${goodId}`);
     if (knownIds.has(goodId)) continue;
     roster.push(goodId);

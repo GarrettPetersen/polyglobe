@@ -842,7 +842,7 @@ export default Object.freeze({
   "Back down": "退后",
   "Back from another honest voyage, are you? Tie up before the patrol rounds the cape.": "你又从一次诚实的航行中回来了，是吗？在巡逻队绕过海角之前系好绳子。",
   "Back to city": "返回城中",
-  "BACK TO CITY": "返回城市",
+  "BACK TO HIRE CREW": "返回雇用船员",
   "Back to inn": "返回客栈",
   "BACK TO INN": "回到客栈",
   "Back to the bamboo hills with you. A ship is no place for a bear.": "与你回竹山。船不是熊的栖息地。",

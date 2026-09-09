@@ -110,3 +110,11 @@ test("runtime city constructors cannot bypass the shared entry lifecycle", () =>
   const ensureEnd = source.indexOf("function openCityDialogue(", ensureStart);
   assert.ok(directSceneCalls[0].index > ensureStart && directSceneCalls[0].index < ensureEnd);
 });
+
+test("an alert cannot hand the city root back to the old modal renderer", () => {
+  const ownerCode = source.slice(source.indexOf('function portCityRootPresentationIsOwned()'), source.indexOf('function portCityTransitionCenter('));
+  const runtime = { dialogueState:{kind:'port',nodeId:'root',cityId:'bremen|germany',admittedToPort:true},
+    portCityView:{cityId:'bremen|germany',sceneReady:true}, captainAlertModal:{},
+    assertPortRootScene, colonizationSiteIsRuined:()=>false,currentDialogueCity:()=>({}) };
+  assert.equal(vm.runInNewContext(`${ownerCode}\nportCityRootPresentationIsOwned()`,runtime),true);
+});

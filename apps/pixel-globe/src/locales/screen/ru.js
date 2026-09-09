@@ -842,7 +842,7 @@ export default Object.freeze({
   "Back down": "Назад вниз",
   "Back from another honest voyage, are you? Tie up before the patrol rounds the cape.": "Вернулись из очередного честного путешествия? Привязывайтесь до того, как патруль обойдет мыс.",
   "Back to city": "Вернуться в город",
-  "BACK TO CITY": "НАЗАД В ГОРОД",
+  "BACK TO HIRE CREW": "НАЗАД К НАБОРУ КОМАНДЫ",
   "Back to inn": "Вернуться в гостиницу",
   "BACK TO INN": "НАЗАД В ГОСТИНИЦУ",
   "Back to the bamboo hills with you. A ship is no place for a bear.": "Вернёмся с тобой на бамбуковые холмы. Корабль – не место медведю.",

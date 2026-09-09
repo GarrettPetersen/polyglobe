@@ -1,3 +1,4 @@
+import { offscreenCannonCue, CANNON_CUE_DURATION_MS } from "./offscreenCannonCue.js";
 import { createPortAssaultForecastClient } from "./portAssaultForecastClient.js";
 import { createWorldMutationBoundary, dispatchActionEffects } from "./runtimeTransitions.js";
 import { runShipReplacement } from "./shipReplacementLifecycle.js";
@@ -2468,6 +2469,7 @@ import {
 import {
   accurateBroadsideShotIndex,
   advanceCannonReload,
+  prepareNpcCannonsForCombat,
   NAVAL_CANNON_AIM_SPREAD_RAD as CANNON_AIM_SPREAD_RAD,
   NAVAL_CANNON_ARC_HEIGHT_PX as CANNON_ARC_HEIGHT_PX,
   NAVAL_CANNON_RANGE_PX as CANNON_RANGE_PX,
@@ -4005,6 +4007,7 @@ let landRoadNetwork;
 let landTradeSystem;
 let portCitiesByTileId;
 let portCities = [];
+const offscreenCannonShots = new Map();
 let factionCapitalPorts;
 const spriteAlphaMasks = new WeakMap();
 const cityDamageOverlayCache = new WeakMap();
@@ -19128,7 +19131,7 @@ function openAboardMenu({ source = "captain-notebook" } = {}) {
   if (!gameState?.ship || !gameState.playerCharacter) {
     throw new Error("Cannot open the aboard roster before the player ship is ready");
   }
-  if (!["captain-notebook", "port-inn"].includes(source)) {
+  if (!["captain-notebook", "port-inn", "port-recruitment"].includes(source)) {
     throw new Error(`Unknown aboard roster source: ${source}`);
   }
   switchNotebookPage("crew");
@@ -22141,7 +22144,7 @@ function activatePortCityDestination({ id }) {
 }
 
 function portCityRootNavigationIsActive() {
-  return Boolean(portCityView?.sceneReady && portCityRootPresentationIsOwned());
+  return Boolean(!captainAlertModal && portCityView?.sceneReady && portCityRootPresentationIsOwned());
 }
 
 function portCityRootPresentationIsOwned() {
@@ -22153,8 +22156,7 @@ function portCityRootPresentationIsOwned() {
     portCityView &&
     dialogueState?.kind === "port" &&
     (dialogueState.admittedToPort === true || colonizationSiteIsRuined(currentPortCitySceneCity())) &&
-    dialogueState.nodeId === "root" &&
-    !captainAlertModal
+    dialogueState.nodeId === "root"
   );
 }
 
@@ -26890,7 +26892,7 @@ function performDialogueOption(optionIndex, displayedOption) {
       return;
     }
     if (result.action?.type === "open-crew-management") {
-      openAboardMenu({ source: "port-inn" });
+      openAboardMenu({ source: dialogueState.nodeId === "crew-recruitment" ? "port-recruitment" : "port-inn" });
       return;
     }
     if (result.action?.type === "purchase-ship") {
@@ -38045,6 +38047,7 @@ function updateNpcCombat(dt) {
         enemyIds: nextEnemyIds
       });
     }
+    prepareNpcCannonsForCombat(state, nextMode, weapon);
     state.combatMode = nextMode;
     state.combatTargetId = nextTargetId;
     state.combatEnemyIds = nextEnemyIds;
@@ -38885,6 +38888,7 @@ function fireShoreBatteryAtNearestTarget(state) {
   });
   armShoreBatteryReload(state);
   if (!weapon.portable) {
+    recordOffscreenCannonShot(state.id, tileCenterVector(state.cityTileId), state.cityTileId);
     playShoreBatteryAttackSound(weapon, state.gunCount, distanceFromPlayerPoint(origin));
   }
   startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
@@ -39191,6 +39195,33 @@ function npcCombatNavigation(state) {
   });
 }
 
+function recordOffscreenCannonShot(id, vector, tileId) {
+  offscreenCannonShots.delete(id);
+  offscreenCannonShots.set(id, { position: [...vector], tileId, atMs: lastFrameMs });
+  if (offscreenCannonShots.size > 32) offscreenCannonShots.delete(offscreenCannonShots.keys().next().value);
+}
+
+function drawOffscreenCannonCues(nowMs) {
+  if (!chart || !localLayout) return;
+  const offset = chartOffsetPixels(chart);
+  for (const [id, shot] of offscreenCannonShots) {
+    const elapsedMs = nowMs - shot.atMs;
+    if (elapsedMs >= CANNON_CUE_DURATION_MS || elapsedMs < 0) {
+      offscreenCannonShots.delete(id);
+      continue;
+    }
+    const point = localPointForKnownTileVector(shot.position, shot.tileId);
+    if (!point) continue;
+    const cue = offscreenCannonCue({ x: point.x + offset.x, y: point.y + offset.y }, SCREEN_W, SCREEN_H, elapsedMs);
+    if (!cue) continue;
+    const glow = ctx.createRadialGradient(cue.x, cue.y, 0, cue.x, cue.y, 22);
+    glow.addColorStop(0, `rgba(255, 35, 20, ${cue.opacity})`);
+    glow.addColorStop(1, "rgba(255, 35, 20, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(cue.x - 22, cue.y - 22, 44, 44);
+  }
+}
+
 function fireNpcWeaponAtTarget(state, targetId, targeting = null) {
   if (state.combatGrace) return false;
   const intendedTargetId = targeting?.intendedTargetId ?? targetId;
@@ -39235,6 +39266,7 @@ function fireNpcWeaponAtTarget(state, targetId, targeting = null) {
     count: volleyCount
   });
   state.broadsideCooldowns[sideName] = weapon.reloadSeconds;
+  recordOffscreenCannonShot(state.id, state.vector, state.tileId);
   playNavalAttackSound(
     weapon,
     volleyCount,
@@ -44009,6 +44041,7 @@ function drawWorldInterface(nowMs) {
     drawStatusPersonParticles(nowMs);
     drawStormStatus(nowMs);
     drawCombatNotice(nowMs);
+    drawOffscreenCannonCues(nowMs);
     drawFishCatchNotice(nowMs);
     drawSurvivalNotice(nowMs);
     if (portWaitState) {
@@ -50546,7 +50579,7 @@ function drawAboardMenu() {
     w: panelW,
     h: panelH
   });
-  const portInnSource = aboardMenu.source === "port-inn";
+  const portInnSource = ["port-inn", "port-recruitment"].includes(aboardMenu.source);
   const body = {
     x: panel.x + 10,
     y: panel.y + 37,
@@ -50681,7 +50714,7 @@ function drawAboardMenu() {
       aboardMenu.returnButtonRect,
       pointInRect(captainMenu.hoverPoint, aboardMenu.returnButtonRect)
     );
-    drawOptionsText("BACK TO INN", panel.x + panel.w / 2, footerY + 5, {
+    drawOptionsText(aboardMenu.source === "port-recruitment" ? "BACK TO HIRE CREW" : "BACK TO INN", panel.x + panel.w / 2, footerY + 5, {
       align: "center",
       color: PIRATE_MENU_INK
     });
@@ -65004,6 +65037,9 @@ function formatCoordinate(value, positiveSuffix, negativeSuffix) {
 }
 
 function drawDialogueOverlay(nowMs) {
+  if (dialogueState?.kind === "port" && dialogueState.nodeId === "root") {
+    throw new Error(`City root reached the modal renderer: ${dialogueState.cityId}`);
+  }
   const subject = currentDialogueSubject();
   const view = currentDialogueView();
   if (view.presentation?.kind === "custom-loadout") {
@@ -65575,24 +65611,22 @@ function drawCrewRecruitmentDialogueOverlay(nowMs, dialogueView) {
     });
   }
 
-  const exitIndex = dialogueView.options.length - 1;
-  const exitRect = {
-    x: panel.x + 10,
-    y: exitY,
-    w: panel.w - 20,
-    h: 20
-  };
-  drawPiratePaperInset(exitRect, dialogueState.selectedIndex === exitIndex);
-  drawOptionsText("BACK TO CITY", exitRect.x + exitRect.w / 2, exitRect.y + 6, {
-    align: "center",
-    color: PIRATE_MENU_INK
+  const footerOptions = dialogueView.options.slice(candidates.length);
+  const footerWidth = Math.floor((panel.w - 20 - (footerOptions.length - 1) * 4) / footerOptions.length);
+  footerOptions.forEach((option, offset) => {
+    const index = candidates.length + offset;
+    const rect = { x: panel.x + 10 + offset * (footerWidth + 4), y: exitY, w: footerWidth, h: 20 };
+    drawPiratePaperInset(rect, dialogueState.selectedIndex === index);
+    drawOptionsText(fitPixelText(option.label.toUpperCase(), PIXEL_FONT_SMALL_8, rect.w - 8), rect.x + rect.w / 2, rect.y + 6, {
+      align: "center", color: PIRATE_MENU_INK
+    });
+    dialogueLayout.optionRects.push({ index, rect });
   });
-  dialogueLayout.optionRects.push({ index: exitIndex, rect: exitRect });
   if (dialogueView.feedback) {
     drawOptionsText(
       fitPixelText(dialogueView.feedback.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24),
       panel.x + panel.w / 2,
-      exitRect.y - 11,
+      exitY - 11,
       { align: "center", color: PIRATE_MENU_SUCCESS }
     );
   }

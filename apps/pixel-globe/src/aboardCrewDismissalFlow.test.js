@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import vm from "node:vm";
 
 import {
   cancelAboardCrewDismissal,
@@ -10,12 +11,18 @@ import {
 
 const MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
 
-test("inn crew management opens the same aboard roster used elsewhere", () => {
-  assert.match(
-    MAIN_SOURCE,
-    /result\.action\?\.type === "open-crew-management"[\s\S]*?openAboardMenu\(\{ source: "port-inn" \}\);/
-  );
-  assert.match(MAIN_SOURCE, /drawOptionsText\("BACK TO INN"/);
+test("inn and recruitment management retain their source dialogue", () => {
+  const start = MAIN_SOURCE.indexOf("function openAboardMenu(");
+  const end = MAIN_SOURCE.indexOf("function closeAboardMenu(", start);
+  for (const source of ["port-inn", "port-recruitment"]) {
+    const dialogue = { nodeId: source === "port-inn" ? "inn-drink" : "crew-recruitment" };
+    const runtime = { gameState: {ship:{},playerCharacter:{}}, dialogueState:dialogue,
+      aboardMenu:{}, switchNotebookPage:()=>{}, capturePausedView:()=>({named:[{id:'captain',character:{}}]}),
+      currentAboardRoster:()=>{}, dialoguePortraitImage:()=>{}, characterExpression:()=>"neutral" };
+    vm.runInNewContext(`${MAIN_SOURCE.slice(start,end)}\nopenAboardMenu({source:"${source}"})`,runtime);
+    assert.equal(runtime.aboardMenu.source,source);
+    assert.equal(runtime.dialogueState,dialogue);
+  }
 });
 
 test("crew dismissal requires a separate request and confirmation", () => {

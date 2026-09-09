@@ -443,3 +443,22 @@ function requiredSailingEndpoint(name) {
   assert.equal(matches.length, 1, `${name} must be a unique port in the sailing bake`);
   return matches[0];
 }
+
+test("Bible itineraries use the live port roster, including Exeter only after its canal opens", () => {
+  const origin = port(21, 'Hamburg', 'Germany', 'denmark-norway', 'northern-european');
+  const exeter = port(24, 'Exeter', 'United Kingdom', 'england', 'northern-european');
+  const otherPorts = [port(22,'Bremen','Germany','denmark-norway','northern-european'),
+    port(23,'London','United Kingdom','england','northern-european')];
+  for (const canalOpen of [false,true]) {
+    const state = createGameState({cargoCapacity:20,playerCharacter:{...playerHome(origin),
+      name:'Captain Test',nationalityId:'denmark-norway',religionId:'roman-catholic',expressions:['neutral','happy']}});
+    // The maritime-access lifecycle adds Exeter to this roster on completion.
+    const livePorts = [origin,...otherPorts,...(canalOpen?[exeter]:[])];
+    const quest=passengerOfferForCity(state,origin,livePorts,{spawnChance:1,
+      religiousMissionId:'september-testament',simMinute:0,
+      sailingDistanceKm:()=>650,portFactorReligionId:()=> 'roman-catholic'});
+    if (canalOpen) {
+      assert.ok(quest.itinerary.stops.some(stop=>stop.cityId===exeter.cityId));
+    } else assert.equal(quest,null,'A prebaked Exeter route cannot make a closed port eligible');
+  }
+});

@@ -842,7 +842,7 @@ export default Object.freeze({
   "Back down": "下に戻る",
   "Back from another honest voyage, are you? Tie up before the patrol rounds the cape.": "また正直な航海から戻ってきたんですね？パトロールが岬を一周する前に縛る。",
   "Back to city": "街へ戻る",
-  "BACK TO CITY": "街へ戻る",
+  "BACK TO HIRE CREW": "船員の雇用に戻る",
   "Back to inn": "宿に戻る",
   "BACK TO INN": "インに戻る",
   "Back to the bamboo hills with you. A ship is no place for a bear.": "あなたと一緒に竹の丘に戻りましょう。船はクマの居場所ではありません。",

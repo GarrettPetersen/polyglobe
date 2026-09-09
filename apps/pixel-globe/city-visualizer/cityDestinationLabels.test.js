@@ -189,3 +189,16 @@ function overlaps(left, right) {
   return left.x < right.x + right.width && left.x + left.width > right.x &&
     left.y < right.y + right.height && left.y + left.height > right.y;
 }
+
+test("labels retain vertical rows across a full horizontal pan", () => {
+  const entries = ['market','inn','shipyard','authority','ship'].map((id,index) =>
+    entry(id, id, 70, {x:index * 100,y:170}));
+  const baseline = layoutCityDestinationLabels({entries,viewportWidth:400,viewportHeight:256});
+  for (const dx of [-500,-200,100,500]) {
+    const labels = layoutCityDestinationLabels({entries:entries.map((row,i) => ({...row,
+      fixedY:baseline[i].y,anchor:{x:row.anchor.x + dx,y:row.anchor.y}})),
+      viewportWidth:400,viewportHeight:256});
+    assert.deepEqual(labels.map(row=>row.y),baseline.map(row=>row.y));
+    for (let i=0;i<labels.length;i++) for(let j=i+1;j<labels.length;j++) assert.equal(overlaps(labels[i],labels[j]),false);
+  }
+});

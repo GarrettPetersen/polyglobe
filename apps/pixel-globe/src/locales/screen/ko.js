@@ -842,7 +842,7 @@ export default Object.freeze({
   "Back down": "뒤로 물러나",
   "Back from another honest voyage, are you? Tie up before the patrol rounds the cape.": "또 다른 정직한 항해를 마치고 돌아오셨나요? 순찰대가 곶을 돌기 전에 묶으세요.",
   "Back to city": "도시로 돌아가기",
-  "BACK TO CITY": "도시로 돌아가기",
+  "BACK TO HIRE CREW": "선원 고용으로 돌아가기",
   "Back to inn": "여관으로 돌아가기",
   "BACK TO INN": "인으로 돌아가기",
   "Back to the bamboo hills with you. A ship is no place for a bear.": "당신과 함께 대나무 언덕으로 돌아가세요. 배는 곰이 있을 곳이 아니다.",

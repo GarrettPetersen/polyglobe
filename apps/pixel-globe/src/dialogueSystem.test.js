@@ -3787,7 +3787,12 @@ test(`port crew offers hire and exit correctly from ${returnNodeId || "inn"}`, (
   }
   assert.equal(view.presentation.candidates.length, 0);
   assert.equal(gameState.ship.crew, 1 + offeredCount);
-  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  const manageIndex = view.options.findIndex(({action}) => action.type === "open-crew-management");
+  assert.ok(manageIndex >= 0);
+  const manage = selectPortDialogueOption(session, city, gameState, economy, [city], manageIndex, context);
+  assert.equal(manage.action.type, "open-crew-management");
+  assert.equal(session.nodeId, "crew-recruitment");
+  selectPortDialogueOption(session, city, gameState, economy, [city], view.options.length - 1, context);
   assert.equal(session.nodeId, returnNodeId || "inn-drink");
   assert.equal(session.crewRecruitmentReturnNodeId, null);
 });
@@ -3829,8 +3834,8 @@ test("crew recruitment presents a clean empty state when no hands are available"
 
   assert.deepEqual(view.presentation.candidates, []);
   assert.match(view.text, /No suitable hands/);
-  assert.deepEqual(view.options.map(({ label }) => label), ["Back to inn"]);
-  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 0);
+  assert.deepEqual(view.options.map(({ label }) => label), ["Manage crew", "Back to inn"]);
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 1);
   assert.equal(result.closed, false);
   assert.equal(session.nodeId, "inn-drink");
   const inn = portDialogueView(session, city, gameState, economy, [city], {
@@ -7546,6 +7551,9 @@ test("three Testament deliveries convert factors before any captain may convert"
     );
     if (index < 2) {
       assert.equal(delivery.closed, false);
+      const continuation = passengerDialogueView(session, city, quest, state);
+      assert.equal(continuation.options[0].label, "Continue the circuit");
+      assert.equal(selectPassengerDialogueOption(session, city, quest, state, 0, {simMinute: simMinute + index}).closed, true);
       assert.equal(state.playerCharacter.religionId, "tibetan-buddhism");
       assert.equal(state.memory.quests.passengerActive.destinationTileId, cities[index + 1].tileId);
     } else {

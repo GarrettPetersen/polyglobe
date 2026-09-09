@@ -94,3 +94,16 @@ function requireNonNegativeInteger(value, label) {
 function requireNonNegativeNumber(value, label) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label}: ${value}`);
 }
+
+// A new engagement gives the captain time to react. Target changes within an
+// engagement must not restart loading, nor shorten an existing reload.
+export function prepareNpcCannonsForCombat(ship, nextMode, weapon) {
+  if (ship.combatMode || !nextMode || !weapon || !navalWeaponUsesBroadside(weapon)) return;
+  for (const side of ["port", "starboard"]) {
+    const remainingSeconds = ship.broadsideCooldowns[side];
+    if (!Number.isFinite(remainingSeconds) || remainingSeconds < 0) {
+      throw new Error(`Invalid NPC cannon reload: ${ship.id}/${side}`);
+    }
+    ship.broadsideCooldowns[side] = Math.max(remainingSeconds, weapon.reloadSeconds / 2);
+  }
+}

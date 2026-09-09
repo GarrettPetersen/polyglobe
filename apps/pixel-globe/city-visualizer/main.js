@@ -396,6 +396,7 @@ const state = {
   gameIconAtlas: null,
   destinationLabelLayouts: Object.freeze([]),
   destinationLabelLayoutParallax: null,
+  destinationLabelRows: new Map(),
   availableDestinationIds: null,
   barred: false,
   illicitCaughtStartedAtMs: null,
@@ -639,6 +640,7 @@ async function selectCity(cityId, {
   }
   state.colonyClueId = colonyClueId;
   state.city = city;
+  state.destinationLabelRows.clear();
   state.foreignSettlements = selectedForeignSettlements;
   state.availableDestinationIds = validatedDestinationIds;
   state.barred = barred;
@@ -1191,7 +1193,7 @@ function advanceCamera(timeMs) {
           current: state.parallax,
           target: state.cameraPanTarget
         });
-    state.cameraVelocity = advanceSceneScrollVelocity({
+    state.cameraVelocity = pointerOverDestinationLabel ? 0 : advanceSceneScrollVelocity({
       current: state.cameraVelocity,
       target: targetVelocity,
       elapsedMs
@@ -4247,6 +4249,7 @@ function prepareDestinationLabelLayouts() {
         label,
         font,
         textWidth,
+        fixedY: state.destinationLabelRows.get(destination.id),
         anchor,
         width: textWidth + 6,
         height: textHeight + 2,
@@ -4271,6 +4274,7 @@ function prepareDestinationLabelLayouts() {
     viewportHeight: canvas.height,
     pinnedLabel: retainedPin
   });
+  for (const label of state.destinationLabelLayouts) state.destinationLabelRows.set(label.id, label.y);
   state.destinationLabelLayoutParallax = state.parallax;
 }
 
@@ -5281,6 +5285,7 @@ return Object.freeze({
     }
     canvas.width = width;
     canvas.height = height;
+    state.destinationLabelRows.clear();
     context.imageSmoothingEnabled = false;
     invalidateDestinationLabelLayouts();
     citySceneRenderer.invalidateStaticCache();
