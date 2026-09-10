@@ -16923,7 +16923,10 @@ function installSaveRestoreSmokeHarness() {
       const hideout = [...pirateHideoutPortsByTileId.values()].find(city => city.cityId === cityId);
       if (!hideout) throw new Error("Pirate cove smoke requires the Valencia hideout");
       if (showMercy) {
-        adjustFactionReputation(gameState, "pirate", -26 - factionReputation(gameState, "pirate"));
+        adjustFactionReputation(gameState, "pirate", -26 - factionReputation(gameState, "pirate"), {
+          reason: "direct",
+          simMinute: Math.max(0, weatherClockMinutes)
+        });
         recordShipMercyForFaction(gameState, "pirate");
       }
       if (!pirateHideoutsVisibleToPlayer(gameState)) throw new Error("Pirate mercy failed to reveal coves");
