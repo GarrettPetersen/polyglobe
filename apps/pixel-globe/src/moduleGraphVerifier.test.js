@@ -1,3 +1,4 @@
+import { RUNTIME_MODULE_IDS } from "../tools/runtimeModuleIds.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
@@ -127,4 +128,12 @@ test("remote verification rejects a revision-marked entry with an expanded modul
   bootstrapSource = `const BUILD_REVISION = ${JSON.stringify(revision)};\n`;
   const result = await verifyRemoteModuleGraph(verification);
   assert.deepEqual(result.moduleIds, ["src/bootstrap.js"]);
+});
+
+test("the shared release graph includes the assault forecast worker and rejects extra modules", () => {
+  const graph = { moduleIds: [...RUNTIME_MODULE_IDS] };
+  assert.ok(graph.moduleIds.includes("src/portAssaultForecastWorker.js"));
+  assert.doesNotThrow(() => assertExactModuleGraph(graph, RUNTIME_MODULE_IDS));
+  graph.moduleIds.push("src/accidental-unbundled-module.js");
+  assert.throws(() => assertExactModuleGraph(graph, RUNTIME_MODULE_IDS), /Unexpected modules/);
 });

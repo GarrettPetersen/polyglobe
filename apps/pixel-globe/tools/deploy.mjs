@@ -1,3 +1,4 @@
+import { RUNTIME_MODULE_IDS } from "./runtimeModuleIds.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
@@ -76,12 +77,7 @@ await verifyRemoteModuleGraph({
   baseUrl: "https://pirates-of-the-pixel-globe.pages.dev/",
   entryPaths: ["src/bootstrap.js"],
   expectedRevision: revisionMatch[1],
-  exactModuleIds: [
-    "src/bootstrap.js",
-    "src/distantWorldWorker.js",
-    "src/loadingScreenWorker.js",
-    "src/localSaveCompressionWorker.js"
-  ],
+  exactModuleIds: RUNTIME_MODULE_IDS,
   attempts: 90,
   retryDelayMs: 1_000
 });

@@ -1,3 +1,4 @@
+import { RUNTIME_MODULE_IDS } from "./runtimeModuleIds.mjs";
 import { execFile } from "node:child_process";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
@@ -626,12 +627,6 @@ const runtimeModuleGraph = await verifyLocalModuleGraph({
   rootDirectory: distRoot,
   entryPaths: ["src/bootstrap.js"]
 });
-assertExactModuleGraph(runtimeModuleGraph, [
-  "src/bootstrap.js",
-  "src/distantWorldWorker.js",
-  "src/loadingScreenWorker.js",
-  "src/localSaveCompressionWorker.js",
-  "src/portAssaultForecastWorker.js"
-]);
+assertExactModuleGraph(runtimeModuleGraph, RUNTIME_MODULE_IDS);
 
 console.log(`Built Marque & Reprisal ${edition} static site at ${distRoot}`);
