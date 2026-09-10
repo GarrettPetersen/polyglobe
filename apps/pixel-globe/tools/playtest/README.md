@@ -22,8 +22,11 @@ scenario suite. It finishes its current cycle before stopping. To choose a budge
 node tools/playtest/run.mjs --seed=42 --steps=500 --hours=2 --browser=true
 ```
 
-The release gate also runs one continuous browser journey. Browser runs require a current `npm run build`. The browser suite has a 30-minute
-process timeout. Reports, replay saves, minimized failures, checkpoints and browser
+The release gate also runs one continuous browser journey per cycle. Browser runs
+require a current `npm run build`. The exhaustive release matrix runs once per soak,
+with a two-hour aggregate timeout and ten-minute per-scenario timeouts; recurring
+browser journey and checklist lanes each have a one-hour timeout. Reports, replay
+saves, minimized failures, checkpoints and browser
 logs go to ignored `.playtest/`, or a directory passed with `--output=...`.
 `report.json` describes the latest run; failure files from older runs are retained
 until another failure replaces them. A failed command exits nonzero.

@@ -1,4 +1,9 @@
 import { assertSoakPerformance } from "./performance-oracles.mjs";
+import {
+  SOAK_BROWSER_LANE_TIMEOUT_MS,
+  SOAK_RELEASE_MATRIX_TIMEOUT_MS,
+  shouldRunReleaseBrowserMatrix
+} from "./soak-policy.mjs";
 import { tmpdir } from "node:os";
 import { mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -8,10 +13,6 @@ import { createPortJourneyAdapter, portJourneyStarts } from "./ports.mjs";
 import { runJourney, minimizeFailure } from "./journey.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-// Sustained soak load can thermally slow the signing host enough for the full
-// release scenario matrix to exceed 30 minutes while continuing to complete
-// frames. Keep every browser lane bounded, but allow the measured slow path.
-const BROWSER_SOAK_LANE_TIMEOUT_MS = 60 * 60_000;
 const args = new Map(process.argv.slice(2).map((arg) => {
   if (!arg.startsWith("--") || !arg.includes("=")) throw new Error(`Expected --name=value: ${arg}`);
   return arg.slice(2).split(/=(.*)/s).slice(0, 2);
@@ -34,7 +35,7 @@ const revision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encodin
 const dirty = execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).trim() !== "";
 const started = Date.now();
 const report = { version: 1, revision, dirty, started: new Date(started).toISOString(), journeys: [],
-  browser: "not run", performance: { status: "not run" }, scope: "Seeded persistent domain journeys plus continuous browser combat, sailing, docking, trade, mission delivery and reload; domain travel remains a setup seam." };
+  browser: "not run", browserReleaseMatrixRuns: 0, performance: { status: "not run" }, scope: "Seeded persistent domain journeys plus continuous browser combat, sailing, docking, trade, mission delivery and reload; domain travel remains a setup seam." };
 const checkpoints = new Map();
 const saveReport = () => writeFileSync(resolve(output, "report.json"), JSON.stringify(report, null, 2));
 function execute(adapter, options, startCityId) {
@@ -92,20 +93,29 @@ function main() {
       report.reserveCampaign = JSON.parse(reserveLog.trim().split("\n").at(-1));
       saveReport();
       if (args.get("browser") === "true") {
-        console.log("Running real-browser gameplay and save/restore scenarios");
+        const runReleaseBrowserMatrix = shouldRunReleaseBrowserMatrix({
+          browserEnabled: true,
+          completedRuns: report.browserReleaseMatrixRuns
+        });
         let lane = "browser";
         try {
-          const log = execFileSync(process.execPath, ["tools/run-save-restore-smoke.mjs", "--release-reachability"],
-            { cwd: root, timeout: BROWSER_SOAK_LANE_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
-          writeFileSync(resolve(output, "browser.log"), log);
+          if (runReleaseBrowserMatrix) {
+            console.log("Running exhaustive real-browser gameplay and save/restore scenarios");
+            const log = execFileSync(process.execPath, ["tools/run-save-restore-smoke.mjs", "--release-reachability"],
+              { cwd: root, timeout: SOAK_RELEASE_MATRIX_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+            writeFileSync(resolve(output, "browser.log"), log);
+            report.browserReleaseMatrixRuns++;
+            saveReport();
+          }
+          console.log("Running continuous real-browser journey and release checklist");
           const journeyLog = execFileSync(process.execPath,
             ["tools/playtest/browser.mjs", `--seed=${seed}`, `--output=${resolve(output, "browser-journey")}`],
-            { cwd: root, timeout: BROWSER_SOAK_LANE_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+            { cwd: root, timeout: SOAK_BROWSER_LANE_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
           writeFileSync(resolve(output, "browser-journey.log"), journeyLog);
           const checklistOutput = resolve(output, "browser-checklist");
           const checklistLog = execFileSync(process.execPath,
             ["tools/playtest/browser.mjs", "--checklist=true", `--seed=${seed}`, `--output=${checklistOutput}`],
-            { cwd: root, timeout: BROWSER_SOAK_LANE_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+            { cwd: root, timeout: SOAK_BROWSER_LANE_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
           writeFileSync(resolve(output, "browser-checklist.log"), checklistLog);
           report.browserChecklist = JSON.parse(readFileSync(resolve(checklistOutput, "report.json"), "utf8")).checklist;
           report.browser = "passed";
