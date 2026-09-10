@@ -8,6 +8,10 @@ import { createPortJourneyAdapter, portJourneyStarts } from "./ports.mjs";
 import { runJourney, minimizeFailure } from "./journey.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
+// Sustained soak load can thermally slow the signing host enough for the full
+// release scenario matrix to exceed 30 minutes while continuing to complete
+// frames. Keep every browser lane bounded, but allow the measured slow path.
+const BROWSER_SOAK_LANE_TIMEOUT_MS = 60 * 60_000;
 const args = new Map(process.argv.slice(2).map((arg) => {
   if (!arg.startsWith("--") || !arg.includes("=")) throw new Error(`Expected --name=value: ${arg}`);
   return arg.slice(2).split(/=(.*)/s).slice(0, 2);
@@ -92,16 +96,16 @@ function main() {
         let lane = "browser";
         try {
           const log = execFileSync(process.execPath, ["tools/run-save-restore-smoke.mjs", "--release-reachability"],
-            { cwd: root, timeout: 30 * 60_000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+            { cwd: root, timeout: BROWSER_SOAK_LANE_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
           writeFileSync(resolve(output, "browser.log"), log);
           const journeyLog = execFileSync(process.execPath,
             ["tools/playtest/browser.mjs", `--seed=${seed}`, `--output=${resolve(output, "browser-journey")}`],
-            { cwd: root, timeout: 30 * 60_000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+            { cwd: root, timeout: BROWSER_SOAK_LANE_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
           writeFileSync(resolve(output, "browser-journey.log"), journeyLog);
           const checklistOutput = resolve(output, "browser-checklist");
           const checklistLog = execFileSync(process.execPath,
             ["tools/playtest/browser.mjs", "--checklist=true", `--seed=${seed}`, `--output=${checklistOutput}`],
-            { cwd: root, timeout: 30 * 60_000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+            { cwd: root, timeout: BROWSER_SOAK_LANE_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
           writeFileSync(resolve(output, "browser-checklist.log"), checklistLog);
           report.browserChecklist = JSON.parse(readFileSync(resolve(checklistOutput, "report.json"), "utf8")).checklist;
           report.browser = "passed";
