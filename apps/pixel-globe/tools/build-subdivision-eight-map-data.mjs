@@ -242,6 +242,9 @@ const sourceRiverRepairs = [
   // Scioto joins the Ohio at Portsmouth, giving Chillicothe its own river approach.
   // https://pubs.usgs.gov/wsp/0169/report.pdf
   ...sourceRiverRoutes("773River"),
+  // Hartford's river approach follows the Connecticut to Long Island Sound.
+  // NOAA Coast Pilot 2, chapter 8: https://nauticalcharts.noaa.gov/publications/coast-pilot/files/cp2/CPB2_WEB.pdf
+  ...sourceRiverRoutes("524River"),
   // The checked-in river source omits this short inter-lake channel. A
   // drainage's ocean outlet does not prove that its upstream lakes connect.
   // St Marys connects Superior to Huron (NOAA Coast Pilot 6, chapter 12).

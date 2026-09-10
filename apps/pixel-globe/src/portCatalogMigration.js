@@ -3,7 +3,7 @@ import {
   subdivisionSevenPortMigrationForWorld
 } from "./subdivisionSevenPortMigration.js";
 
-export const PORT_CATALOG_VERSION = 10;
+export const PORT_CATALOG_VERSION = 11;
 const EARLIEST_SUPPORTED_PORT_CATALOG_VERSION = 1;
 
 // The first subdivision-eight release placed North Maluku's three ports on an
@@ -82,6 +82,9 @@ export const PRE_EXETER_OUTPORT_TILE_IDS = new Map([[644452, 644451]]);
 // Canal-era saves refer to Exeter itself, while pre-outport saves must still
 // resolve to Topsham. Compose in this order to preserve that distinction.
 export const PRE_EXETER_INLAND_TILE_IDS = new Map([[644452, 161147]]);
+// Hartford moves onto the Connecticut; New Haven takes its former coastal tile.
+// Apply these simultaneously so old Hartford references do not become New Haven.
+const PRE_CONNECTICUT_PORT_TILE_IDS = new Map([[298724, 18749], [18749, 298710]]);
 const UNVERSIONED_PORT_TILE_IDS = composePortTileMigrations(composePortTileMigrations(composePortTileMigrations(new Map([
   ...PRE_NORTH_MALUKU_PORT_TILE_IDS,
   ...PRE_RIVER_OUTLET_PORT_TILE_IDS,
@@ -102,7 +105,7 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
     );
   }
   if (payload.portCatalogVersion === undefined) {
-    return UNVERSIONED_PORT_TILE_IDS;
+    return composePortTileMigrations(UNVERSIONED_PORT_TILE_IDS, PRE_CONNECTICUT_PORT_TILE_IDS);
   }
   if (!Number.isInteger(payload.portCatalogVersion) ||
       payload.portCatalogVersion < EARLIEST_SUPPORTED_PORT_CATALOG_VERSION ||
@@ -113,13 +116,14 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
     );
   }
   if (payload.portCatalogVersion === PORT_CATALOG_VERSION) return null;
-  return composePortTileMigrations(composePortTileMigrations(composePortTileMigrations(composePortTileMigrations(new Map([
+  const earlier = composePortTileMigrations(composePortTileMigrations(composePortTileMigrations(composePortTileMigrations(new Map([
     ...(payload.portCatalogVersion < 3 ? PRE_RIVER_OUTLET_PORT_TILE_IDS : []),
     ...(payload.portCatalogVersion < 4 ? PRE_DJENNE_CORRECTION_TILE_IDS : [])
   ]), payload.portCatalogVersion < 5 ? PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS : new Map()),
   payload.portCatalogVersion < 6 ? PRE_EXACT_NEAREST_PORT_TILE_IDS : new Map()),
   payload.portCatalogVersion < 7 ? PRE_EXETER_OUTPORT_TILE_IDS : new Map()),
   PRE_EXETER_INLAND_TILE_IDS);
+  return composePortTileMigrations(earlier, PRE_CONNECTICUT_PORT_TILE_IDS);
 }
 
 export function portReferenceMigrationForSavedVoyage(payload, topology, currentPlacements) {

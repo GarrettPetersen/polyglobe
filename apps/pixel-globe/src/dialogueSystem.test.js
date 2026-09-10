@@ -1,3 +1,4 @@
+import { dialogueOptionGroups, dialogueOptionMeasurementWidths, dialogueRegularOptionRows } from "./dialoguePanelLayout.js";
 import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import { grantPersonalTradePass } from "./sovereignTradeAccess.js";
 import assert from "node:assert/strict";
@@ -6028,6 +6029,21 @@ test("opening a funded shipyard atomically creates its portfolio and readable wo
   assert.ok(yard.playerAccounts);
   const ledger = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(ledger.presentation.kind, "player-shipyard-ledger");
+  // Exercise the real tab transitions and the row contract used by keyboard
+  // and mouse-wheel navigation, not just the custom ledger renderer.
+  const tabs = ledger.options.filter(({ action }) => action.type === "shipyard-ledger-tab").map(({ action }) => action.tab);
+  assert.deepEqual(tabs, ["yard", "materials", "books", "upgrades"]);
+  for (const tab of tabs) {
+    const before = portDialogueView(session, city, gameState, economy, [city], context);
+    const index = before.options.findIndex(({ action }) => action.type === "shipyard-ledger-tab" && action.tab === tab);
+    assert.equal(before.options[index].disabled, false);
+    selectPortDialogueOption(session, city, gameState, economy, [city], index, context);
+    const view = portDialogueView(session, city, gameState, economy, [city], context);
+    assert.equal(view.presentation.tab, tab);
+    const rows = dialogueRegularOptionRows(view, dialogueOptionGroups(view.options).regular);
+    assert.equal(rows.find(row => row[0].option.rowId === "shipyard-ledger-tabs").length, tabs.length);
+    assert.doesNotThrow(() => dialogueOptionMeasurementWidths({ options: view.options, width: 400, optionColumns: view.optionColumns }));
+  }
 });
 
 test("a proactive shipyard offer can be declined back into the arrival queue", () => {
@@ -6244,7 +6260,10 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
     admittedToPort: true
   });
   const view = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.equal(view.optionColumns, 3);
+  assert.equal(view.optionColumns, 4);
+  assert.doesNotThrow(() => dialogueOptionMeasurementWidths({options:view.options,width:400,optionColumns:view.optionColumns}));
+  const rows = dialogueRegularOptionRows(view, dialogueOptionGroups(view.options).regular);
+  assert.equal(rows.find(row=>row[0].option.rowId === "shipyard-ledger-tabs").length,4);
   const saleIndex = view.options.findIndex((entry) => (
     entry.action.type === "sell-shipyard-material" && entry.action.goodId === "timber"
   ));

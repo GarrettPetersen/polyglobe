@@ -10,6 +10,7 @@ import {
   dialogueFeedbackTextLines,
   dialogueOverlayIsVisible,
   dialogueOptionGroups,
+  dialogueRegularOptionRows,
   dialogueOptionLayout,
   dialogueOptionMeasurementWidths,
   dialogueOptionNavigationLayout,
@@ -481,4 +482,15 @@ test("scroll affordances follow the visible dialogue window bounds", () => {
   assert.equal(bottom.end, 5);
   assert.equal(bottom.canScrollUp, true);
   assert.equal(bottom.canScrollDown, false);
+});
+
+
+test("four shipyard tabs share a selectable row for wheel, keyboard and measurement", () => {
+  const view = {optionColumns:4,options:["yard","materials","books","upgrades"].map(tab=>({
+    label:tab,rowId:"shipyard-ledger-tabs",action:{type:"shipyard-ledger-tab",tab}
+  }))};
+  const rows=dialogueRegularOptionRows(view,dialogueOptionGroups(view.options).regular);
+  assert.deepEqual(rows.map(row=>row.map(entry=>entry.index)),[[0,1,2,3]]);
+  assert.deepEqual(dialogueOptionMeasurementWidths({...view,width:400}),[97,97,97,97]);
+  assert.throws(()=>dialogueRegularOptionRows({...view,optionColumns:3},dialogueOptionGroups(view.options).regular),/exceeds its column count/);
 });

@@ -327,7 +327,7 @@ export function dialogueOptionMeasurementWidths({
     if (!Number.isFinite(value)) throw new Error(`Invalid dialogue option measurement ${label}`);
   }
   if (width <= 0) throw new Error("Dialogue option measurement width must be positive");
-  if (!Number.isInteger(optionColumns) || optionColumns < 1 || optionColumns > 3) {
+  if (!Number.isInteger(optionColumns) || optionColumns < 1 || optionColumns > 4) {
     throw new Error(`Unsupported dialogue option measurement column count: ${optionColumns}`);
   }
   if (regularWidthReserve < 0 || regularWidthReserve >= width) {
@@ -587,4 +587,27 @@ export function dialogueOptionWindow({
 
 function clampInteger(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, Math.trunc(value)));
+}
+
+export function dialogueRegularOptionRows(view, entries) {
+  if (view.optionColumns === undefined || view.optionColumns === 1) {
+    return entries.map((entry) => [entry]);
+  }
+  if (!Number.isInteger(view.optionColumns) || view.optionColumns < 2 || view.optionColumns > 4) {
+    throw new Error(`Unsupported dialogue option column count: ${view.optionColumns}`);
+  }
+  const rows = [];
+  for (const entry of entries) {
+    const rowId = entry.option.rowId;
+    const previous = rows.at(-1);
+    if (rowId && previous?.[0]?.option.rowId === rowId) {
+      if (previous.length >= view.optionColumns) {
+        throw new Error(`Dialogue option row exceeds its column count: ${rowId}`);
+      }
+      previous.push(entry);
+    } else {
+      rows.push([entry]);
+    }
+  }
+  return rows;
 }

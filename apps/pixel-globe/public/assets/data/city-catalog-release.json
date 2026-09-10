@@ -72,7 +72,7 @@
     "src/portAssaultGround.js": "12b6c6c020c9cc9fcc5e6b05aa99ccb701e9494dc35af92d99ba62f0fe5bba34",
     "src/portAssaultSteering.js": "89df94170f3f7cf241d91bf8888b8414ed2d07bc68908f6f57c521417386e1b5",
     "src/portAssaultTactics.js": "444f7444d5649182c25ff3d6014be42172fad767552ed308b194b62e44e800b8",
-    "src/portCatalogMigration.js": "096af73b882ad323cb4ba6f6cbe1d608ec7e5c2f51e939cfabeaed65251b7c8e",
+    "src/portCatalogMigration.js": "12a8c90f6f30799d11e3720e6aac138db73fdb54b68aead2223d3bcc30fda863",
     "src/portCityServices.js": "e459bce751816d8b54da49723fd700e67b52ecbcbe84e66a477e2d5d3ed76997",
     "src/portDialoguePersonality.js": "597ff0eefac84db5ad5565cccaa4925b5a1ef01ffa4e651bca3ef09a66083287",
     "src/portGreetingStyle.js": "334245bdcbaafc705aa06383b54f1d6296f4096bf9377dbe0edd83a2a11a1286",
@@ -92,12 +92,13 @@
     "src/shipStats.js": "c8cadff6ddd156f4983d56dfa65bb8e10fada9db4c1990dc636ecfd3143a4de7",
     "src/shipyardListingPresentation.js": "a8800d5d045975ad9c8d646df259bd863bb081244eb69b2368e32455543300ba",
     "src/staticAssetFetch.js": "502a7a5b5c2efc6f5c8fc7093d9c16e7ef183b1146e1cf1ab8f847b0506a0f1e",
-    "src/subdivisionEightMapData.js": "b0e282d89c92c6953606e1c1a7be2cb3200406ae0799aca88651361ba5853668",
-    "src/subdivisionSevenPortMigration.js": "254f4b9a4e5b7d5621c056cd14ba30bbdbebfbc753853e515148fa919380d2af",
+    "src/subdivisionEightMapData.js": "cfa3e89ce3ff1624ff9e28bf30839a055bc10d4415302f245fcc98765aa3a236",
+    "src/subdivisionSevenPortMigration.js": "ae5be5d13647b5eef8d43d1a14e485b22a07ad2811533c95861254daa8e159d8",
     "src/terrainMetadata.js": "caedd99411b0f38f90fc0f8f0bc414ecfcde780b02129f37514ff19a745e5838",
     "src/terrainSurface.js": "95c00856b2684786e891e32771306b63c1e689269897dc2edf439754aced9541",
     "src/test-fixtures/city-catalog-releases/1.json": "27d920fe5fce67329a9da7923141800c8c59713c2b5c81b90e3730330b2aad55",
     "src/test-fixtures/city-catalog-releases/10.json": "e0befb24d386dba9877bc7962615bb609c389aa36f9a19ec16df8706fc0dfb78",
+    "src/test-fixtures/city-catalog-releases/11.json": "ef452cf28545f45bce4ff25b4968289b6c858a7758f8c46e3632235b178d27a0",
     "src/test-fixtures/city-catalog-releases/2.json": "ddccbb4ba9cdabed04477f55fa13afb8441bd7879a1c7a3ea0dc461ed8e4062e",
     "src/test-fixtures/city-catalog-releases/3.json": "e8dcd8dadf27c13c899b8440546d9368a235d8d2272be8c6cd842bce1fa5961b",
     "src/test-fixtures/city-catalog-releases/4.json": "55928c32486bd2447b567112c96c2a9a931f0f71bf64bb6e125c0aca9f54a0d4",
@@ -117,15 +118,15 @@
     "tools/build-city-visualizer-catalog.mjs": "ba23d86012acea8c364670a6ac2d0ad27ec20227a81bfb5f61855230979db5e7",
     "tools/build-land-roads.mjs": "78e6d4317213db674e1e60cf006df4528b3783c6345b65f5f420b20cb58a4f00",
     "tools/build-port-sailing-distances.mjs": "5e2f30259ac1879d477578878c0b37a5977265c6fa03971e092d57584bc2c74f",
-    "tools/build-subdivision-eight-map-data.mjs": "c5959536088bb87ff27fb2a4ff6dfc12b1a45d170817811cfc1abdcc1a2d97d2",
+    "tools/build-subdivision-eight-map-data.mjs": "d4031062150af43d330367c35829bd17b16149e321d4876dc524beb5ce4a39a2",
     "tools/finalize-city-catalog.mjs": "8bbd3eb9c04c77bd43a47d58668ea8c9e04f35d2f662388f081d27dbb39072f8",
     "tools/seasonal-colony-access.mjs": "de37d4e3ab23163b4d3d7428b5ef38f2b1901714d3249bb403b9815ce2468312",
     "tools/update-city-catalog.mjs": "bcdbee55ab7a6f510e0e74a8ad0b84cc69c506c5956c80d3522baf72644a70f8"
   },
   "artifacts": {
-    "public/assets/data/port-sailing-distances.json": "58de8d99e15c558375b000daa454b4549a79d04662a2a348193e0bee4ef7c0c1",
+    "public/assets/data/port-sailing-distances.json": "9ecd7901bdad9bd177de7120ce43bacea18ab2ceb4fcf4220ee5863060b0bf2c",
     "public/assets/data/land-roads.json": "6efa1da44237e5f46f576f64f9d991211eaae310203d85ff80b311d5addf8ee5",
-    "city-visualizer/data/cities.json": "4d0f047dd4dfa9a7bdfb42cf1964ee2246516cc2645c4301b20f6a01b5e5d332",
+    "city-visualizer/data/cities.json": "1dfeddaff49ece49564c217bf29d0d2dd8c91aefe6fcf4a58aa4b7028b2ebbe1",
     "src/colonySeasonalAccessData.js": "cc2ef146a4a6176c1156d58f3e9c0517d859f0b199c08194bc5d1732b8e2c2f9"
   }
 }

@@ -75,6 +75,13 @@ const GAMEPLAY_SEQUENCE_KINDS = new Set(["sail", "fight", "pillage", "colonize",
 const fixtures = frozenSaveFixtures();
 const reachabilityOptions = parseReachabilityArguments(process.argv.slice(2));
 const releaseReachability = reachabilityOptions.release;
+const smokeFocus = process.env.PIXEL_GLOBE_SMOKE_FOCUS;
+if (smokeFocus !== undefined && smokeFocus !== "port-regressions") {
+  throw new Error(`Unknown save-restore smoke focus: ${smokeFocus}`);
+}
+if (smokeFocus && releaseReachability) {
+  throw new Error("Release reachability must run the complete browser matrix");
+}
 const gameplayScenarioIds = productionGameplayScenarioIds(
   releaseReachability,
   reachabilityOptions.scenarioId
@@ -171,85 +178,91 @@ try {
     `Save-restore runtime initialized in ${Math.round(performance.now() - startedAt)} ms\n`
   );
 
-  for (const fixture of fixtures) {
-    const restored = await withTimeout(
-      page.evaluate(async ({ serialized }) => (
-        window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized)
-      ), fixture),
-      RESTORE_TIMEOUT_MS,
-      `${fixture.name} runtime restore`
-    );
-    await assertNoBrowserFailure(page, browserErrors, fixture.name);
-    if (restored.gameStateVersion !== GAME_STATE_VERSION) {
-      throw new Error(
-        `${fixture.name} restored game-state version ${restored.gameStateVersion}/${GAME_STATE_VERSION}`
+  if (smokeFocus === "port-regressions") {
+    await exercisePlayerShipyardSaveRoundTrips(page, fixtures.at(-1).serialized, browserErrors);
+    await exercisePirateCoveSaveRoundTrip(page, browserErrors);
+  } else {
+    for (const fixture of fixtures) {
+      const restored = await withTimeout(
+        page.evaluate(async ({ serialized }) => (
+          window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized)
+        ), fixture),
+        RESTORE_TIMEOUT_MS,
+        `${fixture.name} runtime restore`
+      );
+      await assertNoBrowserFailure(page, browserErrors, fixture.name);
+      if (restored.gameStateVersion !== GAME_STATE_VERSION) {
+        throw new Error(
+          `${fixture.name} restored game-state version ${restored.gameStateVersion}/${GAME_STATE_VERSION}`
+        );
+      }
+      if (restored.shipTypeSlug !== fixture.shipTypeSlug) {
+        throw new Error(
+          `${fixture.name} restored ship ${restored.shipTypeSlug}/${fixture.shipTypeSlug}`
+        );
+      }
+      if (!Number.isInteger(restored.chartTileCount) || restored.chartTileCount <= 0) {
+        throw new Error(`${fixture.name} restored without a populated chart`);
+      }
+      process.stdout.write(
+        `  ${fixture.name}: v${fixture.gameStateVersion} -> v${restored.gameStateVersion}, ` +
+          `${restored.shipTypeSlug}, ${restored.cityCallCount} visible cities\n`
       );
     }
-    if (restored.shipTypeSlug !== fixture.shipTypeSlug) {
-      throw new Error(
-        `${fixture.name} restored ship ${restored.shipTypeSlug}/${fixture.shipTypeSlug}`
-      );
+    process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
+    await exerciseSavedStartMenu(context, baseUrl);
+    await exercisePlayerShipyardSaveRoundTrips(page, fixtures.at(-1).serialized, browserErrors);
+    await exercisePirateCoveSaveRoundTrip(page, browserErrors);
+    await exerciseExeterCanalSaveRoundTrips(page, fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION).serialized, browserErrors);
+    await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.find(fixture => fixture.gameStateVersion === GAME_STATE_VERSION).serialized);
+    const forecast = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectAssaultForecast());
+    assert.ok(forecast.requestDurationMs < 500, `Assault forecast blocked entry for ${forecast.requestDurationMs} ms`);
+    await assertNoBrowserFailure(page, browserErrors, "asynchronous assault forecast");
+    process.stdout.write(`  Assault forecast: entry ${Math.round(forecast.requestDurationMs)} ms, completed ${Math.round(forecast.durationMs)} ms, ${forecast.ticks} responsive waits.\n`);
+    await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.find(fixture => fixture.gameStateVersion === GAME_STATE_VERSION).serialized);
+    await exerciseMarketExits(page, browserErrors);
+    await exerciseCrewManagementSaveRoundTrips(page, browserErrors);
+    await exerciseDjenneSaveRoundTrips(page, browserErrors);
+    await exerciseInaccessibleDiscoverySaveRoundTrips(page, browserErrors);
+    await exerciseRetiredPortraitSaveRoundTrips(page, browserErrors);
+    await exerciseColonySaveRoundTrips(page, browserErrors);
+    await exerciseSeasonalColonyDialogues(page, fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION).serialized, browserErrors);
+    await exerciseChefSaveRoundTrips(page, browserErrors);
+    await exerciseLandmassChannelRestore(page, browserErrors);
+    await exerciseSoundDuesRoundTrips(page, browserErrors);
+    const navalFixtureName = "dense-local-save-v2-game-state-v103.json";
+    const navalFixture = browserAdaptedDenseFixture(JSON.parse(readFileSync(path.join(FIXTURE_ROOT, navalFixtureName), "utf8")), navalFixtureName);
+    await page.evaluate((serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), JSON.stringify(navalFixture));
+    const navalReport = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectNavalCasualtyReport());
+    if (navalReport.report.deaths !== 2 || navalReport.report.wounded !== 1 || navalReport.retained !== 3 || navalReport.pending !== 0) {
+      throw new Error(`Naval casualty roll did not preserve and acknowledge the restored casualties: ${JSON.stringify(navalReport)}`);
     }
-    if (!Number.isInteger(restored.chartTileCount) || restored.chartTileCount <= 0) {
-      throw new Error(`${fixture.name} restored without a populated chart`);
+    await assertNoBrowserFailure(page, browserErrors, "restored naval casualty roll");
+    process.stdout.write("  Naval casualty roll rendered individual sailors and a named companion, then saved its acknowledgement.\n");
+
+    const gameplayFailures = [];
+    for (const scenarioId of gameplayScenarioIds) {
+      browserErrors.length = 0;
+      try {
+        await exerciseProductionGameplayScenario(page, browserErrors, baseUrl, scenarioId);
+      } catch (error) {
+        if (!releaseReachability || page.isClosed()) throw error;
+        gameplayFailures.push({ scenarioId, message: error.message });
+        process.stderr.write(`  FAILED ${scenarioId}: ${error.message}\n`);
+      }
+    }
+    if (gameplayFailures.length > 0) {
+      throw new Error(
+        `Production gameplay reachability rejected ${gameplayFailures.length} scenario(s):\n` +
+          gameplayFailures.map(({ scenarioId, message }) => `- ${scenarioId}: ${message}`).join("\n")
+      );
     }
     process.stdout.write(
-      `  ${fixture.name}: v${fixture.gameStateVersion} -> v${restored.gameStateVersion}, ` +
-        `${restored.shipTypeSlug}, ${restored.cityCallCount} visible cities\n`
+      `Production gameplay reachability passed for ${gameplayScenarioIds.length} ` +
+        `${releaseReachability ? "release" : "representative"} scenarios.\n`
     );
+    if (catalogRequests.length) throw new Error(`Production loaded mutable city catalogs: ${catalogRequests.join(", ")}`);
   }
-  process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
-  await exerciseSavedStartMenu(context, baseUrl);
-  await exercisePlayerShipyardSaveRoundTrips(page, fixtures.at(-1).serialized, browserErrors);
-  await exerciseExeterCanalSaveRoundTrips(page, fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION).serialized, browserErrors);
-  await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.find(fixture => fixture.gameStateVersion === GAME_STATE_VERSION).serialized);
-  const forecast = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectAssaultForecast());
-  assert.ok(forecast.requestDurationMs < 500, `Assault forecast blocked entry for ${forecast.requestDurationMs} ms`);
-  await assertNoBrowserFailure(page, browserErrors, "asynchronous assault forecast");
-  process.stdout.write(`  Assault forecast: entry ${Math.round(forecast.requestDurationMs)} ms, completed ${Math.round(forecast.durationMs)} ms, ${forecast.ticks} responsive waits.\n`);
-  await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.find(fixture => fixture.gameStateVersion === GAME_STATE_VERSION).serialized);
-  await exerciseMarketExits(page, browserErrors);
-  await exerciseCrewManagementSaveRoundTrips(page, browserErrors);
-  await exerciseDjenneSaveRoundTrips(page, browserErrors);
-  await exerciseInaccessibleDiscoverySaveRoundTrips(page, browserErrors);
-  await exerciseRetiredPortraitSaveRoundTrips(page, browserErrors);
-  await exerciseColonySaveRoundTrips(page, browserErrors);
-  await exerciseSeasonalColonyDialogues(page, fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION).serialized, browserErrors);
-  await exerciseChefSaveRoundTrips(page, browserErrors);
-  await exerciseLandmassChannelRestore(page, browserErrors);
-  await exerciseSoundDuesRoundTrips(page, browserErrors);
-  const navalFixtureName = "dense-local-save-v2-game-state-v103.json";
-  const navalFixture = browserAdaptedDenseFixture(JSON.parse(readFileSync(path.join(FIXTURE_ROOT, navalFixtureName), "utf8")), navalFixtureName);
-  await page.evaluate((serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), JSON.stringify(navalFixture));
-  const navalReport = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectNavalCasualtyReport());
-  if (navalReport.report.deaths !== 2 || navalReport.report.wounded !== 1 || navalReport.retained !== 3 || navalReport.pending !== 0) {
-    throw new Error(`Naval casualty roll did not preserve and acknowledge the restored casualties: ${JSON.stringify(navalReport)}`);
-  }
-  await assertNoBrowserFailure(page, browserErrors, "restored naval casualty roll");
-  process.stdout.write("  Naval casualty roll rendered individual sailors and a named companion, then saved its acknowledgement.\n");
-
-  const gameplayFailures = [];
-  for (const scenarioId of gameplayScenarioIds) {
-    browserErrors.length = 0;
-    try {
-      await exerciseProductionGameplayScenario(page, browserErrors, baseUrl, scenarioId);
-    } catch (error) {
-      if (!releaseReachability || page.isClosed()) throw error;
-      gameplayFailures.push({ scenarioId, message: error.message });
-      process.stderr.write(`  FAILED ${scenarioId}: ${error.message}\n`);
-    }
-  }
-  if (gameplayFailures.length > 0) {
-    throw new Error(
-      `Production gameplay reachability rejected ${gameplayFailures.length} scenario(s):\n` +
-        gameplayFailures.map(({ scenarioId, message }) => `- ${scenarioId}: ${message}`).join("\n")
-    );
-  }
-  process.stdout.write(
-    `Production gameplay reachability passed for ${gameplayScenarioIds.length} ` +
-      `${releaseReachability ? "release" : "representative"} scenarios.\n`
-  );
-  if (catalogRequests.length) throw new Error(`Production loaded mutable city catalogs: ${catalogRequests.join(", ")}`);
   await context.close();
 } finally {
   await browser.close();
@@ -938,4 +951,16 @@ async function exerciseMarketExits(page, browserErrors) {
     await assertNoBrowserFailure(page, browserErrors, `${mode} market exit`);
     process.stdout.write(`  ${mode} market exited to ${result.nextNodeId} in ${Math.round(result.actionDurationMs)} ms; city scene and save remained valid.\n`);
   }
+}
+
+async function exercisePirateCoveSaveRoundTrip(page, browserErrors) {
+  const fixture = fixtures.find(fixture => fixture.gameStateVersion === GAME_STATE_VERSION);
+  await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixture.serialized);
+  const revealed = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectPirateCove({ showMercy: true }));
+  await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), revealed.serialized);
+  const restored = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectPirateCove());
+  assert.equal(restored.cityId, revealed.cityId);
+  assert.equal(restored.coveLocationId, revealed.coveLocationId);
+  assert.deepEqual(browserErrors, []);
+  process.stdout.write("  Mercy reveals Valencia cove alongside its host city; chart and save reload succeed.\n");
 }

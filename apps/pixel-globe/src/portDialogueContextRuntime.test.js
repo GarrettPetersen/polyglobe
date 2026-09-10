@@ -11,6 +11,7 @@ test("repeated market context refreshes do not search worldwide shipyard listing
   const city = { cityId: "suez|egypt", tileId: 1, factionId: "mamluks" };
   let searches = 0;
   const context = {
+    portCityView: null,
     dialogueState: { kind: "port", cityId: city.cityId, nodeId: "market" },
     gameState: { playerCharacter: { homePortCityId: city.cityId, name: "Captain" } },
     cityById: new Map([[city.cityId, city]]), cityByTileId: new Map([[1, city]]),
@@ -21,7 +22,7 @@ test("repeated market context refreshes do not search worldwide shipyard listing
     nearestShipyardListingForPort: () => { searches++; return { portId: "basra|iraq" }; },
     shipyardRumorForPort: () => { searches++; return { portId: "basra|iraq" }; }
   };
-  for (const name of ["chartPortCallById", "colonizationSiteIsRuined", "shipyardAtPort", "chefFeastInputBlocked",
+  for (const name of ["chartCityCallByLocationId", "colonizationSiteIsRuined", "shipyardAtPort", "chefFeastInputBlocked",
     "weatherLocalHour", "currentPortArrivalGreetingPresented", "playerShipPrivateeringPower", "nearbyPortTraffic",
     "stormIntensityForTile", "factionReputation", "portPoliticalRivalTerms", "sailingDistanceBetweenPorts",
     "portEntryStatus", "shoreBatteryRecoveryStatus", "ensureShoreBatteryState", "playerPortConquestStatus",

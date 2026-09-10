@@ -59,8 +59,15 @@ export async function exercisePlayerShipyardSaveRoundTrips(page, serializedFixtu
   }
   const purchased = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectShipyardUpgrade("storage", { purchase: true }));
   assert.equal(purchased.upgrade.disabled, true, "another expansion requires a new opportunity");
-  for (const tab of ["yard", "materials", "books"]) {
+  for (const tab of ["yard", "materials", "books", "upgrades"]) {
     await page.evaluate((tab) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectShipyardUpgrade("storage", { tab }), tab);
+    // A custom renderer can succeed while generic navigation rejects its rows.
+    // Exercise the same wheel/key path that crashed for the playtester on every tab.
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowUp");
+    await page.mouse.wheel(0, 100);
+    await page.waitForTimeout(100);
+    assert.deepEqual(browserErrors, [], `shipyard ${tab} navigation`);
     await page.screenshot({ path: join(screenshotDirectory, `${tab}.png`) });
   }
   const reserved = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectShipyardUpgrade("supply-ship", { supplyState: "reserve" }));

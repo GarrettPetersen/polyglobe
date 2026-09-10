@@ -92,7 +92,7 @@ test("city rendering receives live weather and market modes use the compact head
 test("city rendering receives every live city name instead of retaining its baked label", () => {
   const synchronization = functionSource("synchronizePortCityScene", "beginPortCityIllicitCaughtPresentation");
   assert.match(synchronization, /const city = currentPortCitySceneCity\(\)/);
-  assert.doesNotMatch(synchronization, /chartPortCallById\(portCityView\.portId\)/);
+  assert.doesNotMatch(synchronization, /chartCityCallByLocationId\(portCityView\.portId\)/);
   const currentCity = functionSource("currentPortCitySceneCity", "portCitySceneAssetOptions");
   assert.match(currentCity, /requireEntityById\(cityById, portCityView\.cityId, "Port city view"\)/);
   assert.match(currentCity, /pirateHideoutPortsByTileId\.get\(city\.tileId\)/);

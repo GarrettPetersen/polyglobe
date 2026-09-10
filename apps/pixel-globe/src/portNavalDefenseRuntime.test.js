@@ -25,7 +25,7 @@ test("a deliberate first cannon impact calls defenders before the battery is dis
       beginPlayerInitiatedShoreCombat: () => battery.engagedTargetIds.add("player"),
       playNavalImpactSound() {}, weatherClockMinutes: 100, shoreBatteryAttackerShipLabel: () => "Attacker",
       NEUTRAL_FACTION_ID: "neutral", PIRATE_FACTION_ID: "pirate",
-      chartPortCallById: () => ({ cityId: "lisbon" }), NPC_PORT_RESPONSE_ATTACK, NPC_PORT_ATTACK_ALERT_MINUTES,
+      chartCityCallByLocationId: () => ({ cityId: "lisbon" }), NPC_PORT_RESPONSE_ATTACK, NPC_PORT_ATTACK_ALERT_MINUTES,
       orderPortNavalResponse: (...args) => orders.push(args),
       damageShoreBattery: () => ({ newlyDisabled: false }),
       addHullSplinterBurst() {}, cityArtKeyForCity: () => "port", requireEntityById: () => ({}), cityById: new Map(),

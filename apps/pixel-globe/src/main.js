@@ -1,3 +1,4 @@
+import { chartCityLocationId, indexChartCityLocations } from "./chartCityLocations.js";
 import { offscreenCannonCue, CANNON_CUE_DURATION_MS } from "./offscreenCannonCue.js";
 import { createPortAssaultForecastClient } from "./portAssaultForecastClient.js";
 import { createWorldMutationBoundary, dispatchActionEffects } from "./runtimeTransitions.js";
@@ -1563,6 +1564,7 @@ import {
   dialogueFeedbackTextLines,
   dialogueOverlayIsVisible,
   dialogueOptionGroups,
+  dialogueRegularOptionRows,
   dialogueOptionMeasurementWidths,
   dialogueOptionNavigationLayout,
   dialogueOptionStackLayout,
@@ -7248,10 +7250,10 @@ function platformActivity(displayToken, description, mode, parameters = {}) {
 
 function platformActivityPort() {
   if (portWaitState) {
-    return chartPortCallById(portWaitState.portId) || cityById.get(portWaitState.cityId) || null;
+    return chartCityCallByLocationId(portWaitState.portId) || cityById.get(portWaitState.cityId) || null;
   }
   if (dialogueState?.kind === "port") {
-    return chartPortCallById(dialogueState.portId) || cityById.get(dialogueState.cityId) || null;
+    return chartCityCallByLocationId(dialogueState.portId) || cityById.get(dialogueState.cityId) || null;
   }
   return null;
 }
@@ -16915,6 +16917,28 @@ function installSaveRestoreSmokeHarness() {
         optionRects: dialogueLayout.optionRects, width: SCREEN_W, height: SCREEN_H,
         serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
     },
+    async inspectPirateCove({ showMercy = false } = {}) {
+      if (running) throw new Error("Pirate cove smoke requires an idle voyage");
+      const cityId = "valencia|spain";
+      const hideout = [...pirateHideoutPortsByTileId.values()].find(city => city.cityId === cityId);
+      if (!hideout) throw new Error("Pirate cove smoke requires the Valencia hideout");
+      if (showMercy) {
+        adjustFactionReputation(gameState, "pirate", -26 - factionReputation(gameState, "pirate"));
+        recordShipMercyForFaction(gameState, "pirate");
+      }
+      if (!pirateHideoutsVisibleToPlayer(gameState)) throw new Error("Pirate mercy failed to reveal coves");
+      if (playerIntroModal) closePlayerIntroModal();
+      placeCapturePlayerNearTile(hideout.tileId, { headingDeg: 0 });
+      refreshWorldSpatialStaticEntries();
+      const city = chartCityCallByLocationId(cityId);
+      const cove = chartCityCallByLocationId(chartCityLocationId(hideout));
+      if (!city || !cove || city === cove) throw new Error("City and cove must coexist on the chart");
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      if (!saveVoyageNow("pirate cove smoke checkpoint")) throw new Error("Pirate cove smoke could not save");
+      await waitForSaveRestoreSmokePersistence();
+      return { cityId: city.cityId, coveLocationId: chartCityLocationId(cove),
+        serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
+    },
     async inspectShipyardArrival() {
       if (running) throw new Error("Shipyard arrival smoke requires an idle voyage");
       if (playerIntroModal) closePlayerIntroModal();
@@ -21774,10 +21798,11 @@ function openActiveInteractionDialogue() {
 
 function ensurePortCityView(cityCall) {
   const cityId = requireCityId(cityCall, "Port city entry");
-  if (portCityView?.cityId === cityId) return;
+  if (portCityView?.cityId === cityId &&
+      portCityView.sourceKind === (cityCall.isPirateHideout ? "pirate-hideout" : "city")) return;
   // Quest sessions may carry catalog cities rather than projected chart calls.
   const projectedCity = Number.isFinite(cityCall.spriteX) && Number.isFinite(cityCall.spriteY)
-    ? cityCall : chartPortCallById(cityId);
+    ? cityCall : chartCityCallByLocationId(chartCityLocationId(cityCall));
   if (!projectedCity) throw new Error(`Cannot open city scene without a projected port: ${cityId}`);
   activatePortCityView(projectedCity);
 }
@@ -25340,7 +25365,7 @@ function completePlayerPortConquest(
   applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
   clearCombatForShip(PLAYER_COMBAT_ID);
   npcCombatProjectiles = npcCombatProjectiles.filter((shot) => shot.targetId !== PLAYER_COMBAT_ID);
-  const capturedCity = chartPortCallById(event.portId) || portCitiesByTileId.get(event.cityTileId);
+  const capturedCity = chartCityCallByLocationId(event.portId) || portCitiesByTileId.get(event.cityTileId);
   if (!capturedCity) throw new Error(`Captured port disappeared: ${event.portId}`);
   if (capturedCity.factionId !== event.previousFactionId &&
       event.previousFactionId !== NEUTRAL_FACTION_ID &&
@@ -26643,7 +26668,7 @@ function resetSurvivalDamageTimers() {
 
 function stopWaitingInPort() {
   if (!portWaitState) return false;
-  const city = chartPortCallById(portWaitState.portId) || cityById.get(portWaitState.cityId);
+  const city = chartCityCallByLocationId(portWaitState.portId) || cityById.get(portWaitState.cityId);
   const character = city?.character || (city
     ? portCityStaffMember(city, PORT_CITY_STAFF_ROLE.HARBOUR_MASTER)
     : null);
@@ -27955,7 +27980,9 @@ function currentCityStaffCharacter(city) {
 function currentDialogueCity() {
   if (!dialogueState) throw new Error("No active dialogue session");
   if (dialogueState.kind === "port") {
-    const portCall = chartPortCallById(dialogueState.portId);
+    const locationId = portCityView?.cityId === dialogueState.cityId
+      ? chartCityLocationId(currentPortCitySceneCity()) : dialogueState.portId;
+    const portCall = chartCityCallByLocationId(locationId);
     if (portCall) {
       if (portDialogueHasCaptainSpeaker(dialogueState) || colonizationSiteIsRuined(portCall)) {
         const character = gameState.playerCharacter;
@@ -28027,7 +28054,8 @@ function currentDialogueCity() {
       };
     }
   }
-  const placedCity = cityById.get(dialogueState.cityId);
+  const placedCity = portCityView?.cityId === dialogueState.cityId
+    ? currentPortCitySceneCity() : cityById.get(dialogueState.cityId);
   if (!placedCity) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityId}`);
   const city = dialogueState.kind === "port"
     ? restorePortDialogueCityIdentity(dialogueState, placedCity)
@@ -28062,12 +28090,12 @@ function currentDialogueCity() {
   };
 }
 
-function chartPortCallById(portId) {
-  if (!portId || !chart) return null;
-  if (!(chart.cityCallByPortId instanceof Map)) {
+function chartCityCallByLocationId(locationId) {
+  if (!locationId || !chart) return null;
+  if (!(chart.cityCallByLocationId instanceof Map)) {
     throw new Error("Chart has no indexed port calls");
   }
-  return chart.cityCallByPortId.get(portId) || null;
+  return chart.cityCallByLocationId.get(locationId) || null;
 }
 
 function invalidateDialogueView() {
@@ -28149,7 +28177,8 @@ function playerShipyardSupplyStatusText(yard) {
 function portDialogueContext() {
   const city = dialogueState?.cityId === undefined
     ? null
-    : chartPortCallById(dialogueState.portId) || cityById.get(dialogueState.cityId);
+    : portCityView?.cityId === dialogueState.cityId ? currentPortCitySceneCity()
+      : chartCityCallByLocationId(dialogueState.portId) || cityById.get(dialogueState.cityId);
   // Ruins have no economy, staff, passenger offers, or port authority. Their
   // inspection and departure actions need only the simulation clock.
   if (colonizationSiteIsRuined(city)) return { simMinute: Math.floor(weatherClockMinutes) };
@@ -28719,7 +28748,8 @@ function activeExhaustedWhaleFinishTarget() {
 
 function interactionTargetKey(target) {
   if (!target?.kind || !target.call) throw new Error("Controller interaction target requires a kind and call");
-  const id = target.call.portId ?? target.call.id ?? target.call.tileId;
+  const id = target.kind === "port" ? chartCityLocationId(target.call)
+    : target.call.id ?? target.call.tileId;
   if (id === undefined || id === null) throw new Error(`Controller ${target.kind} target has no identity`);
   return `${target.kind}:${id}`;
 }
@@ -34938,7 +34968,7 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
   const attackerLabel = shoreBatteryAttackerShipLabel(ball.ownerId);
   if (!ball.portable && !accidentalFriendlyFire &&
       battery.factionId !== NEUTRAL_FACTION_ID && battery.factionId !== PIRATE_FACTION_ID) {
-    const city = chartPortCallById(battery.portId);
+    const city = chartCityCallByLocationId(battery.portId);
     if (!city) throw new Error(`Attacked shore battery has no port: ${battery.portId}`);
     orderPortNavalResponse(city, battery.factionId, NPC_PORT_RESPONSE_ATTACK,
       simMinute + NPC_PORT_ATTACK_ALERT_MINUTES);
@@ -35010,7 +35040,7 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
     return;
   }
   destroyShoreBatteryGunpowderStore(battery);
-  const disabledCity = chartPortCallById(battery.portId);
+  const disabledCity = chartCityCallByLocationId(battery.portId);
   if (!disabledCity) throw new Error(`Disabled shore battery has no port: ${battery.portId}`);
   if (hitByPlayer && !accidentalFriendlyFire) {
     markPlayerPortAssault(gameState.memory.flags, disabledCity, battery.disabledUntilMinute);
@@ -35058,7 +35088,7 @@ function attemptNpcPortConquest(battery, npcShipId) {
   if (!batteryPoint || Math.hypot(npc.x - batteryPoint.x, npc.y - batteryPoint.y) > PORT_CONQUEST_NPC_LANDING_RANGE_PX) {
     return false;
   }
-  const city = chartPortCallById(battery.portId);
+  const city = chartCityCallByLocationId(battery.portId);
   if (!city) throw new Error(`NPC conquest port is not visible: ${battery.portId}`);
   if (Math.random() >= npcPortConquestChance(city)) return false;
 
@@ -35082,7 +35112,7 @@ function attemptNpcPortConquest(battery, npcShipId) {
   clearPlayerPortRaid(gameState.memory.flags, city);
   const conqueringFaction = factionById(strategic.factionId);
   applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
-  const capturedCity = chartPortCallById(event.portId) || portCitiesByTileId.get(event.cityTileId);
+  const capturedCity = chartCityCallByLocationId(event.portId) || portCitiesByTileId.get(event.cityTileId);
   if (!capturedCity) throw new Error(`NPC-captured port disappeared: ${event.portId}`);
   if (capturedCity.factionId !== event.previousFactionId &&
       event.previousFactionId !== NEUTRAL_FACTION_ID &&
@@ -35100,7 +35130,7 @@ function attemptNpcPortConquest(battery, npcShipId) {
 }
 
 function beginPlayerInitiatedShoreCombat(battery) {
-  const city = chartPortCallById(battery.portId);
+  const city = chartCityCallByLocationId(battery.portId);
   if (!city) throw new Error(`Player shore attack has no visible port: ${battery.portId}`);
   const attackStatus = playerPortAttackStatus(gameState, city);
   if (!attackStatus.available) throw new Error(attackStatus.reason || `Cannot attack ${battery.portId}`);
@@ -37098,7 +37128,7 @@ function refreshWorldSpatialStaticEntries() {
     (chart.cityCalls || [])
       .filter((call) => Number.isFinite(call.x) && Number.isFinite(call.y))
       .map((call) => ({
-        id: `port:${requireCityId(call, "Spatial port entry")}`,
+        id: `port:${chartCityLocationId(call)}`,
         x: call.x,
         y: call.y,
         radius: 0,
@@ -38829,7 +38859,7 @@ function shoreBatteryWeapon(state) {
 function shoreBatteryPoint(batteryId) {
   const state = shoreBatteryStates.get(batteryId);
   if (!state || !chart) return null;
-  const call = chartPortCallById(state.portId);
+  const call = chartCityCallByLocationId(state.portId);
   if (!call) return null;
   return { x: call.x, y: call.y - 2 };
 }
@@ -38956,14 +38986,14 @@ function fireShoreBatteryAtNearestTarget(state) {
 
 function consumeShoreBatteryGunpowder(state, weapon) {
   if (weapon.kind !== NAVAL_WEAPON_CANNON) return null;
-  const city = chartPortCallById(state.portId);
+  const city = chartCityCallByLocationId(state.portId);
   if (!city) throw new Error(`Firing shore battery has no economy port: ${state.portId}`);
   return consumePortGoodStock(worldEconomy, city, GUNPOWDER_GOOD_ID, state.gunCount);
 }
 
 function destroyShoreBatteryGunpowderStore(state) {
   if (shoreBatteryWeapon(state).kind !== NAVAL_WEAPON_CANNON) return null;
-  const city = chartPortCallById(state.portId);
+  const city = chartCityCallByLocationId(state.portId);
   if (!city) throw new Error(`Disabled shore battery has no economy port: ${state.portId}`);
   return destroyPortGoodStock(worldEconomy, city, GUNPOWDER_GOOD_ID);
 }
@@ -46198,13 +46228,7 @@ function assembleChart(chartCamera, chartCenterTileId, projectedVisible) {
     for (const { city, tileCall } of citySpecs) cityCalls.push(makeCityCall(city, tileCall, placementChart));
     cityCalls.sort((a, b) => a.sortY - b.sortY || a.tileId - b.tileId);
   });
-  const cityCallByPortId = new Map();
-  for (const call of cityCalls) {
-    if (cityCallByPortId.has(call.portId)) {
-      throw new Error(`Chart contains duplicate port id: ${call.portId}`);
-    }
-    cityCallByPortId.set(call.portId, call);
-  }
+  const cityCallByLocationId = indexChartCityLocations(cityCalls);
 
   return {
     ...chartCamera,
@@ -46220,7 +46244,7 @@ function assembleChart(chartCamera, chartCenterTileId, projectedVisible) {
     terrainCoverageBounds: chartTerrainCoverageBounds(tileCalls, TILE_ART_HALF),
     driftSampleCalls,
     cityCalls,
-    cityCallByPortId
+    cityCallByLocationId
   };
 }
 
@@ -59998,7 +60022,7 @@ function drawGpuWorldObjects(activeChart, offset, nowMs) {
       .filter((call) => !call.hiddenSettlement)
       .map((call) => ({
         kind: "city",
-        id: call.portId,
+        id: chartCityLocationId(call),
         sortY: call.sortY + offset.y,
         call
       }))
@@ -67319,29 +67343,6 @@ function dialogueOptionEntriesHeight(view, font, width, entries) {
       minimumHeight
     ).height
   ), minimumHeight);
-}
-
-function dialogueRegularOptionRows(view, entries) {
-  if (view.optionColumns === undefined || view.optionColumns === 1) {
-    return entries.map((entry) => [entry]);
-  }
-  if (!Number.isInteger(view.optionColumns) || view.optionColumns < 2 || view.optionColumns > 3) {
-    throw new Error(`Unsupported dialogue option column count: ${view.optionColumns}`);
-  }
-  const rows = [];
-  for (const entry of entries) {
-    const rowId = entry.option.rowId;
-    const previous = rows.at(-1);
-    if (rowId && previous?.[0]?.option.rowId === rowId) {
-      if (previous.length >= view.optionColumns) {
-        throw new Error(`Dialogue option row exceeds its column count: ${rowId}`);
-      }
-      previous.push(entry);
-    } else {
-      rows.push([entry]);
-    }
-  }
-  return rows;
 }
 
 function dialogueSelectableOptionRows(view) {

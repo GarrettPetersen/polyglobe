@@ -7029,7 +7029,7 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
     expressionId: payout ? "pleased" : "attentive",
     text: payoutText,
     feedback: session.feedback,
-    optionColumns: 3,
+    optionColumns: 4,
     presentation: {
       kind: "player-shipyard-ledger",
       tab,

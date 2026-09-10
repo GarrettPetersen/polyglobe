@@ -168,9 +168,9 @@ test("released Exeter voyages go to Topsham once while current inland identity s
   assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: PORT_CATALOG_VERSION }, topology), null);
 });
 
-test("version-seven ports stay unchanged apart from the later Exeter project relocation", () => {
+test("version-seven ports migrate only the later Exeter and Connecticut placements", () => {
   const migration = sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 7 }, {
     savedSubdivisions: 8, currentSubdivisions: 8
   });
-  assert.deepEqual([...migration], [[644452, 161147]]);
+  assert.deepEqual([...migration], [[298724, 18749], [18749, 298710], [644452, 161147]]);
 });

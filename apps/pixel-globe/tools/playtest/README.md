@@ -123,6 +123,17 @@ Domain traces retain deterministic minimization. Each browser process has a
 30-minute timeout in the soak and a 400-action mission budget; failure to reach its objectives
 fails the run, including pilot limitations, instead of silently skipping the case.
 
+The release browser matrix opens all four owned-shipyard tabs (ships, stores,
+accounts, upgrades), uses keyboard and wheel navigation on each, and exercises
+available, purchased, reserved and lost supply-ship upgrade states. Normal dialogue
+tests also select every ledger tab and validate its generic navigation rows. The
+matrix reveals Valencia's pirate cove through mercy and saves/reloads beside it.
+For a focused browser regression without a soak, after building run:
+
+```sh
+PIXEL_GLOBE_SMOKE_FOCUS=port-regressions node tools/run-save-restore-smoke.mjs
+```
+
 Regression tests also advance the coupled economy and NPC fleet through ten
 years and 120 save/load cycles. Compact-save tests verify that retained
 surrendered hulls prevent reconstructed shipyards from selling their IDs again.

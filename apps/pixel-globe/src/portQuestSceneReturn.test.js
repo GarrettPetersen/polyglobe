@@ -1,3 +1,4 @@
+import { chartCityLocationId } from "./chartCityLocations.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -9,10 +10,10 @@ const entryCode = source.slice(source.indexOf("function ensurePortCityView("), s
 function entryRuntime(runtime) {
   return Object.assign(runtime, {
     requireCityId: city => { assert.ok(city.cityId); return city.cityId; },
-    assertPortRootScene, createPortDialogueSession,
+    assertPortRootScene, createPortDialogueSession, chartCityLocationId,
     portCityView: runtime.portCityView ?? null,
-    chartPortCallById: cityId => ({ cityId, spriteX: 1, spriteY: 2 }),
-    activatePortCityView(city) { runtime.activations = (runtime.activations || 0) + 1; runtime.portCityView = { cityId: city.cityId }; },
+    chartCityCallByLocationId: cityId => ({ cityId, spriteX: 1, spriteY: 2 }),
+    activatePortCityView(city) { runtime.activations = (runtime.activations || 0) + 1; runtime.portCityView = { cityId: city.cityId, sourceKind: city.isPirateHideout ? "pirate-hideout" : "city" }; },
     colonizationSiteIsRuined: () => false,
     clearPausedView() {}, queuePortCitySceneSync() {}, dialogueViewCache: {},
     stopShipForDialogue() {}, ensureDialoguePortraitLoaded() {}, createDialogueLayoutState: () => ({})
@@ -56,7 +57,7 @@ test("legacy city-root escapes fail while scene loading and entry dialogues rema
 
 test("opening a passenger dialogue establishes its city scene and preserves an existing landing", () => {
   const opening = source.slice(source.indexOf("function openPassengerDialogue("), start);
-  for (const existing of [null, { cityId: "bremen|germany", arrivalGreetingPresented: true }]) {
+  for (const existing of [null, { cityId: "bremen|germany", sourceKind: "city", arrivalGreetingPresented: true }]) {
     const runtime = entryRuntime({ gameState: {}, portCityView: existing, markPassengerOfferSeen() {},
       createWorldPassengerDialogueSession: (city, quest, options) => ({ kind: "passenger", cityId: city.cityId, ...options }) });
     vm.runInNewContext(`${entryCode}\n${opening}\nopenPassengerDialogue({ cityId: "bremen|germany" }, {})`, runtime);
@@ -98,7 +99,7 @@ test("opening a scene does not grant city admission and missing projections fail
   assert.equal(runtime.dialogueState.admittedToPort, false);
   assert.throws(() => api.openPortMenu(city, { initialNodeId: "root", admittedToPort: false }), /City root escaped/);
   runtime.portCityView = null;
-  runtime.chartPortCallById = () => null;
+  runtime.chartCityCallByLocationId = () => null;
   assert.throws(() => api.openPortMenu(city, { initialNodeId: "barred" }), /without a projected port/);
 });
 
