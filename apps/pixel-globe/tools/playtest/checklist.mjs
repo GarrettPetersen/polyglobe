@@ -40,7 +40,7 @@ export function checklistMenuCommand(state, goal) {
   const node = id => choose(action => action.nodeId === id);
   const location = id => state.locations.includes(id) ? { type: "location", id } : null;
   const back = () => choose(action => action.nodeId === "root" || action.type === "leave-market") ||
-    choose(action => ["inn-drink", "equipment"].includes(action.nodeId));
+    choose(action => ["greeting", "inn-drink", "equipment"].includes(action.nodeId));
   switch (goal) {
     case "provision": return choose(action => action.type === "select-loadout" && action.loadoutId === state.gameState.ship.loadoutId) ||
       node("loadout") || location("port-authority") || location("market") || back();
@@ -123,7 +123,7 @@ export async function runBrowserChecklist({ command, initialState, random, check
       }
       if (state.locations.includes("set-sail")) { await act({ type: "location", id: "set-sail" }); continue; }
       const option = state.options.find(option => !option.disabled &&
-        (option.action.type === "close" || ["root", "inn-drink", "equipment"].includes(option.action.nodeId) ||
+        (option.action.type === "close" || ["root", "greeting", "inn-drink", "equipment"].includes(option.action.nodeId) ||
           option.action.type === "leave-market"));
       assert.ok(option, `No ordinary exit from ${state.nodeId}`);
       await act({ type: "choose", id: option.id });

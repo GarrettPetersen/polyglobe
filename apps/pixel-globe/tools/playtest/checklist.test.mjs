@@ -26,6 +26,15 @@ test("planner chooses offered enabled actions and routes around disabled purchas
   assert.deepEqual(checklistMenuCommand(state, "buy-cargo"), { type: "choose", id: "root" });
 });
 
+test("mission planning follows a colony arrival continuation into the port", () => {
+  const state = { locations: [], options: [
+    { id: "greeting", disabled: false, action: { type: "node", nodeId: "greeting" } },
+    { id: "deliver", disabled: true, action: { type: "deliver-colonization-material" } }
+  ] };
+
+  assert.deepEqual(checklistMenuCommand(state, "mission"), { type: "choose", id: "greeting" });
+});
+
 test("sale plan selects the actual market mode and refuses unknown goals", () => {
   const state = { locations: [], options: [{ id: "sell-mode", action: { type: "switch-market-mode", mode: "sell" } }] };
   assert.deepEqual(checklistMenuCommand(state, "sell-cargo"), { type: "choose", id: "sell-mode" });
