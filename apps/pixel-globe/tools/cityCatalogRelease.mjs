@@ -101,7 +101,7 @@ export async function currentCatalogSnapshot(appRoot = APP_ROOT) {
   const endpoints = [...projects, ...ports, ...colonies.filter(({ tileId }) => !portTiles.has(tileId))];
   const roadRecord = (city) => ({ tileId: city.tileId, name: cityLabelText(city), country: city.country });
   const byTile = (a, b) => a.tileId - b.tileId;
-  assert.deepEqual(roads.cities, [...placed.values()].map(roadRecord).sort(byTile), "Regenerate land roads for the current city catalog");
+  assert.deepEqual(roads.cities, [...placed.values()].filter(city => !city.isPirateHideout).map(roadRecord).sort(byTile), "Regenerate land roads for the current city catalog");
   assert.deepEqual(sailing.endpoints, [
     ...ports.map((city) => ({ ...roadRecord(city), kind: "port" })),
     ...projects.map((city) => ({ ...roadRecord(city), kind: "project" })),

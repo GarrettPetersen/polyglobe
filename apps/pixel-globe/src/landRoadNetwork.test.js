@@ -61,8 +61,8 @@ test("baked land roads use adjacent, passable land tiles and connect Aleppo west
 
   assert.deepEqual(
     roads.cities.map((city) => city.tileId).sort((a, b) => a - b),
-    [...cityByTileId.keys()].sort((a, b) => a - b),
-    "land-road city endpoints must match the live placed city catalog"
+    [...cityByTileId.values()].filter(city => !city.isPirateHideout).map(city => city.tileId).sort((a, b) => a - b),
+    "land roads connect ordinary settlements, never secluded pirate havens"
   );
   assert.ok(roads.routes.length >= 250);
   for (const route of roads.routes) {

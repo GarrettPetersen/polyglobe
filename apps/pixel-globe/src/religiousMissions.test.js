@@ -152,6 +152,13 @@ test("the September Testament visits three Catholic factors before completion", 
   assert.equal(quest.destinationTileId, quest.itinerary.stops[0].tileId);
   assert.deepEqual(quest.itinerary.completedCityIds, []);
   assert.match(quest.dialogue.offer, /three hidden ports/);
+  const colony = port(27, "Port Royal", "Canada", "france", "northern-european");
+  assert.equal(passengerOfferForCity(state, origin, [origin, ...destinations, colony], {
+    spawnChance: 1, religiousMissionId: "september-testament", simMinute: 0,
+    destinationCityId: colony.cityId, sailingDistanceKm: () => 850,
+    portFactorReligionId: () => "roman-catholic"
+  }), null, "European-style colonial architecture must not put a colony on the Testament itinerary");
+
 });
 
 test("the September Testament offer does not consume an ordinary passenger offer", () => {

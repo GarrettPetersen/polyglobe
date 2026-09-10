@@ -1,4 +1,6 @@
-import { withColonialFounding, colonizationSiteIsRuined } from "./colonialCities.js";
+import { pirateHavenCityRecords } from "./pirateHavenCatalog.js";
+import { withColonialFounding } from "./colonialCities.js";
+import { citySiteIsRuined } from "./citySiteState.js";
 import { CITY_GEOGRAPHY_CORRECTIONS } from "./cityGeographyCorrections.js";
 import {
   MANUAL_CITY_RECORDS_1522,
@@ -206,7 +208,7 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
   ensureFactionCapitalsInCityCatalog(cities, bestByCity);
   ensureManualCitiesInCityCatalog(cities, bestByCity);
   if (cities.length === 0) throw new Error(`City dataset produced no cities for year ${targetYear}`);
-  return cities;
+  return [...cities, ...pirateHavenCityRecords(cities)];
 }
 
 function ensureManualCityRecords(bestByCity, targetYear) {
@@ -426,7 +428,7 @@ export function cityIsInEurope(city) {
 export function cityArtKeyForCity(city) {
   if (!city || typeof city !== "object") throw new Error("City art requires a city record");
   if (!CITY_TYPE_KEYS.includes(city.cityType)) throw new Error(`Unknown city type: ${city.cityType}`);
-  if (colonizationSiteIsRuined(city)) return "ruins";
+  if (citySiteIsRuined(city)) return "ruins";
   if (city.settlementType === "village") return "village";
   if (
     city.cityType === "mesoamerican" &&

@@ -1026,6 +1026,7 @@ function familyNamePlanForSubject(nameCulture, cultureId, subject) {
 }
 
 function localNameCultureForSubject(subject) {
+  if (subject.pirateCulture === "wokou") return "japanese";
   if (subject.playerFoundedColony === true) {
     if (typeof subject.foundingFactionId !== "string" || subject.foundingFactionId === "") {
       throw new Error(`Player-founded colony has no founding faction: ${subject.cityId}`);

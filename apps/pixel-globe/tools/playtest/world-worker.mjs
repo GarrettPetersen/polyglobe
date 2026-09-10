@@ -1,4 +1,5 @@
-import { parsePortSailingDistances } from "../../src/portSailingDistances.js";
+import { pirateHavenQuestOffer, acceptPirateHavenQuest, seizePirateRevengeItem, completePirateHavenQuest, ruinPirateHaven, pirateHavenIsRuined } from "../../src/pirateHavens.js";
+import { parsePortSailingDistances, portSailingDistanceKm } from "../../src/portSailingDistances.js";
 import { shipyardUpgradeOffers } from "../../src/shipyardUpgrades.js";
 import { PORT_CATALOG_VERSION } from "../../src/portCatalogMigration.js";
 import { initialCampaignCities } from "./world-catalog.mjs";
@@ -46,7 +47,7 @@ export function createWorkerVoyage(seed = "worker-interruption", { startMinute =
   applyPortConquestOwnership(gameState.memory.conquest, cities);
   fisheryForHabitat(gameState, { tileId: 1, kind: "lake", lat: -1, lon: 33 }, startMinute);
   const worldEconomy = economy.createWorldEconomy({ ports: cities, shipyardPorts: ports.filter(p => p.services.shipyard), startMinute, seedKey: seed });
-  const npcSeaRoutes = fleet.createNpcSeaRouteSystem({ portSailingDistances, ports, economy: worldEconomy, startMinute, seedKey: seed, fishState: gameState, whaleMemory: gameState.memory.whales, fishingGroundIsNavigable: () => true,
+  const npcSeaRoutes = fleet.createNpcSeaRouteSystem({ portSailingDistances, ports, economy: worldEconomy, startMinute, seedKey: seed, fishState: gameState, whaleMemory: gameState.memory.whales, pirateHavenMemory: gameState.memory.pirateHavens, fishingGroundIsNavigable: () => true,
     relationBetween: (a, b) => diplomacyBetweenForState(gameState, a, b),
     sovereignTradeOpenToFaction: (id, factionId) => sovereignTradeOpenToFaction(gameState, id, factionId) });
   const landTradeSystem = land.createLandTradeSystem({ roads, cities, economy: worldEconomy, startMinute, seedKey: seed });
@@ -121,6 +122,7 @@ export function snapshotWorkerVoyage(voyage) {
     landTrade: land.snapshotLandTradeSystem(voyage.landTradeSystem) };
 }
 export function restoreWorkerVoyage(voyage, saved) {
+  voyage.npcSeaRoutes.pirateHavenMemory = voyage.gameState.memory.pirateHavens;
   applyPortConquestOwnership(voyage.gameState.memory.conquest, voyage.cities);
   economy.restoreWorldEconomy(voyage.worldEconomy, saved.economy);
   if (saved.playerShipyards !== undefined) restorePlayerShipyardSnapshot(voyage.worldEconomy.shipyards, saved.playerShipyards, {
@@ -182,6 +184,7 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
   let steps = 0;
   let captures = 0;
   let politicalEvents = 0;
+  let pirateCommissions = 0;
   try {
     await driver.reset(voyage, month * 30 * 1440);
     for (let iteration = 0; iteration < months; iteration++) {
@@ -202,12 +205,33 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
           if (++steps > months * 500000) throw new Error("Worker campaign exceeded incremental commit budget");
         }
         assertFleetSaleIntegrity(voyage);
+        for (const pirate of voyage.npcSeaRoutes.ships.filter(ship => ship.role === fleet.NPC_ROLE_PIRATE && ship.hiddenAtHideout)) {
+          assert.ok(!pirateHavenIsRuined(voyage.gameState.memory.pirateHavens, pirate.currentPort.cityId, tick), `Pirate resupplied in ruined ${pirate.currentPort.cityId}`);
+        }
       }
       assertFleetSaleIntegrity(voyage);
       if (month % 2 === 0) {
         const prize = voyage.npcSeaRoutes.ships.find(ship => ship.role === fleet.NPC_ROLE_MERCHANT && !ship.surrendered && ship.hitPoints > 0);
         assert.ok(prize, "Campaign needs an eligible merchant prize");
+        const memory = voyage.gameState.memory.pirateHavens;
+        const haven = voyage.npcSeaRoutes.pirateHideouts.find(port => !pirateHavenIsRuined(memory, port.cityId, minute));
+        assert.ok(haven, "Campaign requires an operational haven");
+        const commissionContext = { havens: [haven], merchants: [{ ...prize, captainName: `Captain ${prize.id}` }],
+          simMinute: minute, sailingDistanceKm: (a, b) => portSailingDistanceKm(portSailingDistances, a, b) };
+        const offer = pirateHavenQuestOffer(memory, haven, commissionContext);
+        assert.ok(offer, "Real merchant must be reachable for revenge commission");
+        acceptPirateHavenQuest(memory, offer);
         fleet.surrenderNpcShip(voyage.npcSeaRoutes, prize.id, null, { preserveHull: true });
+        assert.ok(seizePirateRevengeItem(memory, prize));
+        completePirateHavenQuest(voyage.gameState, haven.cityId, "revenge", minute);
+        pirateCommissions++;
+        if (month % 8 === 2) {
+          const issuer = voyage.ports.find(port => port.cityId === "lisbon|portugal");
+          acceptPirateHavenQuest(memory, pirateHavenQuestOffer(memory, issuer, commissionContext));
+          ruinPirateHaven(memory, haven.cityId, minute);
+          completePirateHavenQuest(voyage.gameState, issuer.cityId, "suppression", minute);
+          pirateCommissions++;
+        }
         const captured = fleet.captureSurrenderedNpcShip(voyage.npcSeaRoutes, prize.id, minute);
         registerShipyardTradeIn(voyage.worldEconomy.shipyards, { cityId: "lisbon|portugal" }, {
           shipSlug: captured.ship.slug, seller: "campaign-captain", acquiredMinute: minute
@@ -227,6 +251,6 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
       onCheckpoint({ version: 1, seed, month, gameState: voyage.gameState, world });
       await driver.reset(voyage, minute);
     }
-    return { months, endingMonth: month, captures, politicalEvents, incrementalSteps: steps, fleetSize: voyage.npcSeaRoutes.ships.length };
+    return { months, endingMonth: month, captures, pirateCommissions, politicalEvents, incrementalSteps: steps, fleetSize: voyage.npcSeaRoutes.ships.length };
   } finally { await driver.close(); }
 }

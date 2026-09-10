@@ -7,10 +7,10 @@ import { buildPlayerPirateHideoutPorts } from "./piratePorts.js";
 import { chartCityLocationId, indexChartCityLocations } from "./chartCityLocations.js";
 import { createSpatialHash } from "./spatialHash.js";
 
-test("revealing a pirate cove keeps both it and Valencia selectable without duplicating market identity", () => {
+test("revealing a pirate cove keeps both it and Valencia selectable with separate market identities", () => {
   const city = { cityId: "valencia|spain", portId: "valencia|spain", tileId: 42,
     city: "Valencia", country: "Spain", factionId: "spain" };
-  const [hideout] = buildPlayerPirateHideoutPorts([city]);
+  const [hideout] = buildPlayerPirateHideoutPorts([{ ...city, cityId: "pirate-haven-14", portId: "pirate-haven-14", tileId: 43, factionId: "pirate", isPirateHideout: true }]);
   const voyage = createGameState({ cargoCapacity: 20 });
   adjustFactionReputation(voyage, "pirate", -26 - factionReputation(voyage, "pirate"));
   assert.equal(pirateHideoutsVisibleToPlayer(voyage),false);
@@ -28,10 +28,11 @@ test("revealing a pirate cove keeps both it and Valencia selectable without dupl
   assert.doesNotThrow(()=>spatial.replaceKind("port",[city,hideout].map(call=>({
     id:chartCityLocationId(call),x:0,y:0,radius:0,value:call
   }))));
-  assert.equal(hideout.cityId,city.cityId);
-  assert.equal(hideout.portId,city.portId);
+  assert.notEqual(hideout.cityId,city.cityId);
+  assert.notEqual(hideout.portId,city.portId);
   assert.notEqual(chartCityLocationId(city),chartCityLocationId(hideout));
   assert.throws(()=>indexChartCityLocations([city,city]),/duplicate city location/);
+  assert.throws(()=>indexChartCityLocations([city,{...city,isPirateHideout:true}]),/duplicate city location/);
   assert.throws(()=>indexChartCityLocations([hideout,hideout]),/duplicate city location/);
 });
 
@@ -39,13 +40,13 @@ test("the active cove resolves its own dialogue and ordinary Valencia retains it
   const source = readFileSync(new URL("./main.js",import.meta.url),"utf8");
   const code = source.slice(source.indexOf("function currentDialogueCity()"),source.indexOf("function chartCityCallByLocationId("));
   const city = {cityId:"valencia|spain",portId:"valencia|spain",character:{name:"Harbour master"}};
-  const hideout = {...city,isPirateHideout:true,character:{name:"Cove keeper"}};
+  const hideout = {...city,cityId:"pirate-haven-14",portId:"pirate-haven-14",isPirateHideout:true,character:{name:"Cove keeper"}};
   const index = indexChartCityLocations([city,hideout]);
   for (const location of [city,hideout]) {
-    const runtime = {dialogueState:{kind:"port",nodeId:"market",cityId:city.cityId,portId:city.portId},
-      portCityView:{cityId:city.cityId},currentPortCitySceneCity:()=>location,chartCityLocationId,
+    const runtime = {dialogueState:{kind:"port",nodeId:"market",cityId:location.cityId,portId:location.portId},
+      portCityView:{cityId:location.cityId},currentPortCitySceneCity:()=>location,chartCityLocationId,
       chartCityCallByLocationId:id=>index.get(id),portDialogueHasCaptainSpeaker:()=>false,
-      colonizationSiteIsRuined:()=>false,currentCityStaffCharacter:()=>city.character,characterExpression:()=>"neutral"};
+      citySiteIsRuined:()=>false,currentCityStaffCharacter:()=>city.character,characterExpression:()=>"neutral"};
     const selected = vm.runInNewContext(`${code}\ncurrentDialogueCity()`,runtime);
     assert.equal(selected.character,location.character);
     assert.equal(selected.isPirateHideout,location.isPirateHideout);

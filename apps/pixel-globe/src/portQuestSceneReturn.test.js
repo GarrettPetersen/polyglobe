@@ -14,7 +14,7 @@ function entryRuntime(runtime) {
     portCityView: runtime.portCityView ?? null,
     chartCityCallByLocationId: cityId => ({ cityId, spriteX: 1, spriteY: 2 }),
     activatePortCityView(city) { runtime.activations = (runtime.activations || 0) + 1; runtime.portCityView = { cityId: city.cityId, sourceKind: city.isPirateHideout ? "pirate-hideout" : "city" }; },
-    colonizationSiteIsRuined: () => false,
+    citySiteIsRuined: () => false,
     clearPausedView() {}, queuePortCitySceneSync() {}, dialogueViewCache: {},
     stopShipForDialogue() {}, ensureDialoguePortraitLoaded() {}, createDialogueLayoutState: () => ({})
   });
@@ -116,6 +116,6 @@ test("an alert cannot hand the city root back to the old modal renderer", () => 
   const ownerCode = source.slice(source.indexOf('function portCityRootPresentationIsOwned()'), source.indexOf('function portCityTransitionCenter('));
   const runtime = { dialogueState:{kind:'port',nodeId:'root',cityId:'bremen|germany',admittedToPort:true},
     portCityView:{cityId:'bremen|germany',sceneReady:true}, captainAlertModal:{},
-    assertPortRootScene, colonizationSiteIsRuined:()=>false,currentDialogueCity:()=>({}) };
+    assertPortRootScene, citySiteIsRuined:()=>false,currentDialogueCity:()=>({}) };
   assert.equal(vm.runInNewContext(`${ownerCode}\nportCityRootPresentationIsOwned()`,runtime),true);
 });

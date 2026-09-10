@@ -278,6 +278,7 @@ validateCatalog();
 
 export function cityPopulationProfileId(city) {
   requireCity(city);
+  if (city.pirateCulture === "wokou") return "japanese";
   if (city.factionId === "ainu") return "ainu";
   if (city.cityType === "east-asian") {
     const profileId = EAST_ASIAN_COUNTRY_PROFILE[city.country];

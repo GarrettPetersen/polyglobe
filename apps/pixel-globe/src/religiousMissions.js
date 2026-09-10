@@ -141,6 +141,9 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     passengerReligionIds: ["lutheran"],
     participantReligionIds: PROTESTANT_RELIGIONS,
     originPorts: [CANONICAL_PORTS.HAMBURG, CANONICAL_PORTS.LUBECK, CANONICAL_PORTS.BREMEN],
+    // Architectural style is shared by colonies; this printing network is European.
+    destinationCountries: ["United Kingdom", "France", "Belgium", "Netherlands", "Germany",
+      "Denmark", "Norway", "Sweden", "Finland", "Poland", "Lithuania", "Latvia", "Estonia"],
     destinationCityTypes: ["northern-european"],
     destinationReligionIds: ["roman-catholic"],
     destinationFactorReligionId: "roman-catholic",

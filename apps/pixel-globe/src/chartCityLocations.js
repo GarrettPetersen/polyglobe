@@ -1,10 +1,8 @@
 import { requireCityId } from "./entityIds.js";
 
-// A revealed cove and its host city are separate interaction locations. They
-// deliberately share the host's cityId/portId for markets, routes and saves.
+// Every settlement, including a pirate haven, owns its canonical chart identity.
 export function chartCityLocationId(city) {
-  const cityId = requireCityId(city, "Chart city location");
-  return city.isPirateHideout === true ? `pirate-hideout:${cityId}` : cityId;
+  return requireCityId(city, "Chart city location");
 }
 
 export function indexChartCityLocations(calls) {

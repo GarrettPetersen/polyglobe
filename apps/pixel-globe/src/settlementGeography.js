@@ -1,3 +1,4 @@
+import { PIRATE_HAVEN_SPECS } from "./pirateHavenCatalog.js";
 import { requireCityId } from "./entityIds.js";
 import { SETTLEMENT_LANDMASSES } from "./settlementGeographyData.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
@@ -18,6 +19,11 @@ for (const landmass of SETTLEMENT_LANDMASSES) {
     if (landmassByCityId.has(cityId)) throw new Error(`Duplicate settlement geography: ${cityId}`);
     landmassByCityId.set(cityId, landmass.id);
   }
+}
+
+for (const haven of PIRATE_HAVEN_SPECS) {
+  if (landmassByCityId.has(haven.id)) throw new Error(`Duplicate pirate haven geography: ${haven.id}`);
+  landmassByCityId.set(haven.id, haven.landmassId);
 }
 
 export function reviewedSettlementLandmassId(settlement) {

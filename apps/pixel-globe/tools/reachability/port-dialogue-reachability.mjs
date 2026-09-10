@@ -1,3 +1,4 @@
+import { pirateHavenQuestOffer } from "../../src/pirateHavens.js";
 import { aboardRoster } from "../../src/aboardRoster.js";
 import { nextSeededRandom } from "../../src/seededRandom.js";
 import { readFileSync } from "node:fs";
@@ -524,6 +525,13 @@ function freezeEconomyRecords(economy) {
 
 export function contextForScenario(scenario) {
   return {
+    pirateRevengeTargetPresent: false,
+    get pirateHavenQuestOffer() {
+      return pirateHavenQuestOffer(scenario.gameState.memory.pirateHavens, scenario.city, {
+        havens: scenario.portCities.filter(city => city.isPirateHideout), merchants: [],
+        simMinute: scenario.simMinute ?? 0, sailingDistanceKm: () => 100
+      });
+    },
     random: () => scenario.randomStream === undefined ? 0.75 : nextSeededRandom(scenario.randomStream),
     missionGiftRandom: () => scenario.randomStream === undefined ? 0.75 : nextSeededRandom(scenario.randomStream),
     simMinute: scenario.simMinute ?? 0,

@@ -50,6 +50,7 @@ test("effect batches reject unknown effects before any side effects or saving", 
 test("shared completion establishes quest fleets and synchronizes cargo before saving", () => {
   const calls = [];
   const context = runtimeFunctions(["completeDialogueActionEffects"], {
+    refreshPirateHavenWorld: () => calls.push("pirate-world"),
     dispatchActionEffects, gameState: { doubloons: 10 }, EAST_ASIAN_MISSION_NINGBO: "ningbo",
     isWokouHuntQuest: () => false, isTeaRaceQuest: () => true,
     reconcileForeignSettlementPolitics: () => calls.push("politics"), syncShipCargoFromGameState: () => calls.push("cargo"),
@@ -61,6 +62,9 @@ test("shared completion establishes quest fleets and synchronizes cargo before s
   calls.length = 0;
   context.completeDialogueActionEffects({}, { doubloonsBefore: 10, purchaseIconOrigin: null, saveReason: null });
   assert.ok(!calls.includes("save"), "open transaction ledgers defer persistence");
+  calls.length = 0;
+  context.completeDialogueActionEffects({ pirateHavenQuestChanged: true }, { doubloonsBefore: 10, purchaseIconOrigin: null, saveReason: "pirate commission" });
+  assert.ok(calls.indexOf("pirate-world") < calls.indexOf("save"));
 });
 
 for (const destination of ["sailing", "port-wait", "handoff"]) {

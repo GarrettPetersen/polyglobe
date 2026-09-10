@@ -1,3 +1,4 @@
+import { EXETER_CANAL_TILE_CHAIN } from "../src/exeterCanalNavigation.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,7 +61,7 @@ const cityByTileId = placeCityCatalogOnWorld({
   riverMasks: navigation.riverMasks,
   cities: cityCatalog
 });
-const cities = [...cityByTileId.values()]
+const cities = [...cityByTileId.values()].filter(city => !city.isPirateHideout)
   .map((city) => Object.freeze({
     tileId: city.tileId,
     name: cityLabelText(city),
@@ -168,6 +169,9 @@ function weightedLandPaths({ graph, earthRows, riverMasks, namedPeakTileIds, ori
       continue;
     }
     for (const neighborId of graph.neighbors[current.tileId]) {
+      // Reserve the authored canal alignment before it opens; roads use the bank.
+      const canalIndex = EXETER_CANAL_TILE_CHAIN.indexOf(current.tileId);
+      if (canalIndex >= 0 && Math.abs(EXETER_CANAL_TILE_CHAIN.indexOf(neighborId) - canalIndex) === 1 && EXETER_CANAL_TILE_CHAIN.includes(neighborId)) continue;
       if (terrainRowsNeedLandmassChannel(earthRows[current.tileId], earthRows[neighborId])) continue;
       const isEndpoint = neighborId === origin.tileId || targetByTileId.has(neighborId);
       if (!isEndpoint && !roadTileIsPassable(earthRows[neighborId], {

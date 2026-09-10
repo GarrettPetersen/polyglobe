@@ -266,12 +266,12 @@ export function assignPortCityStaff(
     const usedSourceIds = new Set();
     const staff = {};
     for (const role of PORT_CITY_STAFF_ROLES) {
-      const sourcePool = portCityStaffSources(
+      const sourcePool = (city.isPirateHideout ? piratePortraitSources(manifest, city, excludedSourceIds) : portCityStaffSources(
         manifest,
         role,
         region,
         excludedSourceIds
-      ).filter((source) => !usedSourceIds.has(source.id));
+      )).filter((source) => !usedSourceIds.has(source.id));
       if (sourcePool.length === 0) {
         throw new Error(`${city.cityId} has no distinct portrait source for ${role}`);
       }
@@ -296,7 +296,8 @@ export function assignPortCityStaffMember(
   if (!city || typeof city !== "object") throw new Error("Port staff member requires a city");
   requirePortCityStaffRole(role);
   const region = portraitRegionForCity(city);
-  const sourcePool = portCityStaffSources(manifest, role, region, excludedSourceIds);
+  const sourcePool = city.isPirateHideout ? piratePortraitSources(manifest, city, excludedSourceIds)
+    : portCityStaffSources(manifest, role, region, excludedSourceIds);
   return createPortCityStaffMember(city, role, region, sourcePool, usedNames);
 }
 
@@ -388,16 +389,11 @@ export function assignNpcShipCaptains(
   const assignments = new Map();
   const used = new Set();
   const excluded = sourceIdExclusionSet(excludedSourceIds);
-  const piratePool = manifest.sourceCharacters.filter((source) => (
-    source.roles.includes("captain") && source.roles.includes("pirate") &&
-    !excluded.has(source.id)
-  ));
-  if (piratePool.length === 0) throw new Error("Character portrait manifest has no pirate captains");
   for (const ship of [...npcShips].sort((a, b) => a.id.localeCompare(b.id))) {
     const homeCity = npcCaptainHomeCity(ship, homeCitiesById);
     const region = portraitRegionForNpcShip(ship, homeCity);
     const sourcePool = ship.role === "pirate"
-      ? piratePool
+      ? piratePortraitSources(manifest, ship.encounter?.kind === "wokou-hunt" ? { ...homeCity, pirateCulture: "wokou" } : homeCity, excludedSourceIds)
       : characterSourcesForRole(manifest, "captain", region, {
         excludePirates: true,
         excludedSourceIds
@@ -1067,6 +1063,7 @@ function selectFixedPortraitSource(sourcePool, sourceId, label) {
 }
 
 function portraitRegionForCity(city) {
+  if (city.pirateCulture === "wokou") return "japan";
   const sovereignRegion = sovereignEastAsianPortraitRegion(city);
   if (sovereignRegion) return sovereignRegion;
   if (city.cityType === "east-asian") return "east-asia";
@@ -1141,4 +1138,14 @@ function hashString32(value) {
     h = Math.imul(h, 0x01000193);
   }
   return h >>> 0;
+}
+
+export function piratePortraitSources(manifest, city, excludedSourceIds = []) {
+  const excluded = new Set(excludedSourceIds);
+  const wokou = city.pirateCulture === "wokou";
+  const pool = manifest.sourceCharacters.filter(source => !excluded.has(source.id) && (wokou
+    ? source.sourceDirectory === "Sengoku Samurai Portrait Pack by Retro Diffusion"
+    : source.roles.includes("pirate")));
+  if (!pool.length) throw new Error(`No ${wokou ? "Wokou" : "pirate"} portraits for ${city.cityId}`);
+  return pool;
 }

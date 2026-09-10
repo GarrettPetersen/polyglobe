@@ -1,3 +1,4 @@
+import { pirateHavenCommissionView, selectPirateHavenCommission } from "./pirateHavenDialogue.js";
 import { colonySeasonalAccessWarning } from "./colonySeasonalAccess.js";
 import { activeQuestById } from "./activeQuests.js";
 import { purchaseShipyardUpgrade, shipyardHasAdvancedFacilities } from "./shipyards.js";
@@ -5,7 +6,7 @@ import { SHIPYARD_UPGRADE_IDS, shipyardUpgradeOffers } from "./shipyardUpgrades.
 import { TOPSHAM_CITY_ID, acceptExeterCanalQuest, exeterCanalQuestView, startExeterCanalConstruction } from "./exeterCanal.js";
 import { declineCaptureCommission, playerTradeAdviceByCity } from "./gameState.js";
 import { SOUND_DUES_COLLECTOR_CITY_ID, soundDuesPaymentEligibility } from "./soundDues.js";
-import { colonizationSiteIsRuined } from "./colonialCities.js";
+import { citySiteIsRuined } from "./citySiteState.js";
 import { vikingLongshipAcquisitionEligibility } from "./innQuestTransactions.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import { PORT_CITY_STAFF_ROLE } from "./characterPortraits.js";
@@ -1984,6 +1985,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "caribbean-ginger") {
     return caribbeanGingerView(session, city, gameState);
   }
+  if (session.nodeId === "pirate-haven-commission") return pirateHavenCommissionView(gameState, city, context);
   if (session.nodeId === "exeter-canal") return exeterCanalDialogueView(session, city, gameState, context);
   if (session.nodeId === "chef-quest") return chefQuestView(session, city, gameState, context);
   if (session.nodeId === "colonization") return colonizationView(session, city, gameState, context);
@@ -2136,7 +2138,7 @@ export function selectPortDialogueAction(
   // throughout that handoff; later nodes ignore the retained location.
   if (action.type === "close") return { closed: true };
   if (action.type === "leave-colony-site") {
-    if (!colonizationSiteIsRuined(city)) throw new Error(`Cannot leave a non-ruined colony site: ${city.cityId}`);
+    if (!citySiteIsRuined(city)) throw new Error(`Cannot leave a non-ruined colony site: ${city.cityId}`);
     return { closed: true };
   }
   if (action.type === "inspect-colony-clue") {
@@ -2747,6 +2749,13 @@ export function selectPortDialogueAction(
     session.nodeId = session.questReturnNodeId || "root";
     session.selectedIndex = 0;
     return { closed: false };
+  }
+  if (["accept-pirate-haven-quest", "complete-pirate-haven-quest", "abandon-pirate-haven-quest"].includes(action.type)) {
+    if (session.disguisedEntry || session.nodeId !== "pirate-haven-commission") throw new Error("Pirate commission requires an audience");
+    const result = selectPirateHavenCommission(gameState, city, action, context);
+    session.selectedIndex = 0;
+    session.feedback = result.feedback;
+    return { closed: false, pirateHavenQuestChanged: result.changed };
   }
   if (action.type === "accept-exeter-canal") {
     if (session.disguisedEntry || session.nodeId !== "exeter-canal") throw new Error("Canal commission requires an open audience");
@@ -4839,7 +4848,7 @@ function covertAuthorityView(gameState) {
 }
 
 function colonyClueView(city, gameState) {
-  if (!colonizationSiteIsRuined(city) ||
+  if (!citySiteIsRuined(city) ||
       !["reporting", "complete"].includes(colonizationAftermathAtSite(gameState.memory.colonization, city)?.stage)) {
     throw new Error(`Colony clue dialogue requires the inspected Roanoke site: ${city.cityId}`);
   }
@@ -4854,16 +4863,16 @@ function colonyClueView(city, gameState) {
 
 function rootView(session, city, gameState, economy, portCities, context) {
   return {
-    speaker: colonizationSiteIsRuined(city) ? gameState.playerCharacter.name : speakerName(city),
+    speaker: citySiteIsRuined(city) ? gameState.playerCharacter.name : speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     ...rootNavigationView(session, city, gameState, economy, portCities, context)
   };
 }
 
 function rootNavigationView(session, city, gameState, economy, portCities, context) {
-  if (colonizationSiteIsRuined(city)) {
+  if (citySiteIsRuined(city)) {
     return {
-      text: "No smoke. No voices. The houses were taken down carefully, not burned.",
+      text: city.pirateHavenRuined ? "Charred timbers and broken guns. The raiders have abandoned this anchorage." : "No smoke. No voices. The houses were taken down carefully, not burned.",
       feedback: null,
       options: [
         ...(colonizationAftermathInspectionAvailable(gameState.memory.colonization, city)
@@ -5115,7 +5124,10 @@ function passengerInnRootOptions(session, context, pirateHideout) {
 function specialInnRootOptions(session, city, gameState, context) {
   if (session.disguisedEntry) return [];
   const options = [];
-  if (city.cityId === TOPSHAM_CITY_ID) {
+  if (context.pirateHavenQuestOffer || gameState.memory.pirateHavens[city.isPirateHideout ? "revenge" : "suppression"]) {
+    options.push(option(city.isPirateHideout ? "Hear the pirate captain’s grievance" : "Ask about pirate havens", { type: "node", nodeId: "pirate-haven-commission" }));
+  }
+  if (city.cityId === TOPSHAM_CITY_ID && !exeterCanalQuestView(gameState, city, context.simMinute ?? 0).complete) {
     options.push(option("Speak with Exeter's canal commissioner", { type: "node", nodeId: "exeter-canal" }));
   }
   if (vikingLongshipEnthusiastAtPort(gameState, city)) {

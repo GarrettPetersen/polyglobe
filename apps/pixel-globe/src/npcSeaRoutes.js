@@ -1,3 +1,4 @@
+import { createPirateHavenMemory, validatePirateHavenMemory, pirateHavenIsRuined, PIRATE_HAVEN_REBUILD_MINUTES } from "./pirateHavens.js";
 import { portSailingDistanceKm } from "./portSailingDistances.js";
 import { commissionedShipyard, reservedSupplyShipyard, invalidateSupplyCommissionIndex } from "./shipyardUpgrades.js";
 import { settlementTypeForCity } from "./settlementTypes.js";
@@ -115,7 +116,7 @@ const ROUTE_MONTH_DAYS = WEATHER_DAYS / ROUTE_MONTHS;
 const ROUTE_MONTH_MINUTES = ROUTE_MONTH_DAYS * WEATHER_MINUTES_PER_DAY;
 const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
-export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 8;
+export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 9;
 const ROUTE_WIND_SEED = 90210;
 const NPC_FLEET_TARGET = 212;
 export const NPC_PACIFIC_FLEET_TARGET = 32;
@@ -128,9 +129,6 @@ const NPC_ROUTE_MIN_DURATION_DAYS = 0.45;
 const NATIONAL_CIRCUIT_MIN_SPAN_KM = 1600;
 const NATIONAL_CIRCUIT_MAX_PORTS = 6;
 const NPC_ENCOUNTER_SETTLEMENT_PLAN_LIMIT = 96;
-const PIRATE_HIDEOUT_PORT_FRACTION = 0.06;
-const PIRATE_HIDEOUT_MIN_COUNT = 2;
-const PIRATE_HIDEOUT_MAX_COUNT = 14;
 const PIRATE_HIDEOUT_VISIT_PERCENT = 16;
 const PIRATE_HIDEOUT_RETREAT_HULL_RATIO = 0.5;
 const PIRATE_HIDEOUT_MIN_STAY_MINUTES = 18 * 60;
@@ -514,6 +512,7 @@ export function createNpcSeaRouteSystem({
   portSailingDistances,
   startMinute,
   economy,
+  pirateHavenMemory = createPirateHavenMemory(),
   fishState = null,
   fishingGroundIsNavigable = null,
   whaleMemory = null,
@@ -535,6 +534,7 @@ export function createNpcSeaRouteSystem({
   if (fishState !== null && typeof fishingGroundIsNavigable !== "function") {
     throw new Error("NPC fishing grounds require a navigable-water resolver");
   }
+  validatePirateHavenMemory(pirateHavenMemory);
   if (whaleMemory !== null) validateWhaleMemory(whaleMemory);
   validateOptionalSeedKey(seedKey, "NPC routes");
   if (typeof relationBetween !== "function") throw new Error("NPC sea routes require a diplomacy resolver");
@@ -590,7 +590,8 @@ export function createNpcSeaRouteSystem({
       : [],
     whaleMemory,
     whalingGrounds: whaleMemory ? buildWhalingGrounds() : [],
-    pirateHideouts: choosePirateHideouts(usablePorts),
+    pirateHavenMemory,
+    pirateHideouts: usablePorts.filter(port => port.isPirateHideout === true),
     pirateHideoutDangerUntil: new Map(),
     ships: [],
     shipById: new Map(),
@@ -1579,7 +1580,7 @@ export function restoreNpcSeaRouteSystem(
 ) {
   assertSaveableNpcRouteSystem(system);
   validateOptionalSeedKey(seedKey, "restored NPC routes");
-  if (!snapshot || ![1, 2, 3, 4, 5, 6, 7, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
+  if (!snapshot || ![1, 2, 3, 4, 5, 6, 7, 8, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil) ||
       (snapshot.version >= 3 && !Array.isArray(snapshot.capitalNavalReserveSlots))) {
     throw new Error("Unsupported NPC route save data");
@@ -1631,6 +1632,19 @@ export function restoreNpcSeaRouteSystem(
   system.routeCache.clear();
   system.edgeCostCache.clear();
   canonicalizeSavedNpcRoutePorts(system, ships);
+  if (snapshot.version < 9) {
+    // Old hidden pirates used ordinary cities as aliases. Let them depart from
+    // their actual saved position instead of relocating the ship or its history.
+    for (const ship of ships) {
+      if (ship.role === NPC_ROLE_PIRATE && !ship.encounter && ship.hiddenAtHideout && !ship.currentPort.isPirateHideout) {
+        ship.hiddenAtHideout = false;
+        ship.hiddenUntilMinute = 0;
+        ship.seekingHideout = true;
+        ship.hideoutDestinationTileId = null;
+        assignNpcPlan(system, ship, system.economy.lastMinute);
+      }
+    }
+  }
   const repairedOverextendedShips = repairOverextendedNpcShips(
     system,
     ships,
@@ -2809,22 +2823,6 @@ function npcRouteSpatialObservation(destination) {
     isSavedEncounterPoint(destination);
 }
 
-function choosePirateHideouts(ports) {
-  const count = Math.min(
-    ports.length - 1,
-    PIRATE_HIDEOUT_MAX_COUNT,
-    Math.max(PIRATE_HIDEOUT_MIN_COUNT, Math.round(ports.length * PIRATE_HIDEOUT_PORT_FRACTION))
-  );
-  const discreetPorts = ports.filter((port) => !npcPortHasMajorProtection(port));
-  const candidates = discreetPorts.length >= count ? discreetPorts : ports;
-  return [...candidates]
-    .sort((a, b) => (
-      hashString32(`${requireCityId(a, "Pirate hideout candidate")}|pirate-hideout`) -
-      hashString32(`${requireCityId(b, "Pirate hideout candidate")}|pirate-hideout`)
-    ))
-    .slice(0, count);
-}
-
 function buildWhalingGrounds() {
   return WHALING_GROUND_SPECS.map((spec, index) => ({
     tileId: -2100000000 + index,
@@ -2939,7 +2937,14 @@ export function npcSeaRouteEventSchedule(system) {
         throw new Error(`Hidden NPC pirate unexpectedly has a route plan: ${ship.id}`);
       }
       const dangerUntil = system.pirateHideoutDangerUntil.get(ship.currentPort.tileId) || 0;
-      const minute = Math.max(0, pirateHideoutReleaseMinute(ship, dangerUntil) - ship.clockOffsetMinutes);
+      const ruinedUntil = system.pirateHavenMemory.ruinedUntil[ship.currentPort.cityId] ?? 0;
+      // A newly destroyed haven wakes its occupants immediately, even when the
+      // economy clock trails the player's action by a few simulated minutes.
+      const evacuationMinute = ruinedUntil > system.economy.lastMinute
+        ? Math.max(system.economy.lastMinute, ruinedUntil - PIRATE_HAVEN_REBUILD_MINUTES)
+        : Infinity;
+      const minute = Math.max(0, Math.min(evacuationMinute,
+        pirateHideoutReleaseMinute(ship, dangerUntil) - ship.clockOffsetMinutes));
       if (!Number.isFinite(minute) || minute < 0) {
         throw new Error(`NPC pirate has an invalid hideout release minute: ${ship.id}`);
       }
@@ -3324,7 +3329,7 @@ function removeNpcShipForReplacement(system, ship, clockMinutes) {
   const delayDays = Math.max(
     NPC_REPLACEMENT_MIN_DAYS,
     Math.round(
-      NPC_REPLACEMENT_BASE_DAYS / yardSpeed +
+      NPC_REPLACEMENT_BASE_DAYS / (yardSpeed * (ship.role === NPC_ROLE_PIRATE ? 2 : 1)) +
       hashUnit(`${ship.id}|${ship.portVisits}|replacement-delay`) * NPC_REPLACEMENT_SPREAD_DAYS
     )
   );
@@ -4038,6 +4043,13 @@ function spawnDueNpcReplacements(system, clockMinutes) {
       throw new Error(`NPC replacement id is already active: ${replacement.shipId}`);
     }
     const origin = requiredNpcRoutePort(system, replacement.originCityId, "NPC replacement origin");
+    if (pirateHavenIsRuined(system.pirateHavenMemory, origin.cityId, clockMinutes)) {
+      replacement.readyMinute = system.pirateHavenMemory.ruinedUntil[origin.cityId];
+      system.replacementQueue.push(replacement);
+      system.replacementQueue.sort((a, b) => a.readyMinute - b.readyMinute || a.shipId.localeCompare(b.shipId));
+      changed = true;
+      continue;
+    }
     const shipyardSale = claimNpcShipyardSale(system.economy.shipyards, {
       portId: origin.cityId,
       factionId: replacement.factionId,
@@ -4136,7 +4148,7 @@ function purchaseNpcShipyardFleetGrowth(system, clockMinutes) {
   for (const sale of npcShipyardSales(system.economy.shipyards)) {
     if (purchases >= NPC_SHIPYARD_PURCHASES_PER_MAINTENANCE) break;
     const origin = system.ports.find((port) => port.cityId === sale.portId);
-    if (!origin) continue;
+    if (!origin || pirateHavenIsRuined(system.pirateHavenMemory, origin.cityId, clockMinutes)) continue;
     const upgradingShip = npcShipyardUpgradeCandidate(system, origin, sale);
     if (upgradingShip) {
       claimNpcShipyardSaleById(system.economy.shipyards, sale.id);
@@ -4229,7 +4241,7 @@ function npcShipyardPurchaserForSale(system, origin, sale) {
 
 function chooseNpcReplacementPort(system, ship) {
   if (ship.role === NPC_ROLE_PIRATE) {
-    const hideouts = [...system.pirateHideouts].sort((a, b) => (
+    const hideouts = system.pirateHideouts.filter(port => !pirateHavenIsRuined(system.pirateHavenMemory, port.cityId, system.economy.lastMinute)).sort((a, b) => (
       npcTravelDistanceKm(system, ship.currentPort, a) - npcTravelDistanceKm(system, ship.currentPort, b) || a.tileId - b.tileId
     ));
     if (hideouts.length > 0) return hideouts[0];
@@ -4440,9 +4452,9 @@ function assignNpcPlan(system, ship, startMinute) {
   }
   const origin = ship.currentPort;
   let hideoutDestination = null;
-  if (!ship.finalDestination && pirateShouldVisitHideout(ship)) {
+  if (!ship.finalDestination && system.pirateHideouts.length > 0 && pirateShouldVisitHideout(ship)) {
     hideoutDestination = choosePirateHideoutDestination(system, ship, origin);
-    ship.hideoutDestinationTileId = hideoutDestination.tileId;
+    ship.hideoutDestinationTileId = hideoutDestination?.tileId ?? null;
   } else if (!ship.finalDestination) {
     ship.hideoutDestinationTileId = null;
   }
@@ -4496,11 +4508,12 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
   }
   if (ship.hiddenAtHideout) {
     const dangerUntil = system.pirateHideoutDangerUntil.get(ship.currentPort.tileId) || 0;
-    if (clockMinutes < pirateHideoutReleaseMinute(ship, dangerUntil)) return false;
+    const ruined = pirateHavenIsRuined(system.pirateHavenMemory, ship.currentPort.cityId, clockMinutes - ship.clockOffsetMinutes);
+    if (!ruined && clockMinutes < pirateHideoutReleaseMinute(ship, dangerUntil)) return false;
     ship.hiddenAtHideout = false;
     ship.hiddenUntilMinute = 0;
     ship.seekingHideout = false;
-    ship.hitPoints = ship.maxHitPoints;
+    if (!ruined) ship.hitPoints = ship.maxHitPoints;
     ship.graceUntilPortVisit = 0;
     ship.hideoutCooldownUntilPortVisit = ship.portVisits + 2;
     assignNpcPlan(system, ship, clockMinutes);
@@ -4571,10 +4584,11 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
       break;
     }
     if (ship.role === NPC_ROLE_PIRATE && ship.seekingHideout) ship.finalDestination = null;
-    const reachedHideout = ship.role === NPC_ROLE_PIRATE &&
+    const reachedHideout = ship.role === NPC_ROLE_PIRATE && ship.currentPort.isPirateHideout === true &&
       ship.hideoutDestinationTileId === ship.currentPort.tileId &&
       (!ship.finalDestination || samePort(ship.currentPort, ship.finalDestination));
-    if (reachedHideout) {
+    const ruinedPort = pirateHavenIsRuined(system.pirateHavenMemory, ship.currentPort.cityId, ship.plan.endMinute - ship.clockOffsetMinutes);
+    if (reachedHideout && !ruinedPort) {
       if (npcCargoUnits(ship) > 0) sellNpcCargo(system, ship, ship.currentPort);
       enterPirateHideout(ship, ship.plan.endMinute);
       changed = true;
@@ -4582,7 +4596,7 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
       break;
     }
     const reachedSafePort = npcPortIsSafeForShip(system, ship, ship.currentPort);
-    if (!shipHasCombatGrace(ship) || reachedSafePort) ship.hitPoints = ship.maxHitPoints;
+    if (!ruinedPort && (!shipHasCombatGrace(ship) || reachedSafePort)) ship.hitPoints = ship.maxHitPoints;
     if (reachedSafePort) ship.graceUntilPortVisit = 0;
     const reachedTradingDestination = !ship.finalDestination || samePort(ship.currentPort, ship.finalDestination);
     const commissionedYard = commissionedShipyard(system.economy.shipyards, ship.id);
@@ -4608,7 +4622,7 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
       }
     } else if (reachedTradingDestination) {
       ship.finalDestination = null;
-      if (npcCargoUnits(ship) > 0) sellNpcCargo(system, ship, ship.currentPort);
+      if (!ruinedPort && npcCargoUnits(ship) > 0) sellNpcCargo(system, ship, ship.currentPort);
     }
     recruitNpcPirateAtPort(system, ship);
     assignNpcPlan(system, ship, ship.plan.endMinute);
@@ -4744,7 +4758,8 @@ function chooseNpcDestination(system, ship, origin) {
   const seed = hashString32(`${ship.seed}|${routeLocationIdentity(origin)}|dest`);
   const candidates = system.ports
     .filter(npcRoutePortAcceptsTraffic)
-    .filter((port) => !samePort(port, origin))
+    .filter(port => !port.isPirateHideout || ship.role === NPC_ROLE_PIRATE)
+    .filter((port) => !samePort(port, origin) && !pirateHavenIsRuined(system.pirateHavenMemory, port.cityId, system.economy.lastMinute))
     .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
     .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
     .filter((port) => !shipHasCombatGrace(ship) || npcPortIsSafeForShip(system, ship, port))
@@ -5043,6 +5058,7 @@ function harvestNpcWhalingGround(system, ship, ground, clockMinutes) {
 }
 
 function npcPortIsSafeForShip(system, ship, port) {
+  if (pirateHavenIsRuined(system.pirateHavenMemory, port.cityId, system.economy.lastMinute)) return false;
   if (port.isFishingGround) return true;
   if (ship.role === NPC_ROLE_PIRATE && system.pirateHideouts.some((hideout) => hideout.tileId === port.tileId)) {
     return true;
@@ -5066,6 +5082,7 @@ export function recruitNpcPirateAtPort(system, ship) {
   if (ship.role !== NPC_ROLE_MERCHANT || ship.encounter || ship.replaceOnSink === false ||
       ship.portResponse || ship.nationalCircuitId !== null || shipHasCombatGrace(ship) ||
       reservedSupplyShipyard(system.economy.shipyards, ship.id) ||
+      pirateHavenIsRuined(system.pirateHavenMemory, ship.currentPort.cityId, system.economy.lastMinute) ||
       npcPortHasMajorProtection(ship.currentPort) || ship.currentPort.isFishingGround ||
       ship.currentPort.isWhalingGround) return false;
   const profileSpec = fleetProfileForId(ship.profileId);
@@ -5100,13 +5117,13 @@ function pirateShouldVisitHideout(ship) {
 
 function choosePirateHideoutDestination(system, ship, origin) {
   const candidates = system.pirateHideouts
-    .filter((port) => !samePort(port, origin) && npcPortsShareRouteNetwork(system, origin, port))
+    .filter((port) => !pirateHavenIsRuined(system.pirateHavenMemory, port.cityId, system.economy.lastMinute) && !samePort(port, origin) && npcPortsShareRouteNetwork(system, origin, port))
     .sort((a, b) => (
       npcTravelDistanceKm(system, origin, a) - npcTravelDistanceKm(system, origin, b) ||
       destinationRank(system, origin, a, ship.seed) - destinationRank(system, origin, b, ship.seed)
     ));
-  if (candidates.length === 0) throw new Error(`No pirate hideout destination for ${ship.id}`);
-  return candidates[0];
+  // All havens may be ruined or outside this navigation network. Remain at sea.
+  return candidates[0] || null;
 }
 
 function enterPirateHideout(ship, arrivalMinute) {
@@ -5123,6 +5140,8 @@ function npcMerchantCanTradeAtPort(system, ship, port) {
   // Encounter waypoints are open-water positions, not markets. Applying city
   // trade restrictions to them violates the canonical-city-ID contract.
   if (port?.isFishingGround || port?.isWhalingGround || isSavedEncounterPoint(port)) return true;
+  if (pirateHavenIsRuined(system.pirateHavenMemory, port.cityId, system.economy.lastMinute) ||
+      (port.isPirateHideout && ship.role !== NPC_ROLE_PIRATE)) return false;
   const relation = system.relationBetween(ship.factionId, port.factionId);
   return evaluateTradeAccess({
     port,
@@ -6215,6 +6234,7 @@ function directSailingEfficiency(stats, angleFromWind) {
 
 function rankedProfilePorts(ports, profileSpec) {
   return ports
+    .filter(port => !port.isPirateHideout)
     .filter(profileSpec.portPredicate)
     .filter((port) => (
       profileSpec.mode !== "interregional" ||

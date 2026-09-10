@@ -247,6 +247,7 @@ function visualizerCityRecord({
   const horizonLandmarks = cityHorizonLandmarks(city);
   const services = deriveCityServiceProfile({ ...city, architecture });
   const populationProfileId = cityPopulationProfileId({
+    ...city,
     cityId: city.cityId,
     cityType: city.cityType,
     country: city.country,
@@ -268,6 +269,7 @@ function visualizerCityRecord({
     settlementType: city.settlementType || "city",
     factionId: city.factionId,
     architecture,
+    ...(city.isPirateHideout ? { isPirateHideout: true, pirateCulture: city.pirateCulture, pirateArchitectureStyle: city.pirateArchitectureStyle, territoryId: city.territoryId } : {}),
     services,
     capital: Boolean(city.declaredCapitalFactionId),
     religiousLandmarks: landmarks,
@@ -588,6 +590,7 @@ function dockRule(city, dock, approach) {
 }
 
 function fortificationEstimate(city) {
+  if (city.isPirateHideout) return { fortified: true, confidence: "high", reason: "Defended pirate haven" };
   if (city.settlementType === "town") {
     return { fortified: false, confidence: "provisional", reason: "Small port town; no defensive enclosure declared" };
   }

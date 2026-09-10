@@ -286,3 +286,22 @@ against the synchronous battle model. Browser cycles require the pending attack
 button to become enabled with odds and reject entry stalls over 500 ms. Worker
 errors and stale/replaced requests are tested explicitly; no odds are fabricated
 while the calculation is pending.
+
+## Pirate haven coverage
+
+The browser release matrix visits every authored haven, opens its service and
+commission menus, lands in its ruins, and restores the resulting save. It accepts
+both commission types through live dialogue. The revenge test invokes the real
+prize-loot transition for the named merchant; the suppression test simulates a real
+ground assault and settles its casualty report and reward. This is bounded fixture
+coverage, not a claim that the bot independently navigates and wins naval combat.
+
+The persistent worker campaign also accepts revenge commissions against its real
+merchant hulls, captures them, returns the heirloom, and destroys a haven every
+eight months. Its subsequent world advances check that pirates do not hide or
+resupply there during the six-month rebuilding period. These states cross worker
+messages and save/restore boundaries alongside politics and shipyard activity.
+
+For a short browser check after building:
+`PIXEL_GLOBE_SMOKE_FOCUS=pirate-havens node tools/run-save-restore-smoke.mjs`.
+All browser tests use disposable storage; they do not overwrite a player's save.

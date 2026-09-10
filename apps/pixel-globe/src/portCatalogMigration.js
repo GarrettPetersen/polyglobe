@@ -3,7 +3,7 @@ import {
   subdivisionSevenPortMigrationForWorld
 } from "./subdivisionSevenPortMigration.js";
 
-export const PORT_CATALOG_VERSION = 11;
+export const PORT_CATALOG_VERSION = 12;
 const EARLIEST_SUPPORTED_PORT_CATALOG_VERSION = 1;
 
 // The first subdivision-eight release placed North Maluku's three ports on an
@@ -123,7 +123,7 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
   payload.portCatalogVersion < 6 ? PRE_EXACT_NEAREST_PORT_TILE_IDS : new Map()),
   payload.portCatalogVersion < 7 ? PRE_EXETER_OUTPORT_TILE_IDS : new Map()),
   PRE_EXETER_INLAND_TILE_IDS);
-  return composePortTileMigrations(earlier, PRE_CONNECTICUT_PORT_TILE_IDS);
+  return composePortTileMigrations(earlier, payload.portCatalogVersion < 11 ? PRE_CONNECTICUT_PORT_TILE_IDS : new Map());
 }
 
 export function portReferenceMigrationForSavedVoyage(payload, topology, currentPlacements) {

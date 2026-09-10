@@ -1,3 +1,4 @@
+import { PIRATE_HAVEN_SPECS } from "../src/pirateHavenCatalog.js";
 import { exerciseSeasonalColonyDialogues } from "./reachability/seasonal-colony-dialogues.mjs";
 import { exerciseSavedStartMenu } from "./reachability/saved-start-menu.mjs";
 import { exerciseExeterCanalSaveRoundTrips } from "./reachability/exeter-canal-restore.mjs";
@@ -7,7 +8,7 @@ import { decodeGeodesicGraphBake } from "../src/geodesicBake.js";
 import { createSoundDuesMemory } from "../src/soundDues.js";
 import assert from "node:assert/strict";
 import { monitorBrowserFailures } from "./reachability/browser-failures.mjs";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -76,7 +77,7 @@ const fixtures = frozenSaveFixtures();
 const reachabilityOptions = parseReachabilityArguments(process.argv.slice(2));
 const releaseReachability = reachabilityOptions.release;
 const smokeFocus = process.env.PIXEL_GLOBE_SMOKE_FOCUS;
-if (smokeFocus !== undefined && smokeFocus !== "port-regressions") {
+if (smokeFocus !== undefined && !["port-regressions", "pirate-havens"].includes(smokeFocus)) {
   throw new Error(`Unknown save-restore smoke focus: ${smokeFocus}`);
 }
 if (smokeFocus && releaseReachability) {
@@ -178,9 +179,13 @@ try {
     `Save-restore runtime initialized in ${Math.round(performance.now() - startedAt)} ms\n`
   );
 
-  if (smokeFocus === "port-regressions") {
+  if (smokeFocus === "pirate-havens") {
+    await exercisePirateCoveSaveRoundTrip(page, browserErrors);
+    await exercisePirateHavens(page, browserErrors);
+  } else if (smokeFocus === "port-regressions") {
     await exercisePlayerShipyardSaveRoundTrips(page, fixtures.at(-1).serialized, browserErrors);
     await exercisePirateCoveSaveRoundTrip(page, browserErrors);
+    await exercisePirateHavens(page, browserErrors);
   } else {
     for (const fixture of fixtures) {
       const restored = await withTimeout(
@@ -213,6 +218,7 @@ try {
     await exerciseSavedStartMenu(context, baseUrl);
     await exercisePlayerShipyardSaveRoundTrips(page, fixtures.at(-1).serialized, browserErrors);
     await exercisePirateCoveSaveRoundTrip(page, browserErrors);
+    await exercisePirateHavens(page, browserErrors);
     await exerciseExeterCanalSaveRoundTrips(page, fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION).serialized, browserErrors);
     await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.find(fixture => fixture.gameStateVersion === GAME_STATE_VERSION).serialized);
     const forecast = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectAssaultForecast());
@@ -962,5 +968,49 @@ async function exercisePirateCoveSaveRoundTrip(page, browserErrors) {
   assert.equal(restored.cityId, revealed.cityId);
   assert.equal(restored.coveLocationId, revealed.coveLocationId);
   assert.deepEqual(browserErrors, []);
-  process.stdout.write("  Mercy reveals Valencia cove alongside its host city; chart and save reload succeed.\n");
+  process.stdout.write("  Mercy reveals an independent pirate haven; chart and save reload succeed.\n");
+}
+
+async function exercisePirateHavens(page, browserErrors) {
+  const screenshotRoot = path.join(APP_ROOT, ".playtest/pirate-haven-ui");
+  mkdirSync(screenshotRoot, { recursive: true });
+  const save = JSON.parse(fixtures.find(fixture => fixture.gameStateVersion === GAME_STATE_VERSION).serialized);
+  const home = JSON.parse(readFileSync(path.join(APP_ROOT, "city-visualizer/data/cities.json"), "utf8")).cities.find(city => city.cityId === "london|united kingdom");
+  const state = save.payload.gameState;
+  state.crewRoster = Array.from({ length: state.ship.crewCapacity - state.namedCrew.length - 1 }, (_, index) => createCrewMember({
+    id: `pirate-smoke-crew-${index}`, name: `Sailor ${index + 1}`, nameCulture: "english",
+    religionId: "roman-catholic", nationalityId: "england", homePort: home,
+    appearanceId: index % 3 ? "swordsman-light" : "mariner-light-black-hair",
+    crewTypeId: index % 3 ? "swordsman" : "sailor", recruitedAtMinute: 0, sailingMinutes: 200000
+  }));
+  state.ship.crew = state.ship.crewCapacity;
+  const baseline = JSON.stringify(save);
+  for (const kind of ["revenge", "suppression"]) {
+    await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), baseline);
+    await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectPirateCove({ showMercy: true }));
+    const result = await page.evaluate(kind => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.exercisePirateCommission(kind), kind);
+    await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), result.serialized);
+    await assertNoBrowserFailure(page, browserErrors, `pirate ${kind} commission`);
+    process.stdout.write(`  Pirate ${kind}: live acceptance, resolution, reward and reload passed.\n`);
+  }
+  await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), baseline);
+
+  for (const { id } of PIRATE_HAVEN_SPECS) {
+    const active = await page.evaluate(id => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectPirateHaven(id), id);
+    assert.equal(active.features.settlementStage, "city");
+    if (["pirate-haven-1", "pirate-haven-15"].includes(id)) {
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: path.join(screenshotRoot, `${id}.png`) });
+    }
+    const ruined = await page.evaluate(id => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectPirateHaven(id, { ruined: true }), id);
+    assert.equal(ruined.features.settlementStage, "ruins");
+    assert.equal(ruined.features.npcs, 0);
+    if (id === "pirate-haven-1") {
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: path.join(screenshotRoot, `${id}-ruins.png`) });
+    }
+    await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), ruined.serialized);
+    await assertNoBrowserFailure(page, browserErrors, `pirate haven ${id} and ruins`);
+  }
+  process.stdout.write("  Every pirate haven: live menus, ruined landing, and save restoration passed.\n");
 }

@@ -23,8 +23,9 @@ test("waypoints list quests and price tips before shipyard dividends", () => {
     placedCityTargetVector: () => [1, 0, 0], navigationQuestReason: () => "DELIVER",
     QUEST_NAVIGATION_STYLE: {}, OPTIONAL_NAVIGATION_STYLE: {},
     portWaypointDestination: () => destination, portNavigationReasonLabel: () => "PRICE TIP",
+    pirateHavenNavigationEntries: () => [{ id: "pirate-quest" }],
     shipyardDividendNavigationEntries: () => [{ id: "dividend-a" }, { id: "dividend-b" }]
   };
   const entries = runInNewContext(`${declaration.getText(source)}; navigationMenuEntries()`, context);
-  assert.deepEqual(Array.from(entries, entry => entry.id), ["quest:delivery:london|united kingdom", "price-tip", "dividend-a", "dividend-b"]);
+  assert.deepEqual(Array.from(entries, entry => entry.id), ["quest:delivery:london|united kingdom", "price-tip", "pirate-quest", "dividend-a", "dividend-b"]);
 });

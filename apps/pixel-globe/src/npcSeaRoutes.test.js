@@ -1,6 +1,6 @@
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import { parsePortSailingDistances } from "./portSailingDistances.js";
-import { purchaseShipyardUpgrade } from "./shipyards.js";
+import { purchaseShipyardUpgrade, shipConstructionPrice } from "./shipyards.js";
 import { fundWorldEconomyShipyard } from "./economy.js";
 import { shipyardMaterialStockTargets, snapshotWorldShipyards, restoreWorldShipyards, registerShipyardTradeIn, advanceWorldShipyards } from "./shipyards.js";
 import { updateShipyardSupplyOffers, shipyardSupplyShipStatus, snapshotShipyardSupplyShips, restoreShipyardSupplyShips } from "./npcSeaRoutes.js";
@@ -93,7 +93,9 @@ const PORTS = Object.freeze([
   port(6, "Calicut", "India", "south-asian", 11.26, 75.78, 50000, "vijayanagara"),
   port(7, "Malacca", "Malaysia", "southeast-asian", 2.19, 102.25, 45000, "portugal"),
   port(8, "Guangzhou", "China", "east-asian", 23.13, 113.26, 120000, "ming"),
-  port(9, "Nanjing", "China", "east-asian", 32.06, 118.79, 160000, "ming")
+  port(9, "Nanjing", "China", "east-asian", 32.06, 118.79, 160000, "ming"),
+  { ...port(99901, "Black Gull Cove", "Algeria", "islamic-desert", 35.3, -1.25, 1200, "pirate"), cityId: "pirate-haven-1", territoryId: "algeria", isPirateHideout: true },
+  { ...port(99902, "Whispering Shoal", "Tanzania", "sub-saharan", -4.94, 38.96, 1200, "pirate"), cityId: "pirate-haven-10", territoryId: "tanzania", isPirateHideout: true }
 ]);
 
 const DARDANELLES_PORTS = Object.freeze([
@@ -3161,7 +3163,7 @@ test("the annual tea race launches five distinct wind-routed merchants for Londo
   assert.ok(racers.every((ship) => ship.plan.endMinute > ship.plan.startMinute));
 });
 
-test("pirate hideouts are a deterministic invisible subset of coastal ports", () => {
+test("pirate hideouts are explicit independent catalog ports", () => {
   const first = createNpcSeaRouteSystem({
     ports: PORTS,
     startMinute: 0,
@@ -3917,4 +3919,55 @@ test("offshore encounters outlive their route without inventing a port arrival",
   assert.equal(held.portVisits, 0);
   assert.equal(held.hitPoints, hull);
   assert.ok(held.plan.endMinute > endMinute + 365 * 1440);
+});
+
+test("ruining a haven forces hidden pirates out without repairs and defers replacement launches", async () => {
+  const { ruinPirateHaven, PIRATE_HAVEN_REBUILD_MINUTES } = await import("./pirateHavens.js");
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const pirate = routes.ships.find(ship => ship.role === NPC_ROLE_PIRATE);
+  const haven = routes.pirateHideouts[0];
+  pirate.currentPort = haven; pirate.finalDestination = null; pirate.plan = null;
+  pirate.hiddenAtHideout = true; pirate.hiddenUntilMinute = 5000;
+  pirate.hitPoints = 1;
+  ruinPirateHaven(routes.pirateHavenMemory, haven.cityId, 0);
+  assert.equal(npcSeaRouteEventSchedule(routes).find(event => event.id === pirate.id).minute, 0);
+  updateNpcSeaRouteEvents(routes, 1, [pirate.id]);
+  assert.equal(pirate.hiddenAtHideout, false);
+  assert.equal(pirate.hitPoints, 1, "destroyed supplies cannot repair a hidden ship");
+  assert.notEqual(pirate.plan.destination.cityId, haven.cityId);
+  const removed = sinkNpcShip(routes, pirate.id, 1);
+  const replacement = routes.replacementQueue.find(order => order.shipId === pirate.id);
+  replacement.originCityId = haven.cityId;
+  replacement.readyMinute = 2;
+  routes.replacementQueue.sort((a,b)=>a.readyMinute-b.readyMinute);
+  updateNpcSeaRouteSystem(routes, 2);
+  assert.equal(routes.shipById.has(pirate.id), false);
+  assert.equal(replacement.readyMinute, PIRATE_HAVEN_REBUILD_MINUTES);
+});
+
+
+test("a ruined haven cannot outfit a hidden pirate with a larger hull", async () => {
+  const { ruinPirateHaven } = await import("./pirateHavens.js");
+  for (const ruined of [false, true]) {
+    const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+    const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+    const pirate = routes.ships.find(ship => ship.role === NPC_ROLE_PIRATE && ship.slugs.length > 1);
+    const haven = routes.pirateHideouts[0];
+    const slugs = pirate.slugs.toSorted((a, b) => shipConstructionPrice(a) - shipConstructionPrice(b));
+    const small = slugs[0], large = slugs.at(-1);
+    assert.ok(shipConstructionPrice(large) > shipConstructionPrice(small));
+    pirate.slug = small;
+    pirate.maxHitPoints = shipStatsForSlug(small).hitPoints;
+    pirate.hitPoints = 1;
+    pirate.cargoCapacity = shipStatsForSlug(small).cargoCapacity;
+    pirate.cargo = {}; pirate.cargoCostBasis = {};
+    pirate.currentPort = haven; pirate.finalDestination = null; pirate.plan = null; pirate.visualNavigation = null;
+    pirate.hiddenAtHideout = true; pirate.hiddenUntilMinute = 5000;
+    economy.shipyards.npcSales.push({ id: "haven-upgrade:npc-sale", portId: haven.cityId,
+      factionId: "pirate", shipSlug: large, price: shipConstructionPrice(large), soldMinute: 0 });
+    if (ruined) ruinPirateHaven(routes.pirateHavenMemory, haven.cityId, 0);
+    updateNpcSeaRouteEvents(routes, 1, [], { maintenance: true });
+    assert.equal(pirate.slug, ruined ? small : large);
+  }
 });

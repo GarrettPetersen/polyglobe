@@ -6,6 +6,14 @@ import { resolve } from "node:path";
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const files = [
   "src/chartCityLocations.test.js",
+  "src/pirateHavens.test.js",
+  "src/pirateHavenCatalog.test.js",
+  "src/pirateHavenDialogue.test.js",
+  "src/pirateHavenRuntime.test.js",
+  "src/sailingContinuity.test.js",
+  "src/waypointPointerInput.test.js",
+  "src/gameStateLoot.test.js",
+  "src/religiousMissions.test.js",
   "src/dialoguePanelLayout.test.js",
   "src/characterPortraits.test.js",
   "src/portAssaultRetreat.test.js",
@@ -31,7 +39,7 @@ const files = [
 // Node's test discovery can ignore nonexistent positional paths. A release
 // regression must never disappear because a renamed file was not updated here.
 for (const path of files) if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing telemetry regression: ${path}`);
-execFileSync(process.execPath, ["--test", ...files], { cwd: root, stdio: "inherit", timeout: 9 * 60_000 });
+execFileSync(process.execPath, ["--test", "--test-concurrency=1", ...files], { cwd: root, stdio: "inherit", timeout: 9 * 60_000 });
 console.log(JSON.stringify({ status: "passed", files, fingerprints: [
   "a3069b42c03aa6ce771faa94b7b4e136e414a677ba4f4d74e33a86389f8046d1",
   "a69a460ab5a00d3131fcccb271d10dd8a0f4d85153b9f8d25ac3786579c931a9",

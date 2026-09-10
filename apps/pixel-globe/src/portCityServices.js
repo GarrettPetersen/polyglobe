@@ -10,8 +10,8 @@ export function portCityServiceProfile(city) {
   return Object.freeze({
     // Villages host travelers and recruit crew in their communal house.
     inn: true,
-    smith: !sparseVillage,
+    smith: city.isPirateHideout === true || !sparseVillage,
     market: true,
-    shipyard: !sparseVillage || city.population >= 2500
+    shipyard: city.isPirateHideout === true || !sparseVillage || city.population >= 2500
   });
 }

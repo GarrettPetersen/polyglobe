@@ -34,6 +34,7 @@ const HARBOUR_MASTER_NODES = new Set([
 ]);
 
 const INNKEEPER_NODES = new Set([
+  "pirate-haven-commission",
   "crew-recruitment",
   "inn-drink",
   "quest"

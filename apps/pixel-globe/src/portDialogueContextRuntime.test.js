@@ -22,7 +22,7 @@ test("repeated market context refreshes do not search worldwide shipyard listing
     nearestShipyardListingForPort: () => { searches++; return { portId: "basra|iraq" }; },
     shipyardRumorForPort: () => { searches++; return { portId: "basra|iraq" }; }
   };
-  for (const name of ["chartCityCallByLocationId", "colonizationSiteIsRuined", "shipyardAtPort", "chefFeastInputBlocked",
+  for (const name of ["chartCityCallByLocationId", "citySiteIsRuined", "shipyardAtPort", "chefFeastInputBlocked",
     "weatherLocalHour", "currentPortArrivalGreetingPresented", "playerShipPrivateeringPower", "nearbyPortTraffic",
     "stormIntensityForTile", "factionReputation", "portPoliticalRivalTerms", "sailingDistanceBetweenPorts",
     "portEntryStatus", "shoreBatteryRecoveryStatus", "ensureShoreBatteryState", "playerPortConquestStatus",

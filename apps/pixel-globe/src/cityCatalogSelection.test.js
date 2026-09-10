@@ -169,7 +169,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     reachableNavigationMask: reachable, riverMasks: masks, cities: selected }).values()]
     .map((city) => ({ ...city, dockable: cityHasPortAccess({ graph, earthRows: earth.tiles,
       reachableNavigationMask: reachable, riverMasks: masks, tileId: city.tileId }) }));
-  const ports = placed.filter((city) => city.dockable);
+  const ports = placed.filter((city) => city.dockable && !city.isPirateHideout);
   const navigationContext = {
     earthRows: earth.tiles,
     riverMasks: masks,

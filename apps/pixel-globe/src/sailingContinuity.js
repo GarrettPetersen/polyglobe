@@ -8,3 +8,14 @@ export function sailingCorrectionDistancePx(integratedPosition, reconciledPositi
   }
   return Math.hypot(...integratedPosition.map((value, index) => value - reconciledPosition[index])) * pixelsPerRadian;
 }
+
+// Concealed chart settlement (including wave motion) can move the coordinate
+// frame beneath the ship between physics steps. Measure the new step against
+// that same frame, so its existing displacement is not reported as a new jump.
+export function sailingStepCorrectionDistancePx({ integratedPosition, reconciledPosition,
+  previousPosition, previousChartPosition, pixelsPerRadian }) {
+  sailingCorrectionDistancePx(previousPosition, previousChartPosition, pixelsPerRadian);
+  const expected = integratedPosition.map((value, index) =>
+    value + previousChartPosition[index] - previousPosition[index]);
+  return sailingCorrectionDistancePx(expected, reconciledPosition, pixelsPerRadian);
+}

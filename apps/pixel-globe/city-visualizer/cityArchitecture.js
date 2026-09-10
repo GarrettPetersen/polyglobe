@@ -16,6 +16,11 @@ const SETTLEMENT_FORMS = new Set(["sparse-village", "urban"]);
 
 export function deriveCityArchitectureProfile(city) {
   requireCityArchitectureSource(city);
+  if (city.isPirateHideout === true) {
+    const style = city.pirateArchitectureStyle;
+    return architectureProfile({ housingStyle: style, serviceStyle: style,
+      fortificationStyle: style, settlementForm: "sparse-village" });
+  }
   const settlementType = settlementTypeForCity(city);
   const sparseEarthenVillage = settlementType === "village";
   const swahiliCoast = city.manualRegion === "swahili-coast";

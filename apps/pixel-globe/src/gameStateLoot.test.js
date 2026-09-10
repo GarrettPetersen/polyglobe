@@ -33,7 +33,8 @@ test("surrendered loot credits money and accepts only cargo that fits", () => {
   assert.ok(cargoUsed(state) <= state.cargoCapacity);
   assert.equal(received.specie, 75);
   assert.ok(Object.values(received.cargo).reduce((sum, quantity) => sum + quantity, 0) > 0);
-  assert.deepEqual(received.remainingCargo, { grain: 2, wine: 2 });
+  assert.deepEqual(received.cargo, { wine: 2, grain: 1 });
+  assert.deepEqual(received.remainingCargo, { grain: 4 });
   assert.ok(state.accounts.ledger.some((entry) => entry.description === "Surrendered prize money"));
 });
 
@@ -297,3 +298,11 @@ function stateWithConsumedProvisionSpace() {
   assert.equal(cargoFree(state), 0);
   return state;
 }
+
+
+test("invalid prize cargo is rejected before any money or goods change hands", () => {
+  const state = createGameState({ cargoCapacity: 3, startMinute: 100 });
+  const before = structuredClone(state);
+  assert.throws(() => receiveSurrenderedLoot(state, { specie: 500, cargo: { grain: 1, nonexistent: 2 } }, { simMinute: 140 }));
+  assert.deepEqual(state, before);
+});

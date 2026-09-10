@@ -1,3 +1,4 @@
+import { acceptPirateHavenQuest, pirateHavenQuestOffer, seizePirateRevengeItem, ruinPirateHaven } from "./pirateHavens.js";
 import { EXETER_CANAL_MATERIALS } from "./exeterCanal.js";
 import {
   CAMPAIGN_GOAL_EXPLORER,
@@ -59,8 +60,17 @@ export function canonicalGameStateFixtures() {
   canalConstruction.relations.factionReputationChanges.spain = { before: 0, after: -25, reason: "attack", simMinute: 123456 };
   canalConstruction.memory.quests.exeterCanal = { version: 1, accepted: true, startedMinute: 123456 };
   for (const material of EXETER_CANAL_MATERIALS) canalConstruction.memory.quests.cargoDeliveries[material.requirementId] = material.quantity;
+  const pirateCampaign = structuredClone(campaignFixtures[0].state);
+  const haven = { cityId: "pirate-haven-1", city: "Black Gull Cove", isPirateHideout: true };
+  const port = { cityId: "lisbon|portugal", city: "Lisbon" };
+  const pirateContext = { havens: [haven], merchants: [{ id: "merchant-test", seed: 77, name: "Santa Maria", captainName: "Joao", role: "merchant", hitPoints: 10, currentPort: port }], sailingDistanceKm: () => 200, simMinute: 123456 };
+  acceptPirateHavenQuest(pirateCampaign.memory.pirateHavens, pirateHavenQuestOffer(pirateCampaign.memory.pirateHavens, haven, pirateContext));
+  acceptPirateHavenQuest(pirateCampaign.memory.pirateHavens, pirateHavenQuestOffer(pirateCampaign.memory.pirateHavens, port, pirateContext));
+  seizePirateRevengeItem(pirateCampaign.memory.pirateHavens, pirateContext.merchants[0]);
+  ruinPirateHaven(pirateCampaign.memory.pirateHavens, haven.cityId, 123456);
   return [
     ...campaignFixtures,
+    { campaignGoalType: "pirate-haven-campaign", state: pirateCampaign },
     { campaignGoalType: "exeter-canal-construction", state: canalConstruction },
     {
       campaignGoalType: "dense-save-compatibility",

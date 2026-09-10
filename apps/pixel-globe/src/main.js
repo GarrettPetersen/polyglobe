@@ -1,3 +1,7 @@
+import { pirateHavenNavigationReasonText } from "./pirateHavenDialogue.js";
+import { shipItemRows } from "./gameState.js";
+import { pirateHavenIsRuined, pirateRevengeTargetPresent, pirateHavenIsVisible, pirateHavenQuestOffer, ruinPirateHaven, seizePirateRevengeItem } from "./pirateHavens.js";
+import { riverPortApproachReachable } from "./riverPortApproach.js";
 import { chartCityLocationId, indexChartCityLocations } from "./chartCityLocations.js";
 import { offscreenCannonCue, CANNON_CUE_DURATION_MS } from "./offscreenCannonCue.js";
 import { createPortAssaultForecastClient } from "./portAssaultForecastClient.js";
@@ -10,7 +14,7 @@ import { commissionedShipyard, reservedSupplyShipyard, unannouncedShipyardUpgrad
 import { shipyardSupplyShipStatus, snapshotShipyardSupplyShips, restoreShipyardSupplyShips, updateShipyardSupplyOffers } from "./npcSeaRoutes.js";
 import { EXETER_CITY_ID, TOPSHAM_CITY_ID, exeterCanalStage, exeterCanalQuestView } from "./exeterCanal.js";
 import { exeterCanalNavigation, exeterCanalPort } from "./exeterCanalNavigation.js";
-import { sailingCorrectionDistancePx } from "./sailingContinuity.js";
+import { sailingStepCorrectionDistancePx } from "./sailingContinuity.js";
 import { playerShipyardSnapshot, restorePlayerShipyardSnapshot, snapshotPlayerShipyards } from "./playerShipyardPersistence.js";
 import { planPlaytestRoute, playtestSteeringTarget, playtestDockSteeringInput, playtestArrivalTile } from "./playtestNavigation.js";
 import { playerActionId } from "./playerActionIdentity.js";
@@ -18,7 +22,7 @@ import { coastalWaterBands } from "./terrainDistance.js";
 import { landmassChannelNavigationAnchor } from "./landmassChannels.js";
 import { SOUND_DUES_COLLECTOR_CITY_ID, SOUND_DUES_FACTION_ID, advanceSoundDuesPassage, soundDuesEnforcementApplies } from "./soundDues.js";
 import { PoliticalNoticeQueue } from "./politicalNoticeQueue.js";
-import { colonizationSiteIsRuined } from "./colonialCities.js";
+import { citySiteIsRuined } from "./citySiteState.js";
 import { dateToSubsolarPoint } from "./solarClock.js";
 import { CITY_FEAST_GATHER_DURATION_MS } from "../city-visualizer/cityFeast.js";
 import { completeChefRecruitment, completeVikingLongshipAcquisition } from "./innQuestTransactions.js";
@@ -5062,6 +5066,7 @@ async function main() {
     startMinute: weatherClockMinutes,
     economy: worldEconomy,
     fishState: gameState,
+    pirateHavenMemory: gameState.memory.pirateHavens,
     fishingGroundIsNavigable: npcFishingGroundIsNavigable,
     whaleMemory: gameState.memory.whales,
     seedKey: gameState.voyageSeed,
@@ -16919,9 +16924,9 @@ function installSaveRestoreSmokeHarness() {
     },
     async inspectPirateCove({ showMercy = false } = {}) {
       if (running) throw new Error("Pirate cove smoke requires an idle voyage");
-      const cityId = "valencia|spain";
+      const cityId = "pirate-haven-14";
       const hideout = [...pirateHideoutPortsByTileId.values()].find(city => city.cityId === cityId);
-      if (!hideout) throw new Error("Pirate cove smoke requires the Valencia hideout");
+      if (!hideout) throw new Error("Pirate cove smoke requires an independent haven");
       if (showMercy) {
         adjustFactionReputation(gameState, "pirate", -26 - factionReputation(gameState, "pirate"), {
           reason: "direct",
@@ -16933,13 +16938,98 @@ function installSaveRestoreSmokeHarness() {
       if (playerIntroModal) closePlayerIntroModal();
       placeCapturePlayerNearTile(hideout.tileId, { headingDeg: 0 });
       refreshWorldSpatialStaticEntries();
-      const city = chartCityCallByLocationId(cityId);
       const cove = chartCityCallByLocationId(chartCityLocationId(hideout));
-      if (!city || !cove || city === cove) throw new Error("City and cove must coexist on the chart");
+      if (!cove) throw new Error("Revealed haven is missing from the chart");
+      const city = cove;
       render(performance.now(), { allowColdCoveredWorldRender: true });
       if (!saveVoyageNow("pirate cove smoke checkpoint")) throw new Error("Pirate cove smoke could not save");
       await waitForSaveRestoreSmokePersistence();
       return { cityId: city.cityId, coveLocationId: chartCityLocationId(cove),
+        serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
+    },
+    async exercisePirateCommission(kind) {
+      if (running || !["revenge", "suppression"].includes(kind)) throw new Error("Invalid pirate commission inspection");
+      const issuerId = kind === "revenge" ? "pirate-haven-14" : "lisbon|portugal";
+      const enter = (cityId, nodeId) => {
+        placeCapturePlayerNearTile(requireEntityById(cityById, cityId, "Pirate smoke destination").tileId, { headingDeg: 0 });
+        openCapturePortNode(cityId, nodeId);
+      };
+      enter(issuerId, "pirate-haven-commission");
+      await synchronizePortCityScene();
+      const choose = type => {
+        const view = currentDialogueView();
+        const index = view.options.findIndex(option => option.action.type === type && !option.disabled);
+        if (index < 0) throw new Error(`Pirate commission has no enabled ${type}: ${view.text}`);
+        chooseDialogueOption(index);
+      };
+      choose("accept-pirate-haven-quest");
+      const quest = gameState.memory.pirateHavens[kind];
+      if (!quest) throw new Error("Pirate commission was not accepted");
+      if (kind === "revenge") {
+        const merchant = npcSeaRoutes.shipById.get(quest.targetShipId);
+        if (!merchant || merchant.role !== NPC_ROLE_MERCHANT) throw new Error("Commission did not select a live merchant");
+        receivePlayerSurrenderedShipLoot(merchant, { specie: 0, cargo: {} }, null);
+        if (!shipItemRows(gameState).some(row => row.id === quest.itemId)) throw new Error("Seized heirloom missing from inventory");
+      } else {
+        enter(quest.havenCityId, "root");
+        await synchronizePortCityScene();
+        const city = currentDialogueCity();
+        const battery = ensureShoreBatteryState(city);
+        if (battery.maxHitPoints <= 0 || battery.maxGarrison <= 0) throw new Error("Haven lacks shore defenses");
+        damageShoreBattery(battery, gameState.memory.flags, battery.maxHitPoints, Math.floor(weatherClockMinutes), "the test squadron");
+        const eligibility = playerPortConquestStatus(city);
+        if (!eligibility.canAttempt) throw new Error(`Pirate assault fixture is ineligible: ${JSON.stringify({ ...eligibility, scenario: null })}`);
+        attemptPlayerPortConquest(city, () => 0.5);
+        const { status, battle } = portAssaultState;
+        if (battle.outcome !== PORT_ASSAULT_OUTCOME.VICTORY) throw new Error("Pirate assault fixture did not win");
+        completePlayerPortAssault(city, status, battle);
+        continueAfterPortAssaultCasualtyReport();
+        await synchronizePortCityScene();
+        if (!pirateHavenIsRuined(gameState.memory.pirateHavens, city.cityId, weatherClockMinutes)) throw new Error("Defeated haven did not become ruins");
+        if (!citySiteIsRuined(currentDialogueCity()) || currentDialogueView().options.some(option => option.action.type === "open-market")) throw new Error("Defeated haven retained operational city services");
+      }
+      enter(issuerId, "pirate-haven-commission");
+      await synchronizePortCityScene();
+      const before = gameState.doubloons;
+      choose("complete-pirate-haven-quest");
+      if (gameState.memory.pirateHavens[kind] !== null || gameState.doubloons !== before + quest.reward) throw new Error("Pirate reward was not settled exactly once");
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      saveVoyageNow("pirate commission smoke checkpoint");
+      await waitForSaveRestoreSmokePersistence();
+      return { kind, targetId: quest.targetShipId || quest.havenCityId, reward: quest.reward,
+        serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
+    },
+    async inspectPirateHaven(cityId, { ruined = false } = {}) {
+      if (running) throw new Error("Pirate haven inspection requires an idle voyage");
+      const haven = cityById.get(cityId);
+      if (!haven?.isPirateHideout) throw new Error(`Not a pirate haven: ${cityId}`);
+      if (playerIntroModal) closePlayerIntroModal();
+      adjustFactionReputation(gameState, "pirate", 30 - factionReputation(gameState, "pirate"), { reason: "direct", simMinute: Math.max(0, weatherClockMinutes) });
+      if (ruined && !pirateHavenIsRuined(gameState.memory.pirateHavens, cityId, weatherClockMinutes)) {
+        ruinPirateHaven(gameState.memory.pirateHavens, cityId, weatherClockMinutes);
+        refreshPirateHavenWorld();
+      }
+      placeCapturePlayerNearTile(haven.tileId, { headingDeg: 0 });
+      refreshWorldSpatialStaticEntries();
+      const city = chartCityCallByLocationId(chartCityLocationId(haven));
+      if (!city) throw new Error(`Missing revealed haven: ${cityId}`);
+      openPortMenu(city, { initialNodeId: "root", admittedToPort: !ruined });
+      await synchronizePortCityScene();
+      const scene = portCityRuntime.getPresentationState();
+      const nodes = [];
+      for (const nodeId of ruined ? ["root"] : ["market", "inn-drink", "shipyard", "pirate-haven-commission"]) {
+        openPortMenu(city, { initialNodeId: nodeId, admittedToPort: true });
+        const view = currentDialogueView();
+        if (!view.options.length) throw new Error(`Empty haven menu: ${cityId}/${nodeId}`);
+        nodes.push({ nodeId, optionCount: view.options.length });
+        render(performance.now(), { allowColdCoveredWorldRender: true });
+      }
+      openPortMenu(city, { initialNodeId: "root", admittedToPort: !ruined });
+      await synchronizePortCityScene();
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      saveVoyageNow("pirate haven scene inspection");
+      await waitForSaveRestoreSmokePersistence();
+      return { cityId, nodes, features: scene.features,
         serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
     },
     async inspectShipyardArrival() {
@@ -19843,9 +19933,8 @@ function handlePointerDown(event) {
       event.preventDefault();
       selectedWaypointArrowId = selectedWaypointArrowId === waypoint.id ? null : waypoint.id;
       dirty = true;
-      return;
-    }
-    if (selectedWaypointArrowId !== null) {
+      // Waypoint labels remain available while pointer holds steer through them.
+    } else if (selectedWaypointArrowId !== null) {
       selectedWaypointArrowId = null;
       dirty = true;
     }
@@ -21831,7 +21920,7 @@ function openCityDialogue(cityCall, session) {
     throw new Error(`City dialogue session does not belong to ${cityId}`);
   }
   ensurePortCityView(cityCall);
-  assertPortRootScene(session, portCityView, { ruinedSite: colonizationSiteIsRuined(cityCall) });
+  assertPortRootScene(session, portCityView, { ruinedSite: citySiteIsRuined(cityCall) });
   activateDialogueSession(session, { movement: "stop" });
   queuePortCitySceneSync();
   dirty = true;
@@ -21921,7 +22010,7 @@ async function synchronizePortCityScene() {
   const city = currentPortCitySceneCity();
   let availableDestinationIds = [];
   if (dialogueState?.kind === "port" && dialogueState.cityId === city.cityId &&
-      (dialogueState.admittedToPort === true || colonizationSiteIsRuined(city))) {
+      (dialogueState.admittedToPort === true || citySiteIsRuined(city))) {
     availableDestinationIds = portCityNavigationView(
       dialogueState,
       currentDialogueCity(),
@@ -21939,6 +22028,9 @@ async function synchronizePortCityScene() {
   const selectionOptions = Object.freeze({
     ...assetOptions,
     ...colonizationCitySceneOptions(city, { landingVisit: portCityView.colonistLanding !== null }),
+    ...(city.pirateHavenRuined ? { bombardmentEventId: null, featureOverrides: {
+      settlementStage: "ruins", npcs: 0, fortified: false, leftBankCity: false
+    } } : {}),
     availableDestinationIds,
     barred,
     illicitCaughtStartedAtMs,
@@ -21984,7 +22076,7 @@ function currentPortCitySceneCity() {
   if (!hideout || hideout.cityId !== city.cityId) {
     throw new Error(`Port city view is missing pirate hideout: ${city.cityId}`);
   }
-  return hideout;
+  return pirateHavenPresentation(hideout);
 }
 
 function colonistLandingInProgress() {
@@ -22178,12 +22270,12 @@ function portCityRootNavigationIsActive() {
 function portCityRootPresentationIsOwned() {
   assertPortRootScene(dialogueState, portCityView, {
     ruinedSite: dialogueState?.kind === "port" && dialogueState.nodeId === "root" &&
-      colonizationSiteIsRuined(currentDialogueCity())
+      citySiteIsRuined(currentDialogueCity())
   });
   return Boolean(
     portCityView &&
     dialogueState?.kind === "port" &&
-    (dialogueState.admittedToPort === true || colonizationSiteIsRuined(currentPortCitySceneCity())) &&
+    (dialogueState.admittedToPort === true || citySiteIsRuined(currentPortCitySceneCity())) &&
     dialogueState.nodeId === "root"
   );
 }
@@ -22233,7 +22325,7 @@ function openPortDialogue(cityCall) {
     setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
   }
   ensurePortCityView(cityCall);
-  if (colonizationSiteIsRuined(cityCall)) {
+  if (citySiteIsRuined(cityCall)) {
     openPortMenu(cityCall, {
       initialNodeId: "root", admittedToPort: false
     });
@@ -22434,6 +22526,7 @@ function continuePortArrivalDialogues() {
   return openNextPortArrivalFollowup([
     () => maybeOpenSovereignWarLoanDialogue(cityCall),
     () => maybeOpenShipyardArrivalDialogue(cityCall),
+    () => maybeOpenPirateHavenArrivalDialogue(cityCall),
     () => maybeOpenExeterCanalArrivalDialogue(cityCall),
     () => maybeOpenConquistadorReplenishmentDialogue(cityCall),
     () => maybeOpenConquistadorRewardDialogue(cityCall),
@@ -24830,7 +24923,7 @@ function playerPortConquestStatus(cityCall) {
   const availableCrew = availableCrewRosterMembers(gameState);
   const landingForce = availableCrew.length + (company?.ready ? company.strength : 0);
   const canAttempt = attackStatus.available && batteryDisabled && !alreadyOwned && landingForce > 0 &&
-    !playerRaidActive && (company === null || company.ready);
+    !playerRaidActive && !pirateHavenIsRuined(gameState.memory.pirateHavens, cityCall.cityId, simMinute) && (company === null || company.ready);
   const baseStatus = {
     ...attackStatus,
     canAttempt,
@@ -25054,6 +25147,18 @@ function finishPlayerPortAssault(cityCall, status, battle, crewFates) {
   }
 
   const simMinute = Math.floor(weatherClockMinutes);
+  if (cityCall.isPirateHideout) {
+    ruinPirateHaven(gameState.memory.pirateHavens, cityCall.cityId, simMinute);
+    refreshPirateHavenWorld();
+    clearCombatForShip(PLAYER_COMBAT_ID);
+    restorePortAssaultDialogue();
+    dialogueState.nodeId = "root";
+    portCitySceneSyncKey = null;
+    queuePortCitySceneSync();
+    saveVoyageNow("pirate haven destroyed");
+    dirty = true;
+    return true;
+  }
   if (status.mode === "raid") {
     const battery = ensureShoreBatteryState(cityCall);
     if (!Number.isFinite(battery.disabledUntilMinute)) {
@@ -26807,6 +26912,7 @@ function chooseDialogueOption(optionIndex) {
 
 function completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOrigin, saveReason }) {
   const effects = [
+    ...(result.pirateHavenQuestChanged ? [{ type: "pirate-haven-quest" }] : []),
     ...(result.colonizationChanged ? [{ type: "colony-world" }] : []),
     ...(result.colonyClueInspected ? [{ type: "colony-clue" }] : []),
     ...(result.colonistLanding ? [{ type: "colonist-landing" }] : []),
@@ -26828,6 +26934,7 @@ function completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOr
     ...(saveReason ? [{ type: "save" }] : []),
   ];
   dispatchActionEffects(effects, {
+    "pirate-haven-quest": refreshPirateHavenWorld,
     "save": () => { saveVoyageNow(saveReason); },
     "colony-world": () => {
       syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
@@ -27987,7 +28094,7 @@ function currentDialogueCity() {
       ? chartCityLocationId(currentPortCitySceneCity()) : dialogueState.portId;
     const portCall = chartCityCallByLocationId(locationId);
     if (portCall) {
-      if (portDialogueHasCaptainSpeaker(dialogueState) || colonizationSiteIsRuined(portCall)) {
+      if (portDialogueHasCaptainSpeaker(dialogueState) || citySiteIsRuined(portCall)) {
         const character = gameState.playerCharacter;
         if (!character) throw new Error("Captain-led port dialogue has no player captain");
         return {
@@ -28065,7 +28172,7 @@ function currentDialogueCity() {
     : placedCity;
   const questCharacter = dialogueState.kind !== "port"
     ? null
-    : portDialogueHasCaptainSpeaker(dialogueState) || colonizationSiteIsRuined(city)
+    : portDialogueHasCaptainSpeaker(dialogueState) || citySiteIsRuined(city)
       ? gameState.playerCharacter
     : dialogueState.nodeId === "japanese-matchlocks"
       ? ensureJapaneseMatchlockGunsmith(gameState)
@@ -28109,7 +28216,7 @@ function currentDialogueView() {
   if (!dialogueState) throw new Error("Dialogue view requested without an active session");
   assertPortRootScene(dialogueState, portCityView, {
     ruinedSite: dialogueState.kind === "port" && dialogueState.nodeId === "root" &&
-      colonizationSiteIsRuined(currentDialogueCity())
+      citySiteIsRuined(currentDialogueCity())
   });
   return cachedPausedView(dialogueViewCache, dialogueState, buildCurrentDialogueView);
 }
@@ -28184,7 +28291,7 @@ function portDialogueContext() {
       : chartCityCallByLocationId(dialogueState.portId) || cityById.get(dialogueState.cityId);
   // Ruins have no economy, staff, passenger offers, or port authority. Their
   // inspection and departure actions need only the simulation clock.
-  if (colonizationSiteIsRuined(city)) return { simMinute: Math.floor(weatherClockMinutes) };
+  if (citySiteIsRuined(city)) return { simMinute: Math.floor(weatherClockMinutes) };
   const questOnlyColony = city?.colonizationQuestSite === true &&
     city.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED;
   const shipyard = city && !questOnlyColony ? shipyardAtPort(worldEconomy.shipyards, city) : null;
@@ -28200,6 +28307,22 @@ function portDialogueContext() {
     throw new Error(`Captain home port is missing from the city catalog: ${homePortCityId || "unset"}`);
   }
   return {
+    get pirateRevengeTargetPresent() { return pirateRevengeTargetPresent(gameState.memory.pirateHavens, npcSeaRoutes.shipById); },
+    get pirateHavenQuestOffer() {
+      if (!city || dialogueState?.disguisedEntry) return null;
+      const supplyShipIds = new Set([...worldEconomy.shipyards.yards.values()]
+        .map(yard => yard.upgrades?.supplyCommission?.shipId).filter(Boolean));
+      return pirateHavenQuestOffer(gameState.memory.pirateHavens, city, {
+        havens: npcSeaRoutes.pirateHideouts,
+        merchants: city.isPirateHideout ? npcSeaRoutes.ships.filter(npc => npc.role === NPC_ROLE_MERCHANT).map(npc => ({
+          id: npc.id, seed: npc.seed, slug: npc.slug, role: npc.role, hitPoints: npc.hitPoints,
+          encounter: npc.encounter, currentPort: npc.currentPort, portVisits: npc.portVisits,
+          graceUntilPortVisit: npc.graceUntilPortVisit,
+          commissioned: supplyShipIds.has(npc.id),
+          captainName: npcShipCaptains.get(npc.id)?.name })) : [],
+        sailingDistanceKm: sailingDistanceBetweenPorts, simMinute
+      });
+    },
     random: Math.random,
     missionGiftRandom: Math.random,
     chefFeastGuestsGathered: !chefFeastInputBlocked(),
@@ -28639,7 +28762,7 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
   }
 
   if (dialogueState.kind === "port") {
-    if (colonizationSiteIsRuined(currentDialogueCity())) {
+    if (citySiteIsRuined(currentDialogueCity())) {
       return dialoguePortraitPair(captain, null, captain);
     }
     const colonyApprovalExchange = dialogueState.nodeId === "colonization" &&
@@ -29697,7 +29820,9 @@ function portCallInInteractionRange(call) {
     localLayout.viewY,
     call.interactionX,
     call.interactionY
-  ) <= PORT_INTERACTION_RADIUS_PX * PORT_INTERACTION_RADIUS_PX;
+  ) <= PORT_INTERACTION_RADIUS_PX * PORT_INTERACTION_RADIUS_PX &&
+    riverPortApproachReachable({ graph, earthRows: earthById, riverMasks, riverToWaterMasks,
+      shipTileId: ship.tileId, portTileId: call.tileId });
 }
 
 function portInteractionCallIsUsable(call) {
@@ -32226,11 +32351,11 @@ function currentVoyageContentEditionId() {
 }
 
 function playerAccessiblePortCities() {
-  if (!mediterraneanDemoVoyageIsActive()) return portCities;
+  if (!mediterraneanDemoVoyageIsActive()) return portCities.filter(port => !port.isPirateHideout);
   if (!demoAccessiblePortCities) {
     throw new Error("Mediterranean demo ports have not been initialized");
   }
-  return demoAccessiblePortCities;
+  return demoAccessiblePortCities.filter(port => !port.isPirateHideout);
 }
 
 function demoAvailableChefIngredientGoodIds() {
@@ -33981,6 +34106,7 @@ function globePositionForLocalPoint(tileId, x, y) {
 
 function applyShipMove(position, tileId) {
   const previousPosition = ship.position;
+  const previousChartPosition = globePositionForLocalPoint(ship.tileId, localLayout.viewX, localLayout.viewY);
   const delta = [
     position[0] - previousPosition[0],
     position[1] - previousPosition[1],
@@ -34023,7 +34149,8 @@ function applyShipMove(position, tileId) {
 
   ship.tileId = drawnTileId;
   ship.position = globePositionForLocalPoint(ship.tileId, localLayout.viewX, localLayout.viewY);
-  const correctionPx = sailingCorrectionDistancePx(position, ship.position, PIXELS_PER_RADIAN);
+  const correctionPx = sailingStepCorrectionDistancePx({ integratedPosition: position,
+    reconciledPosition: ship.position, previousPosition, previousChartPosition, pixelsPerRadian: PIXELS_PER_RADIAN });
   if (correctionPx > 8) {
     reportRuntimeDiagnosticAssertion(
       `Sailing chart correction moved the globe position ${correctionPx.toFixed(1)}px during a ` +
@@ -37001,6 +37128,7 @@ function initializeDistantWorldWorker() {
 }
 
 function resetDistantWorldWorkerSchedule() {
+  if (npcSeaRoutes) npcSeaRoutes.pirateHavenMemory = gameState.memory.pirateHavens;
   if (!distantWorldWorkerClient) {
     throw new Error("Cannot schedule the distant world before its worker is initialized");
   }
@@ -38810,6 +38938,12 @@ function ensureShoreBatteryState(city) {
     state = createShoreBatteryState(city, gameState.memory.flags, Math.floor(weatherClockMinutes));
     shoreBatteryStates.set(id, state);
   }
+  if (city.isPirateHideout && pirateHavenIsRuined(gameState.memory.pirateHavens, city.cityId, weatherClockMinutes)) {
+    state.disabledUntilMinute = gameState.memory.pirateHavens.ruinedUntil[city.cityId];
+    state.disabledByShipLabel = "Your raiders";
+    state.hitPoints = 0;
+    state.engagedTargetIds.clear();
+  }
   return state;
 }
 
@@ -39902,6 +40036,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
 
 function receivePlayerSurrenderedShipLoot(strategic, loot, rewardOrigin) {
   const received = receiveSurrenderedLoot(gameState, loot, { simMinute: weatherClockMinutes });
+  seizePirateRevengeItem(gameState.memory.pirateHavens, strategic);
   const itemGift = maybeGrantDefeatedShipPerkItem(gameState, strategic, {
     random: Math.random,
     context: { simMinute: weatherClockMinutes }
@@ -46090,9 +46225,7 @@ function assembleChart(chartCamera, chartCenterTileId, projectedVisible) {
   const citySpecs = [];
   const tileById = new Map();
   const visibleSet = new Set();
-  const visiblePirateHideouts = gameState && npcSeaRoutes && pirateHideoutsVisibleToPlayer(gameState)
-    ? pirateHideoutPortsByTileId
-    : null;
+  const visiblePirateHideouts = gameState && npcSeaRoutes ? new Map(visiblePirateHavenPorts().map(port => [port.tileId, port])) : null;
 
   measurePerformanceBenchmarkStage("chart.calls", () => {
     for (const item of projectedVisible) visibleSet.add(item.id);
@@ -46123,7 +46256,7 @@ function assembleChart(chartCamera, chartCenterTileId, projectedVisible) {
       tileById.set(item.id, tileCall);
       if (!polarEmpty) {
         const city = cityByTileId.get(item.id);
-        if (city) citySpecs.push({ city, tileCall });
+        if (city && !city.isPirateHideout) citySpecs.push({ city, tileCall });
         const pirateHideout = visiblePirateHideouts?.get(item.id);
         if (pirateHideout) citySpecs.push({ city: pirateHideout, tileCall });
       }
@@ -46252,9 +46385,7 @@ function assembleChart(chartCamera, chartCenterTileId, projectedVisible) {
 }
 
 function makeCityCall(city, tileCall, activeChart) {
-  const visualOffset = city.isPirateHideout
-    ? { x: 18, y: -4 }
-    : cityVisualOffset(city, tileCall, activeChart);
+  const visualOffset = cityVisualOffset(city, tileCall, activeChart);
   const offsetX = visualOffset.x;
   const offsetY = visualOffset.y;
   const interactionPoint = cityInteractionPoint(tileCall);
@@ -46967,10 +47098,8 @@ function drawMinimapSettlementMarkers(x, y, raster, markerSize = 1) {
   if (!Number.isInteger(markerSize) || markerSize <= 0 || markerSize % 2 === 0) {
     throw new Error(`Invalid minimap settlement marker size: ${markerSize}`);
   }
-  const settlements = [...cityByTileId.values()];
-  if (npcSeaRoutes && pirateHideoutsVisibleToPlayer(gameState)) {
-    settlements.push(...pirateHideoutPortsByTileId.values());
-  }
+  const settlements = [...cityByTileId.values()].filter(city => !city.isPirateHideout);
+  if (npcSeaRoutes) settlements.push(...visiblePirateHavenPorts());
   const markers = minimapSettlementMarkers(settlements, {
     isRevealed: (settlement) => minimap.seenTiles[settlement.tileId] !== 0,
     project: (settlement) => minimapPixelForTile(settlement.tileId, raster)
@@ -48491,7 +48620,7 @@ function navigationMenuEntries() {
       optionalWaypointId: waypoint.id
     });
   }
-  entries.push(...shipyardDividendNavigationEntries());
+  entries.push(...pirateHavenNavigationEntries(), ...shipyardDividendNavigationEntries());
   return entries;
 }
 
@@ -61945,7 +62074,7 @@ function drawFetchQuestDestinationArrows(nowMs) {
 
 function drawShipyardDividendDestinationArrows(nowMs) {
   if (!ship || !chart || !localLayout) return;
-  for (const entry of shipyardDividendNavigationEntries()) {
+  for (const entry of [...pirateHavenNavigationEntries(), ...shipyardDividendNavigationEntries()]) {
     const visibleCity = visibleChartCity(entry.destination);
     drawWorldTargetArrow({
       id: entry.id,
@@ -62601,7 +62730,7 @@ function visibleWorldFireSources() {
 }
 
 function fireSourceForCity(call, batteryDisabled) {
-  if (call.hiddenSettlement || colonizationSiteIsRuined(call) || !batteryDisabled) return null;
+  if (call.hiddenSettlement || citySiteIsRuined(call) || !batteryDisabled) return null;
   return {
     id: `battery-fire:${call.cityId}`,
     x: call.x,
@@ -68177,4 +68306,53 @@ function shadeHex(hex, delta) {
   const g = clamp(((n >> 8) & 255) + delta, 0, 255);
   const b = clamp((n & 255) + delta, 0, 255);
   return `rgb(${r},${g},${b})`;
+}
+
+function refreshPirateHavenWorld() {
+  resetDistantWorldWorkerSchedule();
+  chart = buildChart(camera);
+  refreshWorldSpatialStaticEntries();
+}
+
+function pirateHavenPresentation(port) {
+  return { ...port, pirateHavenRuined: pirateHavenIsRuined(gameState.memory.pirateHavens, port.cityId, weatherClockMinutes) };
+}
+
+function maybeOpenPirateHavenArrivalDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) || dialogueState.disguisedEntry ||
+      dialogueState.pirateHavenArrivalPresented || cityCall.pirateHavenRuined) return false;
+  dialogueState.pirateHavenArrivalPresented = true;
+  const quest = gameState.memory.pirateHavens[cityCall.isPirateHideout ? "revenge" : "suppression"];
+  if (!(quest?.ready && quest.originCityId === cityCall.cityId) &&
+      (!(cityCall.isPirateHideout || cityCall.isFactionCapital) || quest || !portDialogueContext().pirateHavenQuestOffer)) return false;
+  dialogueState.nodeId = "pirate-haven-commission";
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  invalidateDialogueOptionGeometry();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+  return true;
+}
+
+function pirateHavenNavigationEntries() {
+  if (!gameState) return [];
+  return [gameState.memory.pirateHavens.revenge, gameState.memory.pirateHavens.suppression].filter(Boolean).map(quest => {
+    const lostTarget = quest.kind === "revenge" && !quest.ready && !pirateRevengeTargetPresent(gameState.memory.pirateHavens, npcSeaRoutes.shipById);
+    const target = quest.kind === "revenge" && !quest.ready && !lostTarget ? npcSeaRoutes.shipById.get(quest.targetShipId) : null;
+    const targetRouteVector = target ? npcShipSnapshotForId(npcSeaRoutes, target.id, weatherClockMinutes)?.routeVector : null;
+    const destinationId = quest.ready ? quest.originCityId : quest.havenCityId;
+    const destination = target?.currentPort || requireEntityById(cityById, destinationId, "Pirate quest destination");
+    return { id: quest.id, destinationName: quest.kind === "revenge" && !quest.ready && !lostTarget
+      ? `${quest.targetCaptainName}: ${quest.targetShipName}` : cityLabelText(destination),
+      reason: pirateHavenNavigationReasonText(quest, lostTarget),
+      style: QUEST_NAVIGATION_STYLE, targetVector: target?.visualNavigation?.vector || targetRouteVector || placedCityTargetVector(destination),
+      optionalWaypointId: null, destination };
+  });
+}
+
+function visiblePirateHavenPorts() {
+  const reveal = pirateHideoutsVisibleToPlayer(gameState);
+  return [...pirateHideoutPortsByTileId.values()].filter(port =>
+    pirateHavenIsVisible(gameState.memory.pirateHavens, port.cityId, weatherClockMinutes, reveal))
+    .map(pirateHavenPresentation);
 }

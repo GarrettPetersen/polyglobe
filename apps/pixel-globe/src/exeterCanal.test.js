@@ -1,3 +1,4 @@
+import { riverPortApproachReachable } from "./riverPortApproach.js";
 import { createWorldMutationBoundary } from "./runtimeTransitions.js";
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
 import { createDirectionIndex } from "./geodesic.js";
@@ -176,6 +177,16 @@ test("real-map canal stages add connected cuts and restore the original map with
   for (const stage of [0, 1, 2, 3]) {
     const navigation = exeterCanalNavigation(base, graph, earthRows, stage);
     const options = { ...placement, ...navigation, exeterCanalOpen: stage === 3 };
+    if (stage === 3) {
+      assert.equal(riverPortApproachReachable({ graph, earthRows, ...navigation,
+        shipTileId: topsham.tileId, portTileId: exeter.tileId }), true);
+      for (const neighbor of graph.neighbors[exeter.tileId]) {
+        if (EXETER_CANAL_TILE_CHAIN.includes(neighbor)) continue;
+        assert.equal(riverPortApproachReachable({ graph, earthRows, ...navigation,
+          shipTileId: neighbor, portTileId: exeter.tileId }), false, `cannot dock across land from ${neighbor}`);
+      }
+    }
+
     const ports = portCitiesOnWorld(placed, options);
     assert.equal(ports.some((city) => city.cityId === EXETER_CITY_ID), stage === 3);
     assert.equal(validateCityPortAccessCatalog(placed, ports, options), true);
@@ -246,4 +257,16 @@ test("the canal commissioner is an inn action and only completed infrastructure 
   assert.equal(cityMustRemainInland(exeter), true);
   assert.equal(cityMustRemainInland(exeter, { exeterCanalOpen: true }), false);
   assert.equal(cityMustRemainInland({ cityId: "kazan|russian federation" }, { exeterCanalOpen: true }), true);
+});
+
+test("the commissioner leaves the inn after the canal is completed", () => {
+  const { state, choose } = commission();
+  choose("accept-exeter-canal");
+  state.cargo = { timber: 30, iron: 12, grain: 20 };
+  choose("deliver-exeter-canal");
+  const session = createPortDialogueSession(topsham, { initialNodeId: "inn-drink", admittedToPort: true });
+  for (const stage of [0, 2, 3]) {
+    const view = portDialogueView(session, topsham, state, null, [topsham], { simMinute: stage * EXETER_CANAL_STAGE_MINUTES, innDialogue: { speaker: "Innkeeper", text: "Welcome", expressionId: "neutral" } });
+    assert.equal(view.options.some(option => option.action.nodeId === "exeter-canal"), stage < 3);
+  }
 });

@@ -17,6 +17,8 @@ export function cityTerritoryId(city, label = "City") {
   const cityId = requireCityId(city, label);
   const correction = CITY_GEOGRAPHY_CORRECTIONS.get(cityId);
   if (correction) return correction.territoryId;
+  // Authored settlements carry geography independently of their immutable ID.
+  if (city.territoryId !== undefined) return requireEntityId(city.territoryId, `${label} territory`);
   const separator = cityId.lastIndexOf("|");
   if (separator <= 0 || separator === cityId.length - 1) {
     throw new Error(`${label} canonical id has no territory component: ${cityId}`);
