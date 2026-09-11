@@ -4,6 +4,7 @@ import { dayNightLightForSunAltitude } from "./dayNightCycle.js";
 
 export const DAY_NIGHT_VARIANT_STEPS = 8;
 const COLOR_RAMP_STEPS = DAY_NIGHT_VARIANT_STEPS;
+const TWILIGHT_NIGHT_START_STAGE = COLOR_RAMP_STEPS / 2;
 const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
 const PALETTE_TEXTURE_WIDTH = 1024;
 const PALETTE_TEXTURE_HEIGHT = 32;
@@ -159,15 +160,19 @@ function combinedGradeRamp(sunsetStage, nightStage) {
   if (nightStage === 0) return sunsetRgbRamp[sunsetStage];
   const key = `${sunsetStage}:${nightStage}`;
   if (COMBINED_GRADE_CACHE.has(key)) return COMBINED_GRADE_CACHE.get(key);
-  const map = RESURRECT_COLORS.map((source, index) => blendGradeColor(
-    blendGradeColor(source, SUNSET_PALETTE_MAP[index], sunsetStage / COLOR_RAMP_STEPS),
-    NIGHT_PALETTE_MAP[index], nightStage / COLOR_RAMP_STEPS
+  // Follow one journey through twilight, never reclassifying sunset RGB.
+  const enteringNight = nightStage >= TWILIGHT_NIGHT_START_STAGE;
+  const progress = enteringNight
+    ? (nightStage - TWILIGHT_NIGHT_START_STAGE + 1) / (COLOR_RAMP_STEPS - TWILIGHT_NIGHT_START_STAGE + 1)
+    : Math.max(sunsetStage / COLOR_RAMP_STEPS, nightStage / (TWILIGHT_NIGHT_START_STAGE - 1));
+  const map = RESURRECT_COLORS.map((source, index) => orderedGradeColor(
+    enteringNight ? SUNSET_PALETTE_MAP[index] : source,
+    enteringNight ? NIGHT_PALETTE_MAP[index] : SUNSET_PALETTE_MAP[index],
+    progress, gradeBridgeCandidates(source, enteringNight)
   ));
   const desired = map.map(color => color.lab);
-  // Blend original pigments towards their fixed sunset/night endpoints. Feeding
-  // sunset output into a palette classifier again caused unrelated hue changes.
   separateDominantTerrainColors(map, desired);
-  separateTimberFromWater(map, desired);
+  separateTimberFromWater(map, desired, enteringNight ? NIGHT_TIMBER_CANDIDATES : paletteSubset(SUNSET_LAND_GRADE_HEX));
   const lut = buildRgbGradeLut(map, sourcePaletteLut);
   COMBINED_GRADE_CACHE.set(key, lut);
   return lut;
@@ -269,12 +274,22 @@ function buildRgbGradeLut(paletteMap, preparedSourcePaletteLut) {
   return lut;
 }
 
-function blendGradeColor(source, target, progress) {
-  return parsePaletteColor({
-    r: Math.round(mix(source.r, target.r, progress)),
-    g: Math.round(mix(source.g, target.g, progress)),
-    b: Math.round(mix(source.b, target.b, progress))
-  });
+function gradeBridgeCandidates(source, night) {
+  // The night endpoint already supplies the cool hue. Inserting another purple
+  // between sunset and night adds a flash and can flatten riverbank contrast.
+  if (night) return [];
+  const water = NIGHT_WATER_TERRAIN_SEPARATION.has(source.hex);
+  return paletteSubset(water ? SUNSET_WATER_GRADE_HEX : SUNSET_LAND_GRADE_HEX);
+}
+
+function orderedGradeColor(source, target, progress, candidates) {
+  // At most one bridge from the destination's material ramp. Lab averages
+  // score candidates only; every displayed colour is a Resurrect 64 entry.
+  const desired = { l: (source.lab.l + target.lab.l) / 2,
+    a: (source.lab.a + target.lab.a) / 2, b: (source.lab.b + target.lab.b) / 2 };
+  const bridge = nearestLabColor(desired, [source, target, ...candidates]);
+  const path = [...new Map([source, bridge, target].map(color => [color.hex, color])).values()];
+  return path[Math.min(path.length - 1, Math.floor(clamp(progress, 0, 1) * path.length))];
 }
 
 function buildRgbGradeRamp(targetMap, preparedSourcePaletteLut) {
@@ -286,10 +301,11 @@ function buildRgbGradeRamp(targetMap, preparedSourcePaletteLut) {
     }
     const progress = stage / COLOR_RAMP_STEPS;
     const stageMap = RESURRECT_COLORS.map((source, index) =>
-      blendGradeColor(source, targetMap[index], progress));
+      orderedGradeColor(source, targetMap[index], progress, gradeBridgeCandidates(source, targetMap === NIGHT_PALETTE_MAP)));
     const desiredMap = stageMap.map(color => color.lab);
     separateDominantTerrainColors(stageMap, desiredMap);
-    separateTimberFromWater(stageMap, desiredMap);
+    separateTimberFromWater(stageMap, desiredMap, targetMap === NIGHT_PALETTE_MAP
+      ? NIGHT_TIMBER_CANDIDATES : paletteSubset(SUNSET_LAND_GRADE_HEX));
     ramp.push(buildRgbGradeLut(stageMap, preparedSourcePaletteLut));
   }
   return Object.freeze(ramp);

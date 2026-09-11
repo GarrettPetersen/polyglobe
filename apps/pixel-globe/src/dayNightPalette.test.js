@@ -181,9 +181,7 @@ test("an evening ramp stage changes matching pixels in unison without spatial gr
   const colors = new Set();
   for (let offset = 0; offset < pixels.length; offset += 4) colors.add(rgbHex(pixels, offset));
   assert.equal(colors.size, 1);
-  // A shared interpolated colour preserves hard pixels without hopping through
-  // unrelated entries in the 64-colour source palette.
-  assert.notEqual([...colors][0], "4d9be6");
+  assert.equal(RESURRECT_64_HEX.includes([...colors][0]), true);
 });
 
 function perceptualBrightness(hex) {
@@ -275,16 +273,66 @@ test("timber stays separate through the real overlapping twilight cycle on CPU a
   }
 });
 
-test("sunset shades move directly between endpoints without detouring through other ramps", () => {
-  for (const source of ["4c3e24", "ab947a", "625565", "694f62", "239063", "a2a947", "4d9be6"]) {
-    const start = rgba(source), end = rgba(sunsetPaletteHexForSourceHex(source));
+test("sunset transitions stay in Resurrect 64 with at most one warm bridge", () => {
+  const palette = new Set(RESURRECT_64_HEX), warm = new Set(SUNSET_GRADE_HEX);
+  for (const source of RESURRECT_64_HEX) {
+    const path = [source];
     for (let stage = 1; stage <= DAY_NIGHT_VARIANT_STEPS; stage++) {
-      const pixels = new Uint8ClampedArray(start);
+      const pixels = new Uint8ClampedArray(rgba(source));
       applyDayNightPaletteGrade(pixels, 1, 1, { sunset:stage/DAY_NIGHT_VARIANT_STEPS, night:0 });
-      for (let channel = 0; channel < 3; channel++) {
-        const expected = Math.round(start[channel]+(end[channel]-start[channel])*stage/DAY_NIGHT_VARIANT_STEPS);
-        assert.equal(pixels[channel], expected, `${source}, stage ${stage}, channel ${channel}`);
+      const hex = rgbHex(pixels, 0);
+      assert.ok(palette.has(hex), `${source}: ${hex}`);
+      assert.ok(hex === source || warm.has(hex), `${source}: unrelated hue ${hex}`);
+      if (path.at(-1) !== hex) path.push(hex);
+    }
+    assert.ok(path.length <= 3, `${source}: ${path}`);
+    assert.equal(new Set(path).size, path.length, `${source} reverses its colour path`);
+  }
+});
+
+
+test("every CPU and GPU grade combination stays strictly inside Resurrect 64", () => {
+  const palette = new Set(RESURRECT_64_HEX.map(hex => parseInt(hex, 16)));
+  const packed = (pixels, offset) => pixels[offset] * 65536 + pixels[offset + 1] * 256 + pixels[offset + 2];
+  for (let sunset = 0; sunset <= DAY_NIGHT_VARIANT_STEPS; sunset++) {
+    for (let night = 0; night <= DAY_NIGHT_VARIANT_STEPS; night++) {
+      const light = { sunset:sunset/DAY_NIGHT_VARIANT_STEPS, night:night/DAY_NIGHT_VARIANT_STEPS };
+      const pixels = new Uint8ClampedArray(RESURRECT_64_HEX.flatMap(rgba));
+      applyDayNightPaletteGrade(pixels, RESURRECT_64_HEX.length, 1, light);
+      for (let offset = 0; offset < pixels.length; offset += 4) {
+        assert.ok(palette.has(packed(pixels, offset)), `CPU ${sunset}:${night}/${offset}`);
+      }
+      const variant = dayNightPaletteVariant(light);
+      if (!variant) continue;
+      for (let offset = 0; offset < variant.pixels.length; offset += 4) {
+        assert.ok(palette.has(packed(variant.pixels, offset)), `GPU ${sunset}:${night}/${offset}`);
       }
     }
+  }
+});
+
+test("each night path has at most one bridge and the full twilight cycle has at most four changes", () => {
+  for (const source of RESURRECT_64_HEX) {
+    for (const mode of ["night", "cycle"]) {
+      const path = [source];
+      for (let step = 0; step <= 200; step++) {
+        const light = mode === "night" ? {night:step/200} : dayNightLightForSunAltitude(1-step/100);
+        const pixels = new Uint8ClampedArray(rgba(source));
+        applyDayNightPaletteGrade(pixels, 1, 1, light);
+        const hex = rgbHex(pixels, 0);
+        if (hex !== path.at(-1)) path.push(hex);
+      }
+      assert.ok(path.length <= (mode === "night" ? 3 : 5), `${mode} ${source}: ${path}`);
+      if (mode === "night") assert.equal(new Set(path).size, path.length);
+    }
+  }
+});
+
+
+test("grass does not flash bright violet on its way from orange sunset to muted night", () => {
+  for (const hex of ["239063", "a2a947"]) for (let step = 0; step <= 200; step++) {
+    const pixels = new Uint8ClampedArray(rgba(hex));
+    applyDayNightPaletteGrade(pixels, 1, 1, dayNightLightForSunAltitude(1-step/100));
+    assert.ok(!["6b3e75", "905ea9", "a884f3"].includes(rgbHex(pixels, 0)));
   }
 });
