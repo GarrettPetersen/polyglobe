@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { tmpdir } from "node:os";
+import { combinedItchCredits, itchArchiveEntryCount } from "./itchPackageEntries.mjs";
 
 const appRoot = process.cwd();
 const distRoot = path.join(appRoot, "dist-demo");
@@ -17,6 +19,7 @@ const ITCH_LIMITS = Object.freeze({
   maxSingleFileBytes: 200 * 1024 * 1024
 });
 const ITCH_EXCLUDED_FILES = new Set([
+  "_headers",
   "city-visualizer/bootstrap.js",
   "city-visualizer/index.html",
   "city-visualizer/styles.css"
@@ -140,9 +143,10 @@ async function assertDemoBuild(files) {
 function assertItchLimits(files) {
   const extractedBytes = files.reduce((sum, file) => sum + file.size, 0);
   const safeFileLimit = ITCH_LIMITS.maxFiles - ITCH_LIMITS.fileSafetyMargin;
-  if (files.length > safeFileLimit) {
+  const entryCount = itchArchiveEntryCount(files.map((file) => file.relativePath));
+  if (entryCount > safeFileLimit) {
     throw new Error(
-      `Itch package contains ${files.length} files; it must stay below the ` +
+      `Itch package contains ${entryCount} file and directory entries; it must stay below the ` +
       `${ITCH_LIMITS.maxFiles}-file platform boundary (target ${safeFileLimit})`
     );
   }
@@ -171,10 +175,10 @@ async function assertRelativeRuntimeUrls(files) {
   }
 }
 
-function zipFiles(files) {
+function zipFiles(files, stagingRoot) {
   return new Promise((resolve, reject) => {
     const zip = spawn("zip", ["-q", outputZip, "-@"], {
-      cwd: distRoot,
+      cwd: stagingRoot,
       stdio: ["pipe", "inherit", "inherit"]
     });
     zip.on("error", reject);
@@ -197,18 +201,42 @@ function formatBytes(bytes) {
   return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-const files = (await collectFiles(distRoot))
+const sourceFiles = (await collectFiles(distRoot))
   .filter((file) => !ITCH_EXCLUDED_FILES.has(file.relativePath))
   .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-await assertDemoBuild(files);
-const extractedBytes = assertItchLimits(files);
-await assertRelativeRuntimeUrls(files);
-await fs.mkdir(path.dirname(outputZip), { recursive: true });
-await fs.rm(outputZip, { force: true });
-await zipFiles(files);
-const zipStat = await fs.stat(outputZip);
+const stagingRoot = await fs.mkdtemp(path.join(tmpdir(), "marque-itch-package-"));
+try {
+  // Consolidate attribution documents without dropping any notice or changing the
+  // desktop/web build trees. The game assets themselves remain byte-identical.
+  const notices = [];
+  for (const file of sourceFiles) {
+    if (file.relativePath.startsWith("assets/licenses/")) {
+      notices.push({
+        relativePath: file.relativePath,
+        source: await fs.readFile(file.absolutePath, "utf8")
+      });
+      continue;
+    }
+    const destination = path.join(stagingRoot, file.relativePath);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.copyFile(file.absolutePath, destination);
+  }
+  const creditsPath = path.join(stagingRoot, "assets/CREDITS.md");
+  await fs.writeFile(creditsPath, combinedItchCredits(await fs.readFile(creditsPath, "utf8"), notices));
+  const files = await collectFiles(stagingRoot);
+  await assertDemoBuild(files);
+  const extractedBytes = assertItchLimits(files);
+  await assertRelativeRuntimeUrls(files);
+  await fs.mkdir(path.dirname(outputZip), { recursive: true });
+  await fs.rm(outputZip, { force: true });
+  await zipFiles(files, stagingRoot);
+  const zipStat = await fs.stat(outputZip);
 
-console.log(`Created ${path.relative(appRoot, outputZip)}`);
-console.log(
-  `${files.length} files, ${formatBytes(extractedBytes)} extracted, ${formatBytes(zipStat.size)} zipped`
-);
+  console.log(`Created ${path.relative(appRoot, outputZip)}`);
+  console.log(
+    `${files.length} files, ${itchArchiveEntryCount(files.map((file) => file.relativePath))} entries including directories, ` +
+    `${formatBytes(extractedBytes)} extracted, ${formatBytes(zipStat.size)} zipped`
+  );
+} finally {
+  await fs.rm(stagingRoot, { recursive: true, force: true });
+}
