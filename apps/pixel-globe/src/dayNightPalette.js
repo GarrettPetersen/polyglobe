@@ -1,3 +1,4 @@
+import { SHIP_TIMBER_SOURCE_HEX } from "./shipResurrectPalette.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 import { dayNightLightForSunAltitude } from "./dayNightCycle.js";
 
@@ -45,6 +46,8 @@ const DOMINANT_WATER_LAND_PAIRS = Object.freeze([
   ["0eaf9b", "239063"],
   ["30e1b9", "f9c22b"]
 ]);
+const TIMBER_SOURCES = new Set([...SHIP_TIMBER_SOURCE_HEX, "694f62"]);
+const NIGHT_TIMBER_CANDIDATES = paletteSubset(NIGHT_LAND_GRADE_HEX);
 const NIGHT_CANDIDATES = paletteSubset(NIGHT_GRADE_HEX);
 const SUNSET_CANDIDATES = paletteSubset(SUNSET_GRADE_HEX);
 const NIGHT_WATER_TERRAIN_SEPARATION = paletteOverrideMap({
@@ -193,8 +196,9 @@ function nightTargetFor(source) {
     a: source.lab.a * 0.28 + 0.018,
     b: source.lab.b * 0.2 - 0.085
   };
-  const darkerCandidates = NIGHT_CANDIDATES.filter((candidate) => candidate.lab.l <= source.lab.l - 0.012);
-  return nearestLabColor(desired, darkerCandidates.length > 0 ? darkerCandidates : NIGHT_CANDIDATES);
+  const candidates = TIMBER_SOURCES.has(source.hex) ? NIGHT_TIMBER_CANDIDATES : NIGHT_CANDIDATES;
+  const darkerCandidates = candidates.filter((candidate) => candidate.lab.l <= source.lab.l - 0.012);
+  return nearestLabColor(desired, darkerCandidates.length > 0 ? darkerCandidates : candidates);
 }
 
 function sunsetTargetFor(source) {
@@ -252,9 +256,24 @@ function buildRgbGradeRamp(targetMap, preparedSourcePaletteLut) {
       ? [...targetMap]
       : desiredMap.map((desired) => nearestLabColor(desired, RESURRECT_COLORS));
     separateDominantTerrainColors(stageMap, desiredMap);
+    separateTimberFromWater(stageMap, desiredMap);
     ramp.push(buildRgbGradeLut(stageMap, preparedSourcePaletteLut));
   }
   return Object.freeze(ramp);
+}
+
+// Grading is applied to the composited scene, so timber pigments must retain a
+// separate ramp from water at every quantized transition, not only midnight.
+function separateTimberFromWater(stageMap, desiredMap) {
+  const waterColors = new Set([...NIGHT_WATER_TERRAIN_SEPARATION.keys()]
+    .map(hex => stageMap[paletteIndexForHex(hex)].hex));
+  const candidates = RESURRECT_COLORS.filter(color => !waterColors.has(color.hex));
+  for (const hex of TIMBER_SOURCES) {
+    const index = paletteIndexForHex(hex);
+    if (waterColors.has(stageMap[index].hex)) {
+      stageMap[index] = nearestLabColor(desiredMap[index], candidates);
+    }
+  }
 }
 
 function separateDominantTerrainColors(stageMap, desiredMap) {

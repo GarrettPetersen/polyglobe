@@ -1,11 +1,12 @@
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
-const WARM_SHIP_HEX = new Set([
+export const SHIP_TIMBER_SOURCE_HEX = Object.freeze([
   "4c3e24", "625565", "6e2727", "966c6c", "9e4539", "cd683d", "e6904e", "ab947a",
   "b33831", "ea4f36", "f57d4a", "ae2334", "e83b3b",
   "fb6b1d", "f79617", "f9c22b", "fbb954", "f68181", "fca790",
   "fdcbb0"
 ]);
+const WARM_SHIP_HEX = new Set(SHIP_TIMBER_SOURCE_HEX);
 
 const RESURRECT_COLORS = RESURRECT_64_HEX.map((hex) => Object.freeze({
   hex,

@@ -1,3 +1,4 @@
+import { SHIP_TIMBER_SOURCE_HEX } from "./shipResurrectPalette.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -230,3 +231,19 @@ function rgba(hex) {
 function average(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
+
+
+test("ship timber never collapses into ocean colours during dusk and night", () => {
+  const timber = [...SHIP_TIMBER_SOURCE_HEX, "694f62"];
+  const water = ["323353", "484a77", "4d65b4", "4d9be6", "9babb2", "c7dcd0", "0b5e65", "0b8a8f", "0eaf9b", "30e1b9"];
+  for (const mode of ["sunset", "night"]) for (let stage = 1; stage <= DAY_NIGHT_VARIANT_STEPS; stage++) {
+    const colours = [...water, ...timber];
+    const pixels = new Uint8ClampedArray(colours.flatMap(rgba));
+    applyDayNightPaletteGrade(pixels, colours.length, 1, { [mode]: stage / DAY_NIGHT_VARIANT_STEPS });
+    const ocean = new Set(water.map((_, index) => rgbHex(pixels, index * 4)));
+    for (let index = 0; index < timber.length; index++) {
+      assert.ok(!ocean.has(rgbHex(pixels, (water.length + index) * 4)), `${timber[index]} ${mode} ${stage}`);
+    }
+  }
+  for (const hex of timber) assert.ok(!NIGHT_WATER_GRADE_HEX.includes(nightPaletteHexForSourceHex(hex)), hex);
+});
