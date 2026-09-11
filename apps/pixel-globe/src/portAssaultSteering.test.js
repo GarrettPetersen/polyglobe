@@ -108,3 +108,18 @@ test("rear infantry back off instead of driving an advance into a comrade", () =
     assert.ok(portAssaultPositionIsFree({...unit,...next},[front]));
   }
 });
+
+
+test("withdrawing gunners cannot push supporting infantry backward", () => {
+  for (const side of ["attacker", "defender"]) {
+    const forward = side === "attacker" ? 1 : -1;
+    const pike = {id:"pike", side, position:.5, lane:1, alive:true,
+      stats:{mounted:false,attackType:"melee"},laneGoal:null,nextLaneChangeAtMs:0};
+    const gun = {...pike,id:"gun",position:.5+forward*.025,retreating:true,
+      stats:{mounted:false,attackType:"firearm"}};
+    const occupancy = new PortAssaultOccupancy();
+    occupancy.add(pike); occupancy.add(gun);
+    const next = portAssaultMoveInFormation(pike,{position:.5,lane:1},.003,occupancy,0,2000,{holdingScreen:true});
+    assert.ok((next.position-pike.position)*forward >= 0);
+  }
+});

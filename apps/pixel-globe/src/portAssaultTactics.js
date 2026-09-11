@@ -3,7 +3,7 @@ import { PORT_ASSAULT_LANE_COUNT, PORT_ASSAULT_LANE_SPACING, portAssaultBodyRadi
 const LOCAL_RADIUS = 0.24;
 const PROTECTION_DISTANCE = 0.09;
 const SCREEN_GAP = 0.055;
-const ready = unit => unit.alive && unit.spawned && unit.landed && unit.surface !== "deck";
+const ready = unit => unit.alive && unit.spawned && unit.landed && !unit.airborne && unit.surface !== "deck";
 const ranged = unit => unit.stats.attackType !== "melee";
 
 // A shot is a ground-space segment: every friendly body along it must be clear.
@@ -52,7 +52,7 @@ function withdrawingComradeInPath(unit, allies, timeMs) {
       portAssaultBodyRadius(unit) + portAssaultBodyRadius(ally) + .003));
 }
 
-function yieldToWithdrawingComrade(unit, comrade, allies, enemies) {
+function yieldToWithdrawingComrade(unit, comrade, allies, enemies, { holdingFront = unit.stats.attackType === "melee" } = {}) {
   const rearDirection = unit.side === "attacker" ? -1 : 1;
   // Open the retreat corridor sideways instead of joining a backward queue.
   const clearance = (portAssaultBodyRadius(unit) + portAssaultBodyRadius(comrade) + .003) / PORT_ASSAULT_LANE_SPACING;
@@ -62,8 +62,8 @@ function yieldToWithdrawingComrade(unit, comrade, allies, enemies) {
   const occupants = [...allies, ...enemies].filter(ready);
   let best = null;
   let bestProgress = -1;
-  const destinations = candidates.map(lane => ({ position: unit.position + rearDirection * .01, lane }));
-  destinations.push({ position: unit.position + rearDirection * .035, lane: unit.lane });
+  const destinations = candidates.map(lane => ({ position: unit.position + (holdingFront ? -rearDirection * .01 : rearDirection * .01), lane }));
+  if (!holdingFront) destinations.push({ position: unit.position + rearDirection * .035, lane: unit.lane });
   for (const destination of destinations) {
     const decision = move("yield", destination.position, destination.lane);
     const distance = portAssaultGroundDistance(unit, decision.destination);
@@ -72,14 +72,20 @@ function yieldToWithdrawingComrade(unit, comrade, allies, enemies) {
     if (progress > bestProgress) { best = decision; bestProgress = progress; }
   }
   if (!best) throw new Error(`No retreat clearance within the battlefield for ${unit.id}`);
-  return best;
+  return holdingFront ? { ...best, holdingFront: true } : best;
 }
 
 // Decisions depend on nearby soldiers and individual reload clocks, never a
 // battle-wide phase. Cavalry bypasses the infantry screen and closes immediately.
 export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, rangedAllies = allies.filter(ranged)) {
   const enemies = opponents;
-  const target = nearest(unit, enemies);
+  const chargeTargets = unit.stats.mounted && unit.momentum >= .5
+    ? enemies.filter(enemy => {
+      const distance = portAssaultGroundDistance(unit,enemy);
+      return distance > 0 && ((enemy.position-unit.position)*unit.chargeDirectionX +
+        (enemy.lane-unit.lane)*PORT_ASSAULT_LANE_SPACING*unit.chargeDirectionY)/distance > .65;
+    }) : [];
+  const target = nearest(unit, chargeTargets) || nearest(unit, enemies);
   if (unit.surface === "deck") {
     if (unit.side !== "attacker") throw new Error(`Defender boarded player ship: ${unit.id}`);
     if (unit.firearmReload !== null) return move("reload", unit.position, unit.lane);

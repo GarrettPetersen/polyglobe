@@ -19,7 +19,7 @@ test("the blade-ready cue is bundled and credited", () => {
   assert.equal(sound.toString("ascii", 0, 4), "OggS");
 
   const credits = readFileSync(new URL("public/assets/CREDITS.md", APP_ROOT), "utf8");
-  assert.match(credits, /Three Kingdoms Stratagem - sword unsheathing cue/);
+  assert.match(credits, /Three Kingdoms Stratagem - Unsheath Sword/);
 });
 
 test("drawing a blade cues whale finishing, port storming, and sword confrontations", () => {

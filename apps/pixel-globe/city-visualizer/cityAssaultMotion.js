@@ -1,3 +1,4 @@
+import { PORT_ASSAULT_CHARGE_FLIGHT_MS, PORT_ASSAULT_CHARGE_BOUNCE_MS, PORT_ASSAULT_CHARGE_MOTION_MS } from "../src/portAssaultCharge.js";
 export { PORT_ASSAULT_TRACK_SPAN_PX as CITY_ASSAULT_TRACK_SPAN_PX,
   PORT_ASSAULT_GROUND_DEPTH_SCALE as CITY_ASSAULT_GROUND_DEPTH_SCALE } from "../src/portAssaultGround.js";
 export const CITY_ASSAULT_JUMP_ARC_HEIGHT_PX = 18;
@@ -89,4 +90,16 @@ function requireMotionTiming(elapsedMs, durationMs, label) {
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
+}
+
+
+export function cityAssaultChargeOffset({deltaX,deltaY,elapsedMs}) {
+  requireMotionTiming(elapsedMs,PORT_ASSAULT_CHARGE_MOTION_MS,"charge");
+  if (![deltaX,deltaY].every(Number.isFinite)) throw new Error("Invalid charge displacement");
+  const progress = Math.min(1,elapsedMs / PORT_ASSAULT_CHARGE_FLIGHT_MS);
+  const groundY = -deltaY * (1-progress);
+  const bounce = Math.max(0,Math.min(1,(elapsedMs-PORT_ASSAULT_CHARGE_FLIGHT_MS)/PORT_ASSAULT_CHARGE_BOUNCE_MS));
+  const height = elapsedMs < PORT_ASSAULT_CHARGE_FLIGHT_MS
+    ? 28 * 4 * progress * (1-progress) : 6 * 4 * bounce * (1-bounce);
+  return {x:Math.round(-deltaX*(1-progress)) || 0,y:Math.round(groundY-height) || 0,groundY:Math.round(groundY) || 0};
 }

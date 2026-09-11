@@ -1,7 +1,8 @@
+import { portAssaultMoveInFormation } from "./portAssaultSteering.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { portAssaultShotIsClear, portAssaultTacticalDecision } from "./portAssaultTactics.js";
-import { PORT_ASSAULT_LANE_SPACING } from "./portAssaultFormation.js";
+import { PortAssaultOccupancy, portAssaultPositionIsFree, PORT_ASSAULT_LANE_SPACING } from "./portAssaultFormation.js";
 import { portAssaultUnitStats } from "./portAssaultBattle.js";
 const unit = (id, type, position, lane = 1, side = "attacker") => {
   const stats = portAssaultUnitStats({ id, crewTypeId: type, combatProfileId: type,
@@ -148,6 +149,8 @@ test("infantry opens the retreat corridor without following withdrawing guns bac
     const enemy = unit("enemy", "swordsman", .5 + forward * .3, 1, side === "attacker" ? "defender" : "attacker");
     const decision = portAssaultTacticalDecision(pike, [pike, gun], [enemy], 2000);
     assert.equal(decision.mode, "yield");
+    assert.ok((decision.destination.position - pike.position) * forward > 0, "filter forward while making room");
+    assert.equal(decision.holdingFront, true);
     assert.ok(Math.abs(decision.destination.lane - gun.lane) * PORT_ASSAULT_LANE_SPACING >= .02, "make physical passage sideways");
     gun.lane = 3;
     assert.equal(portAssaultTacticalDecision(pike, [pike, gun], [enemy], 2000).mode, "support",
@@ -164,7 +167,7 @@ test("infantry opens the retreat corridor without following withdrawing guns bac
 test("yielding troops choose the open side of a retreat corridor", () => {
   const pike = unit("pike", "spearman", .5, 1);
   const gun = { ...unit("gun", "gunner", .535, 1), retreating: true };
-  const blocker = unit("blocker", "spearman", .49, 1 - .021 / PORT_ASSAULT_LANE_SPACING);
+  const blocker = unit("blocker", "spearman", .51, 1 - .021 / PORT_ASSAULT_LANE_SPACING);
   const enemy = unit("enemy", "swordsman", .8, 1, "defender");
   const decision = portAssaultTacticalDecision(pike, [pike, gun, blocker], [enemy], 2000);
   assert.equal(decision.mode, "yield");
@@ -258,5 +261,30 @@ test("five shieldmen relieve three depleted gunners before the screen is killed"
     assert.deepEqual(shields.map(shield => portAssaultTacticalDecision(shield, [...allies].reverse(), [enemy], 5000).mode), decisions,
       "relief assignments must not depend on roster order");
     assert.ok(guns.every(gun => gun.alive));
+  }
+});
+
+
+test("infantry filters forward past withdrawing gunners to meet cavalry on both sides", () => {
+  for (const side of ["attacker","defender"]) {
+    const forward = side === "attacker" ? 1 : -1;
+    const pike = {...unit("pike","spearman",.5,1,side),laneGoal:null,nextLaneChangeAtMs:0};
+    const gun = {...unit("gun","gunner",.5+forward*.035,1,side),retreating:true,laneGoal:null,nextLaneChangeAtMs:0};
+    const horse = {...unit("horse","swordsman",.5+forward*.085,1,side === "attacker" ? "defender":"attacker"),
+      stats:{...unit("horse-stats","swordsman",.5).stats,mounted:true}};
+    const occupancy = new PortAssaultOccupancy();
+    for (const person of [pike,gun,horse]) occupancy.add(person);
+    for (let tick=0;tick<50;tick++) {
+      const decision = portAssaultTacticalDecision(pike,[pike,gun],[horse],2000+tick*100);
+      const next = portAssaultMoveInFormation(pike,decision.destination || decision.target,.003,occupancy,
+        decision.target ? pike.stats.range : 0,2000+tick*100,{holdingFront:decision.holdingFront === true});
+      assert.ok((next.position-pike.position)*forward >= -1e-9, "protectors must not follow the retreat");
+      Object.assign(pike,next); occupancy.update(pike);
+      Object.assign(gun,portAssaultMoveInFormation(gun,{position:.5-forward*.1,lane:1},.003,occupancy,0,2000+tick*100));
+      occupancy.update(gun);
+      assert.ok(portAssaultPositionIsFree(pike,[gun,horse]), "filtering cannot pass through bodies");
+    }
+    assert.ok((pike.position-.5)*forward > .01,"infantry advances to meet the cavalry");
+    assert.ok((gun.position-.5)*forward < -.02,"gunner gets through to safety");
   }
 });

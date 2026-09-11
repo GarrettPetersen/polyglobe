@@ -67,28 +67,48 @@
 - S. Paul Michael - "Iceberg 1" (CC BY 3.0)
 
 ## Sound Effects
-- Alex Jauk
-- Dragon Studio
-- Floraphonic
-- Freesound Community
-- Freesound Community - "Door Hit" (Pixabay 98828, Pixabay Content License)
-- Freesound Community - "Old Musket Bang" (Pixabay 95873, Pixabay Content License; trimmed)
-- Freesound Community / druidus (Freesound) - "Lightning Strike" (Pixabay 29683, Pixabay Content License; trimmed)
-- SoundsForYou
-- Tanweraman
-- Universfield
-- u_7hpxkdroz2
-- Dominik Braun - "Failure Sound" from "107 Free Retro Game Sounds" (CC BY 4.0)
-- Three Kingdoms Stratagem - fire crackle loop
-- Three Kingdoms Stratagem - sword unsheathing cue
-- Three Kingdoms Stratagem - melee swing and hit cues
-- Three Kingdoms Stratagem - anchor handling, surface ice, and shipwright impact cues
-- Universfield - "Dramatic Death Collapse" (Pixabay 352720, Pixabay Content License; via Three Kingdoms Stratagem)
-- Universfield - "Wet Squelch Impact" (Pixabay 352302, Pixabay Content License)
-- H. Lentfer / National Park Service - "Humpbacks and Murrelets" surface blow excerpt (public domain; cleaned)
-- DRAGON-STUDIO - "Creepy Whale Song" and "Haunting Whale Song" (Pixabay Content License)
-- cclaretc / Freesound Community - "Whale" (Pixabay 45996, Pixabay Content License)
+- Alex Jauk - "Water Splash" (Pixabay 147014, Pixabay Content License)
+- Three Kingdoms Stratagem - Arrow Hit
+- Three Kingdoms Stratagem - Bow Fire
 - CatFox_Alex - "Ocean Wave Slowly" (Pixabay 236010, Pixabay Content License)
+- Dominik Braun - Failure Sound (107 Free Retro Game Sounds, CC BY 4.0)
+- Dragon Studio - "Boulder Impact" (Pixabay 487673, Pixabay Content License)
+- Dragon Studio - "Creepy Whale Song" (Pixabay 323612, Pixabay Content License)
+- Dragon Studio - "Harsh Wind" (Pixabay 515272, Pixabay Content License)
+- Dragon Studio - "Haunting Whale Song" (Pixabay 515260, Pixabay Content License)
+- Dragon Studio - "Impact Thud" (Pixabay 372473, Pixabay Content License)
+- Dragon Studio - "Seagull Calls" (Pixabay 339723, Pixabay Content License)
+- Dragon Studio - "Winter Wind" (Pixabay 402331, Pixabay Content License)
+- Floraphonic - "Coin And Money Bag 3" (Pixabay 185264, Pixabay Content License)
+- cclaretc / Freesound Community - "Whale" (Pixabay 45996, Pixabay Content License)
+- Freesound Community - "Door Hit" (Pixabay 98828, Pixabay Content License)
+- Freesound Community - "Flag" (Pixabay 6367, Pixabay Content License)
+- Freesound Community - "Harboursoundsanno1811" (Pixabay 24015, Pixabay Content License)
+- Freesound Community - "Item Pickup" (Pixabay 37089, Pixabay Content License)
+- Freesound Community / druidus (Freesound) - "Lightning Strike" (Pixabay 29683, Pixabay Content License; trimmed)
+- Freesound Community - "Old Musket Bang" (Pixabay 95873, Pixabay Content License; trimmed)
+- Freesound Community - "Sailboat Underway" (Pixabay 48728, Pixabay Content License)
+- Freesound Community - "Saildeploy" (Pixabay 99393, Pixabay Content License)
+- Freesound Community - "Sea And Seagull Wave" (Pixabay 5932, Pixabay Content License)
+- Freesound Community - "Short Success Sound Glockenspiel Treasure Video Game" (Pixabay 6346, Pixabay Content License)
+- Freesound Community - "Thump" (Pixabay 105302, Pixabay Content License)
+- Freesound Community - "Thump Close" (Pixabay 101799, Pixabay Content License)
+- H. Lentfer / National Park Service - "Humpbacks and Murrelets" surface blow excerpt (public domain; cleaned)
+- SoundsForYou - "Ocean Sea Soft Waves" (Pixabay 121349, Pixabay Content License)
+- Tanweraman - "Desert Wind 1" (Pixabay 350398, Pixabay Content License)
+- Three Kingdoms Stratagem - Anchor Handling
+- Three Kingdoms Stratagem - Fire Crackle Loop
+- Three Kingdoms Stratagem - Ice Break
+- Three Kingdoms Stratagem - Ice Crack
+- Three Kingdoms Stratagem - Melee Hit
+- Three Kingdoms Stratagem - Melee Swing
+- Three Kingdoms Stratagem - Shipwright Hammer
+- Three Kingdoms Stratagem - Unsheath Sword
+- u_7hpxkdroz2 - "Storm" (Pixabay 461601, Pixabay Content License)
+- Universfield - "Cannon Shot" (Pixabay 352459, Pixabay Content License)
+- Universfield - "Dramatic Death Collapse" (Pixabay 352720, Pixabay Content License; via Three Kingdoms Stratagem)
+- Universfield - "Impact Thud" (Pixabay 291047, Pixabay Content License)
+- Universfield - "Wet Squelch Impact" (Pixabay 352302, Pixabay Content License)
 
 ## Pixel Art Icons
 - Free Game Assets - "Free Pirate Stuff Icons" (CraftPix Freebie License)

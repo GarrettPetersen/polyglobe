@@ -52,7 +52,9 @@ export function cityAssaultShipEffectsFrame(model, presentation) {
     const anchor = model.anchors[seed % model.anchors.length];
     const burst = createHullSplinterBurst({ kind: "cannon", seed, damage: event.damage,
       startX: anchor.x + 10, startY: anchor.y, targetX: anchor.x, targetY: anchor.y }, anchor);
-    burst.age = (timeMs - event.timeMs) / 1000;
+    const ageSeconds = (timeMs - event.timeMs) / 1000;
+    if (ageSeconds < 0 || ageSeconds >= burst.ttl) continue;
+    burst.age = ageSeconds;
     for (const pixel of hullSplinterPixels(burst)) splinters.push({ ...pixel, color: anchor.color });
   }
   return { sink, fires, smoke, splinters };

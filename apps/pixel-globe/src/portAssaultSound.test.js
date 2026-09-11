@@ -15,7 +15,8 @@ test("port assaults bundle dedicated, credited melee cues", () => {
   }
 
   const credits = readFileSync(new URL("public/assets/CREDITS.md", APP_ROOT), "utf8");
-  assert.match(credits, /Three Kingdoms Stratagem - melee swing and hit cues/);
+  assert.match(credits, /Three Kingdoms Stratagem - Melee Swing/);
+  assert.match(credits, /Three Kingdoms Stratagem - Melee Hit/);
   const provenance = readFileSync(
     new URL("public/assets/licenses/three-kingdoms-stratagem-melee-sfx.txt", APP_ROOT),
     "utf8"

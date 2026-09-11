@@ -3462,6 +3462,9 @@ const SFX_FIRE_URL = "assets/sfx/three-kingdoms-stratagem-fire-crackle-loop.ogg"
 const SFX_CREW_DEATH_URL = "assets/sfx/universfield-dramatic-death-collapse-352720.ogg";
 const SFX_WHALE_BLOW_URL = "assets/sfx/nps-humpback-whale-surface-blow.ogg";
 const SFX_BLADE_READY_URL = "assets/sfx/three-kingdoms-stratagem-unsheath-sword.ogg";
+const SFX_CHARGE_IMPACT_URL = "assets/sfx/universfield-impact-thud-291047.ogg";
+const SFX_WOOD_THUMP_URL = "assets/sfx/freesound_community-thump-105302.ogg";
+const SFX_WOOD_THUMP_CLOSE_URL = "assets/sfx/freesound_community-thump-close-101799.ogg";
 const SFX_MELEE_SWING_URL = "assets/sfx/three-kingdoms-stratagem-melee-swing.ogg";
 const SFX_MELEE_HIT_URL = "assets/sfx/three-kingdoms-stratagem-melee-hit.ogg";
 const SFX_WHALE_KILL_URL = "assets/sfx/universfield-wet-squelch-impact-352302.ogg";
@@ -10159,6 +10162,9 @@ function setupSoundEffects() {
     crewDeath: createSoundPool(SFX_CREW_DEATH_URL, SFX_CREW_DEATH_POOL_SIZE, "crew death"),
     whaleBlow: createSoundPool(SFX_WHALE_BLOW_URL, SFX_WHALE_BLOW_POOL_SIZE, "whale surface blow"),
     bladeReady: createSoundPool(SFX_BLADE_READY_URL, SFX_BLADE_READY_POOL_SIZE, "blade drawn"),
+    chargeImpact: createSoundPool(SFX_CHARGE_IMPACT_URL, SFX_IMPACT_POOL_SIZE, "mounted charge impact"),
+    woodThump: createSoundPool(SFX_WOOD_THUMP_URL, SFX_IMPACT_POOL_SIZE, "wooden dock landing"),
+    woodThumpClose: createSoundPool(SFX_WOOD_THUMP_CLOSE_URL, SFX_IMPACT_POOL_SIZE, "ship deck landing"),
     meleeSwing: createSoundPool(SFX_MELEE_SWING_URL, SFX_MELEE_POOL_SIZE, "melee swing"),
     meleeHit: createSoundPool(SFX_MELEE_HIT_URL, SFX_MELEE_POOL_SIZE, "melee hit"),
     whaleKill: createSoundPool(SFX_WHALE_KILL_URL, SFX_WHALE_KILL_POOL_SIZE, "whale killing blow"),
@@ -10407,6 +10413,9 @@ function applyThemeAudioSettings() {
       ...soundEffects.bowFire,
       ...soundEffects.arrowHit,
       ...soundEffects.impact,
+      ...soundEffects.chargeImpact,
+      ...soundEffects.woodThump,
+      ...soundEffects.woodThumpClose,
       ...soundEffects.armorGlance,
       ...soundEffects.sailDeploy,
       ...soundEffects.anchorHandling,
@@ -25664,6 +25673,9 @@ function updatePortAssault(nowMs) {
 }
 
 function playPortAssaultEventSound(event) {
+  if (event.chargeLaunch && (event.type === "hit" || event.type === "death")) {
+    playSoundEffect(soundEffects?.chargeImpact, 0.32, 1);
+  }
   if (event.type === "attack") {
     if (event.attackType === "arrow") playBowFireSound();
     else if (event.attackType === "firearm") {
@@ -25690,9 +25702,12 @@ function playPortAssaultEventSound(event) {
     playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * 0.16, 1.25);
   } else if (event.type === "splash") {
     playSoundEffect(soundEffects?.fishing, SFX_FISHING_VOLUME * 0.72, 1.15);
+  } else if (event.type === "deck-land") {
+    playSoundEffect(soundEffects?.woodThumpClose, 0.22, 1);
   } else if (event.type === "dock-land") {
-    const volume = event.dockKind === "stone" ? 0.3 : 0.22;
-    playSoundEffect(soundEffects?.impact, volume, event.dockKind === "stone" ? 1.15 : 0.92);
+    if (event.dockKind === "stone") playSoundEffect(soundEffects?.impact, 0.3, 1.15);
+    else if (event.dockKind === "wood") playSoundEffect(soundEffects?.woodThump, 0.22, 1);
+    else throw new Error(`Unknown port assault landing surface: ${event.dockKind}`);
   } else if (event.type === "ship-hit") {
     playCannonImpactSound(0);
   } else if (event.type === "breach" || event.type === "result" || event.type === "time-limit") {

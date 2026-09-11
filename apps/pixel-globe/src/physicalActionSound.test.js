@@ -24,7 +24,7 @@ test("physical action cues from Three Kingdoms Stratagem are bundled and credite
   }
 
   const credits = readFileSync(new URL("public/assets/CREDITS.md", APP_ROOT), "utf8");
-  assert.match(credits, /Three Kingdoms Stratagem - anchor handling, surface ice, and shipwright impact cues/);
+  for (const title of ["Anchor Handling", "Ice Break", "Ice Crack", "Shipwright Hammer"]) assert.ok(credits.includes(`Three Kingdoms Stratagem - ${title}`));
 });
 
 test("important silent physical actions now trigger feedback", () => {

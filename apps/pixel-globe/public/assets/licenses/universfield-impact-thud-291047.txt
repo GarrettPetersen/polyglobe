@@ -1,0 +1,8 @@
+Creator: UNIVERSFIELD
+Source: user-downloaded Pixabay audio; macOS download metadata confirms:
+https://cdn.pixabay.com/download/audio/2025/01/22/audio_ea749bfd5a.mp3
+License: Pixabay Content License
+License summary: https://pixabay.com/service/license-summary/
+
+Loudness normalized with a -1.5 dBTP ceiling, 48 kHz stereo Ogg Vorbis.
+Used for mounted charge collisions.

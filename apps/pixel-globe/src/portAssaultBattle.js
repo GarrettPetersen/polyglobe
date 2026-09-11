@@ -1,3 +1,4 @@
+import { portAssaultChargeMomentumAfterImpact, PORT_ASSAULT_CHARGE_ACCELERATION_MS, portAssaultChargeLanding, PORT_ASSAULT_CHARGE_MIN_MOMENTUM, PORT_ASSAULT_CHARGE_MOTION_MS, PORT_ASSAULT_CHARGE_STAGGER_MS } from "./portAssaultCharge.js";
 import { portAssaultGroundLaneBounds } from "./portAssaultGround.js";
 import { portAssaultAttackTiming, portAssaultProjectileFlightMs } from "./portAssaultAttackTiming.js";
 import { portAssaultMoveInFormation } from "./portAssaultSteering.js";
@@ -103,7 +104,6 @@ const EXPERIENCE_ATTACK_MULTIPLIER = 0.08;
 const EXPERIENCE_DEFENSE_MULTIPLIER = 0.05;
 const EXPERIENCE_HIT_POINTS_MULTIPLIER = 0.06;
 const RANGED_MELEE_RANGE = 0.03;
-const FULL_CHARGE_DISTANCE = 0.12;
 const MOMENTUM_DECAY_PER_STEP = 0.16;
 const BASE_KNOCKBACK_POSITION_BY_ATTACK_TYPE = Object.freeze({
   [PORT_ASSAULT_ATTACK_TYPE.MELEE]: 0.006,
@@ -253,14 +253,14 @@ export function portAssaultUnitStats(combatant, modifiers = DEFAULT_MODIFIERS) {
     attackType: base.attackType,
     range: base.range,
     cooldownMs: base.cooldownMs,
-    movementPerSecond: base.movementPerSecond,
+    movementPerSecond: base.movementPerSecond * (base.mounted ? 1.3 : 1),
     blockChance: base.blockChance,
     armorCoverage: clamp(base.armorCoverage + modifiers.armorCoverageBonus, 0, 1),
     armorPenetration: base.armorPenetration,
     antiMountedDamageMultiplier: base.antiMountedDamageMultiplier,
     mounted: base.mounted,
     knockbackMultiplier: base.knockbackMultiplier,
-    chargeDamageMultiplier: base.chargeDamageMultiplier,
+    chargeDamageMultiplier: base.mounted ? Math.max(1.8, base.chargeDamageMultiplier) : base.chargeDamageMultiplier,
     chargeKnockbackMultiplier: base.chargeKnockbackMultiplier,
     meleeFallback: base.meleeFallback
       ? Object.freeze({
@@ -513,6 +513,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       break;
     }
 
+    for (const unit of units) unit.airborne = timeMs < unit.chargeMotionUntilMs;
     shipHitPoints = resolvePendingAttacks(pendingAttacks, timeMs, random, events, occupancy, shipHitPoints);
     if (shipHitPoints === 0) { winner = PORT_ASSAULT_SIDE.DEFENDER; break; }
     for (const unit of initiativeOrder) {
@@ -522,6 +523,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       }
       unit.moving = false;
       unit.reloadAnimationStartedAtMs = null;
+      if (timeMs < unit.chargeStaggerUntilMs) continue;
       if (!unit.spawned) {
         // A blocked landing point delays this place in the queue; later troops
         // must not bypass the cavalry/skirmisher deployment order.
@@ -578,6 +580,29 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const attackProfile = target
         ? unit.surface === "deck" ? unit.stats : portAssaultAttackProfileAtDistance(unit.stats, targetDistance)
         : null;
+      if (target && unit.stats.mounted && unit.momentum >= PORT_ASSAULT_CHARGE_MIN_MOMENTUM &&
+          targetDistance <= unit.stats.range &&
+          ((target.position-unit.position)*unit.chargeDirectionX +
+            (target.lane-unit.lane)*PORT_ASSAULT_LANE_SPACING*unit.chargeDirectionY) / targetDistance > .65) {
+        // Momentum is spent per body, not per sword swing. A fast horse can
+        // break several ranks; a slowed one must fight or build speed again.
+        // Long anti-cavalry weapons absorb the shock before it bowls through
+        // the line. Their existing matchup strength also spends horse momentum.
+        const chargeMomentum = unit.momentum / target.stats.antiMountedDamageMultiplier ** 2;
+        const event = {timeMs,type:"attack",unitId:unit.id,targetId:target.id,attackType:"melee",
+          surface:unit.surface,deckSlot:unit.deckSlot,position:unit.position,lane:unit.lane,
+          targetPosition:target.position,targetLane:target.lane,facingRight:target.position > unit.position,
+          animationStartedAtMs:timeMs,chargeMomentum,chargeContact:true,lungePositionDelta:0,lungeLaneDelta:0};
+        pushEvent(events,event);
+        resolveAttackImpact({attacker:unit,target,attackProfile:unit.stats,chargeMomentum,event,chargeContact:true},
+          timeMs,random,events,occupancy);
+        if (!target.alive) occupancy.remove(target);
+        unit.momentum = portAssaultChargeMomentumAfterImpact(chargeMomentum,target.stats.mounted);
+        unit.moving = true;
+        unit.actionUntilMs = timeMs;
+        unit.facingRight = target.position > unit.position;
+        continue;
+      }
       if (target && targetDistance <= attackProfile.range &&
           (attackProfile.attackType === "melee" || portAssaultShotIsClear(unit, target, allies))) {
         unit.facingRight = target.position === unit.position
@@ -606,7 +631,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         }
         continue;
       }
-      const movement = unit.stats.movementPerSecond * (PORT_ASSAULT_STEP_MS / 1000);
+      const movement = unit.stats.movementPerSecond * (unit.stats.mounted ? .35 + .65 * unit.momentum : 1) * (PORT_ASSAULT_STEP_MS / 1000);
       const previousPosition = unit.position;
       const previousLane = unit.lane;
       const destination = tactic?.destination || target || { position: goal, lane: unit.lane };
@@ -614,6 +639,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       // movement consumes the same speed budget as advancing along the road.
       const next = portAssaultMoveInFormation(unit, destination, movement, occupancy, tactic?.range ?? (target ? unit.stats.range : 0), timeMs, {
         holdingScreen: tactic?.mode === "support",
+        holdingFront: tactic?.holdingFront === true,
         leaveRetreatGaps: (unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackerSkirmishers : defenderSkirmishers).length > 0,
         clearingLanding: tactic?.mode === "clear-quay" || (unit.side === PORT_ASSAULT_SIDE.ATTACKER &&
           timeMs <= unit.landedAtMs + 1000)
@@ -625,10 +651,15 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       unit.moving = portAssaultGroundDistance({ position: previousPosition, lane: previousLane }, unit) > 1e-9;
       if (unit.position !== previousPosition) unit.facingRight = unit.position > previousPosition;
       if (unit.moving && unit.stats.chargeDamageMultiplier > 1) {
-        unit.momentum = Math.min(
-          1,
-          unit.momentum + Math.abs(unit.position - previousPosition) / FULL_CHARGE_DISTANCE
-        );
+        const distance = portAssaultGroundDistance({position:previousPosition,lane:previousLane},unit);
+        const dx = (unit.position-previousPosition)/distance;
+        const dy = (unit.lane-previousLane)*PORT_ASSAULT_LANE_SPACING/distance;
+        // Turning spends forward momentum; sidestepping in a crowd is not a run-up.
+        const alignment = Math.max(0,dx*unit.chargeDirectionX+dy*unit.chargeDirectionY);
+        unit.momentum = Math.min(1,unit.momentum*alignment + PORT_ASSAULT_STEP_MS /
+          PORT_ASSAULT_CHARGE_ACCELERATION_MS*Math.min(1,distance/movement));
+        unit.chargeDirectionX = dx;
+        unit.chargeDirectionY = dy;
       }
     }
     if (collectPresentation && timeMs >= nextTrackMs) {
@@ -883,6 +914,7 @@ export function portAssaultShipImpactShakeAt(battle, elapsedMs, { reducedMotion 
 
 function eventPresentationDurationMs(event) {
   const type = event?.type;
+  if (event.chargeLaunch) return PORT_ASSAULT_CHARGE_STAGGER_MS;
   if (type === "attack" && event.attackType === PORT_ASSAULT_ATTACK_TYPE.FIREARM) {
     return PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS;
   }
@@ -982,8 +1014,13 @@ function createBattleUnits(combatants, side, modifiers, random, seed, dockKind) 
       actionAnimationId: null,
       actionStartedAtMs: 0,
       actionUntilMs: 0,
+      airborne: false,
+      chargeMotionUntilMs: 0,
+      chargeStaggerUntilMs: 0,
       moving: false,
       momentum: 0,
+      chargeDirectionX: side === PORT_ASSAULT_SIDE.ATTACKER ? 1 : -1,
+      chargeDirectionY: 0,
       spawned: false,
       landed: side === PORT_ASSAULT_SIDE.DEFENDER,
       jumpStartedAtMs: null
@@ -1046,7 +1083,7 @@ function resolvePendingAttacks(pending, timeMs, random, events, occupancy, shipH
   for (let index = 0; index < pending.length;) {
     const strike = pending[index];
     const { attacker, target, attackProfile } = strike;
-    if (!strike.released && !attacker.alive) { pending.splice(index, 1); continue; }
+    if (!strike.released && (!attacker.alive || timeMs < attacker.chargeStaggerUntilMs)) { pending.splice(index, 1); continue; }
     if (strike.releaseAtMs > timeMs) { index++; continue; }
     if (strike.kind === "ship") {
       // A defender knocked away from the hull during windup cannot hit it.
@@ -1090,7 +1127,7 @@ function resolvePendingAttacks(pending, timeMs, random, events, occupancy, shipH
     const connects = attackProfile.attackType === "melee"
       ? portAssaultGroundDistance(origin, target) <= attackProfile.range
       : portAssaultGroundDistance(aimedPoint, target) <= portAssaultBodyRadius(target);
-    if (target.alive && target.landed && target.surface !== "deck" && connects) {
+    if (target.alive && target.landed && !target.airborne && target.surface !== "deck" && connects) {
       resolveAttackImpact(strike, timeMs, random, events, occupancy);
       if (!target.alive) occupancy.remove(target);
     }
@@ -1108,8 +1145,8 @@ function resolvePendingAttacks(pending, timeMs, random, events, occupancy, shipH
   return shipHitPoints;
 }
 
-function resolveAttackImpact({ attacker, target, attackProfile, chargeMomentum, event }, timeMs, random, events, occupancy) {
-  const chargeDamageMultiplier = 1 + (attacker.stats.chargeDamageMultiplier - 1) * chargeMomentum;
+function resolveAttackImpact({ attacker, target, attackProfile, chargeMomentum, event, chargeContact = false }, timeMs, random, events, occupancy) {
+  const chargeDamageMultiplier = 1 + (attacker.stats.chargeDamageMultiplier - 1) * chargeMomentum ** 2;
   const chargeKnockbackMultiplier = 1 + (attacker.stats.chargeKnockbackMultiplier - 1) * chargeMomentum;
   const matchupMultiplier = target.stats.mounted
     ? attacker.stats.antiMountedDamageMultiplier
@@ -1117,8 +1154,8 @@ function resolveAttackImpact({ attacker, target, attackProfile, chargeMomentum, 
   const effectiveAttack = attackProfile.attack * chargeDamageMultiplier * matchupMultiplier;
   const attackRatio = effectiveAttack / Math.max(1, target.stats.defense);
   const hitChance = clamp(0.42 + Math.log2(attackRatio) * 0.16, 0.18, 0.82);
-  if (random() >= hitChance) return;
-  if (target.stats.blockChance > 0 && random() < target.stats.blockChance) {
+  if (!chargeContact && random() >= hitChance) return;
+  if (!chargeContact && target.stats.blockChance > 0 && random() < target.stats.blockChance) {
     showHitReaction(target, "block", timeMs);
     pushEvent(events, { timeMs, type: "block", unitId: target.id, attackerId: attacker.id });
     return;
@@ -1146,15 +1183,33 @@ function resolveAttackImpact({ attacker, target, attackProfile, chargeMomentum, 
     position: clamp(target.position + directionX * knockbackDistance, 0, 1),
     lane: clamp(target.lane + directionLane * knockbackDistance, 0, PORT_ASSAULT_LANE_COUNT - 1)
   };
-  const knockedBack = portAssaultFormationStep(target, knockbackGoal, knockbackDistance,
-    occupancy.nearby(target, knockbackGoal, knockbackDistance));
+  const chargeLaunch = attacker.stats.mounted && attackProfile.attackType === "melee" && chargeMomentum >= PORT_ASSAULT_CHARGE_MIN_MOMENTUM;
+  const launchDistance = portAssaultBodyRadius(target) * 40;
+  const knockedBack = chargeLaunch
+    ? portAssaultChargeLanding(target, {position:directionX,lane:directionLane},
+        occupancy.nearby(target, {position:clamp(target.position+directionX*launchDistance,0,1),
+          lane:clamp(target.lane+directionLane*launchDistance,0,PORT_ASSAULT_LANE_COUNT-1)}, launchDistance, 3), chargeMomentum)
+    : portAssaultFormationStep(target, knockbackGoal, knockbackDistance,
+        occupancy.nearby(target, knockbackGoal, knockbackDistance));
   target.position = knockedBack.position;
   target.lane = knockedBack.lane;
+  if (knockedBack.surface === "deck") target.surface = "deck";
   occupancy.update(target);
   const knockbackPositionDelta = target.position - positionBeforeHit;
   target.hitPoints = Math.max(0, target.hitPoints - damage);
   target.displacedAtMs = timeMs;
   showHitReaction(target, target.hitPoints === 0 ? "death" : "hit", timeMs);
+  if (chargeLaunch) {
+    target.airborne = true;
+    target.chargeMotionUntilMs = timeMs + PORT_ASSAULT_CHARGE_MOTION_MS;
+    target.chargeStaggerUntilMs = timeMs + PORT_ASSAULT_CHARGE_STAGGER_MS;
+    target.actionAnimationId = "hit";
+    target.actionStartedAtMs = timeMs;
+    target.actionUntilMs = target.chargeStaggerUntilMs;
+    target.momentum = 0;
+    target.retreating = false;
+    target.laneGoal = null;
+  }
   pushEvent(events, {
     timeMs,
     type: target.hitPoints === 0 ? "death" : "hit",
@@ -1162,6 +1217,7 @@ function resolveAttackImpact({ attacker, target, attackProfile, chargeMomentum, 
     attackerId: attacker.id,
     attackType: attackProfile.attackType,
     chargeMomentum,
+    chargeLaunch,
     knockbackPositionDelta,
     knockbackLaneDelta: target.lane - laneBeforeHit,
     position: positionBeforeHit, lane: laneBeforeHit,
@@ -1204,6 +1260,7 @@ function recordTracks(tracks, units, timeMs, dockKind) {
       transferFrom: unit.transferFrom,
       deckSlot: unit.deckSlot,
       retreating: unit.retreating === true,
+      airborne: unit.airborne,
       displacedAtMs: unit.displacedAtMs,
       position: unit.position,
       lane: unit.lane,
@@ -1221,6 +1278,7 @@ function recordTracks(tracks, units, timeMs, dockKind) {
 
 function resolvedAnimation(unit, timeMs, dockKind) {
   if (!unit.spawned) return "idle";
+  if (timeMs < unit.chargeMotionUntilMs) return "hit";
   if (!unit.alive) return "death";
   if (unit.side === PORT_ASSAULT_SIDE.ATTACKER &&
       !unit.landed) {

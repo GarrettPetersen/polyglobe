@@ -56,3 +56,12 @@ test('every docked hull supplies fire anchors above its baked waterline', async 
   assert.ok(model.anchors.every(anchor => anchor.sinkHeight > SHIP_WATERLINE_LEVEL), ship.slug);
  }
 });
+
+ test('ship-hit effects expire even while the event remains on the assault timeline',()=>{
+ const model=createCityAssaultShipEffects(pixels,24,20);
+ const events=[{type:'ship-hit',timeMs:1000,unitId:'defender',damage:10}];
+ for (const elapsedMs of [999,1920,2000,5000]) {
+  assert.equal(cityAssaultShipEffectsFrame(model,presentation({elapsedMs,events})).splinters.length,0);
+ }
+ assert.ok(cityAssaultShipEffectsFrame(model,presentation({elapsedMs:1100,events})).splinters.length>0);
+});

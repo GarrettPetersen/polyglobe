@@ -49,7 +49,7 @@ test("underwater whale songs keep normalized production files and exact attribut
   }
 
   const credits = readFileSync(new URL("public/assets/CREDITS.md", APP_ROOT), "utf8");
-  assert.match(credits, /DRAGON-STUDIO - "Creepy Whale Song" and "Haunting Whale Song"/);
+  for (const title of ["Creepy Whale Song", "Haunting Whale Song"]) assert.ok(credits.includes(`Dragon Studio - "${title}"`));
   assert.match(credits, /cclaretc \/ Freesound Community - "Whale"/);
   const provenance = readFileSync(
     new URL("public/assets/licenses/whale-song-sources.txt", APP_ROOT),

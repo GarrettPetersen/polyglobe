@@ -27,7 +27,7 @@ const firstMeleeMean = battles => {
   assert.ok(contacts.length >= battles.length / 2, "most sampled infantry battles must reach melee");
   return contacts.reduce((sum, event) => sum + event.timeMs, 0) / contacts.length;
 };
-const victories = battles => battles.filter(battle => battle.outcome === "victory").length;
+const cavalryLosses = battles => battles.reduce((sum, battle) => sum + battle.defenderCasualtyIds.length, 0);
 
 test("troop composition changes the fighting and mixed screens do not stall until the battle cutoff", () => {
   const mixed = sample("mixed", "mixed");
@@ -52,7 +52,7 @@ test("troop composition changes the fighting and mixed screens do not stall unti
   }
   assert.ok(firstMeleeMean(cavalry) < firstMeleeMean(mixed) / 2);
   assert.ok(firstMeleeMean(swords) < firstMeleeMean(mixed));
-  assert.ok(victories(pikes) > victories(cavalry), "spear-heavy infantry should resist cavalry better than a gun-heavy screen");
+  assert.ok(cavalryLosses(pikes) > cavalryLosses(cavalry), "spear-heavy infantry should resist cavalry better than a gun-heavy screen");
   for (const battle of guns) {
     assert.ok(battle.events.filter(event => event.type === "attack" && event.attackType === "firearm").length > 20);
     assert.ok(!battle.events.some(event => event.type === "attack" && event.attackType === "melee"));

@@ -119,6 +119,7 @@ import {
   cityAssaultForwardEntryShift,
   cityAssaultJumpPoint,
   cityAssaultKnockbackOffset,
+  cityAssaultChargeOffset,
   cityAssaultLaneX,
   CITY_ASSAULT_TRACK_SPAN_PX,
   CITY_ASSAULT_GROUND_DEPTH_SCALE,
@@ -3890,8 +3891,8 @@ function drawPortAssaultPresentation(lane) {
       deckFrame
     );
     const aboard = unit.surface === "deck" && unit.animationId !== "jump";
-    const groundY = unit.animationId === "jump" ? feetY : point.y + window.y;
-    const waterDepthPx = aboard ? (deckFrame.floating ? CITY_ASSAULT_FLOATING_WATER_DEPTH_PX : 0) : state.features.dock === "none" && unit.animationId !== "jump"
+    const groundY = unit.animationId === "jump" ? feetY : (point.groundY ?? point.y) + window.y;
+    const waterDepthPx = aboard ? (deckFrame.floating ? CITY_ASSAULT_FLOATING_WATER_DEPTH_PX : 0) : state.features.dock === "none" && unit.animationId !== "jump" && !unit.airborne
       ? assaultWaterDepthPx(laneX + window.x, feetY) : 0;
     if (aboard ? lane === "deck" : cityAssaultDepthBand(groundY) === lane) placements.push({
       unit: { ...unit, ...(aboard && (deckFrame.scurrying || deckFrame.floating) ?
@@ -3953,8 +3954,6 @@ function assaultPersonScreenPoint(unit, landingPoint, events, timeMs, shipboardS
     });
   }
 
-  if (unit.surface === "deck") return shipboardStart;
-
   let latestLunge = null;
   let latestKnockback = null;
   for (const event of events) {
@@ -3963,8 +3962,12 @@ function assaultPersonScreenPoint(unit, landingPoint, events, timeMs, shipboardS
     if ((event.type === "hit" || event.type === "death") && event.unitId === unit.id &&
         (!latestKnockback || event.timeMs > latestKnockback.timeMs)) latestKnockback = event;
   }
+  const deckLaunch = unit.surface === "deck" && latestKnockback?.chargeLaunch;
+  if (unit.surface === "deck" && !deckLaunch) return shipboardStart;
+  const destination = deckLaunch ? shipboardStart : landingPoint;
   let offsetX = 0;
   let offsetY = 0;
+  let groundY = null;
   if (latestLunge) {
     const offset = cityAssaultMeleeLungeOffset({
       deltaX: latestLunge.lungePositionDelta * CITY_ASSAULT_TRACK_SPAN_PX,
@@ -3978,19 +3981,21 @@ function assaultPersonScreenPoint(unit, landingPoint, events, timeMs, shipboardS
     if (!Number.isFinite(latestKnockback.knockbackPositionDelta)) {
       throw new Error(`Port-assault hit has invalid knockback: ${unit.id}`);
     }
-    if (latestKnockback.knockbackPositionDelta !== 0 || latestKnockback.knockbackLaneDelta !== 0) {
-      const offset = cityAssaultKnockbackOffset({
-        deltaX: latestKnockback.knockbackPositionDelta * CITY_ASSAULT_TRACK_SPAN_PX,
-        deltaY: latestKnockback.knockbackLaneDelta * PORT_ASSAULT_LANE_SPACING * CITY_ASSAULT_TRACK_SPAN_PX * CITY_ASSAULT_GROUND_DEPTH_SCALE,
+    if (latestKnockback.chargeLaunch || latestKnockback.knockbackPositionDelta !== 0 || latestKnockback.knockbackLaneDelta !== 0) {
+      const offset = (latestKnockback.chargeLaunch ? cityAssaultChargeOffset : cityAssaultKnockbackOffset)({
+        deltaX: latestKnockback.knockbackPositionDelta * CITY_ASSAULT_TRACK_SPAN_PX + (deckLaunch ? shipboardStart.x-landingPoint.x : 0),
+        deltaY: latestKnockback.knockbackLaneDelta * PORT_ASSAULT_LANE_SPACING * CITY_ASSAULT_TRACK_SPAN_PX * CITY_ASSAULT_GROUND_DEPTH_SCALE + (deckLaunch ? shipboardStart.y-landingPoint.y : 0),
         elapsedMs: timeMs - latestKnockback.timeMs
       });
       offsetX += offset.x;
       offsetY += offset.y;
+      if (latestKnockback.chargeLaunch) groundY = destination.y + offset.groundY;
     }
   }
   return Object.freeze({
-    x: Math.round(landingPoint.x + offsetX),
-    y: Math.round(landingPoint.y + offsetY)
+    x: Math.round(destination.x + offsetX),
+    y: Math.round(destination.y + offsetY),
+    ...(groundY === null ? {} : {groundY})
   });
 }
 

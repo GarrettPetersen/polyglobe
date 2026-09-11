@@ -8,7 +8,7 @@ const FORMATION_LANE_RECONSIDER_MS = 200;
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
 
 // Updates the soldier's local lane goal; returns its collision-safe next position.
-export function portAssaultMoveInFormation(unit, destination, movement, occupancy, range, timeMs, { clearingLanding = false, holdingScreen = false, leaveRetreatGaps = false } = {}) {
+export function portAssaultMoveInFormation(unit, destination, movement, occupancy, range, timeMs, { clearingLanding = false, holdingScreen = false, holdingFront = false, leaveRetreatGaps = false } = {}) {
   if (unit.laneGoal !== null) {
     const directDistance = portAssaultGroundDistance(unit, destination);
     const direct = portAssaultFormationStep(unit, destination, directDistance,
@@ -43,7 +43,7 @@ export function portAssaultMoveInFormation(unit, destination, movement, occupanc
   // Ignore comfort pressure from the ranks we are withdrawing into. Comrades
   // ahead can still push us back or sideways so they too have room to retreat.
   const passingScreen = direction !== 0 && !retreating;
-  const spacingNeighbors = passingScreen
+  const spacingNeighbors = passingScreen || unit.stats.attackType === "melee"
     ? neighbors.filter(other => (other.stats.attackType === "melee") === (unit.stats.attackType === "melee") && !other.retreating)
     : neighbors;
   const spacing = portAssaultFormationSpacing(unit, retreating
@@ -63,9 +63,9 @@ export function portAssaultMoveInFormation(unit, destination, movement, occupanc
   }
   goal.position = clamp(unit.position + (goal.position - unit.position) * attractionScale +
     spacing.positionOffset * movement * spacingScale, 0, 1);
-  // Only the landing run prevents backward steps. Settled ranks must be able
-  // to back up to leave passage for their withdrawing comrades.
-  if (clearingLanding && (direction === 0 || direction === (unit.side === "attacker" ? 1 : -1))) goal.position = unit.side === "attacker"
+  // A threatened protector clears a corridor sideways without being pushed
+  // into a retreat by the troops it is covering. Rear ranks still spread out.
+  if (holdingFront || (clearingLanding && (direction === 0 || direction === (unit.side === "attacker" ? 1 : -1)))) goal.position = unit.side === "attacker"
     ? Math.max(unit.position, goal.position) : Math.min(unit.position, goal.position);
   goal.lane = clamp(unit.lane + (goal.lane - unit.lane) * attractionScale +
     spacing.laneOffset * movement * spacingScale, 0, PORT_ASSAULT_LANE_COUNT - 1);
@@ -81,7 +81,7 @@ export function portAssaultMoveInFormation(unit, destination, movement, occupanc
         position: clamp(unit.position + Math.cos(heading + angle) * movement, 0, 1),
         lane: clamp(unit.lane + Math.sin(heading + angle) * movement / PORT_ASSAULT_LANE_SPACING, 0, PORT_ASSAULT_LANE_COUNT - 1)
       };
-      if (clearingLanding && (probeGoal.position - unit.position) * (unit.side === "attacker" ? 1 : -1) < 0) continue;
+      if ((clearingLanding || holdingFront) && (probeGoal.position - unit.position) * (unit.side === "attacker" ? 1 : -1) < 0) continue;
       const probe = portAssaultFormationStep(unit, probeGoal, movement, occupancy.nearby(unit, probeGoal, movement));
       const score = portAssaultGroundDistance(unit, probe) * Math.cos(angle);
       if (score > bestScore + 1e-9) { next = probe; bestScore = score; }

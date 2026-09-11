@@ -1,0 +1,8 @@
+Creator: freesound_community
+Source: user-downloaded Pixabay audio; macOS download metadata confirms:
+https://cdn.pixabay.com/download/audio/2022/03/24/audio_422c5c8b40.mp3
+License: Pixabay Content License
+License summary: https://pixabay.com/service/license-summary/
+
+Normalized to -18 LUFS, -1.5 dBTP, 48 kHz stereo Ogg Vorbis.
+Used for soldiers landing on wooden docks or the ship deck.
