@@ -4343,11 +4343,11 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
   assert.equal(view.options[0].detail, "57% victory • expect 9 dead / 7 wounded (12–21 total)");
   const pendingContext = { ...context, portConquestStatus: { canAttempt: true, forecastPending: true } };
   const pending = portDialogueView(session, city, gameState, economy, [city], pendingContext);
-  assert.equal(pending.options[0].disabled, true);
-  assert.match(pending.options[0].disabledReason, /reckon our chances/);
-  const beforePendingClick = JSON.stringify(gameState);
-  assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, pendingContext), { closed: false });
-  assert.equal(JSON.stringify(gameState), beforePendingClick);
+  assert.ok(!pending.options[0].disabled);
+  assert.match(pending.options[0].detail, /reckon our chances/);
+  assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, pendingContext), {
+    closed: false, action: { type: "land-marines" }
+  });
 
   assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context), {
     closed: false,
@@ -4931,6 +4931,15 @@ test("pirate hideouts speak and trade like covert havens", () => {
   assert.ok(root.options.some((entry) => entry.label === "Lie low in the cove"));
   assert.ok(root.options.some((entry) => entry.label === "Put to sea"));
   assert.ok(root.options.every((entry) => entry.label !== "Ask about work"));
+  const innIndex = root.options.findIndex(entry => entry.action.nodeId === "inn-drink");
+  assert.ok(innIndex >= 0, "havens without an available quest still have an inn");
+  selectPortDialogueOption(session, hideout, gameState, economy, [marketPort], innIndex);
+  assert.equal(session.nodeId, "inn-drink");
+  const inn = portDialogueView(session, hideout, gameState, economy, [marketPort], {
+    innDialogue: { speaker: "Mara Vane", text: "What will you have, Captain?", expressionId: "neutral" }
+  });
+  assert.ok(inn.options.length > 0);
+  assert.ok(!inn.options.some(entry => entry.action.nodeId === "inn-drink"), "inn entry must not loop back to itself");
 });
 
 test("ports stock a local selection of fishing net upgrades", () => {
@@ -7441,7 +7450,7 @@ test("a Catholic captain chooses whether the September Testament changes their f
     { closed: false, action: null }
   );
   const choice = passengerDialogueView(convertingSession, destination, quest, convertingState);
-  assert.match(choice.text, /read the Bibles/);
+  assert.match(choice.text, /Our work is finished/);
   assert.deepEqual(choice.options.map(({ label }) => label), [
     "Remain Roman Catholic",
     "Become Lutheran"
@@ -7456,6 +7465,7 @@ test("a Catholic captain chooses whether the September Testament changes their f
   );
   assert.equal(conversion.closed, true);
   assert.equal(conversion.religiousConversion.religionId, "lutheran");
+  assert.equal(conversion.bibleSmugglingCompleted, true);
   assert.equal(convertingState.playerCharacter.religionId, "lutheran");
   assert.ok(factionReputation(convertingState, "sweden") > swedishBefore);
   assert.ok(factionReputation(convertingState, "spain") < spanishBefore);
@@ -7482,6 +7492,7 @@ test("a Catholic captain chooses whether the September Testament changes their f
   );
   assert.equal(remaining.closed, true);
   assert.equal(remaining.religiousConversion.religionId, "roman-catholic");
+  assert.equal(remaining.bibleSmugglingCompleted, true);
   assert.equal(remainingState.playerCharacter.religionId, "roman-catholic");
   assert.equal(factionReputation(remainingState, "sweden"), remainingSwedishBefore);
   assert.equal(factionReputation(remainingState, "spain"), remainingSpanishBefore);
@@ -7550,7 +7561,7 @@ test("three Testament deliveries convert factors before any captain may convert"
     const city = cities[index];
     const session = createPassengerDialogueSession(city, quest);
     const arrival = passengerDialogueView(session, city, quest, state);
-    assert.match(arrival.text, new RegExp(`delivery ${index + 1} of 3`));
+    assert.match(arrival.text, index === 2 ? /last Testaments.*work is finished/ : new RegExp(`delivery ${index + 1} of 3`));
     const delivery = selectPassengerDialogueOption(session, city, quest, state, 0, {
       simMinute: simMinute + index
     });

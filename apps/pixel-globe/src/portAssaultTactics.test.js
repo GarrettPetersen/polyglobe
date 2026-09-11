@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import { portAssaultShotIsClear, portAssaultTacticalDecision } from "./portAssaultTactics.js";
 import { PORT_ASSAULT_LANE_SPACING } from "./portAssaultFormation.js";
 import { portAssaultUnitStats } from "./portAssaultBattle.js";
-const unit = (id, type, position, lane = 1, side = "attacker") => ({
-  id, side, position, lane, alive: true, spawned: true, landed: true, landedAtMs: 0,
-  lastRangedAttackPosition: null, firearmReload: null,
-  stats: portAssaultUnitStats({ id, crewTypeId: type, combatProfileId: type, appearanceId: type, experienceStars: 1, auxiliary: false }), nextPrimaryAttackAtMs: 0
-});
+const unit = (id, type, position, lane = 1, side = "attacker") => {
+  const stats = portAssaultUnitStats({ id, crewTypeId: type, combatProfileId: type,
+    appearanceId: type, experienceStars: 1, auxiliary: false });
+  return { id, side, position, lane, alive: true, spawned: true, landed: true, landedAtMs: 0,
+    lastRangedAttackPosition: null, firearmReload: null, hitPoints: stats.hitPoints,
+    stats, nextPrimaryAttackAtMs: 0 };
+};
 
 test("reloading gunners yield to withdrawing comrades ahead, but clear their landing first", () => {
   for (const side of ["attacker", "defender"]) {
@@ -238,5 +240,23 @@ test("an all-ranged crew can reload behind its own screen near either rear bound
     comrade.lane = 0;
     assert.equal(portAssaultTacticalDecision(gun, [gun, comrade], [enemy], 2000).mode, "withdraw",
       "an off-line comrade does not block the enemy's approach");
+  }
+});
+
+test("five shieldmen relieve three depleted gunners before the screen is killed", () => {
+  for (const side of ["attacker", "defender"]) {
+    const forward = side === "attacker" ? 1 : -1;
+    const guns = Array.from({ length: 3 }, (_, i) => unit(`gun-${i}`, "gunner", .5, i, side));
+    const shields = Array.from({ length: 5 }, (_, i) => unit(`shield-${i}`, "shieldman", .5 - forward * .07, i, side));
+    const enemy = unit("enemy", "gunner", .5 + forward * .18, 1, side === "attacker" ? "defender" : "attacker");
+    const allies = [...guns, ...shields];
+    for (const shield of shields) assert.equal(portAssaultTacticalDecision(shield, allies, [enemy], 5000).mode, "support");
+    for (const gun of guns) gun.hitPoints *= .4;
+    const decisions = shields.map(shield => portAssaultTacticalDecision(shield, allies, [enemy], 5000).mode);
+    assert.equal(decisions.filter(mode => mode === "charge").length, 3);
+    assert.equal(decisions.filter(mode => mode === "support").length, 2);
+    assert.deepEqual(shields.map(shield => portAssaultTacticalDecision(shield, [...allies].reverse(), [enemy], 5000).mode), decisions,
+      "relief assignments must not depend on roster order");
+    assert.ok(guns.every(gun => gun.alive));
   }
 });

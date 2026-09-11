@@ -94,13 +94,17 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
       const localScreen = rangedAllies.filter(ally => portAssaultGroundDistance(unit, ally) <= LOCAL_RADIUS);
       const screen = localScreen.filter(ready);
       const fallenScreen = localScreen.filter(ally => !ally.alive && ally.spawned);
+      // Send the closest available infantry to relieve a wounded skirmisher;
+      // the remaining reserves keep their spacing behind the firing line.
+      const relieving = screen.some(gunner => gunner.hitPoints < gunner.stats.hitPoints * .65 &&
+        nearest(gunner, allies.filter(ally => ready(ally) && !ranged(ally) && !ally.stats.mounted))?.id === unit.id);
       const threatened = screen.some(ally => enemies.some(enemy => ready(enemy) && !ranged(enemy) &&
         portAssaultGroundDistance(ally, enemy) < PROTECTION_DISTANCE));
       const withdrawing = withdrawingComradeInPath(unit, allies, timeMs);
       if (withdrawing) {
         return yieldToWithdrawingComrade(unit, withdrawing, allies, enemies);
       }
-      if (screen.length > fallenScreen.length && !threatened) {
+      if (screen.length > fallenScreen.length && !relieving && !threatened) {
         const skirmisher = nearest(unit, screen);
         const screenPosition = skirmisher.position - direction * SCREEN_GAP;
         const supportPosition = direction > 0 ? Math.max(unit.position, screenPosition) : Math.min(unit.position, screenPosition);

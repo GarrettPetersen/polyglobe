@@ -690,7 +690,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
 
 export function forecastPortAssault(
   scenario,
-  { seedKey, sampleCount = PORT_ASSAULT_FORECAST_SAMPLES } = {}
+  { seedKey, sampleCount = PORT_ASSAULT_FORECAST_SAMPLES, onProgress } = {}
 ) {
   validateScenario(scenario);
   if (typeof seedKey !== "string" || seedKey.trim() === "") {
@@ -698,6 +698,9 @@ export function forecastPortAssault(
   }
   if (!Number.isInteger(sampleCount) || sampleCount < 16 || sampleCount > 256) {
     throw new Error(`Invalid port assault forecast sample count: ${sampleCount}`);
+  }
+  if (onProgress !== undefined && typeof onProgress !== "function") {
+    throw new Error("Port assault forecast progress requires a callback");
   }
   const results = [];
   let victories = 0;
@@ -707,7 +710,13 @@ export function forecastPortAssault(
     });
     results.push(result);
     if (result.outcome === PORT_ASSAULT_OUTCOME.VICTORY) victories += 1;
+    if (onProgress) onProgress(summarizePortAssaultForecast(results, victories), index + 1 === sampleCount);
   }
+  return summarizePortAssaultForecast(results, victories);
+}
+
+function summarizePortAssaultForecast(results, victories) {
+  const sampleCount = results.length;
   const casualties = results
     .map((result) => result.attackerDownedIds.length + result.auxiliaryCasualtyIds.length)
     .sort((a, b) => a - b);

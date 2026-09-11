@@ -5,7 +5,8 @@ const FORECAST_FIELDS = Object.freeze([
 ]);
 
 // One estimate is useful at a time. Replacing it terminates the old calculation;
-// a late message may never overwrite the current city's odds.
+// a late message may never overwrite the current city's odds. Each result is
+// a cumulative estimate; onReady refreshes the UI for every completed sample.
 export function createPortAssaultForecastClient({ workerUrl, WorkerClass = globalThis.Worker,
   onReady, onError = error => { throw error; } }) {
   if (typeof onReady !== "function" || typeof onError !== "function") throw new Error("Assault forecast requires lifecycle callbacks");
@@ -30,14 +31,19 @@ export function createPortAssaultForecastClient({ workerUrl, WorkerClass = globa
     worker.addEventListener("error", event => fail(event.message));
     worker.addEventListener("messageerror", () => fail("unreadable worker message"));
     worker.addEventListener("message", ({ data }) => {
-      if (current !== entry || entry.result !== null) return;
+      if (current !== entry || entry.worker === null) return;
       if (data?.seedKey !== seedKey) return fail("worker key mismatch");
       if (data.error) return fail(data.error);
-      if (!data.forecast || !Number.isInteger(data.forecast.sampleCount) || data.forecast.sampleCount < 16 ||
+      if (!data.forecast || !Number.isInteger(data.forecast.sampleCount) || data.forecast.sampleCount < 1 ||
+          data.forecast.sampleCount > 256 || typeof data.complete !== "boolean" ||
+          (data.complete && data.forecast.sampleCount < 16) ||
+          (entry.result !== null && data.forecast.sampleCount <= entry.result.sampleCount) ||
           FORECAST_FIELDS.some(field => !Number.isFinite(data.forecast[field]))) return fail("invalid forecast result");
       entry.result = Object.freeze(data.forecast);
-      worker.terminate();
-      entry.worker = null;
+      if (data.complete) {
+        worker.terminate();
+        entry.worker = null;
+      }
       onReady();
     });
     try { worker.postMessage({ scenario, seedKey }); }

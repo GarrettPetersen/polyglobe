@@ -3696,6 +3696,7 @@ let portCityView = null;
 let portCityTransition = null;
 let portCityIllicitEvent = null;
 let portAssaultState = null;
+let pendingPortAssaultStart = null;
 const portAssaultForecastClient = createPortAssaultForecastClient({
   workerUrl: new URL("./portAssaultForecastWorker.js", import.meta.url),
   onReady: () => { invalidateDialogueView(); dirty = true; }
@@ -17135,6 +17136,19 @@ function installSaveRestoreSmokeHarness() {
       openPortMenu(city, { initialNodeId: "root", admittedToPort: !ruined });
       await synchronizePortCityScene();
       const scene = portCityRuntime.getPresentationState();
+      if (!ruined) {
+        portCityRuntime.focusDestination(PORT_CITY_LOCATION.INN);
+        render(performance.now(), { allowColdCoveredWorldRender: true });
+        const label = portCityRuntime.getPresentationState().destinationLabels.find(({ id }) => id === PORT_CITY_LOCATION.INN);
+        if (!label) throw new Error(`Pirate haven has no visible inn button: ${cityId}`);
+        const x = label.x + label.width / 2;
+        const y = label.y + label.height / 2;
+        if (portCityRuntime.destinationAt(x, y)?.id !== PORT_CITY_LOCATION.INN) {
+          throw new Error(`Pirate haven inn button cannot be clicked: ${cityId}`);
+        }
+        portCityRuntime.activateAt(x, y);
+        if (dialogueState?.nodeId !== "inn-drink") throw new Error(`Pirate haven inn button opened the wrong menu: ${cityId}`);
+      }
       const nodes = [];
       for (const nodeId of ruined ? ["root"] : ["market", "inn-drink", "shipyard", "pirate-haven-commission"]) {
         openPortMenu(city, { initialNodeId: nodeId, admittedToPort: true });
@@ -17196,11 +17210,11 @@ function installSaveRestoreSmokeHarness() {
       const startedAtMs = performance.now();
       openPortMenu(city, { initialNodeId: "barred" });
       const first = currentDialogueView().options.find(option => option.action.type === "land-marines");
-      if (!first?.disabled) throw new Error("Assault forecast did not present its pending action");
+      if (!first || first.disabled) throw new Error("Assault forecast blocked the attack while estimating");
       const requestDurationMs = performance.now() - startedAtMs;
       let ticks = 0;
       await synchronizePortCityScene();
-      while (currentDialogueView().options.find(option => option.action.type === "land-marines")?.disabled) {
+      while (!currentDialogueView().options.find(option => option.action.type === "land-marines")?.detail?.includes("%")) {
         if (performance.now() - startedAtMs > 60_000) throw new Error("Assault forecast worker timed out");
         await new Promise(resolve => setTimeout(resolve, 10));
         ticks++;
@@ -25155,8 +25169,9 @@ function playerPortConquestStatus(cityCall) {
     attackerWoundSurvivalBonus: perks.crewCasualtyResistanceChance,
     attackerModifiers
   });
-  const forecast = portAssaultForecastClient.request(scenario,
-    `${gameState.voyageSeed}|${cityCall.cityId}|${forecastKey}`);
+  const forecast = pendingPortAssaultStart?.session === dialogueState ? null :
+    portAssaultForecastClient.request(scenario,
+      `${gameState.voyageSeed}|${cityCall.cityId}|${forecastKey}`);
   return {
     ...forecast,
     forecastPending: forecast === null,
@@ -25164,6 +25179,27 @@ function playerPortConquestStatus(cityCall) {
     scenario,
     landingForce: attackers.length
   };
+}
+
+// Accept the decision even while a newly opened city's artwork is loading.
+// The queued start belongs to this exact dialogue; leaving cancels the intent.
+function requestPlayerPortConquest(cityCall) {
+  if (pendingPortAssaultStart?.session === dialogueState) return true;
+  if (portCityView?.sceneReady) return attemptPlayerPortConquest(cityCall);
+  const request = { session: dialogueState, cityId: cityCall.cityId };
+  pendingPortAssaultStart = request;
+  portAssaultForecastClient.clear();
+  void synchronizePortCityScene().then(() => {
+    if (pendingPortAssaultStart !== request || dialogueState !== request.session ||
+        portCityView?.cityId !== request.cityId) return;
+    attemptPlayerPortConquest(cityCall);
+  }).catch(error => {
+    pendingWorldAssetError = error instanceof Error ? error : new Error(String(error));
+    dirty = true;
+  }).finally(() => {
+    if (pendingPortAssaultStart === request) pendingPortAssaultStart = null;
+  });
+  return true;
 }
 
 function attemptPlayerPortConquest(cityCall, random = Math.random) {
@@ -25174,6 +25210,7 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     throw new Error("Port assault requires a ready city scene");
   }
   if (portAssaultState) throw new Error("A port assault is already active");
+  portAssaultForecastClient.clear();
   portCityView.feast = null;
   portCityRuntime.setFeastPresentation(null);
   playBladeReadySound();
@@ -27237,7 +27274,7 @@ function performDialogueOption(optionIndex, displayedOption) {
       return;
     }
     if (result.action?.type === "land-marines") {
-      attemptPlayerPortConquest(currentDialogueCity());
+      requestPlayerPortConquest(currentDialogueCity());
       return;
     }
     if (result.action?.type === "set-port-heading") {
@@ -27431,6 +27468,9 @@ function performDialogueOption(optionIndex, displayedOption) {
       `${participation.title.toUpperCase()}  +${participation.bonusDoubloons} DB`,
       "good"
     );
+  }
+  if (result.bibleSmugglingCompleted) {
+    showSurvivalNotice("BIBLE SMUGGLING COMPLETE", "good");
   }
   if (result.action && dialogueNpcShipId) {
     applyShipDialogueAction(dialogueNpcShipId, result.action);

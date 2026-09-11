@@ -4618,6 +4618,13 @@ function destinationAtPoint(x, y) {
   if (hoveredSaleShip) {
     return Object.freeze({ destination: shipyardDestination, saleShipId: hoveredSaleShip.id });
   }
+  for (const destination of destinations) {
+    const street = streetDestinationPresentation(destination);
+    if (street && frameContainsOpaquePixel(street.atlas, street.frame,
+      x + street.window.x, y + street.window.y, 0)) {
+      return Object.freeze({ destination, saleShipId: null });
+    }
+  }
   const activeLayers = activePortSceneLayers(state.features);
   for (const destination of destinations) {
     for (const layerName of destination.layers) {
@@ -4751,6 +4758,29 @@ function moveDestinationFocus(direction) {
   return destinations[nextIndex].id;
 }
 
+// Sparse settlements use placed street houses instead of the authored inn layer.
+// Navigation must use the same geometry and damage mask as those visible buildings.
+function streetDestinationPresentation(destination) {
+  const activeLayers = activePortSceneLayers(state.features);
+  if (destination.layers.some(layer => activeLayers.has(layer) &&
+    state.portManifest.staticFrames.some(frame => frame.layer === layer))) return null;
+  const placement = state.streetBuildings.find(building => destination.layers.includes(building.layerName));
+  if (!placement) return null;
+  const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
+  const source = regionalStaticFrame(placement.frame, placement.layerName) ||
+    { atlas: state.staticAtlas, frame: placement.frame };
+  const displayed = cityStreetBombardmentPresentation(placement, source) || source;
+  return {
+    atlas: displayed.atlas,
+    frame: { ...displayed.frame, spriteSourceSize: {
+      ...displayed.frame.spriteSourceSize, x: placement.x, y: placement.y
+    } },
+    window,
+    anchor: { x: placement.x + placement.width / 2 - window.x,
+      y: placement.y + Math.min(6, Math.floor(placement.height / 4)) - window.y }
+  };
+}
+
 function destinationScreenAnchor(destination) {
   if (destination.id === PORT_CITY_LOCATION.COLONY_CLUE) {
     if (state.colonyClueId !== CROATOAN_CLUE.id) throw new Error("CROATOAN destination has no visible clue");
@@ -4791,6 +4821,8 @@ function destinationScreenAnchor(destination) {
       y: frame.spriteSourceSize.y + Math.min(6, Math.floor(frame.frame.h / 4)) - window.y
     });
   }
+  const street = streetDestinationPresentation(destination);
+  if (street) return Object.freeze(street.anchor);
   const agent = state.specialAgents.find(({ destinationId }) => (
     destinationId === destination.id
   ));
@@ -5058,6 +5090,8 @@ return Object.freeze({
       wind: state.wind,
       shipSlug: state.shipSlug,
       foreignSettlements: state.foreignSettlements,
+      destinationLabels: Object.freeze(state.destinationLabelLayouts.map(({ id, x, y, width, height }) =>
+        Object.freeze({ id, x, y, width, height }))),
       bombardmentEventId: state.bombardmentEventId,
       colonyClue: state.colonyClueId === null ? null : Object.freeze({
         id: state.colonyClueId, rect: colonyClueScreenRect(),

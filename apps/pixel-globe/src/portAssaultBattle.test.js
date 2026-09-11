@@ -799,3 +799,17 @@ test("deployment rotates frontline exposure without using crew seniority", () =>
   assert.deepEqual(jumps(attackers, 42), jumps([...attackers].reverse(), 42));
   assert.notDeepEqual(jumps(attackers, 42).slice(0, 4), jumps(attackers, 43).slice(0, 4));
 });
+
+test("three gunners and five shieldmen counterattack while their firing line is still alive", () => {
+  const input = createPortAssaultScenario({ cityId: "lisbon|portugal",
+    attackers: Array.from({ length: 8 }, (_, i) => combatant(`crew-${i}`, "gunner")),
+    defenders: [
+      ...Array.from({ length: 3 }, (_, i) => combatant(`gun-${i}`, "gunner")),
+      ...Array.from({ length: 5 }, (_, i) => combatant(`shield-${i}`, "shieldman"))
+    ], shipHitPoints: 100, shipMaxHitPoints: 100, fortified: false, dockKind: "wood" });
+  const battle = simulatePortAssault(input, 42);
+  const counterattack = battle.events.find(event => event.type === "attack" && event.unitId.startsWith("shield-"));
+  assert.ok(counterattack, "reserve shieldmen must join the battle");
+  assert.ok([0, 1, 2].every(index => !battle.tracks[`gun-${index}`].some(frame =>
+    frame.timeMs <= counterattack.timeMs && !frame.alive)), "relief begins before the guns are killed");
+});

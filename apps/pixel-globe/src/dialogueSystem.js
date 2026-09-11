@@ -3821,7 +3821,7 @@ function passengerDialogueContentView(session, city, quest, gameState) {
     return {
       speaker,
       expressionId: "amused",
-      text: "Captain, you read the Bibles all the way here. Did they change your faith, or only ruin your sleep?",
+      text: "The last Testaments are delivered, Captain. Our work is finished; I ask no more voyages of you. Did the Bibles change your faith, or only ruin your sleep?",
       feedback: session.feedback,
       options: [
         option(currentReligionId === "roman-catholic"
@@ -4089,7 +4089,9 @@ function passengerDialogueContentView(session, city, quest, gameState) {
         speaker,
         expressionId: "attentive",
         text: `${cityLabel(city)} has trusted readers waiting behind drawn shutters. ` +
-          `This is delivery ${legNumber} of ${legCount}.`,
+          (legNumber === legCount
+            ? "These are the last Testaments. Deliver them, Captain, and our work is finished."
+            : `This is delivery ${legNumber} of ${legCount}.`),
         feedback: session.feedback,
         options: [
           option(`Deliver Testaments  ${legNumber}/${legCount}`, {
@@ -4437,6 +4439,7 @@ export function selectPassengerDialogueOption(
       ...(religiousMissionParticipationResult
         ? { religiousMissionParticipation: religiousMissionParticipationResult }
         : {}),
+      ...(religiousMissionOffersLutheranConversion(completed) ? { bibleSmugglingCompleted: true } : {}),
       ...(religiousConversion ? { religiousConversion } : {}),
       ...(religiousLegDelivery ? { religiousLegDelivery } : {}),
       ...(eastAsianLegDelivery ? { eastAsianLegDelivery } : {}),
@@ -4696,8 +4699,8 @@ function barredPortView(city, gameState, context) {
   const options = [];
   if (conquest?.canAttempt && conquest.forecastPending) {
     options.push(option(attack?.mode === "raid" ? "Start the raid" : "Start the assault",
-      { type: "land-marines" }, { disabled: true,
-        disabledReason: "Give me a moment, Captain, to reckon our chances against the garrison." }));
+      { type: "land-marines" }, {
+        detail: "Give me a moment, Captain, to reckon our chances against the garrison." }));
   } else if (conquest?.canAttempt) {
     if (!Number.isInteger(conquest.successPercent) || conquest.successPercent < 0 ||
         conquest.successPercent > 100 || !Number.isInteger(conquest.casualtyRangeLow) ||
@@ -4946,7 +4949,7 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
           : { type: "node", nodeId: "shipyard-investment-offer" }
       )]
       : []),
-    ...(session.disguisedEntry
+    ...(session.disguisedEntry || pirateHideout
       ? [option("Visit inn", { type: "node", nodeId: "inn-drink" })]
       : ordinaryInnRootOptions(session, { pirateHideout, canCompleteQuest })),
     ...(capturePetition.visible && !session.disguisedEntry

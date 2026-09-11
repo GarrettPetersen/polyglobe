@@ -1679,6 +1679,44 @@ function reviewedCrewOverrides() {
 
 function reviewedPortCityOverrides() {
   const entries = [
+    ["BIBLE SMUGGLING COMPLETE", ["圣经走私完成", "КОНТРАБАНДА БИБЛИЙ ЗАВЕРШЕНА", "CONTRABANDO DE BIBLIAS COMPLETADO", "CONTRABANDO DE BÍBLIAS CONCLUÍDO", "聖書密輸完了", "BIBELSCHMUGGEL ABGESCHLOSSEN", "CONTREBANDE DE BIBLES TERMINÉE", "PRZEMYT BIBLII ZAKOŃCZONY", "聖經走私完成", "성경 밀수 완료"]],
+    ["{0} has trusted readers waiting behind drawn shutters. {1}", [
+      "{0}的可靠读者正在紧闭的百叶窗后等候。{1}",
+      "В {0} верные читатели ждут за закрытыми ставнями. {1}",
+      "En {0}, lectores de confianza esperan tras los postigos cerrados. {1}",
+      "Em {0}, leitores de confiança esperam atrás das janelas fechadas. {1}",
+      "{0}では信頼できる読者が閉じた鎧戸の奥で待っています。{1}",
+      "In {0} warten vertrauenswürdige Leser hinter geschlossenen Fensterläden. {1}",
+      "À {0}, des lecteurs sûrs attendent derrière les volets clos. {1}",
+      "W {0} zaufani czytelnicy czekają za zamkniętymi okiennicami. {1}",
+      "{0}的可靠讀者正在緊閉的百葉窗後等候。{1}",
+      "{0}에서는 믿을 만한 독자들이 닫힌 덧문 뒤에서 기다립니다. {1}"
+    ]],
+    ["These are the last Testaments. Deliver them, Captain, and our work is finished.", [
+      "这是最后一批新约。船长，送达之后，我们的差事便告结束。",
+      "Это последние Заветы. Доставьте их, капитан, и наш труд завершён.",
+      "Estos son los últimos Testamentos. Entregadlos, capitán, y nuestra labor habrá concluido.",
+      "Estes são os últimos Testamentos. Entregai-os, capitão, e nosso trabalho estará terminado.",
+      "これが最後の新約聖書です。船長、届ければ我々の仕事は終わりです。",
+      "Dies sind die letzten Testamente. Liefert sie ab, Kapitän, dann ist unser Werk vollbracht.",
+      "Ce sont les derniers Testaments. Livrez-les, capitaine, et notre tâche sera achevée.",
+      "To ostatnie Testamenty. Dostarczcie je, kapitanie, a nasza praca dobiegnie końca.",
+      "這是最後一批新約。船長，送達之後，我們的差事便告結束。",
+      "마지막 신약성경입니다. 선장, 이것들을 전하면 우리의 일은 끝납니다."
+    ]],
+    ["The last Testaments are delivered, Captain. Our work is finished; I ask no more voyages of you. Did the Bibles change your faith, or only ruin your sleep?", [
+      "船长，最后一批新约已经送达。我们的差事结束了，我不再请你远航。圣经改变了你的信仰，还是只扰了你的清梦？",
+      "Последние Заветы доставлены, капитан. Наш труд завершён; больше плаваний я не прошу. Библии изменили вашу веру или лишь лишили сна?",
+      "Los últimos Testamentos están entregados, capitán. Nuestra labor ha concluido; no os pido más viajes. ¿Las Biblias cambiaron vuestra fe o sólo os quitaron el sueño?",
+      "Os últimos Testamentos foram entregues, capitão. Nosso trabalho terminou; não vos peço mais viagens. As Bíblias mudaram vossa fé ou apenas vos tiraram o sono?",
+      "船長、最後の新約聖書は届けました。我々の仕事は終わりです。もう航海は頼みません。聖書は信仰を変えましたか、それとも眠りを奪っただけですか？",
+      "Die letzten Testamente sind zugestellt, Kapitän. Unser Werk ist vollbracht; ich bitte Euch um keine weiteren Fahrten. Haben die Bibeln Euren Glauben verändert oder nur Euren Schlaf geraubt?",
+      "Les derniers Testaments sont livrés, capitaine. Notre tâche est achevée ; je ne vous demande plus de voyages. Les Bibles ont-elles changé votre foi ou seulement troublé votre sommeil ?",
+      "Ostatnie Testamenty dostarczono, kapitanie. Nasza praca skończona; nie proszę o więcej rejsów. Biblie zmieniły waszą wiarę czy tylko odebrały sen?",
+      "船長，最後一批新約已經送達。我們的差事結束了，我不再請你遠航。聖經改變了你的信仰，還是只擾了你的清夢？",
+      "선장, 마지막 신약성경까지 전했습니다. 우리의 일은 끝났으니 더는 항해를 부탁하지 않겠습니다. 성경이 신앙을 바꾸었습니까, 아니면 잠만 빼앗았습니까?"
+    ]],
+
     ["BATTLE OVER", ["战斗结束", "БОЙ ОКОНЧЕН", "BATALLA TERMINADA", "BATALHA ENCERRADA",
       "戦闘終了", "KAMPF BEENDET", "BATAILLE TERMINÉE", "KONIEC BITWY", "戰鬥結束", "전투 종료"]],
     ["Back to city", ["返回城中", "Вернуться в город", "Volver a la ciudad", "Voltar à cidade", "街へ戻る", "Zurück in die Stadt", "Retour en ville", "Wróć do miasta", "返回城中", "도시로 돌아가기"]],
