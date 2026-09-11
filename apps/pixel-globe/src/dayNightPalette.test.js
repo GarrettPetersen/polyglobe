@@ -1,3 +1,4 @@
+import { dayNightLightForSunAltitude } from "./dayNightCycle.js";
 import { SHIP_TIMBER_SOURCE_HEX } from "./shipResurrectPalette.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -246,4 +247,28 @@ test("ship timber never collapses into ocean colours during dusk and night", () 
     }
   }
   for (const hex of timber) assert.ok(!NIGHT_WATER_GRADE_HEX.includes(nightPaletteHexForSourceHex(hex)), hex);
+});
+
+
+test("timber stays separate through the real overlapping twilight cycle on CPU and GPU", () => {
+  const timber = [...SHIP_TIMBER_SOURCE_HEX, "694f62"];
+  const water = ["323353", "484a77", "4d65b4", "4d9be6", "9babb2", "c7dcd0", "0b5e65", "0b8a8f", "0eaf9b", "30e1b9"];
+  for (let sample = 0; sample <= 200; sample++) {
+    const light = dayNightLightForSunAltitude(-1 + sample / 100);
+    const colours = [...water, ...timber];
+    const pixels = new Uint8ClampedArray(colours.flatMap(rgba));
+    applyDayNightPaletteGrade(pixels, colours.length, 1, light);
+    const ocean = new Set(water.map((_, index) => rgbHex(pixels, index * 4)));
+    const variant = dayNightPaletteVariant(light);
+    for (let index = 0; index < timber.length; index++) {
+      const offset = (water.length + index) * 4;
+      assert.ok(!ocean.has(rgbHex(pixels, offset)), `${timber[index]} altitude ${light.sunAltitude}`);
+    }
+    if (!variant) continue;
+    for (let index = 0; index < colours.length; index++) {
+      const [r, g, b] = rgba(colours[index]);
+      const texel = ((r >> 3) * 1024 + (g >> 3) * 32 + (b >> 3)) * 4;
+      assert.equal(rgbHex(variant.pixels, texel), rgbHex(pixels, index * 4));
+    }
+  }
 });

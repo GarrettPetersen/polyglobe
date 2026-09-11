@@ -106,6 +106,8 @@ let sourcePaletteLut = null;
 let nightRgbRamp = null;
 let sunsetRgbRamp = null;
 const DAY_NIGHT_VARIANT_CACHE = new Map();
+// At most eight sunset by eight night stages; prewarmed alongside GPU variants.
+const COMBINED_GRADE_CACHE = new Map();
 
 export function prepareDayNightPalette() {
   if (sourcePaletteLut && nightRgbRamp && sunsetRgbRamp) return;
@@ -133,16 +135,36 @@ export function applyDayNightPaletteGrade(data, width, height, light) {
   if (sunsetStage === 0 && nightStage === 0) return data;
   prepareDayNightPalette();
 
+  const grade = combinedGradeRamp(sunsetStage, nightStage);
   if (!LITTLE_ENDIAN || data.byteOffset % 4 !== 0) {
-    applyByteGrade(data, sunsetRgbRamp[sunsetStage]);
-    applyByteGrade(data, nightRgbRamp[nightStage]);
+    applyByteGrade(data, grade);
     return data;
   }
 
   const pixels = new Uint32Array(data.buffer, data.byteOffset, width * height);
-  applyPackedGrade(pixels, sunsetRgbRamp[sunsetStage]);
-  applyPackedGrade(pixels, nightRgbRamp[nightStage]);
+  applyPackedGrade(pixels, grade);
   return data;
+}
+
+function combinedGradeRamp(sunsetStage, nightStage) {
+  if (sunsetStage === 0) return nightRgbRamp[nightStage];
+  if (nightStage === 0) return sunsetRgbRamp[sunsetStage];
+  const key = `${sunsetStage}:${nightStage}`;
+  if (COMBINED_GRADE_CACHE.has(key)) return COMBINED_GRADE_CACHE.get(key);
+  const pixels = new Uint8ClampedArray(RESURRECT_COLORS.flatMap(({ r, g, b }) => [r, g, b, 255]));
+  applyByteGrade(pixels, sunsetRgbRamp[sunsetStage]);
+  applyByteGrade(pixels, nightRgbRamp[nightStage]);
+  const map = RESURRECT_COLORS.map((_, i) => parsePaletteColor({
+    r: pixels[i * 4], g: pixels[i * 4 + 1], b: pixels[i * 4 + 2]
+  }));
+  const desired = map.map(color => color.lab);
+  // Preserve original material identity across both filters. Once the first
+  // pass merges two pigments, a second pass cannot separate them by RGB alone.
+  separateDominantTerrainColors(map, desired);
+  separateTimberFromWater(map, desired);
+  const lut = buildRgbGradeLut(map, sourcePaletteLut);
+  COMBINED_GRADE_CACHE.set(key, lut);
+  return lut;
 }
 
 export function dayNightPaletteVariant(light) {
