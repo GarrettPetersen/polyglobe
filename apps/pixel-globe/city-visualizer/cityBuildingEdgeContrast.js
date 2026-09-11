@@ -1,6 +1,6 @@
 import {
   applyDayNightPaletteGrade,
-  DAY_NIGHT_VARIANT_STEPS
+  DAY_NIGHT_CONTRAST_STEPS
 } from "../src/dayNightPalette.js";
 import { dayNightLightForSunAltitude } from "../src/dayNightCycle.js";
 import { darkerResurrect64Hex } from "../src/waterLatitudePalette.js";
@@ -155,13 +155,13 @@ function reachableDayNightLights() {
   for (let index = 0; index <= DAY_NIGHT_ALTITUDE_SAMPLES; index += 1) {
     const sunAltitude = -1 + index * 2 / DAY_NIGHT_ALTITUDE_SAMPLES;
     const light = dayNightLightForSunAltitude(sunAltitude);
-    const sunsetStage = Math.round(light.sunset * DAY_NIGHT_VARIANT_STEPS);
-    const nightStage = Math.round(light.night * DAY_NIGHT_VARIANT_STEPS);
+    const sunsetStage = Math.round(light.sunset * DAY_NIGHT_CONTRAST_STEPS);
+    const nightStage = Math.round(light.night * DAY_NIGHT_CONTRAST_STEPS);
     const key = `${sunsetStage}:${nightStage}`;
     if (!lightsByStage.has(key)) {
       lightsByStage.set(key, Object.freeze({
-        sunset: sunsetStage / DAY_NIGHT_VARIANT_STEPS,
-        night: nightStage / DAY_NIGHT_VARIANT_STEPS
+        sunset: sunsetStage / DAY_NIGHT_CONTRAST_STEPS,
+        night: nightStage / DAY_NIGHT_CONTRAST_STEPS
       }));
     }
   }

@@ -1,14 +1,9 @@
 import { SHIP_TIMBER_SOURCE_HEX } from "./shipResurrectPalette.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
-import { dayNightLightForSunAltitude } from "./dayNightCycle.js";
-
-export const DAY_NIGHT_VARIANT_STEPS = 8;
-const COLOR_RAMP_STEPS = DAY_NIGHT_VARIANT_STEPS;
-const TWILIGHT_NIGHT_START_STAGE = COLOR_RAMP_STEPS / 2;
-const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
-const PALETTE_TEXTURE_WIDTH = 1024;
+// Sampling density for city edge contrast checks, not rendering quantization.
+export const DAY_NIGHT_CONTRAST_STEPS = 32;
+const PALETTE_TEXTURE_WIDTH = 2048;
 const PALETTE_TEXTURE_HEIGHT = 32;
-const PREWARM_SUN_ALTITUDE_SAMPLES = 2048;
 
 export const NIGHT_WATER_GRADE_HEX = Object.freeze([
   "2e222f", "323353", "484a77", "4d65b4", "7f708a"
@@ -112,24 +107,21 @@ for (const map of [NIGHT_PALETTE_MAP, SUNSET_PALETTE_MAP]) {
     map === NIGHT_PALETTE_MAP ? NIGHT_LAND_GRADE_HEX : SUNSET_LAND_GRADE_HEX));
 }
 let sourcePaletteLut = null;
-let nightRgbRamp = null;
-let sunsetRgbRamp = null;
-const DAY_NIGHT_VARIANT_CACHE = new Map();
-// At most eight sunset by eight night stages; prewarmed alongside GPU variants.
-const COMBINED_GRADE_CACHE = new Map();
+let endpointAtlas = null;
 
 export function prepareDayNightPalette() {
-  if (sourcePaletteLut && nightRgbRamp && sunsetRgbRamp) return;
-  const preparedSourcePaletteLut = buildSourcePaletteLut();
-  const preparedNightRgbRamp = buildRgbGradeRamp(NIGHT_PALETTE_MAP, preparedSourcePaletteLut);
-  const preparedSunsetRgbRamp = buildRgbGradeRamp(SUNSET_PALETTE_MAP, preparedSourcePaletteLut);
-  sourcePaletteLut = preparedSourcePaletteLut;
-  nightRgbRamp = preparedNightRgbRamp;
-  sunsetRgbRamp = preparedSunsetRgbRamp;
-  for (let index = 0; index <= PREWARM_SUN_ALTITUDE_SAMPLES; index++) {
-    const sunAltitude = -1 + index * 2 / PREWARM_SUN_ALTITUDE_SAMPLES;
-    cachedDayNightPaletteVariant(dayNightLightForSunAltitude(sunAltitude));
+  if (endpointAtlas) return;
+  sourcePaletteLut = buildSourcePaletteLut();
+  const pixels = new Uint8ClampedArray(PALETTE_TEXTURE_WIDTH * PALETTE_TEXTURE_HEIGHT * 4);
+  for (let index = 0; index < sourcePaletteLut.length; index++) {
+    for (const { column, palette } of [{column:0, palette:SUNSET_PALETTE_MAP}, {column:1024, palette:NIGHT_PALETTE_MAP}]) {
+      const color = palette[sourcePaletteLut[index]];
+      const offset = (Math.floor(index / 1024) * PALETTE_TEXTURE_WIDTH + index % 1024 + column) * 4;
+      pixels.set([color.r, color.g, color.b, 255], offset);
+    }
   }
+  endpointAtlas = Object.freeze({ key: "daylight-endpoints", width: PALETTE_TEXTURE_WIDTH,
+    height: PALETTE_TEXTURE_HEIGHT, pixels });
 }
 
 export function applyDayNightPaletteGrade(data, width, height, light) {
@@ -138,79 +130,35 @@ export function applyDayNightPaletteGrade(data, width, height, light) {
     throw new Error(`Invalid day/night grade dimensions: ${width}x${height}`);
   }
   if (data.length !== width * height * 4) throw new Error("Day/night grade data length does not match dimensions");
-
-  const sunsetStage = colorRampStage(light?.sunset);
-  const nightStage = colorRampStage(light?.night);
-  if (sunsetStage === 0 && nightStage === 0) return data;
+  const { sunset, night } = daylightBlend(light);
+  if (sunset === 0 && night === 0) return data;
   prepareDayNightPalette();
-
-  const grade = combinedGradeRamp(sunsetStage, nightStage);
-  if (!LITTLE_ENDIAN || data.byteOffset % 4 !== 0) {
-    applyByteGrade(data, grade);
-    return data;
+  for (let offset = 0; offset < data.length; offset += 4) {
+    if (data[offset + 3] === 0) continue;
+    // Classify the original pigment once. Never remap an intermediate colour.
+    const index = sourcePaletteLut[rgbLutIndex(data[offset], data[offset + 1], data[offset + 2])];
+    const warm = SUNSET_PALETTE_MAP[index], dark = NIGHT_PALETTE_MAP[index];
+    data[offset] = Math.round(mix(mix(data[offset], warm.r, sunset), dark.r, night));
+    data[offset + 1] = Math.round(mix(mix(data[offset + 1], warm.g, sunset), dark.g, night));
+    data[offset + 2] = Math.round(mix(mix(data[offset + 2], warm.b, sunset), dark.b, night));
   }
-
-  const pixels = new Uint32Array(data.buffer, data.byteOffset, width * height);
-  applyPackedGrade(pixels, grade);
   return data;
 }
 
-function combinedGradeRamp(sunsetStage, nightStage) {
-  if (sunsetStage === 0) return nightRgbRamp[nightStage];
-  if (nightStage === 0) return sunsetRgbRamp[sunsetStage];
-  const key = `${sunsetStage}:${nightStage}`;
-  if (COMBINED_GRADE_CACHE.has(key)) return COMBINED_GRADE_CACHE.get(key);
-  // Follow one journey through twilight, never reclassifying sunset RGB.
-  const enteringNight = nightStage >= TWILIGHT_NIGHT_START_STAGE;
-  const progress = enteringNight
-    ? (nightStage - TWILIGHT_NIGHT_START_STAGE + 1) / (COLOR_RAMP_STEPS - TWILIGHT_NIGHT_START_STAGE + 1)
-    : Math.max(sunsetStage / COLOR_RAMP_STEPS, nightStage / (TWILIGHT_NIGHT_START_STAGE - 1));
-  const map = RESURRECT_COLORS.map((source, index) => orderedGradeColor(
-    enteringNight ? SUNSET_PALETTE_MAP[index] : source,
-    enteringNight ? NIGHT_PALETTE_MAP[index] : SUNSET_PALETTE_MAP[index],
-    progress, gradeBridgeCandidates(source, enteringNight)
-  ));
-  const desired = map.map(color => color.lab);
-  separateDominantTerrainColors(map, desired);
-  separateTimberFromWater(map, desired, enteringNight ? NIGHT_TIMBER_CANDIDATES : paletteSubset(SUNSET_LAND_GRADE_HEX));
-  const lut = buildRgbGradeLut(map, sourcePaletteLut);
-  COMBINED_GRADE_CACHE.set(key, lut);
-  return lut;
-}
-
 export function dayNightPaletteVariant(light) {
+  const blend = daylightBlend(light);
+  if (blend.sunset === 0 && blend.night === 0) return null;
   prepareDayNightPalette();
-  return cachedDayNightPaletteVariant(light);
+  // One immutable GPU texture; only two scalar uniforms change with time.
+  return { ...endpointAtlas, ...blend };
 }
 
-function cachedDayNightPaletteVariant(light) {
-  const sunsetStage = colorRampStage(light?.sunset);
-  const nightStage = colorRampStage(light?.night);
-  if (sunsetStage === 0 && nightStage === 0) return null;
-  const key = `${sunsetStage}:${nightStage}`;
-  const cached = DAY_NIGHT_VARIANT_CACHE.get(key);
-  if (cached) return cached;
-
-  const pixels = new Uint8ClampedArray(PALETTE_TEXTURE_WIDTH * PALETTE_TEXTURE_HEIGHT * 4);
-  for (let index = 0; index < PALETTE_TEXTURE_WIDTH * PALETTE_TEXTURE_HEIGHT; index++) {
-    const offset = index * 4;
-    pixels[offset] = ((index >>> 10) & 31) << 3;
-    pixels[offset + 1] = ((index >>> 5) & 31) << 3;
-    pixels[offset + 2] = (index & 31) << 3;
-    pixels[offset + 3] = 255;
+function daylightBlend(light) {
+  const sunset = light?.sunset ?? 0, night = light?.night ?? 0;
+  if (![sunset, night].every(value => Number.isFinite(value) && value >= 0 && value <= 1)) {
+    throw new Error("Daylight blend weights must be finite values from zero to one");
   }
-  applyDayNightPaletteGrade(pixels, PALETTE_TEXTURE_WIDTH, PALETTE_TEXTURE_HEIGHT, {
-    sunset: sunsetStage / COLOR_RAMP_STEPS,
-    night: nightStage / COLOR_RAMP_STEPS
-  });
-  const variant = Object.freeze({
-    key,
-    width: PALETTE_TEXTURE_WIDTH,
-    height: PALETTE_TEXTURE_HEIGHT,
-    pixels
-  });
-  DAY_NIGHT_VARIANT_CACHE.set(key, variant);
-  return variant;
+  return { sunset, night };
 }
 
 export function nightPaletteHexForSourceHex(sourceHex) {
@@ -263,56 +211,6 @@ function buildSourcePaletteLut() {
   return lut;
 }
 
-function buildRgbGradeLut(paletteMap, preparedSourcePaletteLut) {
-  const lut = new Uint32Array(preparedSourcePaletteLut.length);
-  for (let i = 0; i < lut.length; i++) {
-    const color = paletteMap[preparedSourcePaletteLut[i]];
-    lut[i] = LITTLE_ENDIAN
-      ? color.r | (color.g << 8) | (color.b << 16)
-      : color.packed;
-  }
-  return lut;
-}
-
-function gradeBridgeCandidates(source, night) {
-  // The night endpoint already supplies the cool hue. Inserting another purple
-  // between sunset and night adds a flash and can flatten riverbank contrast.
-  if (night) return [];
-  const water = NIGHT_WATER_TERRAIN_SEPARATION.has(source.hex);
-  return paletteSubset(water ? SUNSET_WATER_GRADE_HEX : SUNSET_LAND_GRADE_HEX);
-}
-
-function orderedGradeColor(source, target, progress, candidates) {
-  // At most one bridge from the destination's material ramp. Lab averages
-  // score candidates only; every displayed colour is a Resurrect 64 entry.
-  const desired = { l: (source.lab.l + target.lab.l) / 2,
-    a: (source.lab.a + target.lab.a) / 2, b: (source.lab.b + target.lab.b) / 2 };
-  const bridge = nearestLabColor(desired, [source, target, ...candidates]);
-  const path = [...new Map([source, bridge, target].map(color => [color.hex, color])).values()];
-  return path[Math.min(path.length - 1, Math.floor(clamp(progress, 0, 1) * path.length))];
-}
-
-function buildRgbGradeRamp(targetMap, preparedSourcePaletteLut) {
-  const ramp = [];
-  for (let stage = 0; stage <= COLOR_RAMP_STEPS; stage++) {
-    if (stage === 0) {
-      ramp.push(null);
-      continue;
-    }
-    const progress = stage / COLOR_RAMP_STEPS;
-    const stageMap = RESURRECT_COLORS.map((source, index) =>
-      orderedGradeColor(source, targetMap[index], progress, gradeBridgeCandidates(source, targetMap === NIGHT_PALETTE_MAP)));
-    const desiredMap = stageMap.map(color => color.lab);
-    separateDominantTerrainColors(stageMap, desiredMap);
-    separateTimberFromWater(stageMap, desiredMap, targetMap === NIGHT_PALETTE_MAP
-      ? NIGHT_TIMBER_CANDIDATES : paletteSubset(SUNSET_LAND_GRADE_HEX));
-    ramp.push(buildRgbGradeLut(stageMap, preparedSourcePaletteLut));
-  }
-  return Object.freeze(ramp);
-}
-
-// Grading is applied to the composited scene, so timber pigments must retain a
-// separate ramp from water at every quantized transition, not only midnight.
 function separateTimberFromWater(stageMap, desiredMap, eligibleColors = RESURRECT_COLORS) {
   const waterColors = new Set([...NIGHT_WATER_TERRAIN_SEPARATION.keys()]
     .map(hex => stageMap[paletteIndexForHex(hex)].hex));
@@ -339,23 +237,6 @@ function paletteIndexForHex(hex) {
   const index = RESURRECT_INDEX_BY_HEX.get(hex);
   if (index === undefined) throw new Error(`Terrain separation contains an unknown source color: ${hex}`);
   return index;
-}
-
-function applyPackedGrade(pixels, lut) {
-  if (!lut) return;
-  for (let i = 0; i < pixels.length; i++) {
-    const pixel = pixels[i];
-    if ((pixel & 0xff000000) === 0) continue;
-    pixels[i] = (pixel & 0xff000000) | lut[packedRgbLutIndex(pixel)];
-  }
-}
-
-function applyByteGrade(data, lut) {
-  if (!lut) return;
-  for (let offset = 0; offset < data.length; offset += 4) {
-    if (data[offset + 3] === 0) continue;
-    writePackedRgb(data, offset, lut[rgbLutIndex(data[offset], data[offset + 1], data[offset + 2])]);
-  }
 }
 
 function nearestPaletteIndex(color) {
@@ -457,26 +338,6 @@ function srgbToLinear(value) {
 
 function rgbLutIndex(r, g, b) {
   return ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-}
-
-function packedRgbLutIndex(pixel) {
-  return ((pixel & 0xf8) << 7) | ((pixel & 0xf800) >>> 6) | ((pixel & 0xf80000) >>> 19);
-}
-
-function writePackedRgb(data, offset, packed) {
-  if (LITTLE_ENDIAN) {
-    data[offset] = packed & 0xff;
-    data[offset + 1] = (packed >> 8) & 0xff;
-    data[offset + 2] = (packed >> 16) & 0xff;
-  } else {
-    data[offset] = packed >> 16;
-    data[offset + 1] = (packed >> 8) & 0xff;
-    data[offset + 2] = packed & 0xff;
-  }
-}
-
-function colorRampStage(value) {
-  return Math.round(clamp(Number(value) || 0, 0, 1) * COLOR_RAMP_STEPS);
 }
 
 function smoothstep(edge0, edge1, value) {

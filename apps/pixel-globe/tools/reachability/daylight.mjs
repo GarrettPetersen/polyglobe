@@ -29,7 +29,7 @@ export async function verifyDaylightGpu(gamePage) {
             const expected = new Uint8ClampedArray([...source, 255]);
             applyDayNightPaletteGrade(expected, 1, 1, dayNightLightForSunAltitude(altitude));
             const actual = pixels.slice((y * size + x) * 4, (y * size + x + 1) * 4);
-            if (actual.some((v, i) => v !== expected[i])) {
+            if (actual.some((v, i) => Math.abs(v - expected[i]) > 1)) {
               throw new Error(`Daylight GPU mismatch at ${source}/${altitude}/${x},${y}: ${actual} != ${expected}`);
             }
             checked++;

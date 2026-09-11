@@ -7,12 +7,12 @@ const FIRST_DAY_NIGHT_NOTICE_SUNRISE_ALTITUDE = -0.3;
 
 export function dayNightLightForSunAltitude(sunAltitude) {
   assertSunAltitude(sunAltitude);
-  // Choose one complete palette for the whole scene. Intermediate ramps and
-  // spatial wipes distract from sailing; the physical sun and clock still advance.
+  // Two direct fades with a short warm plateau. Smoothstep starts and ends
+  // each fade gently; the voyage clock and physical sun are unchanged.
   return {
     sunAltitude,
-    night: sunAltitude <= -0.3 ? 1 : 0,
-    sunset: sunAltitude > -0.3 && sunAltitude < 0.3 ? 1 : 0
+    sunset: 1 - smoothstep(0.08, 0.65, sunAltitude),
+    night: 1 - smoothstep(-0.65, -0.08, sunAltitude)
   };
 }
 
@@ -102,4 +102,9 @@ function assertSunAltitude(value) {
   if (!Number.isFinite(value) || value < -1 || value > 1) {
     throw new Error(`Sun altitude must be a finite unit value: ${value}`);
   }
+}
+
+function smoothstep(start, end, value) {
+  const progress = Math.max(0, Math.min(1, (value - start) / (end - start)));
+  return progress * progress * (3 - 2 * progress);
 }

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  DAY_NIGHT_VARIANT_STEPS,
+  DAY_NIGHT_CONTRAST_STEPS,
   NIGHT_LAND_GRADE_HEX,
   NIGHT_GRADE_HEX,
   NIGHT_WATER_GRADE_HEX,
@@ -157,19 +157,20 @@ test("palette grading leaves day pixels untouched and fully maps night pixels", 
   assert.equal(`#${rgbHex(day, 4)}`, `#${nightPaletteHexForSourceHex("f9c22b")}`);
 });
 
-test("day and night lighting use nine grades per palette axis", () => {
-  assert.equal(DAY_NIGHT_VARIANT_STEPS, 8);
+test("continuous lighting shares a fixed endpoint texture without quantizing the blend", () => {
   assert.equal(dayNightPaletteVariant({ sunset: 0, night: 0 }), null);
   const first = dayNightPaletteVariant({ sunset: 0.51, night: 0 });
   const second = dayNightPaletteVariant({ sunset: 0.56, night: 0 });
-  assert.equal(first, second);
-  assert.equal(first.key, "4:0");
-  assert.equal(first.width, 1024);
+  assert.equal(first.pixels, second.pixels);
+  assert.equal(first.key, second.key);
+  assert.equal(first.sunset, 0.51);
+  assert.equal(second.sunset, 0.56);
+  assert.equal(first.width, 2048);
   assert.equal(first.height, 32);
-  assert.equal(first.pixels.length, 1024 * 32 * 4);
+  assert.throws(() => dayNightPaletteVariant({night:NaN}), /blend weights/);
 });
 
-test("an evening ramp stage changes matching pixels in unison without spatial grain", () => {
+test("an evening fade changes matching pixels in unison without spatial grain", () => {
   const width = 8;
   const height = 8;
   const pixels = new Uint8ClampedArray(width * height * 4);
@@ -181,7 +182,7 @@ test("an evening ramp stage changes matching pixels in unison without spatial gr
   const colors = new Set();
   for (let offset = 0; offset < pixels.length; offset += 4) colors.add(rgbHex(pixels, offset));
   assert.equal(colors.size, 1);
-  assert.equal(RESURRECT_64_HEX.includes([...colors][0]), true);
+  assert.equal(RESURRECT_64_HEX.includes([...colors][0]), false);
 });
 
 function perceptualBrightness(hex) {
@@ -237,10 +238,10 @@ function average(values) {
 test("ship timber never collapses into ocean colours during dusk and night", () => {
   const timber = [...SHIP_TIMBER_SOURCE_HEX, "694f62"];
   const water = ["323353", "484a77", "4d65b4", "4d9be6", "9babb2", "c7dcd0", "0b5e65", "0b8a8f", "0eaf9b", "30e1b9"];
-  for (const mode of ["sunset", "night"]) for (let stage = 1; stage <= DAY_NIGHT_VARIANT_STEPS; stage++) {
+  for (const mode of ["sunset", "night"]) for (let stage = 1; stage <= DAY_NIGHT_CONTRAST_STEPS; stage++) {
     const colours = [...water, ...timber];
     const pixels = new Uint8ClampedArray(colours.flatMap(rgba));
-    applyDayNightPaletteGrade(pixels, colours.length, 1, { [mode]: stage / DAY_NIGHT_VARIANT_STEPS });
+    applyDayNightPaletteGrade(pixels, colours.length, 1, { [mode]: stage / DAY_NIGHT_CONTRAST_STEPS });
     const ocean = new Set(water.map((_, index) => rgbHex(pixels, index * 4)));
     for (let index = 0; index < timber.length; index++) {
       assert.ok(!ocean.has(rgbHex(pixels, (water.length + index) * 4)), `${timber[index]} ${mode} ${stage}`);
@@ -250,7 +251,7 @@ test("ship timber never collapses into ocean colours during dusk and night", () 
 });
 
 
-test("timber stays separate through the real overlapping twilight cycle on CPU and GPU", () => {
+test("timber stays separate through the continuous twilight cycle", () => {
   const timber = [...SHIP_TIMBER_SOURCE_HEX, "694f62"];
   const water = ["323353", "484a77", "4d65b4", "4d9be6", "9babb2", "c7dcd0", "0b5e65", "0b8a8f", "0eaf9b", "30e1b9"];
   for (let sample = 0; sample <= 200; sample++) {
@@ -259,75 +260,34 @@ test("timber stays separate through the real overlapping twilight cycle on CPU a
     const pixels = new Uint8ClampedArray(colours.flatMap(rgba));
     applyDayNightPaletteGrade(pixels, colours.length, 1, light);
     const ocean = new Set(water.map((_, index) => rgbHex(pixels, index * 4)));
-    const variant = dayNightPaletteVariant(light);
     for (let index = 0; index < timber.length; index++) {
       const offset = (water.length + index) * 4;
       assert.ok(!ocean.has(rgbHex(pixels, offset)), `${timber[index]} altitude ${light.sunAltitude}`);
     }
-    if (!variant) continue;
-    for (let index = 0; index < colours.length; index++) {
-      const [r, g, b] = rgba(colours[index]);
-      const texel = ((r >> 3) * 1024 + (g >> 3) * 32 + (b >> 3)) * 4;
-      assert.equal(rgbHex(variant.pixels, texel), rgbHex(pixels, index * 4));
-    }
+
   }
 });
 
-test("sunset transitions stay in Resurrect 64 with at most one warm bridge", () => {
-  const palette = new Set(RESURRECT_64_HEX), warm = new Set(SUNSET_GRADE_HEX);
+test("every pigment follows direct endpoint fades with no channel overshoot or flashing", () => {
   for (const source of RESURRECT_64_HEX) {
-    const path = [source];
-    for (let stage = 1; stage <= DAY_NIGHT_VARIANT_STEPS; stage++) {
-      const pixels = new Uint8ClampedArray(rgba(source));
-      applyDayNightPaletteGrade(pixels, 1, 1, { sunset:stage/DAY_NIGHT_VARIANT_STEPS, night:0 });
-      const hex = rgbHex(pixels, 0);
-      assert.ok(palette.has(hex), `${source}: ${hex}`);
-      assert.ok(hex === source || warm.has(hex), `${source}: unrelated hue ${hex}`);
-      if (path.at(-1) !== hex) path.push(hex);
-    }
-    assert.ok(path.length <= 3, `${source}: ${path}`);
-    assert.equal(new Set(path).size, path.length, `${source} reverses its colour path`);
-  }
-});
-
-
-test("every CPU and GPU grade combination stays strictly inside Resurrect 64", () => {
-  const palette = new Set(RESURRECT_64_HEX.map(hex => parseInt(hex, 16)));
-  const packed = (pixels, offset) => pixels[offset] * 65536 + pixels[offset + 1] * 256 + pixels[offset + 2];
-  for (let sunset = 0; sunset <= DAY_NIGHT_VARIANT_STEPS; sunset++) {
-    for (let night = 0; night <= DAY_NIGHT_VARIANT_STEPS; night++) {
-      const light = { sunset:sunset/DAY_NIGHT_VARIANT_STEPS, night:night/DAY_NIGHT_VARIANT_STEPS };
-      const pixels = new Uint8ClampedArray(RESURRECT_64_HEX.flatMap(rgba));
-      applyDayNightPaletteGrade(pixels, RESURRECT_64_HEX.length, 1, light);
-      for (let offset = 0; offset < pixels.length; offset += 4) {
-        assert.ok(palette.has(packed(pixels, offset)), `CPU ${sunset}:${night}/${offset}`);
-      }
-      const variant = dayNightPaletteVariant(light);
-      if (!variant) continue;
-      for (let offset = 0; offset < variant.pixels.length; offset += 4) {
-        assert.ok(palette.has(packed(variant.pixels, offset)), `GPU ${sunset}:${night}/${offset}`);
+    for (const transition of ["sunset", "night"]) {
+      const start = rgba(transition === "sunset" ? source : sunsetPaletteHexForSourceHex(source));
+      const end = rgba(transition === "sunset" ? sunsetPaletteHexForSourceHex(source) : nightPaletteHexForSourceHex(source));
+      let previous = start;
+      for (let step = 0; step <= 256; step++) {
+        const progress = step / 256;
+        const light = transition === "sunset" ? {sunset:progress,night:0} : {sunset:1,night:progress};
+        const actual = new Uint8ClampedArray(rgba(source));
+        applyDayNightPaletteGrade(actual,1,1,light);
+        for (let channel = 0; channel < 3; channel++) {
+          assert.equal(actual[channel], Math.round(start[channel] + (end[channel]-start[channel])*progress), `${source}/${transition}/${step}`);
+          assert.ok(Math.abs(actual[channel] - previous[channel]) <= 1);
+        }
+        previous = actual;
       }
     }
   }
 });
-
-test("each night path has at most one bridge and the full twilight cycle has at most four changes", () => {
-  for (const source of RESURRECT_64_HEX) {
-    for (const mode of ["night", "cycle"]) {
-      const path = [source];
-      for (let step = 0; step <= 200; step++) {
-        const light = mode === "night" ? {night:step/200} : dayNightLightForSunAltitude(1-step/100);
-        const pixels = new Uint8ClampedArray(rgba(source));
-        applyDayNightPaletteGrade(pixels, 1, 1, light);
-        const hex = rgbHex(pixels, 0);
-        if (hex !== path.at(-1)) path.push(hex);
-      }
-      assert.ok(path.length <= (mode === "night" ? 3 : 5), `${mode} ${source}: ${path}`);
-      if (mode === "night") assert.equal(new Set(path).size, path.length);
-    }
-  }
-});
-
 
 test("grass does not flash bright violet on its way from orange sunset to muted night", () => {
   for (const hex of ["239063", "a2a947"]) for (let step = 0; step <= 200; step++) {
@@ -335,4 +295,13 @@ test("grass does not flash bright violet on its way from orange sunset to muted 
     applyDayNightPaletteGrade(pixels, 1, 1, dayNightLightForSunAltitude(1-step/100));
     assert.ok(!["6b3e75", "905ea9", "a884f3"].includes(rgbHex(pixels, 0)));
   }
+});
+
+test("continuous grading preserves transparency and validates its inputs", () => {
+  const pixels = new Uint8ClampedArray([11,138,143,0,77,155,230,128]);
+  applyDayNightPaletteGrade(pixels,2,1,{sunset:0.35,night:0});
+  assert.deepEqual([...pixels.slice(0,4)],[11,138,143,0]);
+  assert.equal(pixels[7],128);
+  assert.throws(() => applyDayNightPaletteGrade(pixels,1,1,{sunset:0.5}), /dimensions/);
+  assert.throws(() => applyDayNightPaletteGrade(pixels,2,1,{sunset:Infinity}), /blend weights/);
 });

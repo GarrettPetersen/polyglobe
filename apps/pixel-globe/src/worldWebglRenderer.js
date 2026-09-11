@@ -194,6 +194,7 @@ uniform sampler2D u_scene;
 uniform sampler2D u_palette;
 uniform sampler2D u_repairCloudMask;
 uniform bool u_grade;
+uniform vec2 u_daylightBlend;
 uniform bool u_repairCloudBlur;
 uniform bool u_repairCloudFullscreen;
 uniform bool u_repairCloudWideBlur;
@@ -216,10 +217,9 @@ vec3 paletteGrade(vec3 source) {
   float index = bins.r * 1024.0 + bins.g * 32.0 + bins.b;
   float paletteX = mod(index, 1024.0);
   float paletteY = floor(index / 1024.0);
-  float atlasHeight = 32.0;
-  float atlasWidth = 1024.0;
-  return texture(u_palette,
-    vec2((paletteX + 0.5) / atlasWidth, (paletteY + 0.5) / atlasHeight)).rgb;
+  vec3 sunset = texture(u_palette, vec2((paletteX + 0.5) / 2048.0, (paletteY + 0.5) / 32.0)).rgb;
+  vec3 night = texture(u_palette, vec2((paletteX + 1024.5) / 2048.0, (paletteY + 0.5) / 32.0)).rgb;
+  return mix(mix(source, sunset, u_daylightBlend.x), night, u_daylightBlend.y);
 }
 
 vec3 scenePixel(ivec2 coordinate, ivec2 sceneSize) {
@@ -774,6 +774,7 @@ export function createWorldWebGL2Renderer({
     texCoord: requiredAttribute(gl, presentProgram, "a_texCoord"),
     scene: requiredUniform(gl, presentProgram, "u_scene"),
     palette: requiredUniform(gl, presentProgram, "u_palette"),
+    daylightBlend: requiredUniform(gl, presentProgram, "u_daylightBlend"),
     repairCloudMask: requiredUniform(gl, presentProgram, "u_repairCloudMask"),
     grade: requiredUniform(gl, presentProgram, "u_grade"),
     repairCloudBlur: requiredUniform(gl, presentProgram, "u_repairCloudBlur"),
@@ -867,6 +868,8 @@ export function createWorldWebGL2Renderer({
   let frameOceanSwell = null;
   let frameModalReframe = null;
   let frameGrade = false;
+  let frameSunset = 0;
+  let frameNight = 0;
   let frameRepairCloudBlur = null;
   let frameHeatHaze = null;
   let repairCloudMaskSource = null;
@@ -993,6 +996,11 @@ export function createWorldWebGL2Renderer({
     frameOceanSwell = oceanSwell;
     frameModalReframe = modalReframe;
     frameGrade = Boolean(paletteVariant);
+    frameSunset = paletteVariant ? paletteVariant.sunset : 0;
+    frameNight = paletteVariant ? paletteVariant.night : 0;
+    if (![frameSunset, frameNight].every(value => Number.isFinite(value) && value >= 0 && value <= 1)) {
+      throw new Error("World renderer requires valid daylight blend weights");
+    }
     updatePaletteTexture(paletteVariant);
     gl.useProgram(sceneProgram);
     const swell = frameOceanSwell;
@@ -1784,6 +1792,7 @@ export function createWorldWebGL2Renderer({
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, repairCloudMaskTexture);
     gl.uniform1i(presentLocations.grade, frameGrade ? 1 : 0);
+    gl.uniform2f(presentLocations.daylightBlend, frameSunset, frameNight);
     const haze = frameHeatHaze;
     gl.uniform1i(presentLocations.heatHaze, haze ? 1 : 0);
     gl.uniform1f(presentLocations.heatHazeStrength, haze?.strength ?? 0);

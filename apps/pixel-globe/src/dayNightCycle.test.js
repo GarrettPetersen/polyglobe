@@ -11,17 +11,21 @@ import {
   snapshotFirstDayNightNoticeState
 } from "./dayNightCycle.js";
 
-test("the entire solar cycle uses only stable day, sunset and night palettes", () => {
-  const phases = new Set();
-  for (let step = -1000; step <= 1000; step++) {
-    const altitude = step / 1000;
+test("daylight fades continuously through sunset before night without changing solar time", () => {
+  let previous = dayNightLightForSunAltitude(1);
+  for (let step = 1; step <= 2000; step++) {
+    const altitude = 1 - step / 1000;
     const light = dayNightLightForSunAltitude(altitude);
     assert.equal(light.sunAltitude, altitude);
-    assert.equal(light.night, altitude <= -0.3 ? 1 : 0);
-    assert.equal(light.sunset, altitude > -0.3 && altitude < 0.3 ? 1 : 0);
-    phases.add(`${light.sunset}:${light.night}`);
+    assert.ok(light.sunset >= previous.sunset && light.night >= previous.night);
+    assert.ok(light.sunset - previous.sunset < 0.003);
+    assert.ok(light.night - previous.night < 0.003);
+    if (light.night > 0) assert.equal(light.sunset, 1);
+    previous = light;
   }
-  assert.deepEqual([...phases].sort(), ["0:0", "0:1", "1:0"]);
+  assert.deepEqual(dayNightLightForSunAltitude(1), {sunAltitude:1,sunset:0,night:0});
+  assert.deepEqual(dayNightLightForSunAltitude(0), {sunAltitude:0,sunset:1,night:0});
+  assert.deepEqual(dayNightLightForSunAltitude(-1), {sunAltitude:-1,sunset:1,night:1});
   assert.throws(() => dayNightLightForSunAltitude(NaN), /unit value/);
 });
 
