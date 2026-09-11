@@ -3,11 +3,14 @@ import { PORT_ASSAULT_LANE_COUNT, PORT_ASSAULT_LANE_SPACING, portAssaultBodyRadi
 const LOCAL_RADIUS = 0.24;
 const PROTECTION_DISTANCE = 0.09;
 const SCREEN_GAP = 0.055;
-const ready = unit => unit.alive && unit.spawned && unit.landed;
+const ready = unit => unit.alive && unit.spawned && unit.landed && unit.surface !== "deck";
 const ranged = unit => unit.stats.attackType !== "melee";
 
 // A shot is a ground-space segment: every friendly body along it must be clear.
 export function portAssaultShotIsClear(shooter, target, allies) {
+  // The elevated deck fires over shore comrades. Deck stations have separate
+  // physical occupancy from the quay below them.
+  if (shooter.surface === "deck") return true;
   const dx = target.position - shooter.position;
   const dy = (target.lane - shooter.lane) * PORT_ASSAULT_LANE_SPACING;
   const lengthSquared = dx * dx + dy * dy;
@@ -77,6 +80,14 @@ function yieldToWithdrawingComrade(unit, comrade, allies, enemies) {
 export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, rangedAllies = allies.filter(ranged)) {
   const enemies = opponents;
   const target = nearest(unit, enemies);
+  if (unit.surface === "deck") {
+    if (unit.side !== "attacker") throw new Error(`Defender boarded player ship: ${unit.id}`);
+    if (unit.firearmReload !== null) return move("reload", unit.position, unit.lane);
+    if (target && ranged(unit) && portAssaultGroundDistance(unit, target) <= unit.stats.range) {
+      return { mode: "fire", target };
+    }
+    return { mode: "disembark" };
+  }
   if (!target && unit.side === "attacker" && !unit.clearedQuay && ["wood", "stone"].includes(unit.dockKind) && unit.position < .36) {
     return move("clear-quay", .38, unit.deploymentLane);
   }
@@ -131,11 +142,12 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
     return yieldToWithdrawingComrade(unit, withdrawing, allies, enemies);
   }
   if (threatened) {
+    if (unit.side === "attacker" && unit.position <= .055) return { mode: "board" };
     // Retreat from immediate danger without needing to select a protector.
     const retreat = move("withdraw", unit.position + rearDirection * SCREEN_GAP, unit.lane);
     // At the field edge there is no room to withdraw behind another rank.
     // Stand and defend instead of endlessly trying to retreat into the wall.
-    if (Math.abs(retreat.destination.position - unit.position) >= SCREEN_GAP * .9) return retreat;
+    if (unit.side === "attacker" || Math.abs(retreat.destination.position - unit.position) >= SCREEN_GAP * .9) return retreat;
   } else if (reloading && unit.lastRangedAttackPosition !== null && unit.stats.attackType === "firearm") {
     // Reload behind the firing position, not an additional step back every tick.
     // Never advance during this retreat if an enemy already drove us farther back.

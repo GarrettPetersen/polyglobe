@@ -3994,3 +3994,90 @@ test("old wandering wokou hunts are stationed off their promised port and remain
   restoreNpcSeaRouteSystem(routes, snapshot);
   assert.equal(routes.shipById.get(encounter.id).encounter.holdAtDestination, true);
 });
+
+test("workshop procurement sails real cargo repeatedly and survives a saved voyage", () => {
+  const ports = [...PORTS,
+    port(501, "Bristol", "United Kingdom", "northern-european", 51.45, -2.59, 20000, "england"),
+    port(502, "Stockholm", "Sweden", "northern-european", 59.33, 18.07, 20000, "sweden")];
+  const economy = createWorldEconomy({ports, startMinute: 0});
+  let routes = createNpcSeaRouteSystem({ports, economy, startMinute: 0, relationBetween: () => "friendly"});
+  let ship = routes.ships.find(ship => ship.role === NPC_ROLE_MERCHANT &&
+    ship.nationalCircuitId === null && ship.factionId === "portugal" && ship.cargoCapacity >= 30);
+  const shipId = ship.id;
+  const home = routes.ports.find(port => port.cityId === PORTS[0].cityId);
+  ship.currentPort = home;
+  ship.cargo = {}; ship.cargoCost = {}; ship.cargoOrigins = {};
+  ship.industrialSupply = null;
+  ship.specie = 100000;
+  ship.finalDestination = null;
+  ship.plan = {origin: home, destination: home, startMinute: 0, endMinute: 1,
+    segments: [{kind: "wait", startMinute: 0, endMinute: 1}]};
+  const workshop = economy.portStates.get(home.cityId);
+  workshop.goods.get("iron").stock = 0;
+  // Keep the other recipes supplied so this specifically tests iron transport.
+  for (const [id, state] of workshop.goods) if (id !== "iron") state.stock = Math.max(state.stock, state.targetStock * 2);
+  for (const other of routes.ships) other.industrialSupply = null;
+  const initialHullIds = routes.ships.map(ship => ship.id);
+  let deliveries = 0;
+  for (let trip = 0; trip < 12 && deliveries < 3; trip++) {
+    const arrival = ship.plan.endMinute;
+    const arrivingHome = ship.plan.destination.cityId === home.cityId && (ship.cargo.iron || 0) > 0;
+    updateNpcSeaRouteEvents(routes, arrival, [ship.id]);
+    assert.deepEqual(routes.ships.map(ship => ship.id), initialHullIds, "procurement must hire existing hulls");
+    if (arrivingHome) {
+      deliveries++;
+      assert.ok(workshop.goods.get("iron").stock > 0);
+      workshop.goods.get("iron").stock = 0;
+    }
+    if (trip === 1) {
+      const saved = snapshotNpcSeaRouteSystem(routes);
+      routes = restoreNpcSeaRouteSystem(routes, saved, {economy});
+      ship = routes.shipById.get(shipId);
+      assert.equal(ship.industrialSupply.cityId, home.cityId);
+    }
+  }
+  assert.equal(deliveries, 3, "the same captain must keep procuring depleted inputs");
+});
+
+test("twenty years of real procurement keeps a depleted arsenal producing matchlocks", () => {
+  const ports = [...PORTS.slice(0, 8),
+    port(501, "Bristol", "United Kingdom", "northern-european", 51.45, -2.59, 20000, "england"),
+    port(502, "Stockholm", "Sweden", "northern-european", 59.33, 18.07, 20000, "sweden")];
+  const economy = createWorldEconomy({ports, startMinute: 0});
+  const routes = createNpcSeaRouteSystem({ports, economy, startMinute: 0, relationBetween: () => "friendly"});
+  const ship = routes.ships.find(ship => ship.role === NPC_ROLE_MERCHANT && ship.nationalCircuitId === null && ship.cargoCapacity >= 60);
+  const home = routes.ports.find(port => port.cityId === PORTS[0].cityId);
+  ship.currentPort = home; ship.factionId = home.factionId;
+  ship.cargo = {}; ship.cargoCost = {}; ship.cargoOrigins = {};
+  ship.industrialSupply = null; ship.finalDestination = null;
+  ship.plan = {origin: home, destination: home, startMinute: 0, endMinute: 1,
+    segments: [{kind: "wait", startMinute: 0, endMinute: 1}]};
+  const goods = economy.portStates.get(home.cityId).goods;
+  goods.get("iron").stock = 0; goods.get("matchlocks").stock = 0;
+  for (const other of routes.ships) other.industrialSupply = null;
+  // The empty market first waits for real outbound and return voyages.
+  // Every subsequent year must offer the quest quantity, with no stock resets.
+  const annualAvailability = Array(20).fill(false);
+  for (let day = 7; day <= 20 * 365; day += 7) {
+    advanceWorldEconomy(economy, day * 1440);
+    updateNpcSeaRouteEvents(routes, day * 1440, [ship.id]);
+    if (goods.get("matchlocks").stock >= 2) annualAvailability[Math.floor((day - 1) / 365)] = true;
+  }
+  assert.ok(annualAvailability.slice(1).every(Boolean), `Years with purchasable matchlocks: ${annualAvailability}`);
+  assert.ok(ship.portVisits > 20, "the result requires repeated physical supply voyages");
+  assert.equal(goods.get("iron").productionPerDay, 0, "Lisbon must import its iron");
+});
+
+test("shipyard supply offers do not take a workshop's already commissioned merchant", () => {
+  const economy = createWorldEconomy({ports:PORTS,startMinute:0});
+  const routes = createNpcSeaRouteSystem({ports:PORTS,startMinute:0,economy});
+  const home = PORTS[0];
+  const yard = fundWorldEconomyShipyard(economy,home,{investedMinute:0,seedCapital:100000,
+    materialContributions:{timber:20,iron:12,"naval-stores":10}});
+  for (const ship of routes.ships) if (ship.role === NPC_ROLE_MERCHANT && ship.factionId === home.factionId) {
+    ship.industrialSupply = {cityId:home.cityId,goodId:"iron"};
+  }
+  yard.upgrades.opportunities["supply-ship"].availableMinute = 0;
+  assert.equal(updateShipyardSupplyOffers(routes,0),false);
+  assert.equal(yard.upgrades.supplyCandidateShipId,null);
+});

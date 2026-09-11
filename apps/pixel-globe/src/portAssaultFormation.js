@@ -48,7 +48,9 @@ export class PortAssaultOccupancy {
     const last = this.columnAt(Math.min(1, Math.max(unit.position, endPosition) + padding));
     const candidates = [];
     for (let column = first; column <= last; column += 1) {
-      for (const candidate of this.columns[column]) candidates.push(candidate);
+      for (const candidate of this.columns[column]) {
+        if (candidate.surface !== "deck") candidates.push(candidate);
+      }
     }
     return candidates;
   }

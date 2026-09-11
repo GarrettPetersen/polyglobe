@@ -6,6 +6,7 @@ function policy(spawnChance, rollDays, cooldownDays, repeatable = true) {
 // their completed/offer-seen state prevents respawning. Repeatable work rolls once
 // per local time window. Arrival prompts have an additional cross-port cooldown.
 export const QUEST_OFFER_POLICIES = Object.freeze({
+  "workshop-supply": policy(0.4, 7, 14),
   delivery: policy(0.32, 7, 7), passenger: policy(0.12, 7, 7), envoy: policy(0.08, 7, 7),
   religious: policy(0.45, 7, 7), capture: policy(0.35, 30, 30), wokou: policy(0.28, 30, 30),
   chef: policy(0.08, 21, 21, false), colonization: policy(0.12, 14, 14),

@@ -531,17 +531,17 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         occupancy.add(unit);
         if (unit.side === PORT_ASSAULT_SIDE.ATTACKER) {
           nextAttackerToSpawn++;
-          unit.jumpStartedAtMs = timeMs;
-          pushEvent(events, { timeMs, type: "jump", unitId: unit.id, dockKind: scenario.dockKind });
+          beginShipTransfer(unit, "deck", "shore", timeMs, events);
         }
       }
       const landingDurationMs = portAssaultLandingDurationMs(scenario.dockKind);
       if (!unit.landed && timeMs >= unit.jumpStartedAtMs + landingDurationMs) {
         unit.landed = true;
         unit.landedAtMs = timeMs;
+        unit.transferFrom = null;
         pushEvent(events, {
           timeMs,
-          type: scenario.dockKind === "none" ? "splash" : "dock-land",
+          type: unit.surface === "deck" ? "deck-land" : scenario.dockKind === "none" ? "splash" : "dock-land",
           unitId: unit.id,
           dockKind: scenario.dockKind
         });
@@ -552,6 +552,11 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const allies = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackers : defenders;
       const tactic = portAssaultTacticalDecision(unit, allies, opponents, timeMs,
         unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackerSkirmishers : defenderSkirmishers);
+      if (tactic?.mode === "board" || tactic?.mode === "disembark") {
+        if (tactic.mode === "disembark" && !portAssaultPositionIsFree(unit, occupancy.nearby(unit))) continue;
+        beginShipTransfer(unit, unit.surface, tactic.mode === "board" ? "deck" : "shore", timeMs, events);
+        continue;
+      }
       // Yielding opens local passage without propagating a withdrawal through every rank.
       unit.retreating = ["withdraw", "seek-cover"].includes(tactic?.mode);
       if (tactic?.mode === "reload" && unit.firearmReload !== null) {
@@ -571,7 +576,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const target = tactic?.target || null;
       const targetDistance = target ? portAssaultGroundDistance(unit, target) : null;
       const attackProfile = target
-        ? portAssaultAttackProfileAtDistance(unit.stats, targetDistance)
+        ? unit.surface === "deck" ? unit.stats : portAssaultAttackProfileAtDistance(unit.stats, targetDistance)
         : null;
       if (target && targetDistance <= attackProfile.range &&
           (attackProfile.attackType === "melee" || portAssaultShotIsClear(unit, target, allies))) {
@@ -584,6 +589,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         }
         continue;
       }
+      if (unit.surface === "deck") continue;
       const goal = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? 1 : 0;
       if (!tactic && Math.abs(goal - unit.position) <= 0.015) {
         if (unit.side === PORT_ASSAULT_SIDE.ATTACKER) {
@@ -776,6 +782,11 @@ export function portAssaultPresentationAt(battle, elapsedMs) {
       });
       attackerIndex += 1;
     }
+    if (frame?.animationId === "jump" && elapsedMs > battle.durationMs &&
+        elapsedMs >= frame.animationStartedAtMs + frame.animationDurationMs) {
+      frame = { ...frame, transferFrom: null, animationId: "idle",
+        animationStartedAtMs: frame.animationStartedAtMs + frame.animationDurationMs };
+    }
     if (!frame || frame.hidden) continue;
     units.push(Object.freeze({ ...combatant, ...frame }));
   }
@@ -802,7 +813,7 @@ function portAssaultVictoryMarchFrame({
   attackerIndex,
   attackerCount
 }) {
-  if (!frame || frame.hidden || !frame.alive ||
+  if (!frame || frame.hidden || !frame.alive || frame.surface === "deck" ||
       battle.outcome !== PORT_ASSAULT_OUTCOME.VICTORY || elapsedMs <= battle.durationMs) {
     return frame;
   }
@@ -940,6 +951,9 @@ function createBattleUnits(combatants, side, modifiers, random, seed, dockKind) 
       ...combatant,
       side,
       dockKind,
+      surface: "shore",
+      transferFrom: null,
+      deckSlot: index,
       stats,
       hitPoints: stats.hitPoints,
       alive: true,
@@ -975,6 +989,21 @@ function createBattleUnits(combatants, side, modifiers, random, seed, dockKind) 
       jumpStartedAtMs: null
     };
   });
+}
+
+// Both initial deployment and subsequent retreats use the same timed crossing.
+// A shore destination reserves its landing space; boarding releases that space.
+function beginShipTransfer(unit, from, to, timeMs, events) {
+  if (unit.side !== "attacker" || from === to || !["deck", "shore"].includes(from) || !["deck", "shore"].includes(to)) {
+    throw new Error(`Invalid assault ship transfer: ${unit.id}: ${from} -> ${to}`);
+  }
+  unit.transferFrom = from;
+  unit.surface = to;
+  unit.landed = false;
+  unit.jumpStartedAtMs = timeMs;
+  unit.retreating = false;
+  unit.facingRight = to === "shore";
+  pushEvent(events, { timeMs, type: "jump", unitId: unit.id, dockKind: unit.dockKind });
 }
 
 function attackUnit(attacker, target, attackProfile, timeMs, random, pendingAttacks, occupancy) {
@@ -1036,8 +1065,8 @@ function resolvePendingAttacks(pending, timeMs, random, events, occupancy, shipH
       // A comrade can cross the line of fire during windup. Hold the shot;
       // never fire through their back merely because the line was clear earlier.
       const distance = portAssaultGroundDistance(attacker, target);
-      if (!target.alive || distance > attackProfile.range ||
-          portAssaultAttackProfileAtDistance(attacker.stats, distance) !== attackProfile ||
+      if (!target.alive || !target.landed || target.surface === "deck" || distance > attackProfile.range ||
+          (attacker.surface === "deck" ? attacker.stats : portAssaultAttackProfileAtDistance(attacker.stats, distance)) !== attackProfile ||
           (attackProfile.attackType !== "melee" &&
           !portAssaultShotIsClear(attacker, target, occupancy.nearby(attacker, target, attackProfile.range)))) {
         if (attackProfile.attackType === "firearm") attacker.firearmReload = null;
@@ -1047,7 +1076,7 @@ function resolvePendingAttacks(pending, timeMs, random, events, occupancy, shipH
       }
       strike.released = true;
       strike.event = { timeMs, type: "attack", unitId: attacker.id, targetId: target.id,
-        attackType: attackProfile.attackType, position: attacker.position, lane: attacker.lane,
+        attackType: attackProfile.attackType, surface: attacker.surface, deckSlot: attacker.deckSlot, position: attacker.position, lane: attacker.lane,
         facingRight: target.position === attacker.position ? attacker.facingRight : target.position > attacker.position,
         targetPosition: target.position, targetLane: target.lane,
         animationStartedAtMs: strike.startedAtMs, chargeMomentum: strike.chargeMomentum,
@@ -1061,7 +1090,7 @@ function resolvePendingAttacks(pending, timeMs, random, events, occupancy, shipH
     const connects = attackProfile.attackType === "melee"
       ? portAssaultGroundDistance(origin, target) <= attackProfile.range
       : portAssaultGroundDistance(aimedPoint, target) <= portAssaultBodyRadius(target);
-    if (target.alive && connects) {
+    if (target.alive && target.landed && target.surface !== "deck" && connects) {
       resolveAttackImpact(strike, timeMs, random, events, occupancy);
       if (!target.alive) occupancy.remove(target);
     }
@@ -1171,6 +1200,9 @@ function recordTracks(tracks, units, timeMs, dockKind) {
     const entry = {
       timeMs,
       hidden,
+      surface: unit.surface,
+      transferFrom: unit.transferFrom,
+      deckSlot: unit.deckSlot,
       retreating: unit.retreating === true,
       displacedAtMs: unit.displacedAtMs,
       position: unit.position,
@@ -1178,7 +1210,8 @@ function recordTracks(tracks, units, timeMs, dockKind) {
       facingRight: unit.facingRight,
       animationId,
       animationStartedAtMs,
-      ...(animationId === "reload" ? { animationDurationMs: unit.reloadAnimationDurationMs } :
+      ...(animationId === "jump" ? { animationDurationMs: portAssaultLandingDurationMs(dockKind) } :
+        animationId === "reload" ? { animationDurationMs: unit.reloadAnimationDurationMs } :
         animationId === "attack" ? { animationDurationMs: unit.attackAnimationDurationMs } : {}),
       alive: unit.alive
     };
@@ -1213,6 +1246,7 @@ function trackFrameAt(track, elapsedMs) {
   }
   const before = track[low];
   const after = track[Math.min(track.length - 1, low + 1)];
+  if (before.surface !== after.surface || before.transferFrom !== after.transferFrom) return before;
   if (before.hidden || ["death", "reload"].includes(before.animationId) || after.timeMs === before.timeMs) return before;
   // Impact displacement is animated from its event, never anticipated between ticks.
   if (after.displacedAtMs === after.timeMs) return before;

@@ -1326,7 +1326,7 @@ export function advanceWorldEconomy(economy, clockMinute) {
     // Work uses the stock available during this interval. Newly produced
     // supplies cannot retroactively pay for months of stalled construction.
     advanceWorldShipyards(economy.shipyards,
-      economy.lastMinute + (step + 1) * ECONOMY_STEP_MINUTES, shipyardMaterialMarket(economy));
+      economy.lastMinute + (step + 1) * ECONOMY_STEP_MINUTES, shipyardMaterialMarket(economy, {shareInputs: true}));
     for (const port of economy.portStates.values()) advancePortEconomy(port, ECONOMY_STEP_DAYS);
     activateHistoricalPortIndustries(
       economy,
@@ -1346,9 +1346,18 @@ export function procureWorldEconomyShipyardMaterials(economy, port) {
   return result;
 }
 
-function shipyardMaterialMarket(economy) {
+function shipyardMaterialMarket(economy, {shareInputs = false} = {}) {
   return {
-    available: (portId, goodId) => economy.portStates.get(portId)?.goods.get(goodId)?.stock ?? 0,
+    available: (portId, goodId) => {
+      const state = economy.portStates.get(portId)?.goods.get(goodId);
+      if (!state) return 0; // Inland shipyards may have no maritime market.
+      if (!shareInputs) return state.stock;
+      const otherDemand = state.consumptionPerDay - state.shipyardConsumptionPerDay;
+      const sharedStock = Math.min(state.stock, otherDemand * 30);
+      const yardShare = state.consumptionPerDay > 0
+        ? state.shipyardConsumptionPerDay / state.consumptionPerDay : 1;
+      return state.stock - sharedStock + sharedStock * yardShare;
+    },
     consume: (portId, goodId, quantity) => {
       const port = economy.portStates.get(portId);
       if (!port) throw new Error(`Shipyard material port is missing: ${portId}`);
@@ -1672,6 +1681,31 @@ export function executeRepeatedPortPurchase(
   };
 }
 
+export function fulfillWorkshopSupplyOrder(economy, city, {goodId, quantity, reward}) {
+  const port = requiredPortState(economy, city);
+  tradeGoodById(goodId);
+  if (!Number.isInteger(quantity) || quantity <= 0 || !Number.isInteger(reward) || reward <= 0 || port.specie < reward) {
+    throw new Error(`Unfunded or invalid workshop order: ${port.id}`);
+  }
+  port.goods.get(goodId).stock += quantity;
+  port.specie -= reward;
+  invalidateWorldMarketMedianCache(economy);
+}
+
+export function portIndustrialInputNeeds(economy, city) {
+  const port = requiredPortState(economy, city);
+  return [...port.goods.entries()].filter(([, state]) =>
+    state.consumptionPerDay > state.householdConsumptionPerDay &&
+    state.stock < state.consumptionPerDay * 30)
+    .map(([goodId, state]) => ({goodId,
+      missing: Math.floor(state.consumptionPerDay * 30 - state.stock),
+      daysRemaining: state.stock / state.consumptionPerDay,
+      outputGoodIds: TRADE_GOODS.filter(output => port.goods.get(output.id).productionPerDay > 0 &&
+        Object.hasOwn(productionInputsFor(output.id, port.economyRegion) || {}, goodId)).map(output => output.id)}))
+    .filter(need => need.missing >= 1 && need.outputGoodIds.length > 0)
+    .sort((a, b) => a.daysRemaining - b.daysRemaining || a.goodId.localeCompare(b.goodId));
+}
+
 export function planNpcTrade(
   economy,
   origin,
@@ -1680,11 +1714,15 @@ export function planNpcTrade(
     cargoCapacity,
     specie,
     purchasePriceMultiplier = (_goodId) => 1,
-    salePriceMultiplier = (_goodId) => 1
+    salePriceMultiplier = (_goodId) => 1,
+    goodIds = null
   }
 ) {
   assertCargoCapacity(cargoCapacity);
   if (!Number.isFinite(specie) || specie < 0) throw new Error(`Invalid NPC specie: ${specie}`);
+  if (goodIds !== null && (!Array.isArray(goodIds) || goodIds.some(id => !TRADE_GOODS_BY_ID.has(id)))) {
+    throw new Error("Invalid NPC cargo good selection");
+  }
   const originPort = requiredPortState(economy, origin);
   const destinationPort = requiredPortState(economy, destination);
   let capacityLeft = cargoCapacity;
@@ -1693,7 +1731,7 @@ export function planNpcTrade(
   const candidates = [];
 
   for (const good of TRADE_GOODS) {
-    if (good.npcTrade === false || good.sellable === false) continue;
+    if (good.npcTrade === false || good.sellable === false || (goodIds && !goodIds.includes(good.id))) continue;
     if (!portOffersGood(originPort, good)) continue;
     const originState = originPort.goods.get(good.id);
     const reserve = Math.max(2, originState.targetStock * 0.12);
@@ -1730,13 +1768,14 @@ export function planNpcTrade(
   ));
 
   const lines = [];
-  for (const candidate of candidates.slice(0, NPC_CARGO_LINE_LIMIT)) {
-    if (capacityLeft <= 0 || specieLeft < candidate.originPrice) break;
+  for (const candidate of candidates) {
+    if (capacityLeft <= 0 || lines.length >= NPC_CARGO_LINE_LIMIT) break;
+    if (specieLeft < candidate.originPrice) continue;
     const quantityCapacity = Math.floor(capacityLeft / candidate.good.unitSize);
     if (quantityCapacity <= 0) continue;
     const lineCapacity = Math.max(
       1,
-      Math.floor(cargoCapacity * 0.55 / candidate.good.unitSize)
+      Math.floor(cargoCapacity * (goodIds?.length === 1 ? 1 : 0.55) / candidate.good.unitSize)
     );
     let quantity = Math.min(
       candidate.available,
@@ -1863,6 +1902,7 @@ function createPortState(port, seedKey) {
       productionPerDay: productionRate,
       industryProductionPerDay: 0,
       householdConsumptionPerDay,
+      shipyardConsumptionPerDay: 0,
       consumptionPerDay: householdConsumptionPerDay,
       targetStock: 0,
       stock: 0,
@@ -1882,17 +1922,6 @@ function createPortState(port, seedKey) {
     }
   }
 
-  for (const good of TRADE_GOODS) {
-    const state = goods.get(good.id);
-    state.targetStock = targetStockForState(state);
-    const stockVariance = 0.82 + hashUnit(
-      economySeedKey(seedKey, `${canonicalCityId}|${good.id}|stock`)
-    ) * 0.36;
-    const initialStockRatio = state.productionPerDay > 0 ? 1 : good.initialImportStockRatio;
-    state.stock = state.targetStock * stockVariance * initialStockRatio;
-  }
-  applyInitialPortImports(goods, port.initialImports, port.displayCity || port.city);
-
   const marketGoodIds = declaredMarketGoodIds || (settlementType === "village"
     ? new Set([...goods.entries()]
       .filter(([goodId, state]) =>
@@ -1904,6 +1933,18 @@ function createPortState(port, seedKey) {
       .slice(0, VILLAGE_MARKET_GOOD_LIMIT)
       .map(([goodId]) => goodId))
     : null);
+
+  for (const good of TRADE_GOODS) {
+    const state = goods.get(good.id);
+    state.targetStock = targetStockForState(state);
+    const stockVariance = 0.82 + hashUnit(
+      economySeedKey(seedKey, `${canonicalCityId}|${good.id}|stock`)
+    ) * 0.36;
+    const initialStockRatio = state.productionPerDay > 0 ? 1 : good.initialImportStockRatio;
+    state.stock = state.targetStock * stockVariance * initialStockRatio;
+  }
+  applyInitialPortImports(goods, port.initialImports, port.displayCity || port.city);
+
   assertSustainableNativeExport(port, goods, marketGoodIds);
   const targetSpecie = settlementType === "village"
     ? Math.round(700 + populationScale * 1800)
@@ -1950,33 +1991,50 @@ function assertSustainableNativeExport(port, goods, marketGoodIds) {
 function advancePortEconomy(port, elapsedDays) {
   let localCashFlow = 0;
   const currentSpeciePriceMultiplier = speciePriceMultiplier(port);
+  const production = new Map();
+  // Raw producers replenish real local resources. Workshops then share scarce
+  // inputs proportionally, including household demand, rather than letting
+  // catalog order give one recipe all the iron (or every other shared input).
   for (const good of TRADE_GOODS) {
     if (good.alwaysAvailable) continue;
     const state = port.goods.get(good.id);
-    const desiredProduction = state.productionPerDay * elapsedDays;
-    const inputs = productionInputsFor(good.id, port.economyRegion);
-    let produced = desiredProduction;
-    if (inputs) {
-      for (const [inputGoodId, unitsPerOutput] of Object.entries(inputs)) {
-        produced = Math.min(produced, port.goods.get(inputGoodId).stock / unitsPerOutput);
-      }
-      for (const [inputGoodId, unitsPerOutput] of Object.entries(inputs)) {
-        const inputState = port.goods.get(inputGoodId);
-        inputState.stock = normalizedEconomyStock(
-          inputState.stock - produced * unitsPerOutput,
-          `industrial input stock for ${port.name}: ${inputGoodId}`
-        );
-      }
-    }
+    if (productionInputsFor(good.id, port.economyRegion)) continue;
+    const produced = state.productionPerDay * elapsedDays;
+    production.set(good.id, produced);
     state.stock += produced;
+  }
+  for (const good of TRADE_GOODS) {
+    const inputs = productionInputsFor(good.id, port.economyRegion);
+    if (!inputs) continue;
+    const state = port.goods.get(good.id);
+    let fraction = 1;
+    for (const inputGoodId of Object.keys(inputs)) {
+      const input = port.goods.get(inputGoodId);
+      const demand = input.consumptionPerDay * elapsedDays;
+      if (demand > 0) fraction = Math.min(fraction, input.stock / demand);
+    }
+    production.set(good.id, state.productionPerDay * elapsedDays * fraction);
+  }
+  for (const [goodId, produced] of production) {
+    const inputs = productionInputsFor(goodId, port.economyRegion);
+    if (!inputs) continue;
+    for (const [inputGoodId, unitsPerOutput] of Object.entries(inputs)) {
+      const input = port.goods.get(inputGoodId);
+      input.stock = normalizedEconomyStock(input.stock - produced * unitsPerOutput,
+        `industrial input stock for ${port.name}: ${inputGoodId}`);
+    }
+  }
+  for (const [goodId, produced] of production) {
+    if (productionInputsFor(goodId, port.economyRegion)) port.goods.get(goodId).stock += produced;
+  }
+  for (const good of TRADE_GOODS) {
+    if (good.alwaysAvailable) continue;
+    const state = port.goods.get(good.id);
     const consumed = Math.min(state.stock, state.householdConsumptionPerDay * elapsedDays);
-    state.stock = normalizedEconomyStock(
-      state.stock - consumed,
-      `household stock for ${port.name}: ${good.id}`
-    );
+    state.stock = normalizedEconomyStock(state.stock - consumed, `household stock for ${port.name}: ${good.id}`);
     const price = marketPrice(port, good, state.stock, currentSpeciePriceMultiplier).midPrice;
     localCashFlow += consumed * price * 0.38;
-    localCashFlow -= produced * price * 0.32;
+    localCashFlow -= production.get(good.id) * price * 0.32;
   }
   const circulation = (port.targetSpecie - port.specie) * 0.012 * elapsedDays;
   port.specie = Math.max(0, port.specie + localCashFlow + circulation);
@@ -2054,7 +2112,8 @@ function marketPrice(port, good, stock, specieMultiplier = speciePriceMultiplier
       );
   const state = port.goods.get(good.id);
   const multiplier = clamp(
-    integratedMultiplier * state.localAbundancePriceMultiplier * specieMultiplier,
+    Math.max(integratedMultiplier * state.localAbundancePriceMultiplier,
+      shortagePriceMultiplier(state, stock)) * specieMultiplier,
     MIN_INTEGRATED_PRICE_MULTIPLIER * state.localAbundancePriceMultiplier * MIN_SPECIE_PRICE_MULTIPLIER,
     MAX_PRICE_MULTIPLIER * MAX_SPECIE_PRICE_MULTIPLIER
   );
@@ -2064,6 +2123,17 @@ function marketPrice(port, good, stock, specieMultiplier = speciePriceMultiplier
     buyPrice: Math.max(1, Math.round(midPrice * PORT_MARKUP)),
     sellPrice: Math.max(1, Math.floor(midPrice * PORT_MARKDOWN))
   };
+}
+
+// Workshops bid for a month's input demand, including competing household use. A nearby
+// surplus must not erase this local signal: cargo still has to travel here.
+// Restocking gradually removes the premium; no supplies are created by prices.
+function shortagePriceMultiplier(state, stock) {
+  if (state.consumptionPerDay <= state.householdConsumptionPerDay) return MIN_INTEGRATED_PRICE_MULTIPLIER;
+  const requiredStock = state.consumptionPerDay * 30;
+  if (requiredStock <= 0 || stock >= requiredStock) return MIN_INTEGRATED_PRICE_MULTIPLIER;
+  const shortage = 1 - Math.max(0, stock) / requiredStock;
+  return 1 + (MAX_PRICE_MULTIPLIER - 1) * shortage * shortage;
 }
 
 function criticalStockIntegratedMultiplier(port, good, stock, localMultiplier) {
@@ -2503,6 +2573,7 @@ function applyShipyardMaterialDemand(port, yard, { seedInitialStock }) {
     if (!state) throw new Error(`${port.name} has no shipbuilding material state for ${goodId}`);
     const previousTarget = state.targetStock;
     state.consumptionPerDay += dailyQuantity;
+    state.shipyardConsumptionPerDay += dailyQuantity;
     state.targetStock = targetStockForState(state);
     if (seedInitialStock) {
       state.stock += Math.max(0, state.targetStock - previousTarget) * 0.85;
@@ -2517,6 +2588,7 @@ function applyShipyardMaterialDemandChange(port, previousDemand, nextDemand) {
     const state = port.goods.get(goodId);
     if (!state) throw new Error(`${port.name} has no shipbuilding material state for ${goodId}`);
     state.consumptionPerDay += nextDemand[goodId] - previousDemand[goodId];
+    state.shipyardConsumptionPerDay += nextDemand[goodId] - previousDemand[goodId];
     state.targetStock = targetStockForState(state);
     refreshPortGoodPriceFactors(port, tradeGoodById(goodId));
   }

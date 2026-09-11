@@ -16,17 +16,17 @@ test("building skyline edges that merge with graded sky are darkened once", () =
   const sky = solidRaster(4, 4, "484a77");
   const skyRows = citySkySourceColorsByRow({ pixels: sky, width: 4, height: 4 });
   const building = transparentRaster(5, 5);
-  setPixel(building, 5, 1, 1, "625565");
-  setPixel(building, 5, 2, 1, "625565");
-  setPixel(building, 5, 3, 1, "625565");
-  setPixel(building, 5, 1, 2, "625565");
-  setPixel(building, 5, 2, 2, "625565");
-  setPixel(building, 5, 3, 2, "625565");
-  setPixel(building, 5, 1, 3, "625565");
-  setPixel(building, 5, 2, 3, "625565");
-  setPixel(building, 5, 3, 3, "625565");
+  setPixel(building, 5, 1, 1, "6b3e75");
+  setPixel(building, 5, 2, 1, "6b3e75");
+  setPixel(building, 5, 3, 1, "6b3e75");
+  setPixel(building, 5, 1, 2, "6b3e75");
+  setPixel(building, 5, 2, 2, "6b3e75");
+  setPixel(building, 5, 3, 2, "6b3e75");
+  setPixel(building, 5, 1, 3, "6b3e75");
+  setPixel(building, 5, 2, 3, "6b3e75");
+  setPixel(building, 5, 3, 3, "6b3e75");
 
-  assert.equal(nightPaletteHexForSourceHex("625565"), nightPaletteHexForSourceHex("484a77"));
+  assert.equal(nightPaletteHexForSourceHex("6b3e75"), nightPaletteHexForSourceHex("484a77"));
   const changed = applyCityBuildingEdgeContrast({
     pixels: building,
     width: 5,
@@ -42,9 +42,9 @@ test("building skyline edges that merge with graded sky are darkened once", () =
     assert.notEqual(nightPaletteHexForSourceHex(edgeHex), nightPaletteHexForSourceHex("484a77"));
     assert.notEqual(sunsetPaletteHexForSourceHex(edgeHex), sunsetPaletteHexForSourceHex("484a77"));
   }
-  assert.equal(pixelHex(building, 5, 2, 2), "625565", "interior pixel changed");
+  assert.equal(pixelHex(building, 5, 2, 2), "6b3e75", "interior pixel changed");
   for (const x of [1, 2, 3]) {
-    assert.equal(pixelHex(building, 5, x, 3), "625565", "ground edge changed");
+    assert.equal(pixelHex(building, 5, x, 3), "6b3e75", "ground edge changed");
   }
 });
 

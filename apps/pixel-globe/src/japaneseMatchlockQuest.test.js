@@ -1,3 +1,7 @@
+import { colonizationTargetForCity } from "./colonialCities.js";
+import { assignColonizationQuest, colonizationQuestView, completeColonizationFetchStage,
+  beginColonizationExpedition, grantColonizationApproval, landColonists, establishColony,
+  prepareNextColonizationExpedition, advanceColonizationQuest } from "./colonizationQuest.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -73,3 +77,26 @@ function establishNagasaki(state) {
   state.memory.colonization.targetCity = "Nagasaki";
   state.memory.colonization.targetCountry = "Japan";
 }
+
+
+test("teppo remains available after a completed Nagasaki expedition enters settlement history", () => {
+  const state = createGameState({ cargoCapacity: 50 });
+  assignColonizationQuest(state.memory.colonization, {
+    target: {...colonizationTargetForCity({cityId:"nagasaki|japan"}),tileId:777},
+    origin: {cityId:"lisbon|portugal",tileId:21,city:"Lisbon",country:"Portugal",factionId:"portugal",lat:38.72,lon:-9.14},
+    approvalPort: {...KYOTO,factionId:"japan"}
+  });
+  for(const stage of colonizationQuestView(state).history.fetchStages) completeColonizationFetchStage(state.memory.colonization,stage.id);
+  beginColonizationExpedition(state.memory.colonization);
+  grantColonizationApproval(state.memory.colonization,{approvalCargoDelivered:true});
+  landColonists(state.memory.colonization,1000);
+  const abandoned=structuredClone(state.memory.colonization);
+  advanceColonizationQuest(abandoned,abandoned.resupplyDeadlineMinute+1,{awayFromColony:true});
+  establishColony(state.memory.colonization,1100);
+  assert.equal(prepareNextColonizationExpedition(state),true);
+  const restored = migrateGameState(structuredClone(state),null);
+  assert.ok(maybeSpawnJapaneseMatchlockQuest(restored, KYOTO, {spawnChance:1, simMinute:20*365*1440}));
+  const failed = createGameState({ cargoCapacity:50 });
+  failed.memory.colonization.pastSettlements.push(abandoned);
+  assert.equal(maybeSpawnJapaneseMatchlockQuest(failed,KYOTO,{spawnChance:1}),null);
+});

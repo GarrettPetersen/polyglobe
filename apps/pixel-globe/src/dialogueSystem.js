@@ -714,7 +714,7 @@ export function deliveryMissionShouldOpenOnArrival(gameState, city, portCities) 
   }
   return state.quest?.kind === "delivery" &&
     (state.kind === "ready-to-complete" || state.kind === "in-progress-here" ||
-      (state.kind === "available" && state.quest.onboarding === true));
+      (state.kind === "available" && (state.quest.onboarding === true || Boolean(state.quest.procurement))));
 }
 
 export function createPassengerDialogueSession(city, quest, options = {}) {
@@ -1949,7 +1949,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
     return questCargoSaleWarningView(session, gameState);
   }
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
-  if (session.nodeId === "quest") return questView(session, city, gameState, portCities, context);
+  if (session.nodeId === "quest") return questView(session, city, gameState, portCities, {...context, economy});
   if (session.nodeId === "capture-petition") {
     return captureCommissionPetitionView(session, city, gameState, portCities, context);
   }
@@ -2252,7 +2252,7 @@ export function selectPortDialogueAction(
     if (action.nodeId === "quest" && rootActionOrigin) {
       session.questReturnNodeId = session.nodeId === "inn-drink" ? "inn-drink" : "root";
       deliveryOfferForCity(gameState, city, portCities, {
-        sailingDistanceKm: context.sailingDistanceKm,
+        economy, sailingDistanceKm: context.sailingDistanceKm,
         simMinute: context.simMinute ?? 0
       });
     }
@@ -3707,7 +3707,7 @@ export function selectPortDialogueAction(
     return { closed: false, captureCommissionPetition: result };
   }
   if (action.type === "complete-quest") {
-    const quest = completeQuest(gameState, city, { ...context, questId: action.questId ?? context.questId });
+    const quest = completeQuest(gameState, city, { ...context, economy, questId: action.questId ?? context.questId });
     const missionItemGift = quest.kind === "delivery" || isTeaRaceQuest(quest)
       ? null
       : maybeGrantMissionPerkItem(gameState, city, {
@@ -8514,7 +8514,9 @@ function questView(session, city, gameState, portCities, context) {
     return {
       speaker: speakerName(city),
       expressionId: "pleased",
-      text: questState.quest.completionText
+      text: questState.quest.procurement && context.economy.portStates.get(city.cityId).specie < questState.quest.reward
+        ? "My purse is short today. Keep the materials aboard until I can pay the sum I promised."
+        : questState.quest.completionText
         ? `${questState.quest.completionText} Hand over the ${questState.quest.cargoLabel}, ` +
           `and I will pay ${questState.quest.reward} db.`
         : `That packet bears our seal. Hand it over and I will pay ${questState.quest.reward} db.`,
@@ -8522,14 +8524,15 @@ function questView(session, city, gameState, portCities, context) {
       options: [
         option(`Deliver ${questState.quest.cargoLabel || "packet"}  ${questState.quest.reward} db`, {
           type: "complete-quest"
-        }),
+        }, {disabled: Boolean(questState.quest.procurement &&
+          context.economy.portStates.get(city.cityId).specie < questState.quest.reward)}),
         option(backLabel, { type: "node", nodeId: returnNodeId })
       ]
     };
   }
   if (questState.kind === "available") {
     const workOptions = questState.quest.kind === "delivery" &&
-      !questState.quest.onboarding &&
+      !questState.quest.onboarding && !questState.quest.procurement &&
       !isTeaRaceQuest(questState.quest)
       ? deliveryWorkOptionsForCity(city, portCities, {
           sailingDistanceKm: context.sailingDistanceKm,
@@ -8576,6 +8579,23 @@ function questView(session, city, gameState, portCities, context) {
       feedback: session.feedback,
       options: [
         option(backLabel, { type: "node", nodeId: returnNodeId })
+      ]
+    };
+  }
+  if (questState.quest?.procurement) {
+    const quest = questState.quest;
+    const source = portCities.find(port => port.cityId === quest.procurement.sourceCityId);
+    return {
+      speaker: `A workshop master of ${quest.originName}`, expressionId: "attentive", text: quest.offerText,
+      feedback: session.feedback,
+      options: [
+        ...(source ? [option(`Set a heading for ${source.displayCity || source.city}`, {
+          type: "set-port-heading", destinationCityId: source.cityId,
+          destinationTileId: source.tileId, destinationName: source.displayCity || source.city,
+          reason: PORT_NAVIGATION_REASON_QUEST_CARGO, questCargoGoodId: quest.procurement.goodId,
+          nextNodeId: "quest"
+        })] : []),
+        option(backLabel, {type: "node", nodeId: returnNodeId})
       ]
     };
   }

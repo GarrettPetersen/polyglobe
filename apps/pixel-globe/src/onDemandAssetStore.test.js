@@ -91,3 +91,21 @@ test("stores reject malformed keys and empty loader results", async () => {
   assert.throws(() => store.request(""), /non-empty string/);
   await assert.rejects(store.request("empty"), /Loader returned no sprite asset/);
 });
+
+test("failed entries support explicit retry without discarding resident assets", async () => {
+  let offline = true;
+  const store = createOnDemandAssetStore({label: "ship", load: async key => {
+    if (offline && key === "caravel") throw new Error("offline");
+    return {key};
+  }});
+  const resident = await store.request("galleon");
+  await assert.rejects(store.request("caravel"));
+  assert.deepEqual(store.failedEntries().map(entry => entry.key), ["caravel"]);
+  offline = false;
+  const failed = store.failedEntries();
+  store.clearErrors();
+  await Promise.all(failed.map(({key}) => store.request(key)));
+  assert.equal(store.peek("galleon"), resident);
+  assert.equal(store.peek("caravel").key, "caravel");
+  assert.deepEqual(store.failedEntries(), []);
+});

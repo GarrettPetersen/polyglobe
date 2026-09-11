@@ -1,4 +1,6 @@
 export default {
+  "connection.paused": "Соединение прервано. Плавание приостановлено, пока необходимые изображения недоступны.",
+  "connection.retry": "ПОВТОРИТЬ",
   "language.english": "Английский",
   "language.chineseSimplified": "Китайский (упрощ.)",
   "language.russian": "Русский",

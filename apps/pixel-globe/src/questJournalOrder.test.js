@@ -27,3 +27,14 @@ test("quest journal rejects duplicate main voyage entries", () => {
     /duplicate campaign entries/
   );
 });
+
+
+test("sovereign debt follows other quests and sits immediately above retirement", () => {
+  const debt = {id:"loan:spain:123"};
+  for (const campaignComplete of [false,true]) {
+    assert.deepEqual(orderQuestJournalEntries([debt,SHIPYARD,CAMPAIGN,PASSENGER], {
+      campaignComplete, sovereignWarLoanId:debt.id
+    }), campaignComplete ? [SHIPYARD,PASSENGER,debt,CAMPAIGN] : [CAMPAIGN,SHIPYARD,PASSENGER,debt]);
+  }
+  assert.deepEqual(orderQuestJournalEntries([debt,PASSENGER],{sovereignWarLoanId:debt.id}),[PASSENGER,debt]);
+});

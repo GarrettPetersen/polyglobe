@@ -1,3 +1,5 @@
+import { MINIMAP_BAKE_MAX_LATITUDE, decodeMinimapBake, createMinimapPixelCache } from "./minimapBake.js";
+import { simulatePortAssaultInWorker } from "./portAssaultSimulationClient.js";
 import { buildHexDaylightMap } from "./hexDaylight.js";
 import { STEAM_WISHLIST_URL, wishlistPromotionEnabled, wishlistPulse, wishlistModalLayout, startWishlistRect } from "./wishlistPromotion.js";
 import { questOfferCooldownReady, recordQuestOffer } from "./questOfferPolicies.js";
@@ -19,7 +21,7 @@ import { shipyardUpgradeCardLayout } from "./shipyardUpgradeLayout.js";
 import { commissionedShipyard, reservedSupplyShipyard, unannouncedShipyardUpgrades } from "./shipyardUpgrades.js";
 import { shipyardSupplyShipStatus, snapshotShipyardSupplyShips, restoreShipyardSupplyShips, updateShipyardSupplyOffers } from "./npcSeaRoutes.js";
 import { EXETER_CITY_ID, TOPSHAM_CITY_ID, exeterCanalStage, exeterCanalQuestView } from "./exeterCanal.js";
-import { exeterCanalNavigation, exeterCanalPort } from "./exeterCanalNavigation.js";
+import { EXETER_CANAL_TILE_CHAIN, exeterCanalNavigation, exeterCanalPort } from "./exeterCanalNavigation.js";
 import { sailingStepCorrectionDistancePx } from "./sailingContinuity.js";
 import { playerShipyardSnapshot, restorePlayerShipyardSnapshot, snapshotPlayerShipyards } from "./playerShipyardPersistence.js";
 import { planPlaytestRoute, playtestSteeringTarget, playtestDockSteeringInput, playtestArrivalTile } from "./playtestNavigation.js";
@@ -1405,7 +1407,6 @@ import {
   captainChartHousePixels,
   captainChartPanAvailability,
   captainChartPannedViewport,
-  captainChartPreviewCrop,
   captainChartSettlementMarkerSize
 } from "./captainChartMap.js";
 import {
@@ -2427,7 +2428,6 @@ import {
   resolveVisualStateReprojection
 } from "./visualStateReprojection.js";
 import {
-  advanceIncrementalRowJob,
   createIncrementalRowJob
 } from "./incrementalRowJob.js";
 import { fetchChunkedBinary, fetchChunkedJson } from "./chunkedBinaryFetch.js";
@@ -3249,10 +3249,10 @@ const CUSTOM_LOADOUT_FIELD_COLORS = Object.freeze({
   foodUnits: "#c9aa78",
   waterUnits: "#3b5dc9"
 });
+let minimapBake = null;
 const MINIMAP_W = 80;
 const MINIMAP_H = 26;
-const MINIMAP_MAX_LAT_DEG = 72;
-const CAPTAIN_CHART_RASTER_FRAME_BUDGET_MS = 4;
+const MINIMAP_MAX_LAT_DEG = MINIMAP_BAKE_MAX_LATITUDE;
 const CAPTAIN_CHART_RASTER_CACHE_LIMIT = 8;
 let MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 let MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
@@ -4550,6 +4550,7 @@ async function main() {
   const factionFlagImagesReady = loadFactionFlagImages();
   const startupAssets = Promise.all([
     loadTerrainImages(),
+    fetchStaticBinary("assets/data/minimap-lookup.bin", "captain chart geography"),
     loadShipWakeAnchors(),
     loadShipFootprints(),
     loadShipFlagAnchors(),
@@ -4602,6 +4603,7 @@ async function main() {
   const [, loadedStartupAssets] = await initializationReady;
   const [
     loadedImages,
+    loadedMinimapBake,
     loadedShipWakeAnchors,
     loadedShipFootprints,
     loadedShipFlagAnchors,
@@ -4719,6 +4721,7 @@ async function main() {
   animalLandmassWorldFractions = buildAnimalLandmassWorldFractions(earthRows);
 
   graph = decodeGeodesicGraphBake(geodesicGraphBuffer, SUBDIVISIONS);
+  minimapBake = decodeMinimapBake(loadedMinimapBake, graph.tileCount);
   if (graph.tileCount !== earth.tileCount || graph.tileCount !== earthRows.length) {
     throw new Error(`Tile count mismatch: graph=${graph.tileCount}, cache=${earth.tileCount}, rows=${earthRows.length}`);
   }
@@ -5283,8 +5286,11 @@ async function fetchJson(path, label) {
 async function fetchBinary(path, label) {
   const chunked = await fetchChunkedBinary(path, label);
   if (chunked) return chunked;
+  return fetchStaticBinary(path, label);
+}
 
-  const res = await fetchStaticAsset(path, { label });
+async function fetchStaticBinary(path, label) {
+  const res = await fetchStaticAsset(path, {label});
   if (!res.ok) throw new Error(`Failed to load ${label}: HTTP ${res.status}`);
   return res.arrayBuffer();
 }
@@ -5563,6 +5569,62 @@ function initializeWorldAssetStores() {
   worldAnimationAssetStore = createOnDemandAssetStore({
     label: "world animation",
     load: loadWorldAnimationAsset
+  });
+}
+
+function failedWorldAssetRequests() {
+  return [shipSpriteAssetStore, shipLightingAssetStore, shipRenderLayerAssetStore,
+    rowingShipAssetStore, whaleAssetStore, icebergAssetStore, landVehicleAssetStore, worldAnimationAssetStore]
+    .filter(Boolean).flatMap(store => store.failedEntries().map(entry => ({store, ...entry})));
+}
+
+function showWorldAssetRetry() {
+  const pausedAtMs = performance.now();
+  clearSessionHeldControls();
+  suspendMainThreadFreezeMonitor(mainThreadFreezeMonitor);
+  const dialog = document.createElement("dialog");
+  dialog.style.cssText = "background:#ead4aa;color:#181425;border:3px solid #6e543b;padding:24px;max-width:320px;text-align:center";
+  const message = document.createElement("p");
+  message.textContent = uiText("connection.paused");
+  const retry = document.createElement("button");
+  retry.textContent = uiText("connection.retry");
+  retry.style.cssText = "font:inherit;padding:12px 24px;cursor:pointer";
+  dialog.append(message, retry);
+  dialog.addEventListener("cancel", event => event.preventDefault());
+  dialog.addEventListener("keydown", event => event.stopPropagation());
+  document.body.append(dialog);
+  dialog.showModal();
+  retry.focus();
+  retry.addEventListener("click", async () => {
+    retry.disabled = true;
+    try {
+      const failures = failedWorldAssetRequests();
+      for (const {error} of failures) if (!isTransientStaticAssetError(error)) throw error;
+      clearFailedWorldAssetRequests();
+      await Promise.all(failures.map(({store, key}) => store.request(key)));
+      if (pendingWorldAssetError && !isTransientStaticAssetError(pendingWorldAssetError)) throw pendingWorldAssetError;
+      pendingWorldAssetError = null;
+      const pausedDurationMs = performance.now() - pausedAtMs;
+      for (const assault of [portAssaultState, lakeBattleMode?.portAssault]) {
+        if (assault && assault.pausedAtMs === null) assault.pausedDurationMs += pausedDurationMs;
+      }
+      suspendMainThreadFreezeMonitor(mainThreadFreezeMonitor);
+      dialog.close();
+      dialog.remove();
+      frameClockSynchronizationPending = true;
+      dirty = true;
+      requestAnimationFrame(loop);
+    } catch (error) {
+      if (isTransientStaticAssetError(error)) {
+        retry.disabled = false;
+        retry.focus();
+      } else {
+        dialog.close();
+        dialog.remove();
+        gameTelemetry.captureCrash(error, telemetryCrashContext());
+        drawFatalError(error, "Prototype runtime failure");
+      }
+    }
   });
 }
 
@@ -6891,6 +6953,10 @@ function loop(nowMs) {
     runFrame(nowMs);
   } catch (error) {
     console.error(error);
+    if (isTransientStaticAssetError(error) && failedWorldAssetRequests().length > 0) {
+      showWorldAssetRetry();
+      return;
+    }
     if (isWorldWebGLContextLostError(error) && recoverLostWorldGraphicsContext()) return;
     if (!isRuntimeDiagnosticAssertionError(error)) {
       gameTelemetry.captureCrash(error, telemetryCrashContext());
@@ -12708,7 +12774,7 @@ function updateCapturePillage(sequence) {
   if (captureCue("open-assault", openSeconds)) openPortDialogue(cityCall);
   if (captureDirector.elapsedSeconds >= landingSeconds && portCityView?.sceneReady &&
       captureCue("land-marines", landingSeconds)) {
-    attemptPlayerPortConquest(cityCall, () => sequence.assaultRandomValue ?? 0);
+    void attemptPlayerPortConquest(cityCall, () => sequence.assaultRandomValue ?? 0).then(() => {
     if (!portAssaultState) throw new Error("Capture assault did not create an active battle");
     emitCaptureEvent("capture-beat", {
       action: "land-marines",
@@ -12717,6 +12783,7 @@ function updateCapturePillage(sequence) {
       battleDurationMs: portAssaultState.battle.durationMs,
       outcome: portAssaultState.battle.outcome
     });
+    }).catch(error => { pendingWorldSimulationError = error; });
   }
   if (portAssaultState && portAssaultElapsedMs() >= portAssaultState.battle.durationMs &&
       !captureDirector.assaultVictoryVisible) {
@@ -15544,9 +15611,10 @@ async function beginLakeBattlePortAssault(random = Math.random) {
     });
     if (lakeBattleMode !== mode) return;
     const seed = Math.floor(random() * 0x100000000) >>> 0;
-    const battle = measurePerformanceBenchmarkStage(
-      "battle.assault.simulate", () => simulatePortAssault(scenario, seed)
-    );
+    const battle = await simulatePortAssaultInWorker(scenario, seed, {
+      workerUrl: new URL("./portAssaultForecastWorker.js", import.meta.url)
+    });
+    if (lakeBattleMode !== mode) return;
     mode.portAssault = {
       battle,
       startedAtMs: lastFrameMs,
@@ -17041,6 +17109,18 @@ function installSaveRestoreSmokeHarness() {
       if (dialogueState.nodeId !== "barred") throw new Error("Hostile haven admitted the player");
       return { text: view.text, options: view.options.map(option => option.label) };
     },
+    inspectCachedChart(zoomIndex, revealWorld = false) {
+      if (revealWorld) for (let id=0;id<graph.tileCount;id++) revealMinimapTile(id);
+      if (playerIntroModal) closePlayerIntroModal();
+      if (!captainMenu.isOpen) openCaptainMenu();
+      captainMenu.mapZoomIndex = zoomIndex;
+      const started = performance.now();
+      render(performance.now(), {allowColdCoveredWorldRender:true});
+      const viewport = captainChartDisplayViewport();
+      const raster = nativeCaptainChartMinimap(captainMenu.mapRect.w,captainMenu.mapRect.h,viewport);
+      return {durationMs:performance.now()-started,pending:Boolean(raster.pendingRender),
+        image:ctx.canvas.toDataURL("image/png"),backgroundWidth:minimap.background.canvas.width};
+    },
     inspectDaylight({ sunset, offsetMinutes }) {
       if (!chart) throw new Error("Daylight inspection requires a rendered world");
       const savedParts = weatherParts;
@@ -17194,7 +17274,7 @@ function installSaveRestoreSmokeHarness() {
         damageShoreBattery(battery, gameState.memory.flags, battery.maxHitPoints, Math.floor(weatherClockMinutes), "the test squadron");
         const eligibility = playerPortConquestStatus(city);
         if (!eligibility.canAttempt) throw new Error(`Pirate assault fixture is ineligible: ${JSON.stringify({ ...eligibility, scenario: null })}`);
-        attemptPlayerPortConquest(city, () => 0.5);
+        await attemptPlayerPortConquest(city, () => 0.5);
         const { status, battle } = portAssaultState;
         if (battle.outcome !== PORT_ASSAULT_OUTCOME.VICTORY) throw new Error("Pirate assault fixture did not win");
         completePlayerPortAssault(city, status, battle);
@@ -23829,7 +23909,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     });
   }
   wokouHuntMissionOfferForCity(gameState, cityCall, accessiblePorts, { simMinute });
-  deliveryOfferForCity(gameState, cityCall, accessiblePorts, { simMinute, sailingDistanceKm: sailingDistanceBetweenPorts });
+  deliveryOfferForCity(gameState, cityCall, accessiblePorts, { economy: worldEconomy, simMinute, sailingDistanceKm: sailingDistanceBetweenPorts });
   const openDeliveryMission = !needsLoadout &&
     deliveryMissionShouldOpenOnArrival(gameState, cityCall, accessiblePorts);
   const vikingLongshipOffer = maybeSpawnVikingLongshipQuest(gameState, cityCall, { simMinute });
@@ -25312,14 +25392,14 @@ function playerPortConquestStatus(cityCall) {
 // The queued start belongs to this exact dialogue; leaving cancels the intent.
 function requestPlayerPortConquest(cityCall) {
   if (pendingPortAssaultStart?.session === dialogueState) return true;
-  if (portCityView?.sceneReady) return attemptPlayerPortConquest(cityCall);
-  const request = { session: dialogueState, cityId: cityCall.cityId };
+  pendingPortAssaultStart?.abortController.abort();
+  const request = { session: dialogueState, cityId: cityCall.cityId, abortController: new AbortController() };
   pendingPortAssaultStart = request;
   portAssaultForecastClient.clear();
-  void synchronizePortCityScene().then(() => {
+  void synchronizePortCityScene().then(async () => {
     if (pendingPortAssaultStart !== request || dialogueState !== request.session ||
         portCityView?.cityId !== request.cityId) return;
-    attemptPlayerPortConquest(cityCall);
+    await attemptPlayerPortConquest(cityCall, Math.random, {signal: request.abortController.signal});
   }).catch(error => {
     pendingWorldAssetError = error instanceof Error ? error : new Error(String(error));
     dirty = true;
@@ -25329,7 +25409,7 @@ function requestPlayerPortConquest(cityCall) {
   return true;
 }
 
-function attemptPlayerPortConquest(cityCall, random = Math.random) {
+async function attemptPlayerPortConquest(cityCall, random = Math.random, {signal} = {}) {
   if (typeof random !== "function") throw new Error("Port conquest requires a random source");
   const status = playerPortConquestStatus(cityCall);
   if (!status.canAttempt) throw new Error(`Cannot start an ineligible port assault: ${cityCall.cityId}`);
@@ -25343,9 +25423,11 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
   playBladeReadySound();
   startCombatMusicForThreat("big");
   const seed = Math.floor(random() * 0x100000000) >>> 0;
-  const battle = measurePerformanceBenchmarkStage(
-    "battle.assault.simulate", () => simulatePortAssault(status.scenario, seed)
-  );
+  const session = dialogueState;
+  const battle = await simulatePortAssaultInWorker(status.scenario, seed, {
+    signal, workerUrl: new URL("./portAssaultForecastWorker.js", import.meta.url)
+  });
+  if (!battle || dialogueState !== session || portCityView?.cityId !== cityCall.cityId) return false;
   portAssaultState = {
     cityCall,
     status,
@@ -27157,6 +27239,7 @@ function handlePortWaitKeyDown(event) {
 }
 
 function releaseDialogueSession({ destination }) {
+  pendingPortAssaultStart?.abortController.abort();
   if (!["sailing", "port-wait", "handoff"].includes(destination)) {
     throw new Error(`Unknown dialogue exit destination: ${destination}`);
   }
@@ -32297,6 +32380,10 @@ function syncExeterCanalWorldState(state, currentMinute, { restoring = false } =
   }
   const update = () => {
     riverMasks = navigation.riverMasks;
+    if (minimap) {
+      for (const id of EXETER_CANAL_TILE_CHAIN) if (minimap.seenTiles[id]) paintCaptainChartBackgroundTile(id);
+      minimap.rasterRevision += 1;
+    }
     oceanReachableNavigationMask = navigation.reachableNavigationMask;
     appliedExeterCanalStage = stage;
     updateSettlementMaritimeAccess(city, { accessible: stage === 3, startMinute: currentMinute, restoring });
@@ -43258,9 +43345,9 @@ function reconcileWhaleCoastClearance(memory) {
   for (const whale of memory.individuals) {
     const tileId = findNearestTileId(graph, directionIndex, whale.position);
     if (whaleTileHasCoastClearance(tileId, earthById, graph.neighbors)) continue;
-    const destinationId = nearestWhaleClearanceTile(tileId, earthById, graph.neighbors);
-    whale.tileId = destinationId;
-    whale.position = tileCenterVector(destinationId);
+    const destinationTileId = nearestWhaleClearanceTile(tileId, earthById, graph.neighbors);
+    whale.tileId = destinationTileId;
+    whale.position = tileCenterVector(destinationTileId);
     whale.heading = normalizeTangentOrFallback(whale.heading, whale.position, WORLD_NORTH);
     relocated++;
   }
@@ -43619,18 +43706,28 @@ function normalizeOrNull(v) {
 
 let hexDaylightWindow = null;
 
-function hexDaylightForWorld(layers) {
+function hexDaylightForWorld(layers, nowMs) {
   const calls = layers.terrainCalls;
+  const iceStage = surfaceIceTransition ? surfaceIceTransitionStage(surfaceIceTransition, nowMs) : -1;
   if (hexDaylightWindow?.calls !== calls || hexDaylightWindow.screenWidth !== SCREEN_W ||
-      hexDaylightWindow.screenHeight !== SCREEN_H) {
+      hexDaylightWindow.screenHeight !== SCREEN_H || hexDaylightWindow.iceStage !== iceStage ||
+      hexDaylightWindow.weatherDay !== weatherMaskDayIndex) {
     const margin = TILE_ART_SIZE + RENDER_CALL_WINDOW_STEP_PX;
     const x = Math.floor(-layers.offset.x / RENDER_CALL_WINDOW_STEP_PX) * RENDER_CALL_WINDOW_STEP_PX - margin;
     const y = Math.floor(-layers.offset.y / RENDER_CALL_WINDOW_STEP_PX) * RENDER_CALL_WINDOW_STEP_PX - margin;
+    const visibleIds = new Set(calls.map(call => call.id));
     const map = buildHexDaylightMap(calls.map(call => ({ id: call.id,
       x: call.drawSurfaceX, y: call.drawSurfaceY })), {
-      x, y, width: SCREEN_W + margin * 2, height: SCREEN_H + margin * 2, radiusPx: TILE_ART_SIZE / 2
+      x, y, width: SCREEN_W + margin * 2, height: SCREEN_H + margin * 2, radiusPx: TILE_ART_SIZE / 2,
+      connectors: layers.connectors.entries.filter(entry => visibleIds.has(entry.call.a) && visibleIds.has(entry.call.b))
+        .map(entry => ({a: entry.call.a, b: entry.call.b, spans: entry.spans})),
+      sprites: calls.flatMap(call => terrainDrawImagesForTile(call, nowMs).map(source => ({
+        id: call.id, x: Math.round(call.drawSurfaceX - TILE_ART_HALF),
+        y: Math.round(call.drawSurfaceY - TILE_ART_HALF), width: TILE_ART_SIZE, height: TILE_ART_SIZE,
+        mask: spriteAlphaMask(source)
+      })))
     });
-    hexDaylightWindow = { calls, screenWidth: SCREEN_W, screenHeight: SCREEN_H, map };
+    hexDaylightWindow = { calls, screenWidth: SCREEN_W, screenHeight: SCREEN_H, iceStage, weatherDay: weatherMaskDayIndex, map };
   }
   return { map: hexDaylightWindow.map, offset: layers.offset };
 }
@@ -43651,7 +43748,7 @@ function drawDayNightWorld(layers, nowMs) {
       clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
       paletteVariant: variant,
       daylight: { sunScreen: [dot3(sun, camera.right), -dot3(sun, camera.up), dot3(sun, ship.position)],
-        radiansPerPixel: 1 / PIXELS_PER_RADIAN, hexes: hexDaylightForWorld(layers) },
+        radiansPerPixel: 1 / PIXELS_PER_RADIAN, hexes: hexDaylightForWorld(layers, nowMs) },
       timeMs: nowMs,
       oceanSwell: swell,
       modalReframe: modalReframe?.frame || null
@@ -47115,6 +47212,7 @@ function buildMinimap() {
 
   return {
     ...buildMinimapRaster(MINIMAP_W, MINIMAP_H, { trackSampledTiles: true }),
+    background: createCaptainChartBackground(),
     seenTiles: new Uint8Array(graph.tileCount),
     packedSeenTiles: new Uint8Array(Math.ceil(graph.tileCount / 8)),
     packedSeenTilesBase64: "",
@@ -47272,6 +47370,7 @@ function revealMinimapTile(tileId) {
     return false;
   }
   minimap.seenTiles[tileId] = 1;
+  paintCaptainChartBackgroundTile(tileId);
   minimap.packedSeenTiles[tileId >> 3] |= 1 << (tileId & 7);
   minimap.seenTileCount += 1;
   minimap.rasterRevision += 1;
@@ -47561,6 +47660,7 @@ function restoreCartographyFromGameState(savedWorldTopology) {
   }
   const memory = gameState.memory.cartography;
   minimap.seenTiles.fill(0);
+  minimap.background.cache.reset();
   minimap.packedSeenTiles.fill(0);
   minimap.packedSeenTilesBase64 = "";
   minimap.packedSeenTileCount = 0;
@@ -48264,7 +48364,8 @@ function questJournalEntries() {
   const naturalistEntry = naturalistJournalEntry();
   if (naturalistEntry) entries.push(naturalistEntry);
   return orderQuestJournalEntries(entries, {
-    campaignComplete: campaignGoal?.status === CAMPAIGN_GOAL_COMPLETE
+    campaignComplete: campaignGoal?.status === CAMPAIGN_GOAL_COMPLETE,
+    sovereignWarLoanId: warLoan?.id ?? null
   });
 }
 
@@ -48750,32 +48851,11 @@ function nativeCaptainChartMinimap(width, height, viewport) {
     captainChartMinimapCache.delete(cacheKey);
     captainChartMinimapCache.set(cacheKey, captainChartMinimap);
   }
-  const pending = captainChartMinimap.pendingRender;
-  const renderIsCurrent = captainChartMinimap.sourceRevision === minimap.rasterRevision &&
-    captainChartMinimap.renderedViewportKey === viewportKey;
-  const pendingIsCurrent = pending?.sourceRevision === minimap.rasterRevision &&
-    pending.viewportKey === viewportKey;
-  if (!renderIsCurrent && !pendingIsCurrent) {
+  if (captainChartMinimap.sourceRevision !== minimap.rasterRevision || captainChartMinimap.renderedViewportKey !== viewportKey) {
+    drawCachedCaptainChart(captainChartMinimap, viewport);
     captainChartMinimap.renderedViewport = viewport;
-    const focus = minimapPixelForTile(centerTileId, captainChartMinimap);
-    beginMinimapRasterRender(
-      captainChartMinimap,
-      viewport,
-      focus?.y ?? Math.floor(height / 2)
-    );
-    drawCaptainChartMinimapPreview(captainChartMinimap, viewport);
-  }
-  if (captainChartMinimap.pendingRender) {
-    const result = advanceIncrementalRowJob(captainChartMinimap.pendingRender.rowJob, {
-      budgetMs: CAPTAIN_CHART_RASTER_FRAME_BUDGET_MS,
-      renderRow: (row) => renderMinimapRasterRow(
-        captainChartMinimap,
-        captainChartMinimap.pendingRender.viewport,
-        row
-      )
-    });
-    if (result.complete) completeMinimapRasterRender(captainChartMinimap);
-    else dirty = true;
+    captainChartMinimap.renderedViewportKey = viewportKey;
+    captainChartMinimap.sourceRevision = minimap.rasterRevision;
   }
   return captainChartMinimap;
 }
@@ -48817,7 +48897,7 @@ function drawCaptainChartDragRaster(width, height, viewport) {
     return nativeCaptainChartMinimap(width, height, viewport);
   }
   const raster = preview.previewRaster;
-  drawCaptainChartMinimapPreview(raster, viewport);
+  drawCachedCaptainChart(raster, viewport);
   raster.ctx.imageSmoothingEnabled = false;
   raster.ctx.drawImage(preview.sourceCanvas, offset.x, offset.y);
   raster.renderedViewport = viewport;
@@ -48826,28 +48906,37 @@ function drawCaptainChartDragRaster(width, height, viewport) {
   return raster;
 }
 
-function drawCaptainChartMinimapPreview(targetRaster, targetViewport) {
-  if (minimap.sourceRevision !== minimap.rasterRevision || !minimap.renderedViewport) return false;
-  const crop = captainChartPreviewCrop({
-    sourceViewport: minimap.renderedViewport,
-    targetViewport,
-    worldWidth: MINIMAP_W,
-    sourcePixelWidth: minimap.width,
-    sourcePixelHeight: minimap.height
-  });
-  if (!crop) return false;
+function createCaptainChartBackground() {
+  const canvas = document.createElement("canvas");
+  canvas.width = minimapBake.width; canvas.height = minimapBake.height;
+  const context = canvas.getContext("2d", {alpha:false});
+  if (!context) throw new Error("Cannot create cached captain chart");
+  const cache = createMinimapPixelCache(minimapBake, graph.tileCount, MINIMAP_UNKNOWN_COLOR);
+  return {canvas, context, cache, image: new ImageData(cache.pixels, minimapBake.width, minimapBake.height)};
+}
+
+function paintCaptainChartBackgroundTile(tileId) {
+  minimap.background.cache.paintTile(tileId, minimapColor(minimapLandWeight(
+    earthById[tileId], (riverMasks?.[tileId] || 0) !== 0), tileId));
+}
+
+function drawCachedCaptainChart(targetRaster, viewport) {
+  if (!viewport) return false;
+  const background = minimap.background;
+  const changed = background.cache.takeDirtyBounds();
+  if (changed) background.context.putImageData(background.image,0,0,
+    changed.x,changed.y,changed.right-changed.x,changed.bottom-changed.y);
+  const width = background.canvas.width, height = background.canvas.height;
+  const startX = ((viewport.startX / MINIMAP_W % 1)+1)%1*width;
+  const startY = viewport.startY / MINIMAP_H * height;
+  const spanX = viewport.spanX / MINIMAP_W * width;
+  const spanY = viewport.spanY / MINIMAP_H * height;
+  const first = Math.min(spanX,width-startX);
   targetRaster.ctx.imageSmoothingEnabled = false;
-  targetRaster.ctx.drawImage(
-    minimap.canvas,
-    crop.x,
-    crop.y,
-    crop.width,
-    crop.height,
-    0,
-    0,
-    targetRaster.width,
-    targetRaster.height
-  );
+  targetRaster.ctx.drawImage(background.canvas,startX,startY,first,spanY,0,0,
+    first/spanX*targetRaster.width,targetRaster.height);
+  if (first < spanX) targetRaster.ctx.drawImage(background.canvas,0,startY,spanX-first,spanY,
+    first/spanX*targetRaster.width,0,(spanX-first)/spanX*targetRaster.width,targetRaster.height);
   return true;
 }
 

@@ -1,5 +1,6 @@
+import { createWorkshopSupplyOffer, validateWorkshopSupplyQuest, workshopSupplyReady } from "./workshopSupplyQuest.js";
 import { isPirateHavenCityId } from "./pirateHavenCatalog.js";
-import { questOfferPolicy } from "./questOfferPolicies.js";
+import { questOfferPolicy, questOfferWindowOpen, questOfferCooldownReady, recordQuestOffer } from "./questOfferPolicies.js";
 import { createPirateHavenMemory, migratePirateHavenMemory, validatePirateHavenMemory, pirateQuestInventory } from "./pirateHavens.js";
 import { ACTIVE_QUEST_SLOTS, activeQuests } from "./activeQuests.js";
 import { createExeterCanalMemory, validateExeterCanalState } from "./exeterCanal.js";
@@ -18,6 +19,7 @@ import {
   TEA_GOOD_ID,
   TRADE_GOODS,
   executePortPurchase,
+  fulfillWorkshopSupplyOrder,
   executeRepeatedPortPurchase,
   executePortSale,
   fundWorldEconomyShipyard,
@@ -565,7 +567,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 111;
+export const GAME_STATE_VERSION = 112;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -986,7 +988,7 @@ export function migrateGameState(state, shipStats, {
   crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -7930,7 +7932,12 @@ export function deliveryOfferForCity(state, city, portCities, context = {}) {
   const onboardingIndex = quests.onboardingDeliveriesCompleted < ONBOARDING_DELIVERY_COUNT
     ? quests.onboardingDeliveriesCompleted
     : null;
-  const candidate = deliveryQuestForCity(city, portCities, { offerPeriod, onboardingIndex, sailingDistanceKm: context.sailingDistanceKm });
+  const workshopOfferReady = context.economy && onboardingIndex === null &&
+    questOfferCooldownReady(state.memory.decisions, "workshop-supply", context.simMinute ?? 0) &&
+    questOfferWindowOpen(state.playerCharacter.id, city.cityId, context.simMinute ?? 0, "workshop-supply");
+  const candidate = (workshopOfferReady
+    ? createWorkshopSupplyOffer(context.economy, city, portCities, {offerPeriod, sailingDistanceKm: context.sailingDistanceKm}) : null) ||
+    deliveryQuestForCity(city, portCities, { offerPeriod, onboardingIndex, sailingDistanceKm: context.sailingDistanceKm });
   if (!candidate) return null;
 
   const rollKey = `${candidate.originKey}|${offerPeriod}`;
@@ -7945,6 +7952,7 @@ export function deliveryOfferForCity(state, city, portCities, context = {}) {
   if (spawnChance < 1 && seededFraction(`${identityKey}|${rollKey}|delivery`) >= spawnChance) {
     return null;
   }
+  if (candidate.procurement) recordQuestOffer(state.memory.decisions, "workshop-supply", context.simMinute ?? 0);
   quests.deliveryOffers[candidate.originKey] = candidate;
   return candidate;
 }
@@ -8890,6 +8898,9 @@ export function questStateForCity(state, city, portCities) {
       }
       return { kind: "busy", quest: active };
     }
+    if (active.procurement && active.destinationCityId === city.cityId && !workshopSupplyReady(state, active)) {
+      return {kind: "in-progress-here", quest: active};
+    }
     if (active.destinationCityId === city.cityId) return { kind: "ready-to-complete", quest: active };
     if (active.originCityId === city.cityId) return { kind: "in-progress-here", quest: active };
     return { kind: "busy", quest: active };
@@ -9361,6 +9372,11 @@ export function completeQuest(state, city, context = {}) {
   }
   if (isWokouHuntQuest(active) && active.stage !== "return") {
     throw new Error(`Wokou commission must be won before reporting home: ${active.id}`);
+  }
+  if (active.procurement) {
+    if (!workshopSupplyReady(state, active)) throw new Error(`Workshop order cargo is incomplete: ${active.id}`);
+    fulfillWorkshopSupplyOrder(context.economy, city, {...active.procurement, reward: active.reward});
+    deliverQuestCargo(state, city, active.procurement.goodId, active.procurement.quantity, active.id, context);
   }
   if (isTeaRaceQuest(active)) {
     if (active.stage !== "arrived") throw new Error(`Tea race has not reached London: ${active.id}`);
@@ -10582,6 +10598,10 @@ function removeInvalidatedQuestOffers(state, portCities, events) {
     const origin = portsByCityId.get(offer.originCityId);
     const destination = portsByCityId.get(offer.destinationCityId);
     if (!origin || !destination) return false;
+    if (offer.procurement) {
+      validateWorkshopSupplyQuest(offer);
+      return true;
+    }
     const routePolicyId = deliveryRoutePolicyForScenarioId(offer.scenarioId);
     if (!deliveryRouteAllowsDestination(origin, destination, routePolicyId)) return false;
     offer.factionId = origin.factionId;
@@ -11419,6 +11439,7 @@ function assertDiplomaticQuestMemory(quests) {
     }
   }
   for (const quest of [quests.active, ...Object.values(quests.deliveryOffers || {})]) {
+    validateWorkshopSupplyQuest(quest);
     if (isTeaRaceQuest(quest)) validateTeaRaceQuest(quest);
   }
   for (const quest of [

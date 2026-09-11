@@ -1,4 +1,6 @@
 export default {
+  "connection.paused": "연결이 끊겼습니다. 필요한 그래픽을 불러올 때까지 항해가 일시 정지됩니다.",
+  "connection.retry": "다시 시도",
   "language.english": "영어",
   "language.chineseSimplified": "중국어 간체",
   "language.russian": "러시아어",

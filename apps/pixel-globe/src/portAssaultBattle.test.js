@@ -200,8 +200,8 @@ test("ranged combatants switch to an independently tuned melee attack up close",
 
   const closeBattle = simulatePortAssault(createPortAssaultScenario({
     cityId: "london|england",
-    attackers: [combatant("archer", "archer", 1)],
-    defenders: [combatant("shield", "shieldman", 3)],
+    attackers: [combatant("shield", "shieldman", 3)],
+    defenders: [combatant("archer", "archer", 1)],
     shipHitPoints: 100,
     shipMaxHitPoints: 100,
     dockKind: "wood",
@@ -524,7 +524,7 @@ function assertAttackReach(battle) {
     if (event.type !== "attack") continue;
     attacks += 1;
     const distance = portAssaultGroundDistance(event, { position: event.targetPosition, lane: event.targetLane });
-    const attack = portAssaultAttackProfileAtDistance(statsById.get(event.unitId), distance);
+    const attack = event.surface === "deck" ? statsById.get(event.unitId) : portAssaultAttackProfileAtDistance(statsById.get(event.unitId), distance);
     assert.equal(event.attackType, attack.attackType, `seed ${battle.seed}: wrong close-combat attack for ${event.unitId}`);
     assert.ok(distance <= attack.range, `seed ${battle.seed}: ${event.unitId} hit ${event.targetId} outside ${attack.range}`);
     assert.equal(typeof event.facingRight, "boolean");
@@ -542,8 +542,8 @@ test("every pair of combat profiles closes to real attack reach without a stalle
         defenders: [combatant("defender", defenderProfile)]
       }), a * profiles.length + d);
       assertAttackReach(battle);
-      assert.ok(battle.events.some(({ type }) => type === "death"),
-        `${attackerProfile}/${defenderProfile} must fight to a casualty`);
+      assert.ok(battle.finalShipHitPoints === 0 || battle.events.some(({ type }) => type === "death"),
+        `${attackerProfile}/${defenderProfile} must fight to a casualty or sink the ship`);
     }
   }
 });
@@ -568,7 +568,7 @@ test("crowded mixed formations preserve body spacing, reach, deployment and repl
           assert.ok(frame.lane >= 0 && frame.lane <= PORT_ASSAULT_LANE_COUNT - 1);
           assert.ok(frame.position >= 0 && frame.position <= 1);
           assert.ok(Number.isFinite(frame.animationStartedAtMs));
-          return frame.hidden || !frame.alive ? [] : [{ id, ...frame, stats: statsById.get(id) }];
+          return frame.hidden || !frame.alive || frame.surface === "deck" ? [] : [{ id, ...frame, stats: statsById.get(id) }];
         });
         for (let i = 0; i < occupants.length; i += 1) {
           for (let j = i + 1; j < occupants.length; j += 1) {
@@ -585,7 +585,7 @@ test("crowded mixed formations preserve body spacing, reach, deployment and repl
       }
       for (const landing of battle.events.filter(({ type }) => type === "jump")) {
         assert.ok(!battle.events.some((event) => event.type === "attack" && event.targetId === landing.unitId &&
-          event.timeMs < landing.timeMs + portAssaultLandingDurationMs(dockKind)), "airborne soldiers cannot be attacked");
+          event.timeMs >= landing.timeMs && event.timeMs < landing.timeMs + portAssaultLandingDurationMs(dockKind)), "airborne soldiers cannot be attacked");
       }
     }
   }
@@ -651,7 +651,11 @@ test("a full Great Carrack can deploy its mixed crew and meets the garrison inla
     attackers: Array.from({ length: capacity }, (_, i) => combatant(`a${i}`, profiles[i % 4])),
     defenders: Array.from({ length: PORT_ASSAULT_MAX_GARRISON }, (_, i) => combatant(`d${i}`, profiles[i % 4]))
   }), 19);
-  const jumps = battle.events.filter(event => event.type === "jump");
+  const deployed = new Set();
+  const jumps = battle.events.filter(event => {
+    if (event.type !== "jump" || deployed.has(event.unitId)) return false;
+    deployed.add(event.unitId); return true;
+  });
   assert.equal(jumps.length, capacity, "reinforcements must not be trapped aboard");
   assert.ok(jumps.at(-1).timeMs < 80000);
   for (const landing of battle.events.filter(event => event.type === "dock-land")) {
@@ -756,7 +760,11 @@ test("landing waves send cavalry, then skirmishers, then infantry across varied 
     const stats = portAssaultUnitStats(byId.get(id));
     return stats.mounted ? 0 : stats.attackType !== "melee" ? 1 : 2;
   };
-  const jumps = battle.events.filter(event => event.type === "jump");
+  const deployed = new Set();
+  const jumps = battle.events.filter(event => {
+    if (event.type !== "jump" || deployed.has(event.unitId)) return false;
+    deployed.add(event.unitId); return true;
+  });
   assert.equal(jumps.length, attackers.length);
   for (let i = 1; i < jumps.length; i++) {
     assert.ok(priority(jumps[i].unitId) >= priority(jumps[i - 1].unitId), "later roles must not precede the cavalry/skirmisher screen");
@@ -782,7 +790,11 @@ test("a dominant troop type takes four places per pass without delaying the othe
   const battle = simulatePortAssault(createPortAssaultScenario({ ...scenario(), attackers,
     defenders: Array.from({ length: 35 }, (_, i) => combatant(`guard-${i}`, "shieldman")) }), 19);
   const byId = new Map(attackers.map(unit => [unit.id, unit.combatProfileId]));
-  const jumps = battle.events.filter(event => event.type === "jump");
+  const deployed = new Set();
+  const jumps = battle.events.filter(event => {
+    if (event.type !== "jump" || deployed.has(event.unitId)) return false;
+    deployed.add(event.unitId); return true;
+  });
   assert.deepEqual(jumps.slice(0, 12).map(event => byId.get(event.unitId)), [
     ...Array(4).fill("horseman"), ...Array(4).fill("gunner"), ...Array(4).fill("spearman")
   ]);
@@ -808,7 +820,7 @@ test("three gunners and five shieldmen counterattack while their firing line is 
       ...Array.from({ length: 5 }, (_, i) => combatant(`shield-${i}`, "shieldman"))
     ], shipHitPoints: 100, shipMaxHitPoints: 100, fortified: false, dockKind: "wood" });
   const battle = simulatePortAssault(input, 42);
-  const counterattack = battle.events.find(event => event.type === "attack" && event.unitId.startsWith("shield-"));
+  const counterattack = battle.events.find(event => ["attack", "ship-hit"].includes(event.type) && event.unitId.startsWith("shield-"));
   assert.ok(counterattack, "reserve shieldmen must join the battle");
   assert.ok([0, 1, 2].every(index => !battle.tracks[`gun-${index}`].some(frame =>
     frame.timeMs <= counterattack.timeMs && !frame.alive)), "relief begins before the guns are killed");

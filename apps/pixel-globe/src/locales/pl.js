@@ -1,4 +1,6 @@
 export default {
+  "connection.paused": "Połączenie przerwane. Podróż jest wstrzymana, dopóki wymagane grafiki są niedostępne.",
+  "connection.retry": "SPRÓBUJ PONOWNIE",
   "language.english": "Angielski",
   "language.chineseSimplified": "Chiński uproszczony",
   "language.russian": "Rosyjski",

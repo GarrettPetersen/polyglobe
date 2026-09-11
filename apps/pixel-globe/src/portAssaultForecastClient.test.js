@@ -4,7 +4,7 @@ import { Worker } from "node:worker_threads";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { createPortAssaultForecastClient } from "./portAssaultForecastClient.js";
-import { createPortAssaultScenario, forecastPortAssault } from "./portAssaultBattle.js";
+import { createPortAssaultScenario, forecastPortAssault, simulatePortAssault } from "./portAssaultBattle.js";
 
 class FakeWorker {
   static instances = [];
@@ -82,6 +82,13 @@ test("the actual forecast worker preserves seeded battle odds while the caller k
     });
     assert.ok(ticks > 0, "Worker calculation blocked the caller's event loop");
     assert.deepEqual(result, forecastPortAssault(scenario, { seedKey: "worker-equivalence" }));
+    const recorded = await new Promise((resolve, reject) => {
+      worker.once("message", message => message.error ? reject(new Error(message.error)) : resolve(message));
+      worker.postMessage({kind:"battle", scenario, seed:42});
+    });
+    assert.equal(recorded.cityId, scenario.cityId);
+    assert.equal(recorded.seed, 42);
+    assert.deepEqual(recorded.battle, simulatePortAssault(scenario, 42));
   } finally { clearInterval(interval); await worker.terminate(); }
 });
 
@@ -110,10 +117,10 @@ test("each completed battle updates the estimate and starting combat cancels lat
 });
 
 
-test("starting a real assault cancels the forecast before simulating combat", () => {
+test("starting a real assault cancels the forecast before simulating combat", async () => {
   const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
-  const start = source.indexOf("function attemptPlayerPortConquest(");
-  const end = source.indexOf("\nfunction ", start + 1);
+  const start = source.indexOf("async function attemptPlayerPortConquest(");
+  const end = source.indexOf("\n}", start + 1) + 2;
   const calls = [];
   const stopAfterSimulationBegins = new Error("simulation entered");
   const context = vm.createContext({
@@ -123,10 +130,11 @@ test("starting a real assault cancels the forecast before simulating combat", ()
     portAssaultForecastClient: { clear: () => calls.push("cancel") },
     playBladeReadySound() {}, startCombatMusicForThreat() {},
     measurePerformanceBenchmarkStage: (_name, run) => run(),
-    simulatePortAssault: () => { calls.push("combat"); throw stopAfterSimulationBegins; }
+    dialogueState: {}, URL,
+    simulatePortAssaultInWorker: async () => { calls.push("combat"); throw stopAfterSimulationBegins; }
   });
-  vm.runInContext(source.slice(start, end), context);
-  assert.throws(() => context.attemptPlayerPortConquest({ cityId: "test" }, () => .5),
+  vm.runInContext(source.slice(start, end).replaceAll("import.meta.url", JSON.stringify(import.meta.url)), context);
+  await assert.rejects(() => context.attemptPlayerPortConquest({ cityId: "test" }, () => .5),
     error => error === stopAfterSimulationBegins);
   assert.deepEqual(calls, ["cancel", "combat"]);
 });
@@ -134,7 +142,7 @@ test("starting a real assault cancels the forecast before simulating combat", ()
 test("an immediate assault click waits for cold city assets once and cancels if the captain leaves", async () => {
   const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
   const start = source.indexOf("function requestPlayerPortConquest(");
-  const end = source.indexOf("\nfunction ", start + 1);
+  const end = source.indexOf("\n}", start + 1) + 2;
   for (const outcome of ["ready", "left", "failed"]) {
     const leave = outcome === "left";
     let ready;
@@ -143,6 +151,7 @@ test("an immediate assault click waits for cold city assets once and cancels if 
     let cancellations = 0;
     const loading = new Promise((resolve, reject) => { ready = resolve; fail = reject; });
     const context = vm.createContext({
+      AbortController,
       portCityView: { cityId: "test", sceneReady: false }, dialogueState: {},
       pendingPortAssaultStart: null, pendingWorldAssetError: null, dirty: false,
       portAssaultForecastClient: { clear: () => cancellations++ },

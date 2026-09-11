@@ -124,8 +124,10 @@ export function isJapaneseMatchlockWorkshopCity(city) {
 
 export function japaneseMatchlockPrerequisiteMet(state) {
   const colony = state?.memory?.colonization;
-  return colony?.stage === COLONIZATION_STAGE_ESTABLISHED &&
-    colony.targetCityId === CANONICAL_PORTS.NAGASAKI.cityId;
+  if (!colony) return false;
+  return [colony, ...colony.pastSettlements].some(settlement =>
+    settlement.stage === COLONIZATION_STAGE_ESTABLISHED &&
+    settlement.targetCityId === CANONICAL_PORTS.NAGASAKI.cityId);
 }
 
 export function maybeSpawnJapaneseMatchlockQuest(state, city, context = {}) {

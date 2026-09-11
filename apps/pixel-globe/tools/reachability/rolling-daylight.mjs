@@ -17,7 +17,12 @@ export async function verifyRollingDaylightGpu(gamePage) {
     const size = 12;
     const centers = [{ id: 1, x: 2, y: 2 }, { id: 2, x: 8, y: 2 },
       { id: 3, x: 5, y: 7 }, { id: 4, x: 11, y: 7 }, { id: 5, x: -1, y: 7 }];
-    const map = buildHexDaylightMap(centers, { x: 0, y: 0, width: size, height: size, radiusPx: 8 });
+    const mask = {width: 9, height: 3, alpha: Uint8Array.from([
+      255,255,255,255,255,255,255,255,0,
+      255,255,255,255,255,255,255,0,0,
+      255,255,255,255,255,255,255,255,255])};
+    const map = buildHexDaylightMap(centers, { x: 0, y: 0, width: size, height: size, radiusPx: 8,
+      sprites: [{id:1,x:0,y:1,width:9,height:3,mask}] });
     let checked = 0;
     try {
       for (const axis of [[1, 0], [-1, 0], [0, 1], [0, -1], [0.6, 0.8]]) {
@@ -33,7 +38,8 @@ export async function verifyRollingDaylightGpu(gamePage) {
           renderer.endFrame();
           const pixels = renderer.captureFrameCanvas().getContext("2d").getImageData(0, 0, size, size).data;
           for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-            const center = [...centers].sort((a, b) =>
+            const center = y >= 1 && y < 4 && x < 9 && mask.alpha[(y - 1) * 9 + x] > 0
+              ? centers[0] : [...centers].sort((a, b) =>
               ((x + 0.5 - a.x) ** 2 + (y + 0.5 - a.y) ** 2) -
               ((x + 0.5 - b.x) ** 2 + (y + 0.5 - b.y) ** 2) || a.id - b.id)[0];
             const dx = (center.x - size / 2) * scale;

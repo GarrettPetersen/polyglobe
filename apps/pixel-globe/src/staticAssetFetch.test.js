@@ -93,3 +93,11 @@ test("exhausted network and server failures remain identifiable through wrapped 
   assert.ok(serverError instanceof StaticAssetNetworkError);
   assert.equal(serverError.status, 503);
 });
+
+test("invalid fetch responses fail immediately and are not classified as connection failures", async () => {
+  let calls = 0;
+  await assert.rejects(fetchStaticAsset("/broken", {label: "broken", fetchImpl: async () => {
+    calls++; return {};
+  }}), error => !isTransientStaticAssetError(error) && /Invalid fetch response/.test(error.message));
+  assert.equal(calls, 1);
+});

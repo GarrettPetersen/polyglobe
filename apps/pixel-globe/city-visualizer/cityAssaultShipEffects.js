@@ -2,6 +2,9 @@ import { SHIP_WATERLINE_LEVEL } from "../src/shipWaterline.js";
 import { createShipSinkEffect, shipSinkFrame, shipSinkPose, shipSinkSubmersionTimeMs } from "../src/shipSinking.js";
 import { createHullSplinterBurst, hullSplinterPixels } from "../src/hullSplinters.js";
 
+// Keep heads, shoulders and panicked arm movements above the surface.
+export const CITY_ASSAULT_FLOATING_WATER_DEPTH_PX = 4;
+
 export function createCityAssaultShipEffects(pixels, width, height) {
   // Keep attachment points on actual above-water surface pixels, across the hull.
   const surfaces = pixels.filter(pixel => pixel.sinkHeight > SHIP_WATERLINE_LEVEL && pixel.sinkHeight < 0.85);
@@ -61,4 +64,42 @@ export function cityAssaultEscapeUrgency(presentation, reducedMotion = false) {
   if (ageMs < 0 || ageMs > 2500) return { scale: 1, flash: false };
   return { scale: reducedMotion ? 1.15 : 1.15 + 0.1 * Math.sin(ageMs / 250),
     flash: reducedMotion || Math.floor(ageMs / 500) % 2 === 0 };
+}
+
+// Stations are distributed inside the baked deck, independently of shore lanes.
+export function cityAssaultDeckStation(polygon, slot) {
+  if (!Array.isArray(polygon) || polygon.length !== 4 || !Number.isInteger(slot) || slot < 0) {
+    throw new Error("Assault deck station needs a quadrilateral and a nonnegative slot");
+  }
+  const u = .15 + .7 * ((slot * .61803398875 + .5) % 1);
+  const v = .15 + .7 * ((slot * .41421356237 + .5) % 1);
+  const [a, b, c, d] = polygon;
+  return { x: (1-v)*((1-u)*a.x+u*b.x)+v*((1-u)*d.x+u*c.x),
+    y: (1-v)*((1-u)*a.y+u*b.y)+v*((1-u)*d.y+u*c.y) };
+}
+
+export function cityAssaultDeckPersonFrame(model, polygon, slot, presentation) {
+  model.deckStations ??= new Map();
+  if (!model.deckStations.has(slot)) {
+    const point = cityAssaultDeckStation(polygon, slot);
+    const pixel = model.pixels.reduce((best, candidate) =>
+      Math.hypot(candidate.x-point.x, candidate.y-point.y) < Math.hypot(best.x-point.x, best.y-point.y)
+        ? candidate : best);
+    model.deckStations.set(slot, { ...point, sinkHeight: pixel.sinkHeight });
+  }
+  const station = model.deckStations.get(slot);
+  if (presentation.shipHitPoints > 0) return { ...station, floating: false, scurrying: false };
+  // Initialize the same sinking effect used by the hull, including when this
+  // painter pass happens before the ship's own pass.
+  if (model.sink?.startedAtMs !== presentation.shipSunkAtMs) cityAssaultShipEffectsFrame(model, presentation);
+  const submergedAtMs = shipSinkSubmersionTimeMs(model.sink, station.sinkHeight);
+  const floating = presentation.elapsedMs >= submergedAtMs;
+  const timeMs = Math.min(presentation.elapsedMs, submergedAtMs);
+  const ageMs = timeMs - presentation.shipSunkAtMs;
+  const pose = shipSinkPose(model.sink, timeMs);
+  // Small panicked steps stay inside the inset station area. Once afloat,
+  // people remain at the surface instead of following the hull down.
+  return { x: station.x + Math.sin(ageMs / 180 + slot) * 2,
+    y: station.y + pose.sinkOffset + (floating ? Math.sin(presentation.elapsedMs / 300 + slot) : 0),
+    floating, scurrying: !floating, animationId: floating ? "hit" : "walk" };
 }

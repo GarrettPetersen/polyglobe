@@ -1,3 +1,5 @@
+import { WORLD_GLOBE_SUBDIVISIONS } from "../src/worldScale.js";
+import { ensureMinimapBake } from "./build-minimap-bake.mjs";
 import { RUNTIME_MODULE_IDS } from "./runtimeModuleIds.mjs";
 import { execFile } from "node:child_process";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -81,6 +83,7 @@ const gunzipAsync = promisify(gunzip);
 const publicRoot = join(appRoot, "public");
 const sharedDataRoot = join(repoRoot, "examples/globe-demo/public");
 await verifyCityCatalogRelease(appRoot);
+await ensureMinimapBake(join(sharedDataRoot,`geodesic-graph-${WORLD_GLOBE_SUBDIVISIONS}.bin`),join(publicRoot,"assets/data/minimap-lookup.bin"));
 const catalogBundlePlugin = await cityCatalogBundlePlugin(appRoot);
 const edition = buildEditionFromArgs(process.argv.slice(2));
 const distRoot = join(appRoot, edition === BUILD_EDITION_DEMO ? "dist-demo" : "dist");

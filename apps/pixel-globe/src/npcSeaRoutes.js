@@ -37,6 +37,7 @@ import {
 import {
   WHALE_BLUBBER_GOOD_ID,
   cargoSaleValue,
+  portIndustrialInputNeeds,
   executePortPurchase,
   executePortSale,
   maximumPortPurchaseQuantity,
@@ -116,7 +117,7 @@ const ROUTE_MONTH_DAYS = WEATHER_DAYS / ROUTE_MONTHS;
 const ROUTE_MONTH_MINUTES = ROUTE_MONTH_DAYS * WEATHER_MINUTES_PER_DAY;
 const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
-export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 9;
+export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 10;
 const ROUTE_WIND_SEED = 90210;
 const NPC_FLEET_TARGET = 212;
 export const NPC_PACIFIC_FLEET_TARGET = 32;
@@ -714,6 +715,7 @@ export function configureNpcEncounter(system, spec, clockMinutes) {
   const ship = {
     id: spec.id,
     captainHomeCityId,
+    industrialSupply: null,
     factionId: spec.factionId,
     role: spec.role,
     profileId: spec.profileId || "wide-world",
@@ -888,6 +890,7 @@ export function reconcileNpcRouteEncounterIdentity(system, shipId, {
   }
   ship.factionId = factionId;
   ship.role = role;
+  if (role !== NPC_ROLE_MERCHANT) ship.industrialSupply = null;
   if (role !== NPC_ROLE_FISHERMAN) ship.fishingNetId = null;
   return Object.freeze({
     changed: factionChanged || roleChanged || shipChanged,
@@ -1607,7 +1610,7 @@ export function restoreNpcSeaRouteSystem(
 ) {
   assertSaveableNpcRouteSystem(system);
   validateOptionalSeedKey(seedKey, "restored NPC routes");
-  if (!snapshot || ![1, 2, 3, 4, 5, 6, 7, 8, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
+  if (!snapshot || ![1, 2, 3, 4, 5, 6, 7, 8, 9, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil) ||
       (snapshot.version >= 3 && !Array.isArray(snapshot.capitalNavalReserveSlots))) {
     throw new Error("Unsupported NPC route save data");
@@ -1745,6 +1748,13 @@ function reconcileRestoredNpcShip(ship, context) {
   ship.cartazUntilMinute = ship.cartazUntilMinute ?? 0;
   if (!Number.isFinite(ship.cartazUntilMinute) || ship.cartazUntilMinute < 0) {
     throw new Error(`Invalid restored NPC cartaz expiry: ${ship.id}`);
+  }
+  // v9 and older saves predate workshop procurement contracts.
+  if (ship.industrialSupply === undefined) ship.industrialSupply = null;
+  if (ship.industrialSupply !== null) {
+    requireEntityId(ship.industrialSupply.cityId, `${context} industrial supply city`);
+    tradeGoodById(ship.industrialSupply.goodId);
+    if (ship.role !== NPC_ROLE_MERCHANT) throw new Error(`Non-merchant has an industrial supply contract: ${ship.id}`);
   }
   ship.cargoOrigins = ship.cargoOrigins || {};
   ship.tradeEmbargoConvictions = ship.tradeEmbargoConvictions ?? 0;
@@ -4017,6 +4027,7 @@ function createNpcShipRecord({ id, factionId, role, profileSpec, slugs, slug, se
   return {
     id,
     captainHomeCityId: requireCityId(origin, `NPC profile ship ${id} captain home`),
+    industrialSupply: null,
     factionId,
     role,
     profileId: profileSpec.id,
@@ -4494,6 +4505,13 @@ function assignNpcPlan(system, ship, startMinute) {
   ) {
     buyNpcCargo(system, ship, origin, desiredDestination);
   }
+  if (ship.industrialSupply && samePort(origin, desiredDestination)) {
+    ship.finalDestination = null;
+    ship.plan = {origin, destination: origin, startMinute,
+      endMinute: startMinute + WEATHER_MINUTES_PER_DAY,
+      segments: [{kind: "wait", startMinute, endMinute: startMinute + WEATHER_MINUTES_PER_DAY}]};
+    return;
+  }
   let destination = desiredDestination;
   let route = routeBetweenPorts(system, origin, desiredDestination, ship.slug, startMinute);
 
@@ -4778,6 +4796,10 @@ function chooseNpcDestination(system, ship, origin) {
   }
   if (ship.role === NPC_ROLE_FISHERMAN) return chooseFishermanDestination(system, ship, origin);
   if (ship.role === NPC_ROLE_WHALER) return chooseWhalerDestination(system, ship, origin);
+  if (ship.role === NPC_ROLE_MERCHANT && ship.cargoCapacity >= 30 && ship.nationalCircuitId === null && !ship.encounter && !shipHasCombatGrace(ship)) {
+    const supplyDestination = chooseIndustrialSupplyDestination(system, ship, origin);
+    if (supplyDestination) return supplyDestination;
+  }
   if (ship.nationalCircuitId !== null) {
     return chooseNationalCircuitDestination(system, ship, origin);
   }
@@ -5130,6 +5152,7 @@ export function recruitNpcPirateAtPort(system, ship) {
   if (destinations.length < 2 || !system.pirateHideouts.some(port =>
     npcPortsShareRouteNetwork(system, ship.currentPort, port))) return false;
   ship.role = NPC_ROLE_PIRATE;
+  ship.industrialSupply = null;
   ship.factionId = PIRATE_FACTION_ID;
   ship.finalDestination = null;
   return true;
@@ -5241,6 +5264,7 @@ function npcDestinationEconomicScore(system, ship, origin, destination) {
 
 function buyNpcCargo(system, ship, origin, destination) {
   if (ship.role !== NPC_ROLE_MERCHANT) throw new Error(`NPC ${ship.id} cannot buy trade cargo as ${ship.role}`);
+  if (ship.industrialSupply?.cityId === origin.cityId) return;
   if (!npcMerchantCanTradeAtPort(system, ship, origin) ||
       !npcMerchantCanTradeAtPort(system, ship, destination)) {
     throw new Error(`NPC merchant ${ship.id} cannot trade across a hostile port route`);
@@ -5253,7 +5277,8 @@ function buyNpcCargo(system, ship, origin, destination) {
     cargoCapacity: ship.cargoCapacity,
     specie: ship.specie - cartazCost,
     purchasePriceMultiplier: purchaseMultiplier,
-    salePriceMultiplier: saleMultiplier
+    salePriceMultiplier: saleMultiplier,
+    goodIds: ship.industrialSupply ? [ship.industrialSupply.goodId] : null
   });
   if (plan.expectedProfit <= cartazCost) return;
   if (cartazCost > 0) {
@@ -6901,7 +6926,7 @@ export function updateShipyardSupplyOffers(system, minute) {
     const home = system.ports.find((port) => port.cityId === yard.portId);
     if (!home) throw new Error(`Commissioned shipyard has no navigable port: ${yard.portId}`);
     const candidates = system.ships.filter((ship) => ship.role === NPC_ROLE_MERCHANT &&
-      ship.factionId === home.factionId && !ship.encounter && !ship.portResponse &&
+      ship.factionId === home.factionId && !ship.industrialSupply && !ship.encounter && !ship.portResponse &&
       !shipHasCombatGrace(ship) && ship.hitPoints > 0 &&
       !reservedSupplyShipyard(system.economy.shipyards, ship.id) &&
       npcPortsShareRouteNetwork(system, ship.currentPort, home))
@@ -6950,6 +6975,64 @@ export function updateShipyardSupplyOffers(system, minute) {
     changed = true;
   }
   return changed;
+}
+
+// A producer hires an existing arriving merchant for repeated procurement.
+// The contract survives voyages/saves; hull loss naturally ends that service.
+function chooseIndustrialSupplyDestination(system, ship, origin) {
+  let contract = ship.industrialSupply;
+  const home = contract
+    ? requiredNpcRoutePort(system, contract.cityId, "Industrial supply destination") : origin;
+  if (!npcMerchantCanTradeAtPort(system, ship, home)) {
+    ship.industrialSupply = null;
+    return null;
+  }
+  if (contract && !samePort(origin, home)) {
+    if ((ship.cargo[contract.goodId] || 0) > 0 ||
+        (supplyTradePermitted(system, ship, origin, home, contract.goodId) &&
+         planNpcTrade(system.economy, origin, home, {
+           cargoCapacity: ship.cargoCapacity, specie: ship.specie,
+           purchasePriceMultiplier: npcPurchaseMultiplier(system, ship, origin),
+           salePriceMultiplier: npcSaleMultiplier(system, ship, home), goodIds: [contract.goodId]
+         }).lines.length > 0)) return home;
+    ship.industrialSupply = null;
+    return null;
+  }
+  if (npcCargoUnits(ship) > 0 || (!contract && system.ships.some(other =>
+      other !== ship && other.industrialSupply?.cityId === home.cityId))) return null;
+  const needs = portIndustrialInputNeeds(system.economy, home);
+  // Equally exhausted inputs take turns; one always-empty recipe must not
+  // monopolize the captain while the others remain permanently starved.
+  if (contract) needs.sort((a, b) => a.daysRemaining - b.daysRemaining ||
+    Number(a.goodId <= contract.goodId) - Number(b.goodId <= contract.goodId) ||
+    a.goodId.localeCompare(b.goodId));
+  if (needs.length === 0) {
+    return contract ? home : null;
+  }
+  const suppliers = system.ports.filter(port => port.cityId !== home.cityId &&
+      npcRoutePortAcceptsTraffic(port) && !port.isPirateHideout &&
+      npcPortsShareRouteNetwork(system, home, port))
+    .map(port => ({port, distanceKm: portSailingDistanceKm(system.portSailingDistances, home, port)}))
+    .filter(entry => entry.distanceKm !== null)
+    .sort((a, b) => a.distanceKm - b.distanceKm || a.port.cityId.localeCompare(b.port.cityId));
+  for (const {port} of suppliers) {
+    for (const need of needs) {
+      if (!supplyTradePermitted(system, ship, port, home, need.goodId)) continue;
+      const supply = portGoodSupply(system.economy, port, need.goodId);
+      if (!supply.listedForSale || supply.stock < 1) continue;
+      const cartazCost = npcCartazVoyageCost(system, ship, port, home);
+      if (!Number.isFinite(cartazCost) || cartazCost >= ship.specie) continue;
+      const plan = planNpcTrade(system.economy, port, home, {
+        cargoCapacity: ship.cargoCapacity, specie: ship.specie - cartazCost,
+        purchasePriceMultiplier: npcPurchaseMultiplier(system, ship, port),
+        salePriceMultiplier: npcSaleMultiplier(system, ship, home), goodIds: [need.goodId]
+      });
+      if (plan.expectedProfit <= cartazCost) continue;
+      ship.industrialSupply = {cityId: home.cityId, goodId: need.goodId};
+      return port;
+    }
+  }
+  return contract ? home : null;
 }
 
 function supplyTradePermitted(system, ship, source, destination, goodId) {

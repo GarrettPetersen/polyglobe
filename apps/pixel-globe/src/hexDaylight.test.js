@@ -29,3 +29,28 @@ test("hex daylight rejects invalid geometry and ambiguous tile identities", () =
   assert.throws(() => buildHexDaylightMap([{ id: 1, x: NaN, y: 0 }], bounds), /Invalid/);
   assert.throws(() => buildHexDaylightMap([{ id: 1, x: 0, y: 0 }, { id: 1, x: 3, y: 3 }], bounds), /Invalid/);
 });
+
+test("ragged sprites own their complete opaque silhouette and connectors follow their nearest endpoint", () => {
+  const centers = [{id: 1, x: 2, y: 2}, {id: 2, x: 8, y: 2}];
+  const mask = {width: 9, height: 3, alpha: Uint8Array.from([
+    255,255,255,255,255,255,255,255,0,
+    255,255,255,255,255,255,255,0,0,
+    255,255,255,255,255,255,255,255,255])};
+  const map = buildHexDaylightMap(centers, {x:0,y:0,width:12,height:6,radiusPx:12,
+    sprites:[{id:1,x:0,y:1,width:9,height:3,mask}]});
+  assert.deepEqual(centerAt(map,7,1),{x:2,y:2});
+  assert.deepEqual(centerAt(map,7,2),{x:8,y:2},"transparent notch retains the water/connector owner");
+  assert.deepEqual(centerAt(map,8,3),{x:2,y:2},"ragged peninsula extends past the geometric bisector");
+  assert.deepEqual(centerAt(map,4,5),{x:2,y:2});
+  assert.deepEqual(centerAt(map,6,5),{x:8,y:2});
+});
+
+test("a connector follows its attached sprites rather than a closer third tile", () => {
+  const map = buildHexDaylightMap([{id:1,x:0,y:1},{id:2,x:10,y:1},{id:3,x:5,y:2}], {
+    x:0,y:0,width:12,height:4,radiusPx:12,
+    connectors:[{a:1,b:2,spans:[{x:0,y:1,width:11}]}]
+  });
+  assert.deepEqual(centerAt(map,4,1), {x:0,y:1});
+  assert.deepEqual(centerAt(map,6,1), {x:10,y:1});
+  assert.deepEqual(centerAt(map,5,2), {x:5,y:2});
+});

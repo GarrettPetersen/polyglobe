@@ -78,7 +78,7 @@ const fixtures = frozenSaveFixtures();
 const reachabilityOptions = parseReachabilityArguments(process.argv.slice(2));
 const releaseReachability = reachabilityOptions.release;
 const smokeFocus = process.env.PIXEL_GLOBE_SMOKE_FOCUS;
-if (smokeFocus !== undefined && !["port-regressions", "pirate-havens", "wishlist", "port-authorities", "daylight"].includes(smokeFocus)) {
+if (smokeFocus !== undefined && !["port-regressions", "pirate-havens", "wishlist", "port-authorities", "daylight", "cached-chart"].includes(smokeFocus)) {
   throw new Error(`Unknown save-restore smoke focus: ${smokeFocus}`);
 }
 if (smokeFocus && releaseReachability) {
@@ -180,7 +180,21 @@ try {
     `Save-restore runtime initialized in ${Math.round(performance.now() - startedAt)} ms\n`
   );
 
-  if (smokeFocus === "daylight") {
+  if (smokeFocus === "cached-chart") {
+    await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
+    const root = path.join(APP_ROOT,".playtest/cached-chart");mkdirSync(root,{recursive:true});
+    for (const zoom of [0,1,2,3,0]) {
+      const result = await page.evaluate(zoom => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectCachedChart(zoom),zoom);
+      assert.equal(result.pending,false);assert.equal(result.backgroundWidth,2048);
+      writeFileSync(path.join(root,`zoom-${zoom}.png`),Buffer.from(result.image.split(",")[1],"base64"));
+      await assertNoBrowserFailure(page,browserErrors,"cached captain chart");
+      process.stdout.write(`Cached chart zoom ${zoom}: ${Math.round(result.durationMs)} ms, no pending raster\n`);
+    }
+    const full = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectCachedChart(0,true));
+    assert.equal(full.pending,false);
+    writeFileSync(path.join(root,"world.png"),Buffer.from(full.image.split(",")[1],"base64"));
+    await assertNoBrowserFailure(page,browserErrors,"cached full-world chart");
+  } else if (smokeFocus === "daylight") {
     process.stdout.write(`Verified ${await verifyRollingDaylightGpu(page)} daylight GPU pixels against CPU grading.\n`);
     await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
     const root = path.join(APP_ROOT, ".playtest/daylight");

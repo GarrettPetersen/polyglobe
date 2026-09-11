@@ -96,6 +96,7 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
   };
 
   for (const activeQuest of activeQuests(state.memory?.quests)) {
+    if (activeQuest.procurement) add(activeQuest.id, activeQuest.procurement.goodId, activeQuest.procurement.quantity);
     if (isTributeEnvoyQuest(activeQuest) && activeQuest.stage === "outbound") {
       for (const requirement of activeQuest.tributeCargoRequirements) {
         add(`tribute.${activeQuest.id}.${requirement.goodId}`, requirement.goodId, requirement.quantity);

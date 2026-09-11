@@ -47,38 +47,34 @@ export async function fetchStaticAsset(resource, {
     throw new Error("Static asset fetch requires a sleep function");
   }
 
-  let lastNetworkError = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    let response;
     try {
-      const response = await fetchImpl(resource);
-      if (!response || typeof response.ok !== "boolean" || !Number.isInteger(response.status)) {
-        throw new Error("fetch returned an invalid response");
-      }
-      if (!responseIsRetryable(response)) return response;
-      if (attempt === attempts) {
-        throw new StaticAssetNetworkError(
-          `Failed to load ${label} after ${attempts} attempts: HTTP ${response.status}`,
-          { status: response.status }
-        );
-      }
+      response = await fetchImpl(resource);
     } catch (error) {
-      if (error instanceof StaticAssetNetworkError) throw error;
-      lastNetworkError = error;
       if (attempt === attempts) {
-        const message = error instanceof Error ? error.message : String(error);
         throw new StaticAssetNetworkError(
-          `Failed to load ${label} after ${attempts} attempts: ${message}`,
+          `Failed to load ${label} after ${attempts} attempts: ${error instanceof Error ? error.message : String(error)}`,
           { cause: error }
         );
       }
+      await sleep(retryDelayMs * attempt);
+      continue;
+    }
+    // Response-contract failures are programming errors, not lost connections.
+    if (!response || typeof response.ok !== "boolean" || !Number.isInteger(response.status)) {
+      throw new Error(`Invalid fetch response for ${label}`);
+    }
+    if (!responseIsRetryable(response)) return response;
+    if (attempt === attempts) {
+      throw new StaticAssetNetworkError(
+        `Failed to load ${label} after ${attempts} attempts: HTTP ${response.status}`,
+        { status: response.status }
+      );
     }
     await sleep(retryDelayMs * attempt);
   }
-
-  throw new StaticAssetNetworkError(
-    `Failed to load ${label} after ${attempts} attempts`,
-    { cause: lastNetworkError }
-  );
+  throw new Error(`Static asset retry loop exhausted unexpectedly: ${label}`);
 }
 
 function responseIsRetryable(response) {

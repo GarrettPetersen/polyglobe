@@ -6,7 +6,9 @@ import {
   CAMPAIGN_GOAL_TREASURE,
   CAMPAIGN_GOAL_WHITE_WHALE
 } from "./campaignGoals.js";
-import { createGameState } from "./gameState.js";
+import { createWorkshopSupplyOffer } from "./workshopSupplyQuest.js";
+import { createWorldEconomy } from "./economy.js";
+import { acceptQuest, createGameState } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { createDenseSaveCompatibilityFixture } from "./test-fixtures/createDenseSaveCompatibilityFixture.js";
 
@@ -74,8 +76,19 @@ export function canonicalGameStateFixtures() {
   });
   acceptPirateHavenQuest(pirateSmuggling.memory.pirateHavens, pickup);
   collectPirateGoods(pirateSmuggling.memory.pirateHavens, port.cityId, 22);
+  const workshop = structuredClone(campaignFixtures[0].state);
+  const ports = [
+    {cityId: "lisbon|portugal", city: "Lisbon", country: "Portugal", cityType: "mediterranean", factionId: "portugal", tileId: 1, population: 70000, lat: 38.72, lon: -9.14},
+    {cityId: "stockholm|sweden", city: "Stockholm", country: "Sweden", cityType: "northern-european", factionId: "sweden", tileId: 2, population: 20000, lat: 59.3, lon: 18.1}
+  ];
+  const economy = createWorldEconomy({ports, startMinute: 0});
+  economy.portStates.get(ports[0].cityId).goods.get("iron").stock = 0;
+  acceptQuest(workshop, createWorkshopSupplyOffer(economy, ports[0], ports, {
+    offerPeriod: 0, sailingDistanceKm: () => 700
+  }));
   return [
     ...campaignFixtures,
+    { campaignGoalType: "workshop-supply", state: workshop },
     { campaignGoalType: "pirate-stolen-goods", state: pirateSmuggling },
     { campaignGoalType: "pirate-haven-campaign", state: pirateCampaign },
     { campaignGoalType: "exeter-canal-construction", state: canalConstruction },

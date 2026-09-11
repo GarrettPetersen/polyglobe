@@ -1,7 +1,11 @@
-import { forecastPortAssault } from "./portAssaultBattle.js";
+import { forecastPortAssault, simulatePortAssault } from "./portAssaultBattle.js";
 
 self.addEventListener("message", ({ data }) => {
   try {
+    if (data.kind === "battle") {
+      self.postMessage({seed: data.seed, cityId: data.scenario.cityId, battle: simulatePortAssault(data.scenario, data.seed)});
+      return;
+    }
     forecastPortAssault(data.scenario, { seedKey: data.seedKey,
       onProgress: (forecast, complete) => self.postMessage({ seedKey: data.seedKey, forecast, complete })
     });

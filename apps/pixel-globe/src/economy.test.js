@@ -1013,7 +1013,7 @@ test("Mediterranean ports support distinct regional cargo runs and every shipbui
       economy,
       byId.get(originId),
       byId.get(destinationId),
-      { cargoCapacity: 40, specie: 10000 }
+      { cargoCapacity: 40, specie: 10000, goodIds: [goodId] }
     );
     assert.ok(route.expectedProfit > 0, `${originId} -> ${destinationId} should be profitable`);
     assert.ok(
@@ -1890,4 +1890,57 @@ test("Asian sailmaking recovers depleted saved markets without imported flax and
       state.goods.get("linen-cloth").stock = 0; // Repeated purchases must replenish, too.
     }
   }
+});
+
+
+test("depleted workshop inputs attract profitable NPC deliveries without creating supplies", () => {
+  const cities = CITY_CATALOG.filter(city => ["lisbon|portugal", "london|united kingdom", "stockholm|sweden", "gavle|sweden"].includes(city.cityId))
+    .map((city, index) => ({...city, tileId: 6000 + index}));
+  const economy = createWorldEconomy({ports: cities, startMinute: 0});
+  const lisbon = cities.find(city => city.cityId === "lisbon|portugal");
+  const workshop = economy.portStates.get(lisbon.cityId);
+  const input = workshop.goods.get("iron");
+  const production = input.productionPerDay;
+  input.stock = 0;
+  const scarcePrice = marketByGood(economy, lisbon).get("iron").sellPrice;
+  input.stock = input.consumptionPerDay * 60;
+  assert.ok(scarcePrice > marketByGood(economy, lisbon).get("iron").sellPrice);
+  input.stock = 0;
+  workshop.goods.get(MATCHLOCKS_GOOD_ID).stock = 0;
+  advanceWorldEconomy(economy, 20 * 365 * 1440);
+  assert.equal(input.productionPerDay, production, "shortages do not create local mines");
+  assert.equal(workshop.goods.get(MATCHLOCKS_GOOD_ID).stock, 0);
+  const deliveries = [];
+  for (const origin of cities) {
+    if (origin === lisbon) continue;
+    const plan = planNpcTrade(economy, origin, lisbon, {cargoCapacity: 100, specie: 100000,
+      goodIds: ["iron", "timber", GUNPOWDER_GOOD_ID]});
+    for (const line of plan.lines) {
+      if (!["iron", "timber", GUNPOWDER_GOOD_ID].includes(line.goodId)) continue;
+      const before = economy.portStates.get(origin.cityId).goods.get(line.goodId).stock;
+      const bought = executePortSale(economy, origin, line.goodId, line.quantity);
+      const sold = executePortPurchase(economy, lisbon, line.goodId, line.quantity);
+      assert.ok(sold.total > bought.total);
+      assert.equal(economy.portStates.get(origin.cityId).goods.get(line.goodId).stock, before - line.quantity);
+      deliveries.push(line.goodId);
+    }
+    if (input.stock > 10 && workshop.goods.get("timber").stock > 10) break;
+  }
+  assert.ok(deliveries.includes("iron"), "merchants must choose imported iron");
+  assert.ok(workshop.goods.get("timber").stock > 0, "existing timber producers keep their legitimate output");
+  advanceWorldEconomy(economy, (20 * 365 + 7) * 1440);
+  assert.ok(workshop.goods.get(MATCHLOCKS_GOOD_ID).stock >= 2);
+});
+
+test("NPC cargo planning considers affordable supplies after unaffordable luxuries", () => {
+  const economy = createWorldEconomy({ports: [LONDON, GOA], startMinute: 0});
+  const source = economy.portStates.get(LONDON.cityId);
+  const target = economy.portStates.get(GOA.cityId);
+  for (const state of source.goods.values()) state.stock = 0;
+  for (const id of ["gold", "timber"]) {
+    source.goods.get(id).stock = 10000;
+    target.goods.get(id).stock = 0;
+  }
+  const plan = planNpcTrade(economy, LONDON, GOA, {cargoCapacity: 20, specie: 50});
+  assert.ok(plan.lines.some(line => line.goodId === "timber"));
 });

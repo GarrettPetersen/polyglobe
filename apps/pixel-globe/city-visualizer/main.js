@@ -2,7 +2,7 @@ import { cityAssaultWaterDepthPx } from "./cityAssaultGround.js";
 import { PORT_ASSAULT_TRACK_START_X } from "../src/portAssaultGround.js";
 import { PORT_ASSAULT_LANE_SPACING } from "../src/portAssaultFormation.js";
 import { spriteSplinterColors } from "../src/hullSplinters.js";
-import { createCityAssaultShipEffects, cityAssaultShipEffectsFrame, cityAssaultEscapeUrgency } from "./cityAssaultShipEffects.js";
+import { createCityAssaultShipEffects, cityAssaultShipEffectsFrame, cityAssaultEscapeUrgency, cityAssaultDeckPersonFrame, CITY_ASSAULT_FLOATING_WATER_DEPTH_PX } from "./cityAssaultShipEffects.js";
 import { CityAssaultHitFlashes, cityAssaultDepthBand, cityAssaultDepthOrder, cityAssaultImpactParticles } from "./cityAssaultFeedback.js";
 import { CROATOAN_CLUE, cityRuinsDamage, croatoanClueScreenRect, croatoanClueContainsPoint } from "./cityColonyRuins.js";
 import { GAME_ICON_ASSET_VERSION, gameIconAtlasRect, gameIconAtlasDimensions } from "../src/gameIcons.js";
@@ -1853,6 +1853,7 @@ function createSceneRenderEntries() {
     }
   }
   if (state.assaultPresentation) {
+    entries.push({ kind: "port-assault", lane: "deck", z: PORT_SCENE_ENTITY_META.ship.z + .1, authoredOrder: 34.6 });
     for (const lane of CITY_PORT_ASSAULT_LANE_FEET_Y.keys()) {
       entries.push({
         kind: "port-assault",
@@ -3879,18 +3880,22 @@ function drawPortAssaultPresentation(lane) {
       entryShiftX
     });
     const landingPoint = Object.freeze({ x: laneX, y: feetY - window.y });
+    const deckFrame = unit.surface === "deck" || unit.animationId === "jump"
+      ? assaultDeckPersonPoint(unit.deckSlot, battleTimeMs) : shipboardStart;
     const point = assaultPersonScreenPoint(
       unit,
       landingPoint,
       presentation.events,
       battleTimeMs,
-      shipboardStart
+      deckFrame
     );
+    const aboard = unit.surface === "deck" && unit.animationId !== "jump";
     const groundY = unit.animationId === "jump" ? feetY : point.y + window.y;
-    const waterDepthPx = state.features.dock === "none" && unit.animationId !== "jump"
+    const waterDepthPx = aboard ? (deckFrame.floating ? CITY_ASSAULT_FLOATING_WATER_DEPTH_PX : 0) : state.features.dock === "none" && unit.animationId !== "jump"
       ? assaultWaterDepthPx(laneX + window.x, feetY) : 0;
-    if (cityAssaultDepthBand(groundY) === lane) placements.push({
-      unit: { ...unit, inWater: waterDepthPx > 0, waterDepthPx },
+    if (aboard ? lane === "deck" : cityAssaultDepthBand(groundY) === lane) placements.push({
+      unit: { ...unit, ...(aboard && (deckFrame.scurrying || deckFrame.floating) ?
+          { animationId: deckFrame.animationId, animationStartedAtMs: presentation.shipSunkAtMs } : {}), inWater: waterDepthPx > 0, waterDepthPx },
       point: { x: point.x, y: point.y + waterDepthPx }, groundY
     });
   }
@@ -3901,7 +3906,9 @@ function drawPortAssaultPresentation(lane) {
   }
   for (const event of presentation.events) {
     const unit = presentation.units.find(({ id }) => id === event.unitId);
-    if (!unit || Math.round(["attack", "hit", "death"].includes(event.type) ? event.lane : unit.lane) !== lane) continue;
+    if (!unit) continue;
+    if (event.surface === "deck" ? lane !== "deck" :
+      Math.round(["attack", "hit", "death"].includes(event.type) ? event.lane : unit.lane) !== lane) continue;
     drawAssaultEvent(event, unit, window, battleTimeMs, entryShiftX);
   }
 }
@@ -3928,15 +3935,25 @@ function assaultShipboardStartPoint(timeMs) {
   });
 }
 
+function assaultDeckPersonPoint(slot, timeMs) {
+  const placement = docksideShipPlacement(timeMs, PORT_SCENE_ENTITY_META.ship.depth);
+  const frame = cityAssaultDeckPersonFrame(state.shipWaterlineLayers.assaultEffects,
+    placement.ship.cityDockside.deckPolygon, slot, state.assaultPresentation);
+  return { ...frame, x: placement.x + frame.x * placement.scale,
+    y: placement.y + placement.bobY + frame.y * placement.scale };
+}
+
 function assaultPersonScreenPoint(unit, landingPoint, events, timeMs, shipboardStart) {
   if (unit.animationId === "jump") {
     return cityAssaultJumpPoint({
-      start: shipboardStart,
-      end: landingPoint,
+      start: unit.transferFrom === "shore" ? landingPoint : shipboardStart,
+      end: unit.transferFrom === "shore" ? shipboardStart : landingPoint,
       elapsedMs: timeMs - unit.animationStartedAtMs,
       durationMs: portAssaultLandingDurationMs(state.features.dock)
     });
   }
+
+  if (unit.surface === "deck") return shipboardStart;
 
   let latestLunge = null;
   let latestKnockback = null;
@@ -4075,7 +4092,7 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
   }
   const baselineX = CITY_PORT_ASSAULT_TRACK_START_X +
     position * CITY_ASSAULT_TRACK_SPAN_PX - window.x;
-  const x = Math.round(cityAssaultLaneX({
+  let x = Math.round(cityAssaultLaneX({
     baselineX,
     position,
     entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
@@ -4084,7 +4101,11 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
   const feetY = cityPortAssaultLaneFeetY(lane);
   const depthPx = state.features.dock === "none" && ["attack", "hit", "death"].includes(event.type)
     ? assaultWaterDepthPx(x + window.x, feetY) : 0;
-  const y = Math.round(feetY - window.y + depthPx);
+  let y = Math.round(feetY - window.y + depthPx);
+  if (event.surface === "deck") {
+    const deck = assaultDeckPersonPoint(event.deckSlot, timeMs);
+    x = Math.round(deck.x); y = Math.round(deck.y);
+  }
   if (event.type === "attack" && event.attackType === "firearm") {
     drawMatchlockSmoke(event, x, y, timeMs);
     if (timeMs - event.timeMs < 100) {

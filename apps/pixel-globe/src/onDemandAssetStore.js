@@ -86,6 +86,8 @@ export function createOnDemandAssetStore({ label, load }) {
   }
 
   return Object.freeze({
+    failedEntries: () => [...records.entries()].filter(([, record]) => record.status === "error")
+      .map(([key, record]) => ({ key, error: record.error })),
     request,
     requestAll,
     peek,
