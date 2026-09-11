@@ -1,3 +1,4 @@
+import { buildHexDaylightMap } from "./hexDaylight.js";
 import { STEAM_WISHLIST_URL, wishlistPromotionEnabled, wishlistPulse, wishlistModalLayout, startWishlistRect } from "./wishlistPromotion.js";
 import { questOfferCooldownReady, recordQuestOffer } from "./questOfferPolicies.js";
 import { arrivalOfferEligible, recordArrivalOffer } from "./arrivalOfferCadence.js";
@@ -43616,6 +43617,24 @@ function normalizeOrNull(v) {
   return [v[0] / length, v[1] / length, v[2] / length];
 }
 
+let hexDaylightWindow = null;
+
+function hexDaylightForWorld(layers) {
+  const calls = layers.terrainCalls;
+  if (hexDaylightWindow?.calls !== calls || hexDaylightWindow.screenWidth !== SCREEN_W ||
+      hexDaylightWindow.screenHeight !== SCREEN_H) {
+    const margin = TILE_ART_SIZE + RENDER_CALL_WINDOW_STEP_PX;
+    const x = Math.floor(-layers.offset.x / RENDER_CALL_WINDOW_STEP_PX) * RENDER_CALL_WINDOW_STEP_PX - margin;
+    const y = Math.floor(-layers.offset.y / RENDER_CALL_WINDOW_STEP_PX) * RENDER_CALL_WINDOW_STEP_PX - margin;
+    const map = buildHexDaylightMap(calls.map(call => ({ id: call.id,
+      x: call.drawSurfaceX, y: call.drawSurfaceY })), {
+      x, y, width: SCREEN_W + margin * 2, height: SCREEN_H + margin * 2, radiusPx: TILE_ART_SIZE / 2
+    });
+    hexDaylightWindow = { calls, screenWidth: SCREEN_W, screenHeight: SCREEN_H, map };
+  }
+  return { map: hexDaylightWindow.map, offset: layers.offset };
+}
+
 function drawDayNightWorld(layers, nowMs) {
   if (!ship) throw new Error("Cannot present the world before the player ship exists");
   if (!layers || !Number.isFinite(nowMs)) {
@@ -43632,7 +43651,7 @@ function drawDayNightWorld(layers, nowMs) {
       clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
       paletteVariant: variant,
       daylight: { sunScreen: [dot3(sun, camera.right), -dot3(sun, camera.up), dot3(sun, ship.position)],
-        radiansPerPixel: 1 / PIXELS_PER_RADIAN },
+        radiansPerPixel: 1 / PIXELS_PER_RADIAN, hexes: hexDaylightForWorld(layers) },
       timeMs: nowMs,
       oceanSwell: swell,
       modalReframe: modalReframe?.frame || null

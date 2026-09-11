@@ -13,7 +13,11 @@ export async function verifyRollingDaylightGpu(gamePage) {
     const { rollingDayNightPaletteAtlas, applyDayNightPaletteGrade } = await import("./src/dayNightPalette.js");
     const { dayNightLightForSunAltitude } = await import("./src/dayNightCycle.js");
     const renderer = createWorldWebGL2Renderer({ atlasSize: 64 });
+    const { buildHexDaylightMap } = await import("./src/hexDaylight.js");
     const size = 12;
+    const centers = [{ id: 1, x: 2, y: 2 }, { id: 2, x: 8, y: 2 },
+      { id: 3, x: 5, y: 7 }, { id: 4, x: 11, y: 7 }, { id: 5, x: -1, y: 7 }];
+    const map = buildHexDaylightMap(centers, { x: 0, y: 0, width: size, height: size, radiusPx: 8 });
     let checked = 0;
     try {
       for (const axis of [[1, 0], [-1, 0], [0, 1], [0, -1], [0.6, 0.8]]) {
@@ -23,17 +27,18 @@ export async function verifyRollingDaylightGpu(gamePage) {
           const sunScreen = [axis[0] * tangent, axis[1] * tangent, altitude];
           const scale = 1 / 120;
           renderer.beginFrame({ width: size, height: size, clearColor: [0, 0, 0, 1],
-            paletteVariant: rollingDayNightPaletteAtlas(), daylight: { sunScreen, radiansPerPixel: scale } });
+            paletteVariant: rollingDayNightPaletteAtlas(), daylight: { sunScreen, radiansPerPixel: scale, hexes: { map, offset: { x: 0, y: 0 } } } });
           renderer.drawSolidRect({ destinationRect: { x: 0, y: 0, width: size, height: size },
             color: [0x71 / 255, 0xaa / 255, 0x34 / 255, 1] });
           renderer.endFrame();
           const pixels = renderer.captureFrameCanvas().getContext("2d").getImageData(0, 0, size, size).data;
           for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-            const dx = (x + 0.5 - size / 2) * scale;
-            const dy = (y + 0.5 - size / 2) * scale;
-            const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-            const edgeOffset = (bayer[(y % 4) * 4 + x % 4] / 16 - 0.46875) * 4 * scale * tangent;
-            const localAltitude = (altitude + dx * sunScreen[0] + dy * sunScreen[1] + edgeOffset) /
+            const center = [...centers].sort((a, b) =>
+              ((x + 0.5 - a.x) ** 2 + (y + 0.5 - a.y) ** 2) -
+              ((x + 0.5 - b.x) ** 2 + (y + 0.5 - b.y) ** 2) || a.id - b.id)[0];
+            const dx = (center.x - size / 2) * scale;
+            const dy = (center.y - size / 2) * scale;
+            const localAltitude = (altitude + dx * sunScreen[0] + dy * sunScreen[1]) /
               Math.sqrt(1 + dx * dx + dy * dy);
             const expected = new Uint8ClampedArray([0x71, 0xaa, 0x34, 255]);
             applyDayNightPaletteGrade(expected, 1, 1, dayNightLightForSunAltitude(localAltitude));
