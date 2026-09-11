@@ -120,3 +120,12 @@ test("polar ice boundaries are recognized without treating ordinary shores as fr
   assert.equal(terrainRowsFormFrozenWaterBoundary({ t: "water" }, { t: "land" }), false);
   assert.equal(terrainRowsFormFrozenWaterBoundary({ t: "ice" }, { t: "ice_cap" }), false);
 });
+
+test("whales can swim and surface in coastal shallows without gaining access to land or lakes", () => {
+  for (const terrain of ["water", "beach", "ice", "lake", "land", "grass", "forest", "desert", "mountain", "ice_cap"]) {
+    const row = { t: terrain };
+    assert.equal(isWhaleSwimmableOceanRow(row), ["water", "beach", "ice"].includes(terrain), terrain);
+    assert.equal(isWhaleOpenSurfaceRow(row, false), ["water", "beach"].includes(terrain), terrain);
+    assert.equal(isWhaleOpenSurfaceRow(row, true), false, `surface ice over ${terrain}`);
+  }
+});

@@ -1,3 +1,4 @@
+import { isWhaleSwimmableOceanRow, isWhaleOpenSurfaceRow } from "./terrainSurface.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -647,4 +648,30 @@ test("young whales are easier player catches with proportionally smaller yields"
 
 function angularDistance(a, b) {
   return Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+}
+
+for (const phase of [WHALE_PHASE_SUBMERGED, WHALE_PHASE_SURFACED]) {
+  test(`${phase} whale escapes a deep-water hex surrounded by coastal shallows`, () => {
+    const memory = createWhaleMemory();
+    seedWhalePopulation(memory, candidates(), 6);
+    const whale = memory.individuals.find(individual => individual.id !== WHITE_WHALE_ID && individual.lifeStage === WHALE_LIFE_STAGE_ADULT);
+    whale.motherId = null;
+    whale.phase = phase;
+    const origin = whale.position.slice();
+    const speed = whaleSpeciesById(whale.speciesId).cruiseSpeedRad;
+    const crossed = new Set();
+    const navigate = position => {
+      const distance = Math.acos(Math.max(-1, Math.min(1, position.reduce((dot, value, i) => dot + value * origin[i], 0))));
+      // A single deep hex, a ring of shallow coastal hexes, then open ocean.
+      const tileId = distance < speed * 2 ? 1 : distance < speed * 4 ? 2 : 3;
+      const row = { t: tileId === 2 ? "beach" : "water" };
+      return { tileId, ok: isWhaleSwimmableOceanRow(row), canSurface: isWhaleOpenSurfaceRow(row, false) };
+    };
+    for (let step = 0; step < 100; step++) {
+      advanceWhaleMemory(memory, 0.1, navigate, step / 10);
+      crossed.add(whale.tileId);
+    }
+    assert.ok(crossed.has(2), "whale must swim across the shallow ring instead of reversing at its edge");
+    assert.ok(crossed.has(3), "whale must reach the surrounding ocean");
+  });
 }

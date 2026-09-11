@@ -12,12 +12,19 @@ export function isPermanentSeaIceRow(row) {
   return (row?.t || "") === "ice";
 }
 
+function isWhaleOceanWaterRow(row) {
+  // "beach" is submerged coastal water in the globe cache, not dry sand.
+  // Excluding it traps whales in isolated deep-water hexes on the shelf.
+  // Lakes remain excluded even though ships can navigate them.
+  return row?.t === "water" || isCoastalWaterRow(row);
+}
+
 export function isWhaleSwimmableOceanRow(row) {
-  return (row?.t || "") === "water" || isPermanentSeaIceRow(row);
+  return isWhaleOceanWaterRow(row) || isPermanentSeaIceRow(row);
 }
 
 export function isWhaleOpenSurfaceRow(row, hasSurfaceIce) {
-  return (row?.t || "") === "water" && hasSurfaceIce !== true;
+  return isWhaleOceanWaterRow(row) && hasSurfaceIce !== true;
 }
 
 export function isShipUsableSurfaceWater(row, tileId, occupiedTileId, hasSurfaceIce) {

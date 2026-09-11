@@ -12,6 +12,8 @@ const files = [
   "src/gameStateReputation.test.js",
   "src/freshWaterAccess.test.js",
   "src/terrainConnectorRaster.test.js",
+  "src/terrainSurface.test.js",
+  "src/whaleSystem.test.js",
   "src/chartCityLocations.test.js",
   "src/pirateHavens.test.js",
   "src/pirateSmuggling.test.js",
