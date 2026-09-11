@@ -210,3 +210,10 @@ export function pirateHavenCityRecords(cities) {
     return record;
   });
 }
+
+const pirateHavenCityIds = new Set(PIRATE_HAVEN_SPECS.map(haven => haven.id));
+
+// Visibility and voyage routing never remove a haven's durable identity.
+export function isPirateHavenCityId(cityId) {
+  return pirateHavenCityIds.has(cityId);
+}

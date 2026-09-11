@@ -746,7 +746,14 @@ export function diplomacyEventNotice(event) {
   if (event.kind === "alliance-ended") return `ALLIANCE ENDS: ${a} / ${b}`;
   if (event.kind === "relations-improve") return `RELATIONS IMPROVE: ${a} / ${b}`;
   if (event.kind === "relations-worsen") return `RELATIONS WORSEN: ${a} / ${b}`;
-  if (event.kind === "alliance-war") return `ALLY JOINS WAR: ${a} / ${b}`;
+  if (event.kind === "alliance-war") {
+    assertSovereignPair(event.causeFactionAId, event.causeFactionBId);
+    const supportedId = event.factionBId === event.causeFactionAId ? event.causeFactionBId
+      : event.factionBId === event.causeFactionBId ? event.causeFactionAId : null;
+    if (supportedId === null) throw new Error(`Alliance war ${event.id} has an enemy outside its original war`);
+    const supported = factionShortName(supportedId).toUpperCase();
+    return `${a} JOINS ${supported} VS. ${b}`;
+  }
   if (event.kind === "vassalage") {
     if (event.relationshipKind === SUZERAINTY_KIND_TRIBUTARY) {
       return event.headline.toUpperCase();
@@ -760,7 +767,7 @@ export function diplomacyEventNotice(event) {
   if (event.kind === "rebellion") return `REBELLION: ${a} / ${b}`;
   if (event.kind === "independence") return `INDEPENDENCE: ${a} / ${b}`;
   if (event.kind === "union-dissolved") return `UNION DISSOLVED: ${a} / ${b}`;
-  return `WAR: ${a} / ${b}`;
+  return `WAR: ${a} VS. ${b}`;
 }
 
 export function diplomacyPairKey(factionAId, factionBId) {

@@ -1336,14 +1336,45 @@ const REVIEWED_OVERRIDES = Object.freeze({
   "SAIL / {0} DEG": Object.freeze({
     pl: "ŻAGIEL / {0} STOPNI"
   }),
+  "{0}: {1} → {2}": Object.freeze({
+    "de": "{0}: {1} → {2}",
+    "es": "{0}: {1} → {2}",
+    "fr": "{0}: {1} → {2}",
+    "ru": "{0}: {1} → {2}",
+    "pl": "{0}: {1} → {2}",
+    "pt-BR": "{0}: {1} → {2}",
+    "ja": "{0}: {1} → {2}",
+    "ko": "{0}: {1} → {2}",
+    "zh-Hans": "{0}: {1} → {2}",
+    "zh-Hant": "{0}: {1} → {2}"
+}),
+  "{0} JOINS {1} VS. {2}": Object.freeze({
+    "de": "{0} UNTERSTÜTZT {1} GEGEN {2}",
+    "es": "{0} SE UNE A {1} CONTRA {2}",
+    "fr": "{0} REJOINT {1} CONTRE {2}",
+    "ru": "{0} ВСТУПАЕТ НА СТОРОНЕ {1} ПРОТИВ {2}",
+    "pl": "{0} DOŁĄCZA DO {1} PRZECIW {2}",
+    "pt-BR": "{0} SE JUNTA A {1} CONTRA {2}",
+    "ja": "{0}が{1}に加勢、対{2}",
+    "ko": "{0}, {1}에 합류하여 {2}에 맞섬",
+    "zh-Hans": "{0}加入{1}一方，对抗{2}",
+    "zh-Hant": "{0}加入{1}一方，對抗{2}"
+}),
+  "WAR: {0} VS. {1}": Object.freeze({
+    "zh-Hant": "戰爭：{0} 對 {1}",
+    "pl": "WOJNA: {0} przeciw {1}",
+    "ko": "전쟁: {0} 대 {1}",
+    "ru": "ВОЙНА: {0} против {1}",
+    "ja": "戦争: {0} 対 {1}",
+    "pt-BR": "GUERRA: {0} contra {1}",
+    "de": "KRIEG: {0} gegen {1}",
+    "fr": "GUERRE : {0} contre {1}",
+    "es": "GUERRA: {0} contra {1}",
+    "zh-Hans": "战争：{0} 对 {1}"
+}),
   "VASSALAGE: {0} / {1}": Object.freeze({
     ja: "従属関係: {0} / {1}",
     de: "VASALLITÄT: {0} / {1}"
-  }),
-  "WAR: {0} / {1}": Object.freeze({
-    ja: "戦争: {0} / {1}",
-    de: "KRIEG: {0} / {1}",
-    ko: "전쟁: {0} / {1}"
   }),
   "Dock: {0}": Object.freeze({
     "zh-Hans": "停靠：{0}", ru: "Причалить: {0}", es: "Atracar: {0}",

@@ -1702,6 +1702,8 @@ import {
 import {
   SHORE_BATTERY_RANGE_PX,
   SHORE_BATTERY_CREW_PROTECTION,
+  upgradeShoreBattery,
+  shoreBatteryLevel,
   armShoreBatteryReload,
   cityHasShoreBatteryCombatPort,
   createShoreBatteryState,
@@ -17123,6 +17125,14 @@ function installSaveRestoreSmokeHarness() {
       if (running) throw new Error("Pirate haven inspection requires an idle voyage");
       const haven = cityById.get(cityId);
       if (!haven?.isPirateHideout) throw new Error(`Not a pirate haven: ${cityId}`);
+      upgradeShoreBattery(haven, gameState.memory.flags, 1);
+      const batteryLevel = shoreBatteryLevel(haven, gameState.memory.flags);
+      reconcileQuestWorldAssumptions(gameState, playerAccessiblePortCities(), {
+        identityCities: [...cityByTileId.values()]
+      });
+      if (shoreBatteryLevel(haven, gameState.memory.flags) !== batteryLevel) {
+        throw new Error(`World reconciliation lost haven defenses: ${cityId}`);
+      }
       if (playerIntroModal) closePlayerIntroModal();
       adjustFactionReputation(gameState, "pirate", 30 - factionReputation(gameState, "pirate"), { reason: "direct", simMinute: Math.max(0, weatherClockMinutes) });
       if (ruined && !pirateHavenIsRuined(gameState.memory.pirateHavens, cityId, weatherClockMinutes)) {
@@ -20863,6 +20873,7 @@ function aboardCrewDismissalIsAllowed() {
 }
 
 function refreshAboardRosterAfterCrewChange() {
+  invalidateDialogueView();
   clearPausedView(aboardMenu.viewCache);
   const roster = capturePausedView(aboardMenu.viewCache, gameState, currentAboardRoster);
   const focusable = aboardRosterLayout(roster, aboardMenuBodyWidth());

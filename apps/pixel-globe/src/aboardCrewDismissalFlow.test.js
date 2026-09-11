@@ -43,3 +43,24 @@ test("crew dismissal confirmation can be cancelled", () => {
   assert.equal(cancelAboardCrewDismissal("crew:a"), null);
   assert.throws(() => cancelAboardCrewDismissal(null), /requires a member ID/);
 });
+
+test("dismissing or restoring crew invalidates the underlying hiring view before returning", () => {
+  const start = MAIN_SOURCE.indexOf("function refreshAboardRosterAfterCrewChange(");
+  const end = MAIN_SOURCE.indexOf("\nfunction ", start + 1);
+  let crew = 10;
+  let cachedHire = { disabled: true };
+  const runtime = { aboardMenu: { viewCache: {}, focusedEntryId: "captain" }, gameState: {},
+    invalidateDialogueView: () => { cachedHire = null; }, clearPausedView() {},
+    capturePausedView: () => ({ named: [{ id: "captain" }] }), currentAboardRoster() {},
+    aboardRosterLayout: () => [], aboardMenuBodyWidth: () => 100,
+    aboardFocusableLayoutEntries: () => [{ id: "captain" }], syncShipCargoFromGameState() {} };
+  vm.runInNewContext(MAIN_SOURCE.slice(start, end), runtime);
+  const hireView = () => cachedHire ||= { disabled: crew >= 10 };
+  assert.equal(hireView().disabled, true);
+  crew--;
+  runtime.refreshAboardRosterAfterCrewChange();
+  assert.equal(hireView().disabled, false, "the first returning frame must offer the free berth without a click");
+  crew++;
+  runtime.refreshAboardRosterAfterCrewChange();
+  assert.equal(hireView().disabled, true, "undoing dismissal must disable hiring again");
+});

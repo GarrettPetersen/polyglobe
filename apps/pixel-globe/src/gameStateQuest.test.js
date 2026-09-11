@@ -1,3 +1,4 @@
+import { PIRATE_HAVEN_SPECS } from "./pirateHavenCatalog.js";
 import { envoyOfferForCapital } from "./passengerMissions.js";
 import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import { createPortDialogueSession, portDialogueView, selectPortDialogueAction } from "./dialogueSystem.js";
@@ -1596,4 +1597,24 @@ test("capture commissions coexist with ordinary work and migrate from the old sl
   assert.equal(state.memory.quests.captureActive, null);
   assert.equal(state.memory.quests.active.id, delivery.id);
   assert.equal(state.memory.quests.envoyActive.id, envoy.id);
+});
+
+test("world reconciliation retains harbor state for every hidden haven and closed city", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const ids = [...PIRATE_HAVEN_SPECS.map(haven => haven.id), PORTO.cityId];
+  for (const id of ids) {
+    state.memory.flags[`shoreBatteryDisabledUntil:${id}`] = 900;
+    state.memory.flags[`shoreBatteryDisabledByShip:${id}`] = "the Pelican";
+    state.memory.flags[`shoreBatteryUpgradeLevel:${id}`] = 2;
+    state.memory.visitedPorts[id] = { visits: 1, drunkArrivals: 0, lastDrunkVisit: null, lastDrunkArrivalMinute: null };
+  }
+  const before = JSON.stringify({ flags: state.memory.flags, visits: state.memory.visitedPorts });
+  for (let pass = 0; pass < 2; pass++) {
+    state.memory.flags = JSON.parse(JSON.stringify(state.memory.flags));
+    reconcileQuestWorldAssumptions(state, [LISBON], { identityCities: [LISBON, PORTO] });
+    assert.equal(JSON.stringify({ flags: state.memory.flags, visits: state.memory.visitedPorts }), before);
+  }
+  state.memory.flags["shoreBatteryDisabledUntil:pirate-haven-does-not-exist"] = 900;
+  assert.throws(() => reconcileQuestWorldAssumptions(state, [LISBON], { identityCities: [LISBON, PORTO] }),
+    /Saved shore battery port does not resolve: pirate-haven-does-not-exist/);
 });

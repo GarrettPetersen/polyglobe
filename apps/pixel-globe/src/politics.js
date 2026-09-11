@@ -5,6 +5,7 @@ import {
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
   FACTIONS,
+  factionById,
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   isJapanesePolityFaction,
@@ -380,12 +381,12 @@ export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
 function recentScriptedPoliticsEvents(gameState, limit) {
   const entries = [];
   for (const event of gameState.memory.conquest.events) {
-    if (event.source !== "conquistador-campaign" || event.kind !== "port-capture") continue;
+    if (event.kind !== "port-capture") continue;
     entries.push({
-      source: "conquistador",
+      source: "city-ownership",
       simMinute: event.simMinute,
       tone: "warn",
-      text: `${event.cityName.toUpperCase()} FALLS TO THE SPANISH COLUMNS`
+      text: `${event.cityName.toUpperCase()}: ${factionById(event.previousFactionId).shortName.toUpperCase()} → ${factionById(event.newFactionId).shortName.toUpperCase()}`
     });
   }
   const conquistador = gameState.memory.quests.conquistador;

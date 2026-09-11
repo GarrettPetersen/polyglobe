@@ -430,3 +430,16 @@ test("an annexed defeated power still settles wars with surviving counterparties
     inactiveFactionIds: null
   }), /requires inactive faction ids/);
 });
+
+test("war notices identify opponents and which side an ally joins", () => {
+  const event = { id: "test-war", simMinute: 100, kind: "war",
+    factionAId: "gujarat", factionBId: "portugal", reason: "alliance",
+    headline: "Gujarat declares war on Portugal." };
+  assert.equal(diplomacyEventNotice(event), "WAR: GUJARAT VS. PORTUGAL");
+  for (const causes of [["gujarat", "portugal"], ["portugal", "gujarat"]]) {
+    const joined = { ...event, kind: "alliance-war", factionAId: "england", factionBId: "gujarat",
+      causeFactionAId: causes[0], causeFactionBId: causes[1] };
+    assert.equal(diplomacyEventNotice(JSON.parse(JSON.stringify(joined))), "ENGLAND JOINS PORTUGAL VS. GUJARAT");
+    assert.throws(() => diplomacyEventNotice({ ...joined, factionBId: "france" }), /enemy outside its original war/);
+  }
+});

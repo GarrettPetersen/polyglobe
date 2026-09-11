@@ -465,7 +465,7 @@ test("scripted political notices remain available in dated politics history", ()
   const history = createPoliticsView(state, revokedMinute).newsHistory;
 
   assert.ok(history.some((entry) => (
-    entry.source === "conquistador" && entry.text === "CUZCO FALLS TO THE SPANISH COLUMNS"
+    entry.source === "city-ownership" && entry.text === "CUZCO: TAWANTINSUYU → SPAIN"
   )));
   assert.ok(history.some((entry) => (
     entry.source === "settlement-expulsion" &&
@@ -634,4 +634,20 @@ test("overview puts alphabetical collections after home and before individual po
     assert.ok(view.overviewCards.slice(1 + expectedGroups.length).every(card => card.kind !== "political-group"));
     assert.equal(new Set(view.overviewCards.map(card => card.id || card.faction.id)).size, view.overviewCards.length);
   }
+});
+
+test("city ownership changes by players and NPCs survive in dated politics history", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  for (const [index, source] of ["player", "npc", "conquistador-campaign"].entries()) {
+    recordPortCapture(state.memory.conquest, { tileId: 900010 + index,
+      cityId: `test-city-${index}`, city: `Test City ${index}`, country: "Portugal", factionId: "portugal" },
+    "england", 300 + index, source);
+  }
+  const read = game => createPoliticsView(game, 500).newsHistory.filter(entry => entry.source === "city-ownership");
+  const notices = read(state);
+  assert.equal(notices.length, 3);
+  assert.deepEqual(notices.map(entry => entry.simMinute), [302, 301, 300]);
+  assert.equal(notices[0].text, "TEST CITY 2: PORTUGAL → ENGLAND");
+  state.memory.conquest = JSON.parse(JSON.stringify(state.memory.conquest));
+  assert.deepEqual(read(state), notices);
 });

@@ -1,3 +1,4 @@
+import { isPirateHavenCityId } from "./pirateHavenCatalog.js";
 import { questOfferPolicy } from "./questOfferPolicies.js";
 import { createPirateHavenMemory, migratePirateHavenMemory, validatePirateHavenMemory, pirateQuestInventory } from "./pirateHavens.js";
 import { ACTIVE_QUEST_SLOTS, activeQuests } from "./activeQuests.js";
@@ -8377,12 +8378,12 @@ export function reconcileQuestPortTiles(state, portCities, {
     updates += 1;
   }
 
-  // Sovereignty includes inland settlements; only maritime quest endpoints
-  // are restricted to the sailing catalog.
+  // Historical identity survives loss of maritime access or visibility.
+  // Only current maritime quest endpoints use the sailing catalog.
   updates += reconcilePortConquestIdentities(state, identityCities, legacyPortTileIds);
-  updates += reconcileVisitedPortIdentities(state, portCities, legacyPortTileIds);
+  updates += reconcileVisitedPortIdentities(state, identityCities, legacyPortTileIds);
   updates += reconcileSpecialEquipmentOfferIdentities(state, portCities, legacyPortTileIds);
-  updates += reconcilePortFlagIdentities(state, portCities, legacyPortTileIds);
+  updates += reconcilePortFlagIdentities(state, identityCities, legacyPortTileIds);
   updates += reconcileCourtPoliticsIdentities(state, portCities, legacyPortTileIds);
   updates += reconcileHospitallerMaltaIdentities(state, portCities, legacyPortTileIds);
   updates += reconcileTradeEmbargoIncidentIdentities(state, portCities, legacyPortTileIds);
@@ -8407,7 +8408,8 @@ function reconcileVisitedPortIdentities(state, portCities, legacyPortTileIds) {
   let updates = 0;
   const reconciled = {};
   for (const [storedId, memory] of Object.entries(state.memory.visitedPorts)) {
-    let cityId = cityById.has(storedId) ? storedId : cityIdByLegacyPortId.get(storedId) || null;
+    let cityId = cityById.has(storedId) || isPirateHavenCityId(storedId)
+      ? storedId : cityIdByLegacyPortId.get(storedId) || null;
     if (cityId === null) {
       const legacyTileMatch = /(?:^city-|\|)(\d+)$/.exec(storedId);
       if (legacyTileMatch) {
@@ -8455,7 +8457,7 @@ function reconcilePortFlagIdentities(state, portCities, legacyPortTileIds) {
     .filter((city) => typeof city.portId === "string" && city.portId !== "")
     .map((city) => [city.portId, city.cityId]));
   return reconcileShoreBatteryPortFlagIdentities(state.memory.flags, (storedId) => {
-    if (cityById.has(storedId)) return storedId;
+    if (cityById.has(storedId) || isPirateHavenCityId(storedId)) return storedId;
     const legacyPortCityId = cityIdByLegacyPortId.get(storedId);
     if (legacyPortCityId) return legacyPortCityId;
     const legacyTile = /^city-(\d+)$/.exec(storedId);
