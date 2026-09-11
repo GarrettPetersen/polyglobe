@@ -5,6 +5,15 @@ import { resolve } from "node:path";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const files = [
+  "src/performanceBenchmark.test.js",
+  "tools/playtest/performance-oracles.test.mjs",
+  "src/landCollisionSound.test.js",
+  "src/questJourneyDialogue.test.js",
+  "src/worldAssetRetry.test.js",
+  "src/staticAssetFetch.test.js",
+  "src/startupAssetVerifier.test.js",
+  "src/soundEffectContracts.test.js",
+  "src/portAssaultShipEffects.test.js",
   "src/playtesterPortRegressions.test.js",
   "src/shipTargetRumors.test.js",
   "src/reputationHistory.test.js",
@@ -52,6 +61,13 @@ const files = [
 for (const path of files) if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing telemetry regression: ${path}`);
 execFileSync(process.execPath, ["--test", "--test-concurrency=1", ...files], { cwd: root, stdio: "inherit", timeout: 9 * 60_000 });
 console.log(JSON.stringify({ status: "passed", files, fingerprints: [
+  "4a02ac6643810309b21f7e7fe3e0b5c7b0dec019a0685e796c5bffdfc5c10c79",
+  "fd66917f3cf1b50215bd98a7d3248f5be543552a9b02ab9105e72721154d13a8",
+  "8cf96413b303d2cdaeabebdf658c18a59776d98a9f30b955b71ff8449c85857a",
+  "2c7e7c93aeb0a6afad58d0689a3fe12de531529bd6665b97a327078d39033716",
+  "9e899cd67da134e74ccdf8e438f10ec1c552e6dee463eac07c0d42364fdc3c8a",
+  "892ed1b2a41996a2d3cc86c771987dc128e600f578841ffd13fa26e1c6e6c8f1",
+  "3be3082632a2f762b6b2124a1db00eab62a91229b0ec7a9b760b7ec87e30c8a5",
   "c126a3134cec33fdf403c9691eac0fcb93573c356f105fa760c1aaaad9bac135",
   "a3069b42c03aa6ce771faa94b7b4e136e414a677ba4f4d74e33a86389f8046d1",
   "a69a460ab5a00d3131fcccb271d10dd8a0f4d85153b9f8d25ac3786579c931a9",

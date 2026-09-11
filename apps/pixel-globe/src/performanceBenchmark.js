@@ -289,6 +289,11 @@ export function assertPausedOverlayBenchmarkBudget(report) {
   const cpu = report?.cpuTimeMs;
   const frame = report?.frameTimeMs;
   if (!cpu || !frame) throw new Error("Paused overlay benchmark is missing frame timing data");
+  for (const [name, value] of [["cpuTimeMs.p95", cpu.p95], ["cpuTimeMs.max", cpu.max], ["frameTimeMs.max", frame.max]]) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Paused overlay benchmark has invalid ${name}: ${value}`);
+    }
+  }
   const budgets = {
     cpuP95: PAUSED_OVERLAY_CPU_P95_BUDGET_MS * cpuScale,
     cpuMax: PAUSED_OVERLAY_CPU_MAX_BUDGET_MS * cpuScale,
@@ -304,7 +309,11 @@ export function assertPausedOverlayBenchmarkBudget(report) {
     throw new Error(`Paused overlay frame max ${frame.max}ms exceeds ${budgets.frameMax}ms budget`);
   }
   for (const stageName of ["render.terrain", "render.gradeAndStorm"]) {
-    const count = report?.stages?.[stageName]?.count || 0;
+    const stage = report?.stages?.[stageName];
+    const count = stage === undefined ? 0 : stage?.count;
+    if (!Number.isSafeInteger(count) || count < 0) {
+      throw new Error(`Paused overlay benchmark has invalid ${stageName} count: ${count}`);
+    }
     if (count > 1) {
       throw new Error(`Paused overlay repeated ${stageName} ${count} times`);
     }

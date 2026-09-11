@@ -1,3 +1,4 @@
+import { landCollisionSoundVolume } from "./landCollisionSound.js";
 import { MINIMAP_BAKE_MAX_LATITUDE, decodeMinimapBake, createMinimapPixelCache } from "./minimapBake.js";
 import { simulatePortAssaultInWorker } from "./portAssaultSimulationClient.js";
 import { STEAM_WISHLIST_URL, wishlistPromotionEnabled, wishlistPulse, wishlistModalLayout, startWishlistRect } from "./wishlistPromotion.js";
@@ -4334,6 +4335,7 @@ let shipyardPurchaseListingId = null;
 let surrenderedShipCapturePendingId = null;
 let vikingLongshipAcquisitionPending = false;
 let dirty = true;
+let lastLandCollisionAtMs = null;
 let lastFrameMs = performance.now();
 let lastSessionFrameMs = lastFrameMs;
 let frameClockSynchronizationPending = true;
@@ -10614,6 +10616,17 @@ function playNavalImpactSound(projectile) {
 function playCannonImpactSound(distancePx = 0) {
   const distanceGain = clamp(1 - distancePx / CANNON_RANGE_PX, 0.35, 1);
   playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * distanceGain, 0.96);
+}
+
+function playLandCollisionSound(normal) {
+  const nowMs = performance.now();
+  const volume = landCollisionSoundVolume({
+    velocityRad: ship.velocity, normal,
+    topSpeedRad: currentPlayerEffectiveShipStats().topSpeedRad,
+    nowMs, lastContactAtMs: lastLandCollisionAtMs
+  });
+  lastLandCollisionAtMs = nowMs;
+  if (volume > 0) playSoundEffect(soundEffects?.armorGlance, volume, 0.94);
 }
 
 function playArmorGlanceSound(distancePx = 0) {
@@ -26214,10 +26227,14 @@ function continuePortDialogueAfterCampaign() {
   const city = currentDialogueCity();
   const needsLoadout = dialogueState.needsLoadout === true;
   const session = createOrdinaryPortArrivalSession(city, needsLoadout);
-  session.nodeId = resolvePortArrivalDialogueNode({
-    requestedNodeId: session.nodeId,
-    arrivalGreetingPresented: currentPortArrivalGreetingPresented(city)
-  });
+  // Arrival can hand off directly to a quest character. Only port sessions
+  // use nodeId; character sessions own their steps and nextPortNodeId.
+  if (session.kind === "port") {
+    session.nodeId = resolvePortArrivalDialogueNode({
+      requestedNodeId: session.nodeId,
+      arrivalGreetingPresented: currentPortArrivalGreetingPresented(city)
+    });
+  }
   openCityDialogue(city, session);
   continuePortArrivalDialogues();
   saveVoyageNow("campaign homecoming complete");
@@ -27251,10 +27268,10 @@ function handlePortWaitKeyDown(event) {
 }
 
 function releaseDialogueSession({ destination }) {
-  pendingPortAssaultStart?.abortController.abort();
   if (!["sailing", "port-wait", "handoff"].includes(destination)) {
     throw new Error(`Unknown dialogue exit destination: ${destination}`);
   }
+  pendingPortAssaultStart?.abortController.abort();
   dialogueState = null;
   clearPausedView(dialogueViewCache);
   dialogueLayout = createDialogueLayoutState();
@@ -33785,6 +33802,7 @@ function moveShipWithCollision(dt, inputHeading, preferredTravelHeading = ship.h
   }
 
   const normal = direct.normal || shipCollisionNormal(ship.position, direct.blockedTileId, step);
+  playLandCollisionSound(normal);
   const slide = findShipSlideMove(normal, preferredDirection, dt);
   if (slide) {
     ship.velocity = projectTangentVector(slide.velocity, slide.position);

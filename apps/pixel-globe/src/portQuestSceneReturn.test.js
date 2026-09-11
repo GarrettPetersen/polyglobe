@@ -119,3 +119,44 @@ test("an alert cannot hand the city root back to the old modal renderer", () => 
     assertPortRootScene, citySiteIsRuined:()=>false,currentDialogueCity:()=>({}) };
   assert.equal(vm.runInNewContext(`${ownerCode}\nportCityRootPresentationIsOwned()`,runtime),true);
 });
+
+test("campaign homecoming preserves every kind of proactive arrival session", async () => {
+  const { createPortArrivalDialogueSession } = await import("./dialogueSystem.js");
+  const { resolvePortArrivalDialogueNode } = await import("./portEntryFlow.js");
+  const city = { cityId: "london|united kingdom", name: "London", factionId: "england" };
+  const code = source.slice(source.indexOf("function continuePortDialogueAfterCampaign()"),
+    source.indexOf("function beginCampaignRetirement()"));
+  const approachFlags = [
+    "openDeliveryMission", "vikingLongshipApproach", "japaneseMatchlockApproach", "caribbeanGingerApproach",
+    "chefQuestApproach", "colonizationApproach", "conquistadorApproach", "conquistadorEmbarkationApproach"
+  ];
+  const arrivals = [
+    {},
+    ...approachFlags.map(key => ({ [key]: true })),
+    ...["passenger", "rescued-traveler", "campaign-goal"].map(kind => ({
+      questCharacterSession: { kind, cityId: city.cityId, steps: [{ text: "Home at last." }], stepIndex: 0 }
+    }))
+  ];
+  for (const options of arrivals) for (const needsLoadout of [false, true]) for (const greeted of [false, true]) {
+    const session = createPortArrivalDialogueSession(city, { ...options, needsLoadout });
+    const original = structuredClone(session);
+    let opened = null;
+    let continued = 0;
+    let saved = 0;
+    const runtime = {
+      dialogueState: { kind: "campaign-goal", needsLoadout }, currentDialogueCity: () => city,
+      createOrdinaryPortArrivalSession: () => session, currentPortArrivalGreetingPresented: () => greeted,
+      resolvePortArrivalDialogueNode, openCityDialogue: (_, next) => { opened = next; },
+      continuePortArrivalDialogues: () => continued++, saveVoyageNow: () => saved++
+    };
+    vm.runInNewContext(`${code}\ncontinuePortDialogueAfterCampaign();`, runtime);
+    assert.equal(opened, session);
+    if (session.kind === "port") {
+      assert.equal(session.nodeId, original.nodeId === "greeting" && greeted ? "root" : original.nodeId);
+    } else {
+      assert.deepEqual(session, original, "character steps and continuation must survive the handoff unchanged");
+    }
+    assert.equal(continued, 1);
+    assert.equal(saved, 1);
+  }
+});

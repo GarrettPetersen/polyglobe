@@ -272,6 +272,28 @@ test("paused overlay benchmark rejects repeated world rendering and multi-second
   }));
 });
 
+test("paused overlay budgets reject missing or corrupt measurements instead of passing them", () => {
+  const report = {
+    id: PAUSED_START_MENU_BENCHMARK_ID,
+    cpuTimeMs: { p95: 4, max: 180 },
+    frameTimeMs: { max: 220 }
+  };
+  for (const [group, field] of [["cpuTimeMs", "p95"], ["cpuTimeMs", "max"], ["frameTimeMs", "max"]]) {
+    for (const value of [undefined, null, NaN, Infinity, -1, "20"]) {
+      assert.throws(() => assertPausedOverlayBenchmarkBudget({
+        ...report, [group]: { ...report[group], [field]: value }
+      }), /invalid .*TimeMs/);
+    }
+  }
+  for (const stage of ["render.terrain", "render.gradeAndStorm"]) {
+    for (const count of [undefined, null, NaN, Infinity, -1, 0.5, "1"]) {
+      assert.throws(() => assertPausedOverlayBenchmarkBudget({
+        ...report, stages: { [stage]: { count } }
+      }), /invalid .* count/);
+    }
+  }
+});
+
 test("benchmark evaluates a lazy scene snapshot only when measurement completes", () => {
   const state = createPerformanceBenchmarkState({
     id: "combat-hotspot",

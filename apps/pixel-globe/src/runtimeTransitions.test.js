@@ -71,17 +71,21 @@ for (const destination of ["sailing", "port-wait", "handoff"]) {
   test(`dialogue exit to ${destination} clears cached UI and preserves the right motion state`, () => {
     const calls = [];
     const context = runtimeFunctions(["releaseDialogueSession"], {
+      pendingPortAssaultStart: { abortController: new AbortController() },
       dialogueState: {}, dialogueViewCache: {}, dialogueShipMotionPause: { speed: 1 },
       clearPausedView: () => calls.push("cache"), createDialogueLayoutState: () => ({ scrollOffset: 0 }),
       deactivatePortCityView: () => calls.push("scene"), stopShipForDialogue: () => calls.push("stop")
     });
     context.releaseDialogueSession({ destination });
+    assert.equal(context.pendingPortAssaultStart.abortController.signal.aborted, true);
     assert.equal(context.dialogueState, null);
     assert.equal(context.dialogueLayout.scrollOffset, 0);
     assert.equal(calls.includes("scene"), destination !== "handoff");
     assert.equal(calls.includes("stop"), destination === "port-wait");
     assert.equal(context.dialogueShipMotionPause === null, destination === "port-wait");
+    context.pendingPortAssaultStart = { abortController: new AbortController() };
     assert.throws(() => context.releaseDialogueSession({ destination: "unknown" }), /Unknown dialogue exit/);
+    assert.equal(context.pendingPortAssaultStart.abortController.signal.aborted, false);
   });
 }
 

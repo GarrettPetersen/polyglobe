@@ -280,12 +280,16 @@ test("live canal activation gates every port index, preserves the inland market,
   const economy = createWorldEconomy({ ports: [topsham, exeter], shipyardPorts: [topsham], startMinute: 0 });
   const before = portMarket(economy, exeter);
   const npcPorts = new Set([TOPSHAM_CITY_ID]);
+  const repaintedTiles = [];
   let invalidations = 0;
   const context = vm.createContext({
     BUILD_EDITION_ID: "full", EXETER_CITY_ID, exeterCanalStage, exeterCanalPort,
     exeterCanalNavigation: (base, graph, rows, stage) => ({ riverMasks: [stage], reachableNavigationMask: [stage] }),
     appliedExeterCanalStage: 0, exeterCanalBaseNavigation: {}, graph: {}, earthById: [],
     riverMasks: [], oceanReachableNavigationMask: [],
+    EXETER_CANAL_TILE_CHAIN,
+    minimap: { seenTiles: { [EXETER_CANAL_TILE_CHAIN[0]]: true }, rasterRevision: 0 },
+    paintCaptainChartBackgroundTile: (id) => repaintedTiles.push(id),
     cityById: new Map([[EXETER_CITY_ID, exeter], [TOPSHAM_CITY_ID, topsham]]),
     portCities: [topsham], portCitiesByTileId: new Map([[topsham.tileId, topsham]]),
     distantWorldWorkerClient: {}, invalidateDistantWorldWorkerState: () => invalidations++,
@@ -314,6 +318,9 @@ test("live canal activation gates every port index, preserves the inland market,
   assert.equal(context.syncExeterCanalWorldState(state, 4 * EXETER_CANAL_STAGE_MINUTES), false);
   assert.equal(context.portCities.filter((city) => city.cityId === EXETER_CITY_ID).length, 1);
   assert.equal(invalidations, 3);
+  assert.deepEqual(repaintedTiles, Array(3).fill(EXETER_CANAL_TILE_CHAIN[0]));
+  assert.equal(context.minimap.rasterRevision, 3);
+  context.minimap = null; // Restoring can precede minimap construction.
   state.memory.quests.exeterCanal = createExeterCanalMemory();
   context.syncExeterCanalWorldState(state, 0, { restoring: true });
   assert.equal(context.portCitiesByTileId.has(exeter.tileId), false);
