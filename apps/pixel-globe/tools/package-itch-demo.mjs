@@ -16,6 +16,11 @@ const ITCH_LIMITS = Object.freeze({
   maxExtractedBytes: 500 * 1024 * 1024,
   maxSingleFileBytes: 200 * 1024 * 1024
 });
+const ITCH_EXCLUDED_FILES = new Set([
+  "city-visualizer/bootstrap.js",
+  "city-visualizer/index.html",
+  "city-visualizer/styles.css"
+]);
 const REQUIRED_RUNTIME_FILES = Object.freeze([
   "index.html",
   "src/bootstrap.js",
@@ -27,6 +32,7 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "assets/characters/generated/character-portraits.json",
   "assets/characters/generated/character-portraits-atlas.png",
   "assets/vehicles/unity-ships/brigantine-32-headings.png",
+  "assets/vehicles/unity-ships/brigantine-32-headings-lighting-atlas.png",
   "assets/vehicles/unity-ships/mediterranean-galley-rowing-atlas-32-headings.png",
   "assets/vehicles/unity-ships/mediterranean-galley-rowing-atlas-32-headings-sink-depth.png",
   "assets/vehicles/unity-ships/mediterranean-galley-pivot-port-atlas-32-headings.png",
@@ -104,6 +110,14 @@ async function assertDemoBuild(files) {
   ));
   if (unpackedRowingFrame) {
     throw new Error(`Itch package contains an unpacked rowing frame: ${unpackedRowingFrame.relativePath}`);
+  }
+  const unpackedShipLighting = files.find((file) => (
+    /assets\/vehicles\/unity-ships\/.*-32-headings-(?:light|shade|shadow)\.png$/.test(
+      file.relativePath
+    )
+  ));
+  if (unpackedShipLighting) {
+    throw new Error(`Itch package contains an unpacked ship-lighting layer: ${unpackedShipLighting.relativePath}`);
   }
   const unpackedLandVehicleFrame = files.find((file) => (
     /assets\/vehicles\/(?:horse-cart|llama-caravan|dromedary-caravan|bactrian-caravan)\/.*-walk-\d+-32-headings(?:-(?:light|shade|shadow))?\.png$/.test(
@@ -184,6 +198,7 @@ function formatBytes(bytes) {
 }
 
 const files = (await collectFiles(distRoot))
+  .filter((file) => !ITCH_EXCLUDED_FILES.has(file.relativePath))
   .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 await assertDemoBuild(files);
 const extractedBytes = assertItchLimits(files);

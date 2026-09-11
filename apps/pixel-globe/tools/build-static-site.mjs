@@ -13,11 +13,17 @@ import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modul
 import { FACTIONS, factionHasFlag } from "../src/factions.js";
 import { validateGameIconAtlasManifest } from "../src/gameIcons.js";
 import { POLITICS_GROUP_FLAG_ASSETS } from "../src/politicsGroupAssets.js";
+import {
+  DEMO_SHIP_LIGHTING_ATLAS_HEIGHT,
+  DEMO_SHIP_LIGHTING_ATLAS_SLICES,
+  DEMO_SHIP_LIGHTING_ATLAS_WIDTH
+} from "../src/demoShipLightingAtlas.js";
 import { SHIP_ROWING_ANIMATION_SPECS } from "../src/shipRowingAnimation.js";
 import {
   SHIP_SPRITE_SHEET_HEIGHT,
   SHIP_SPRITE_SHEET_WIDTH
 } from "../src/shipSpriteLayout.js";
+import { SHIP_STATS } from "../src/shipStats.js";
 import {
   assertExactModuleGraph,
   verifyLocalModuleGraph
@@ -303,6 +309,12 @@ function shouldCopyPublicPath(path) {
     return false;
   }
   if (
+    normalized.startsWith("assets/vehicles/unity-ships/") &&
+    /-32-headings-(?:light|shade|shadow)\.png$/.test(normalized)
+  ) {
+    return false;
+  }
+  if (
     /^assets\/vehicles\/(?:horse-cart|llama-caravan|dromedary-caravan|bactrian-caravan)\/[^/]+-walk-\d+-32-headings(?:-(?:light|shade|shadow))?\.png$/.test(
       normalized
     )
@@ -442,6 +454,34 @@ async function buildDemoRowingAtlases() {
   }
 }
 
+async function buildDemoShipLightingAtlases() {
+  for (const ship of SHIP_STATS) {
+    const canvas = createCanvas(
+      DEMO_SHIP_LIGHTING_ATLAS_WIDTH,
+      DEMO_SHIP_LIGHTING_ATLAS_HEIGHT
+    );
+    const context = canvas.getContext("2d");
+    context.imageSmoothingEnabled = false;
+    for (const [kind, slice] of Object.entries(DEMO_SHIP_LIGHTING_ATLAS_SLICES)) {
+      const fileName = `${ship.slug}-32-headings-${kind}.png`;
+      const image = await loadImage(
+        join(publicRoot, "assets/vehicles/unity-ships", fileName)
+      );
+      if (image.width !== slice.width || image.height !== slice.height) {
+        throw new Error(
+          `Demo ship lighting layer ${fileName} must be ${slice.width}x${slice.height}, ` +
+          `got ${image.width}x${image.height}`
+        );
+      }
+      context.drawImage(image, slice.x, slice.y);
+    }
+    const atlasName = `${ship.slug}-32-headings-lighting-atlas.png`;
+    const atlasPath = join(distRoot, "assets/vehicles/unity-ships", atlasName);
+    await mkdir(dirname(atlasPath), { recursive: true });
+    await writeFile(atlasPath, canvas.toBuffer("image/png"));
+  }
+}
+
 async function buildDemoRowingAtlas(slug, animationStem, frameCount, suffix) {
   const canvas = createCanvas(
     SHIP_SPRITE_SHEET_WIDTH,
@@ -533,6 +573,16 @@ async function stripDemoSocialMetadata() {
   await writeFile(indexPath, html);
 }
 
+async function relativizeDemoGameRuntimeUrls() {
+  const bundlePath = join(distRoot, "src/bootstrap.js");
+  const source = await readFile(bundlePath, "utf8");
+  const relativeSource = source.replace(
+    /(["'`])\/(assets|shared|src|city-visualizer)\//g,
+    "$1$2/"
+  );
+  await writeFile(bundlePath, relativeSource);
+}
+
 function buildEditionPlugin() {
   return {
     name: "pixel-globe-build-edition",
@@ -600,6 +650,7 @@ for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopy
 for (const entry of sharedEntries) await copySharedEntry(entry);
 if (edition === BUILD_EDITION_DEMO) await buildDemoFactionFlagAtlas();
 await buildCharacterPortraitAtlas(buildCharacterManifest);
+if (edition === BUILD_EDITION_DEMO) await buildDemoShipLightingAtlases();
 if (edition === BUILD_EDITION_DEMO) await buildDemoRowingAtlases();
 if (edition === BUILD_EDITION_DEMO) await buildDemoLandVehicleAtlases();
 
@@ -609,6 +660,7 @@ if (edition === BUILD_EDITION_DEMO) {
 }
 await bundleBrowserRuntime();
 await bundleCityVisualizer();
+if (edition === BUILD_EDITION_DEMO) await relativizeDemoGameRuntimeUrls();
 for (const path of ["index.html", "city-visualizer/index.html"]) {
   const target = join(distRoot, path);
   const html = await readFile(target, "utf8");

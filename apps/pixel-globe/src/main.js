@@ -365,6 +365,11 @@ import {
   SHIP_SPRITE_HEADINGS,
   SHIP_SPRITE_SHEET_COLS
 } from "./shipSpriteLayout.js";
+import {
+  DEMO_SHIP_LIGHTING_ATLAS_HEIGHT,
+  DEMO_SHIP_LIGHTING_ATLAS_SLICES,
+  DEMO_SHIP_LIGHTING_ATLAS_WIDTH
+} from "./demoShipLightingAtlas.js";
 import { validateShipWakeAnchors } from "./shipWakeAnchors.js";
 import { shipBowWavePixels, shipBowWaveStyle } from "./shipBowWave.js";
 import {
@@ -5604,7 +5609,48 @@ async function loadShipSpriteAssetsForSlug(slug) {
 
 async function loadShipLightingForSlug(slug) {
   shipStatsForSlug(slug);
+  if (BUILD_EDITION_ID === "demo") return loadDemoShipLightingAtlas(slug);
   return loadShipLightingBake(vehicleSpriteKeyForShipSlug(slug));
+}
+
+async function loadDemoShipLightingAtlas(slug) {
+  const key = `${vehicleSpriteKeyForShipSlug(slug)}-${SHIP_SPRITE_HEADING_SUFFIX}-lighting-atlas`;
+  const atlas = await loadVehicleImage(key);
+  validateImageDimensions(
+    atlas,
+    `Demo ship lighting atlas: ${slug}`,
+    DEMO_SHIP_LIGHTING_ATLAS_WIDTH,
+    DEMO_SHIP_LIGHTING_ATLAS_HEIGHT
+  );
+  const lightImage = demoShipLightingAtlasImage(atlas, DEMO_SHIP_LIGHTING_ATLAS_SLICES.light);
+  const shadeImage = demoShipLightingAtlasImage(atlas, DEMO_SHIP_LIGHTING_ATLAS_SLICES.shade);
+  const shadowImage = demoShipLightingAtlasImage(atlas, DEMO_SHIP_LIGHTING_ATLAS_SLICES.shadow);
+  return Object.freeze({
+    lightImage,
+    shadeImage,
+    shadow: decodeDirectionalLightingMask(shadowImage, SHIP_SHADOW_FRAME_SIZE, "ship water shadow mask")
+  });
+}
+
+function demoShipLightingAtlasImage(atlas, slice) {
+  const image = document.createElement("canvas");
+  image.width = slice.width;
+  image.height = slice.height;
+  const context = image.getContext("2d");
+  if (!context) throw new Error("Could not create demo ship-lighting atlas layer");
+  context.imageSmoothingEnabled = false;
+  context.drawImage(
+    atlas,
+    slice.x,
+    slice.y,
+    slice.width,
+    slice.height,
+    0,
+    0,
+    slice.width,
+    slice.height
+  );
+  return image;
 }
 
 async function loadShipRenderLayersForSlug(slug) {
