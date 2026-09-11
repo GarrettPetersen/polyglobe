@@ -3,25 +3,25 @@ import assert from "node:assert/strict";
 import { createGameState, migrateGameState } from "./gameState.js";
 import { createPirateHavenMemory, validatePirateHavenMemory, pirateHavenQuestOffer,
  acceptPirateHavenQuest, completePirateHavenQuest, seizePirateRevengeItem,
- pirateRevengeInventory, pirateHavenIsRuined, pirateHavenIsVisible, ruinPirateHaven,
+ pirateQuestInventory, pirateHavenIsRuined, pirateHavenIsVisible, ruinPirateHaven,
  PIRATE_HAVEN_REBUILD_MINUTES } from "./pirateHavens.js";
 const haven={cityId:"pirate-haven-1",city:"Black Gull Cove",isPirateHideout:true};
 const port={cityId:"lisbon|portugal",city:"Lisbon"};
 const merchant={id:"merchant-12",seed:77,name:"Santa Maria",captainName:"Joao",role:"merchant",hitPoints:10,currentPort:port};
-const context={havens:[haven],merchants:[merchant],sailingDistanceKm:()=>200,simMinute:0};
+const context={offerRoll: 0, contractKind: "revenge", havens:[haven],merchants:[merchant],sailingDistanceKm:()=>200,simMinute:0};
 test("a revenge commission names a real merchant and the unique item survives saves until delivered",()=>{
  const state=createGameState({cargoCapacity:20}); const memory=state.memory.pirateHavens;
  const offer=pirateHavenQuestOffer(memory,haven,context); acceptPirateHavenQuest(memory,offer);
  assert.equal(offer.targetShipId,merchant.id); assert.equal(seizePirateRevengeItem(memory,{id:"other",seed:1}),null);
- assert.deepEqual(pirateRevengeInventory(memory),[]);
+ assert.deepEqual(pirateQuestInventory(memory),[]);
  assert.throws(()=>completePirateHavenQuest(state,haven.cityId,"revenge",0),/cannot/);
  seizePirateRevengeItem(memory,merchant); assert.equal(seizePirateRevengeItem(memory,merchant),null);
  const restored=migrateGameState(JSON.parse(JSON.stringify(state)));
- assert.equal(pirateRevengeInventory(restored.memory.pirateHavens)[0].id,offer.itemId);
+ assert.equal(pirateQuestInventory(restored.memory.pirateHavens)[0].id,offer.itemId);
  const before=restored.doubloons;
  assert.throws(()=>completePirateHavenQuest(restored,port.cityId,"revenge",0),/cannot/);
  completePirateHavenQuest(restored,haven.cityId,"revenge",0);
- assert.equal(restored.doubloons,before+offer.reward); assert.deepEqual(pirateRevengeInventory(restored.memory.pirateHavens),[]);
+ assert.equal(restored.doubloons,before+offer.reward); assert.deepEqual(pirateQuestInventory(restored.memory.pirateHavens),[]);
  assert.throws(()=>completePirateHavenQuest(restored,haven.cityId,"revenge",0),/cannot/);
 });
 test("suppression reveals one haven, ruins persist six months, then ordinary visibility resumes",()=>{
@@ -81,7 +81,7 @@ test("a replacement hull cannot inherit a sunken merchant's quest item", async (
   const replacement = { ...merchant, seed: merchant.seed + 1 };
   assert.equal(pirateRevengeTargetPresent(memory, new Map([[replacement.id, replacement]])), false);
   assert.equal(seizePirateRevengeItem(memory, replacement), null);
-  assert.deepEqual(pirateRevengeInventory(memory), []);
+  assert.deepEqual(pirateQuestInventory(memory), []);
   memory.revenge.targetShipSeed = null;
   assert.throws(() => validatePirateHavenMemory(memory), /hull generation/);
 });

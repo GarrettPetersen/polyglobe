@@ -46,6 +46,7 @@ test("shipyard investment opportunities can recur after sixty in-game days", () 
 
 test("a wealthy captain can begin one major-port shipyard investment", () => {
   const state = {
+    voyageSeed: "yard-test-16",
     doubloons: 75000,
     memory: { shipyardInvestment: createShipyardInvestmentMemory() }
   };
@@ -61,6 +62,7 @@ test("a wealthy captain can begin one major-port shipyard investment", () => {
 
 test("a shipyard cannot open until capital and every material are delivered", () => {
   const state = {
+    voyageSeed: "yard-test-16",
     doubloons: SHIPYARD_INVESTMENT_CAPITAL,
     memory: { shipyardInvestment: createShipyardInvestmentMemory() }
   };
@@ -82,7 +84,7 @@ test("a shipyard cannot open until capital and every material are delivered", ()
 });
 
 test("the player can fund the project with partial cargo deliveries", () => {
-  const state = createGameState({ cargoCapacity: 200 });
+  const state = createGameState({ cargoCapacity: 200, voyageSeed: "yard-test-16" });
   state.doubloons = 120000;
   state.cargo = { timber: 12, iron: 12, "naval-stores": 10 };
   state.accounts.cargoCostBasis = { timber: 120, iron: 120, "naval-stores": 100 };
@@ -107,6 +109,7 @@ test("the player can fund the project with partial cargo deliveries", () => {
 
 test("another major-port yard can be backed after the investment cooldown", () => {
   const state = {
+    voyageSeed: "yard-test-16",
     doubloons: 200000,
     memory: { shipyardInvestment: createShipyardInvestmentMemory() }
   };
@@ -133,6 +136,7 @@ test("another major-port yard can be backed after the investment cooldown", () =
 
 test("a later investment can fund a famous Ottoman-controlled yard", () => {
   const state = {
+    voyageSeed: "yard-test-16",
     doubloons: 200000,
     memory: {
       shipyardInvestment: {

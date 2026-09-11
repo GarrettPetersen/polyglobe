@@ -1,4 +1,5 @@
-import { createPirateHavenMemory, validatePirateHavenMemory, pirateRevengeInventory } from "./pirateHavens.js";
+import { questOfferPolicy } from "./questOfferPolicies.js";
+import { createPirateHavenMemory, migratePirateHavenMemory, validatePirateHavenMemory, pirateQuestInventory } from "./pirateHavens.js";
 import { ACTIVE_QUEST_SLOTS, activeQuests } from "./activeQuests.js";
 import { createExeterCanalMemory, validateExeterCanalState } from "./exeterCanal.js";
 import { recordReputationChange, validateReputationChanges } from "./reputationHistory.js";
@@ -563,7 +564,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 110;
+export const GAME_STATE_VERSION = 111;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -579,19 +580,19 @@ export const PIRATE_REPUTATION_GAIN_PER_PIRACY = 8;
 export const PIRATE_HIDEOUT_REPUTATION_REQUIRED = -25;
 export const TRADE_REPUTATION_GAIN = 0.2;
 export const DELIVERY_REPUTATION_GAIN = 2;
-export const DELIVERY_SPAWN_CHANCE = 0.32;
-export const DELIVERY_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
+export const DELIVERY_SPAWN_CHANCE = questOfferPolicy("delivery").spawnChance;
+export const DELIVERY_ROLL_PERIOD_MINUTES = questOfferPolicy("delivery").rollPeriodMinutes;
 export const CAPTURE_PORT_MISSION_KIND = "capture-port";
 export const CAPTURE_CAPITAL_MISSION_KIND = "capture-capital";
 export const CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID = "independent-harbors";
 export const CAPTURE_PORT_MISSION_MIN_CANNONS = 8;
 export const CAPTURE_PORT_MISSION_REPUTATION_GAIN = 10;
 export const CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN = 30;
-export const CAPTURE_PORT_MISSION_SPAWN_CHANCE = 0.35;
-export const CAPTURE_PORT_MISSION_ROLL_PERIOD_MINUTES = 30 * 24 * 60;
+export const CAPTURE_PORT_MISSION_SPAWN_CHANCE = questOfferPolicy("capture").spawnChance;
+export const CAPTURE_PORT_MISSION_ROLL_PERIOD_MINUTES = questOfferPolicy("capture").rollPeriodMinutes;
 export const CAPTURE_COMMISSION_PETITION_COOLDOWN_MINUTES = 30 * 24 * 60;
-export const WOKOU_HUNT_MISSION_SPAWN_CHANCE = 0.28;
-export const WOKOU_HUNT_MISSION_ROLL_PERIOD_MINUTES = 30 * 24 * 60;
+export const WOKOU_HUNT_MISSION_SPAWN_CHANCE = questOfferPolicy("wokou").spawnChance;
+export const WOKOU_HUNT_MISSION_ROLL_PERIOD_MINUTES = questOfferPolicy("wokou").rollPeriodMinutes;
 export const WOKOU_HUNT_REPUTATION_REQUIRED = 10;
 export const WOKOU_HUNT_REPUTATION_GAIN = 8;
 export const CAPTURE_PORT_MISSION_MAX_DISTANCE_KM = 20000;
@@ -984,7 +985,7 @@ export function migrateGameState(state, shipStats, {
   crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -1204,7 +1205,7 @@ export function migrateGameState(state, shipStats, {
       visitedPorts: migrateVisitedPortMemories(state.memory?.visitedPorts),
       namedCrewDeathNotices: state.memory?.namedCrewDeathNotices || [],
       navalCasualties: state.version < 103 ? [] : state.memory.navalCasualties,
-      pirateHavens: createPirateHavenMemory(),
+      pirateHavens: migratePirateHavenMemory(state.memory?.pirateHavens),
       soundDues: state.version < 104 ? createSoundDuesMemory() : state.memory.soundDues,
       crewRecruitment: state.version >= 95
         ? migrateCrewRecruitmentWounds(state.memory?.crewRecruitment)
@@ -4244,7 +4245,7 @@ export function shipItemRows(state) {
       discardable: false
     });
   }
-  rows.push(...pirateRevengeInventory(state.memory.pirateHavens));
+  rows.push(...pirateQuestInventory(state.memory.pirateHavens));
   if (roanokeCluesAboard(state.memory.colonization)) {
     rows.push({
       id: ROANOKE_CLUES_ITEM_ID,

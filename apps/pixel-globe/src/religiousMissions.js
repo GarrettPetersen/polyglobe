@@ -1,3 +1,4 @@
+import { questOfferPolicy } from "./questOfferPolicies.js";
 import {
   religionById,
   religionCandidatesForHome
@@ -5,7 +6,7 @@ import {
 import { CANONICAL_PORTS, portMatchesCanonicalReference } from "./canonicalPorts.js";
 import { travelSailingDistanceKm as passengerTravelDistanceKm } from "./travelSailingDistance.js";
 
-export const RELIGIOUS_PASSENGER_SCENARIO_CHANCE = 0.45;
+export const RELIGIOUS_PASSENGER_SCENARIO_CHANCE = questOfferPolicy("religious").spawnChance;
 export const RELIGIOUS_PASSENGER_MIN_DISTANCE_KM = 250;
 export const RELIGIOUS_PASSENGER_MAX_DISTANCE_KM = 8000;
 export const SEPTEMBER_TESTAMENT_MISSION_ID = "september-testament";

@@ -1,4 +1,4 @@
-import { acceptPirateHavenQuest, pirateHavenQuestOffer, seizePirateRevengeItem, ruinPirateHaven } from "./pirateHavens.js";
+import { acceptPirateHavenQuest, pirateHavenQuestOffer, seizePirateRevengeItem, ruinPirateHaven, collectPirateGoods } from "./pirateHavens.js";
 import { EXETER_CANAL_MATERIALS } from "./exeterCanal.js";
 import {
   CAMPAIGN_GOAL_EXPLORER,
@@ -63,13 +63,20 @@ export function canonicalGameStateFixtures() {
   const pirateCampaign = structuredClone(campaignFixtures[0].state);
   const haven = { cityId: "pirate-haven-1", city: "Black Gull Cove", isPirateHideout: true };
   const port = { cityId: "lisbon|portugal", city: "Lisbon" };
-  const pirateContext = { havens: [haven], merchants: [{ id: "merchant-test", seed: 77, name: "Santa Maria", captainName: "Joao", role: "merchant", hitPoints: 10, currentPort: port }], sailingDistanceKm: () => 200, simMinute: 123456 };
+  const pirateContext = { offerRoll: 0, contractKind: "revenge", havens: [haven], merchants: [{ id: "merchant-test", seed: 77, name: "Santa Maria", captainName: "Joao", role: "merchant", hitPoints: 10, currentPort: port }], sailingDistanceKm: () => 200, simMinute: 123456 };
   acceptPirateHavenQuest(pirateCampaign.memory.pirateHavens, pirateHavenQuestOffer(pirateCampaign.memory.pirateHavens, haven, pirateContext));
   acceptPirateHavenQuest(pirateCampaign.memory.pirateHavens, pirateHavenQuestOffer(pirateCampaign.memory.pirateHavens, port, pirateContext));
   seizePirateRevengeItem(pirateCampaign.memory.pirateHavens, pirateContext.merchants[0]);
   ruinPirateHaven(pirateCampaign.memory.pirateHavens, haven.cityId, 123456);
+  const pirateSmuggling = structuredClone(campaignFixtures[0].state);
+  const pickup = pirateHavenQuestOffer(pirateSmuggling.memory.pirateHavens, haven, {
+    ...pirateContext, contractKind: "smuggling", ports: [port], contactForPort: () => ({ id: "lisbon-merchant", name: "Joao" })
+  });
+  acceptPirateHavenQuest(pirateSmuggling.memory.pirateHavens, pickup);
+  collectPirateGoods(pirateSmuggling.memory.pirateHavens, port.cityId, 22);
   return [
     ...campaignFixtures,
+    { campaignGoalType: "pirate-stolen-goods", state: pirateSmuggling },
     { campaignGoalType: "pirate-haven-campaign", state: pirateCampaign },
     { campaignGoalType: "exeter-canal-construction", state: canalConstruction },
     {

@@ -9,7 +9,7 @@ const merchant={id:"merchant-12",seed:77,name:"Santa Maria",captainName:"Joao",r
 for(const city of [haven,port]) test(`every enabled pirate commission action works at ${city.city}`,()=>{
  const state=createGameState({cargoCapacity:20});
  const context={simMinute:0,pirateRevengeTargetPresent:true,get pirateHavenQuestOffer(){return pirateHavenQuestOffer(state.memory.pirateHavens,city,{
-  havens:[haven],merchants:[merchant],sailingDistanceKm:()=>200,simMinute:0});}};
+  offerRoll: 0, contractKind: "revenge", havens:[haven],merchants:[merchant],sailingDistanceKm:()=>200,simMinute:0});}};
  const view=()=>pirateHavenCommissionView(state,city,context);
  const accept=view().options.find(o=>o.action.type==="accept-pirate-haven-quest").action;
  selectPirateHavenCommission(state,city,accept,context);
@@ -28,7 +28,7 @@ test("a lost merchant is explained and the player can close the commission witho
   const state = createGameState({ cargoCapacity: 20 });
   const context = { simMinute: 0, pirateRevengeTargetPresent: false,
     pirateHavenQuestOffer: pirateHavenQuestOffer(state.memory.pirateHavens, haven, {
-      havens: [haven], merchants: [merchant], sailingDistanceKm: () => 200, simMinute: 0
+      offerRoll: 0, contractKind: "revenge", havens: [haven], merchants: [merchant], sailingDistanceKm: () => 200, simMinute: 0
     }) };
   selectPirateHavenCommission(state, haven, { type: "accept-pirate-haven-quest", offer: context.pirateHavenQuestOffer }, context);
   const view = pirateHavenCommissionView(state, haven, context);
@@ -44,7 +44,7 @@ test("a lost merchant is explained and the player can close the commission witho
 test("a merchant moving between presentation and acceptance refreshes the offer without changing the contract silently", () => {
   const state = createGameState({ cargoCapacity: 20 });
   const original = pirateHavenQuestOffer(state.memory.pirateHavens, haven, {
-    havens: [haven], merchants: [merchant], sailingDistanceKm: () => 200, simMinute: 0
+    offerRoll: 0, contractKind: "revenge", havens: [haven], merchants: [merchant], sailingDistanceKm: () => 200, simMinute: 0
   });
   const latest = { ...original, targetPortName: "Seville", distanceKm: 300 };
   const result = selectPirateHavenCommission(state, haven, { type: "accept-pirate-haven-quest", offer: original }, { pirateHavenQuestOffer: latest });

@@ -1,3 +1,4 @@
+import { questOfferPolicy } from "./questOfferPolicies.js";
 import {
   colonizationTargetPortId,
   colonizationTargetForCity,
@@ -35,8 +36,8 @@ export const COLONIZATION_RESUPPLY_DAYS = 365;
 export const COLONIZATION_RESUPPLY_EXTENSION_DAYS_PER_UNIT = 30;
 export const COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER = 0.85;
 export const COLONIZATION_ORGANIZER_APPROACHED_FLAG = "colonizationOrganizerApproached";
-export const COLONIZATION_SPAWN_CHANCE = 0.12;
-export const COLONIZATION_ROLL_PERIOD_MINUTES = 14 * 24 * 60;
+export const COLONIZATION_SPAWN_CHANCE = questOfferPolicy("colonization").spawnChance;
+export const COLONIZATION_ROLL_PERIOD_MINUTES = questOfferPolicy("colonization").rollPeriodMinutes;
 export const COLONIZATION_MIN_VOYAGE_DISTANCE_KM = 1200;
 export const COLONIZATION_STAGE_FETCH = "fetch";
 export const COLONIZATION_STAGE_READY = "ready";

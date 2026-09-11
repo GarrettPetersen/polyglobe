@@ -1,3 +1,4 @@
+import { questOfferPolicy, questOfferWindowOpen } from "./questOfferPolicies.js";
 import { ensureWorldEconomyPlayerShipyardBacking } from "./economy.js";
 import { requireCityId } from "./entityIds.js";
 import { shipyardAtPort } from "./shipyards.js";
@@ -9,7 +10,7 @@ export const SHIPYARD_INVESTMENT_MATERIALS = Object.freeze({
   iron: 12,
   "naval-stores": 10
 });
-export const SHIPYARD_INVESTMENT_REOFFER_MINUTES = 60 * 24 * 60;
+export const SHIPYARD_INVESTMENT_REOFFER_MINUTES = questOfferPolicy("shipyard").cooldownMinutes;
 
 export const SHIPYARD_INVESTMENT_VERSION = 3;
 
@@ -75,6 +76,7 @@ export function shipyardInvestmentOfferAvailable(state, city, yard, simMinute = 
   const cooledDown = memory.lastCompletedMinute === null ||
     simMinute >= memory.lastCompletedMinute + SHIPYARD_INVESTMENT_REOFFER_MINUTES;
   return memory.project === null && cooledDown &&
+    questOfferWindowOpen(state.voyageSeed, requireCityId(city), simMinute, "shipyard") &&
     state.doubloons >= SHIPYARD_INVESTMENT_MINIMUM_PURSE &&
     yard?.famous === true &&
     yard?.playerBacking === null &&

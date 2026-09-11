@@ -1,3 +1,4 @@
+import { arrivalOfferEligible, recordArrivalOffer } from "./arrivalOfferCadence.js";
 import { riverPortApproachReachable } from "./riverPortApproach.js";
 import { createWorldMutationBoundary } from "./runtimeTransitions.js";
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
@@ -52,6 +53,7 @@ test("Topsham's commissioner approaches on arrival and resumes the interrupted g
   const start = source.indexOf("function maybeOpenExeterCanalArrivalDialogue(");
   const end = source.indexOf("function maybeOpenCrewRecruitmentArrival(", start);
   const context = vm.createContext({
+    arrivalOfferEligible, recordArrivalOffer,
     dialogueState: session, gameState: state, weatherClockMinutes: 0,
     exeterCanalQuestView, invalidateDialogueOptionGeometry() {},
     ensureDialoguePortraitLoaded() {}, dirty: false

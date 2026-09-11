@@ -1,3 +1,4 @@
+import { questOfferPolicy } from "./questOfferPolicies.js";
 import { RICE_GOOD_ID, tradeGoodById } from "./economy.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import { hasPermanentCrewBerth } from "./namedCrew.js";
@@ -14,8 +15,8 @@ export const CHEF_QUEST_STAGE_FEASTING = "feasting";
 export const CHEF_QUEST_STAGE_RECRUITMENT = "recruitment";
 export const CHEF_QUEST_STAGE_RECRUITED = "recruited";
 export const CHEF_QUEST_REWARD = 500;
-export const CHEF_QUEST_SPAWN_CHANCE = 0.08;
-export const CHEF_QUEST_ROLL_PERIOD_MINUTES = 21 * 24 * 60;
+export const CHEF_QUEST_SPAWN_CHANCE = questOfferPolicy("chef").spawnChance;
+export const CHEF_QUEST_ROLL_PERIOD_MINUTES = questOfferPolicy("chef").rollPeriodMinutes;
 
 const STAGES = new Set([
   CHEF_QUEST_STAGE_LOCKED,

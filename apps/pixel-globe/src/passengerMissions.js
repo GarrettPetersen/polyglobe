@@ -1,3 +1,4 @@
+import { questOfferPolicy } from "./questOfferPolicies.js";
 import { activeQuestById } from "./activeQuests.js";
 import {
   cityKey,
@@ -74,12 +75,12 @@ import {
   isImperialElectionEnvoyQuest
 } from "./imperialElectionMissions.js";
 
-export const PASSENGER_SPAWN_CHANCE = 0.12;
+export const PASSENGER_SPAWN_CHANCE = questOfferPolicy("passenger").spawnChance;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
 export const PASSENGER_MAX_DISTANCE_KM = 4200;
 export const PASSENGER_PREFERRED_DISTANCE_KM = 2400;
-export const PASSENGER_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
-export const ENVOY_SPAWN_CHANCE = 0.08;
+export const PASSENGER_ROLL_PERIOD_MINUTES = questOfferPolicy("passenger").rollPeriodMinutes;
+export const ENVOY_SPAWN_CHANCE = questOfferPolicy("envoy").spawnChance;
 export const HAJJ_PASSENGER_SCENARIO_ID = "hajj";
 export const HAJJ_PASSENGER_SCENARIO_CHANCE = 0.35;
 export const HAJJ_RETURN_PASSENGER_SCENARIO_ID = "hajj-return";

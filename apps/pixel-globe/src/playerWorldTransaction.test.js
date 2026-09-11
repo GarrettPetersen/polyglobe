@@ -31,6 +31,7 @@ for (const phase of ["in-flight", "queued", "compare", "restore"]) {
     advanceWorldEconomy(simulated, 360);
     const simulatedSnapshot = snapshotWorldEconomy(simulated);
     const state = createGameState({ cargoCapacity: 200 });
+    state.voyageSeed = "yard-test-8";
     state.doubloons = 120000;
     startPlayerShipyardInvestment(state, city, shipyardAtPort(economy.shipyards, city), { simMinute: 0 });
     state.memory.shipyardInvestment.project.capitalPaid = true;

@@ -1,8 +1,8 @@
 {
-  "version": "resurrect-icons-51",
+  "version": "resurrect-icons-52",
   "palette": "Resurrect 64",
   "width": 256,
-  "height": 224,
+  "height": 240,
   "iconSize": 16,
   "icons": [
     {
@@ -2313,9 +2313,21 @@
       "lightMonotone": "#625565"
     },
     {
-      "id": "item:surgeons-chest",
+      "id": "item:stolen-chest",
       "rect": {
         "x": 128,
+        "y": 192,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:surgeons-chest",
+      "rect": {
+        "x": 144,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2327,7 +2339,7 @@
     {
       "id": "item:pilots-instruments",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2339,7 +2351,7 @@
     {
       "id": "item:longsword",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2351,7 +2363,7 @@
     {
       "id": "item:tulwar",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2363,7 +2375,7 @@
     {
       "id": "item:katana",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2375,7 +2387,7 @@
     {
       "id": "item:padded-jack",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2387,7 +2399,7 @@
     {
       "id": "item:brigandine",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 192,
         "w": 16,
         "h": 16
@@ -2399,8 +2411,8 @@
     {
       "id": "item:indo-persian-mail",
       "rect": {
-        "x": 240,
-        "y": 192,
+        "x": 0,
+        "y": 208,
         "w": 16,
         "h": 16
       },
@@ -2410,18 +2422,6 @@
     },
     {
       "id": "item:lamellar-coat",
-      "rect": {
-        "x": 0,
-        "y": 208,
-        "w": 16,
-        "h": 16
-      },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#6e2727"
-    },
-    {
-      "id": "item:wheellock-pistol",
       "rect": {
         "x": 16,
         "y": 208,
@@ -2433,7 +2433,7 @@
       "lightMonotone": "#6e2727"
     },
     {
-      "id": "item:mariners-bows",
+      "id": "item:wheellock-pistol",
       "rect": {
         "x": 32,
         "y": 208,
@@ -2442,10 +2442,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#4c3e24"
+      "lightMonotone": "#6e2727"
     },
     {
-      "id": "item:english-longbows",
+      "id": "item:mariners-bows",
       "rect": {
         "x": 48,
         "y": 208,
@@ -2457,9 +2457,21 @@
       "lightMonotone": "#4c3e24"
     },
     {
-      "id": "item:composite-recurve-bows",
+      "id": "item:english-longbows",
       "rect": {
         "x": 64,
+        "y": 208,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:composite-recurve-bows",
+      "rect": {
+        "x": 80,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2471,7 +2483,7 @@
     {
       "id": "item:yumi",
       "rect": {
-        "x": 80,
+        "x": 96,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2483,7 +2495,7 @@
     {
       "id": "item:viking-bows",
       "rect": {
-        "x": 96,
+        "x": 112,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2495,7 +2507,7 @@
     {
       "id": "item:crossbows",
       "rect": {
-        "x": 112,
+        "x": 128,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2507,7 +2519,7 @@
     {
       "id": "item:matchlock-arquebuses",
       "rect": {
-        "x": 128,
+        "x": 144,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2518,7 +2530,7 @@
     {
       "id": "item:swivel-gun",
       "rect": {
-        "x": 144,
+        "x": 160,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2530,7 +2542,7 @@
     {
       "id": "item:incendiary-arrows",
       "rect": {
-        "x": 160,
+        "x": 176,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2542,7 +2554,7 @@
     {
       "id": "item:bronze-fish-hooks",
       "rect": {
-        "x": 176,
+        "x": 192,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2554,7 +2566,7 @@
     {
       "id": "item:zamzam-flask",
       "rect": {
-        "x": 192,
+        "x": 208,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2566,7 +2578,7 @@
     {
       "id": "good:gunpowder",
       "rect": {
-        "x": 208,
+        "x": 224,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2577,7 +2589,7 @@
     {
       "id": "good:matchlocks",
       "rect": {
-        "x": 224,
+        "x": 240,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2588,8 +2600,8 @@
     {
       "id": "good:coal",
       "rect": {
-        "x": 240,
-        "y": 208,
+        "x": 0,
+        "y": 224,
         "w": 16,
         "h": 16
       },

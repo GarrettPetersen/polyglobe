@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-51";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-52";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -259,6 +259,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "item:flemish-sailcloth": nikoichu("Tools_Crafting_Tailoring_Cloth_Sewing_Materials.png", ICON_COLOR.sea),
   "item:lateen-sailcloth": nikoichu("RPG_Item_Accessory_Armor_Equipment_Slot_Cape_Cloak_Clothing.png", ICON_COLOR.gold),
   "item:lead-sheathing": nikoichu("RPG_Item_Stat_Shield_Defense_Armor.png", ICON_COLOR.steel),
+  "item:stolen-chest": nikoichu("Tools_Crafting_Chest_Locked_Loot.png", ICON_COLOR.timber),
   "item:surgeons-chest": nikoichu("Misc_Stethoscope_Doctor_Medic_Tool.png", ICON_COLOR.danger),
   "item:pilots-instruments": nikoichu("Map_Markers_Compass_Rose_2.png", ICON_COLOR.navigation),
   "item:longsword": nikoichu("RPG_Item_Weapon_Sword_Attack_Melee_Slashing_Damage.png", ICON_COLOR.steel),
@@ -346,6 +347,8 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   "caribbean-ginger": "good:ginger",
   "chef-quest": "action:talk",
   "exeter-canal": "action:talk",
+  "pirate-goods": "action:quest",
+  "pirate-goods-day": "action:quest",
   "pirate-haven-commission": "action:quest",
   colonization: "action:quest",
   conquistador: "action:attack",
@@ -449,6 +452,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "deliver-caribbean-ginger": "good:ginger",
   "deliver-chef-ingredients": "action:quest",
   "accept-exeter-canal": "action:quest",
+  "collect-pirate-goods": "action:quest",
   "accept-pirate-haven-quest": "action:quest",
   "complete-pirate-haven-quest": "action:quest",
   "abandon-pirate-haven-quest": "action:quest",

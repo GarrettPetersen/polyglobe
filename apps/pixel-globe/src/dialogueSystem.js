@@ -1,5 +1,6 @@
+import { pirateQuestAtIssuer, pirateGoodsPickupStatus, collectPirateGoods } from "./pirateHavens.js";
 import { PIRATE_FACTION_ID } from "./factions.js";
-import { pirateHavenCommissionView, selectPirateHavenCommission } from "./pirateHavenDialogue.js";
+import { pirateHavenCommissionView, selectPirateHavenCommission, pirateGoodsPickupView } from "./pirateHavenDialogue.js";
 import { colonySeasonalAccessWarning } from "./colonySeasonalAccess.js";
 import { activeQuestById } from "./activeQuests.js";
 import { purchaseShipyardUpgrade, shipyardHasAdvancedFacilities } from "./shipyards.js";
@@ -1986,6 +1987,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "caribbean-ginger") {
     return caribbeanGingerView(session, city, gameState);
   }
+  if (["pirate-goods", "pirate-goods-day"].includes(session.nodeId)) return pirateGoodsPickupView(gameState, city, context);
   if (session.nodeId === "pirate-haven-commission") return pirateHavenCommissionView(gameState, city, context);
   if (session.nodeId === "exeter-canal") return exeterCanalDialogueView(session, city, gameState, context);
   if (session.nodeId === "chef-quest") return chefQuestView(session, city, gameState, context);
@@ -2749,6 +2751,13 @@ export function selectPortDialogueAction(
     session.nodeId = session.questReturnNodeId || "root";
     session.selectedIndex = 0;
     return { closed: false };
+  }
+  if (action.type === "collect-pirate-goods") {
+    if (!["pirate-goods", "pirate-goods-day"].includes(session.nodeId)) throw new Error("Stolen goods require the waterfront meeting");
+    collectPirateGoods(gameState.memory.pirateHavens, city.cityId, context.localHour);
+    session.nodeId = "root";
+    session.selectedIndex = 0;
+    return { closed: false, pirateHavenQuestChanged: true };
   }
   if (["accept-pirate-haven-quest", "complete-pirate-haven-quest", "abandon-pirate-haven-quest"].includes(action.type)) {
     if (session.disguisedEntry || session.nodeId !== "pirate-haven-commission") throw new Error("Pirate commission requires an audience");
@@ -4953,6 +4962,10 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
       ? [option("Ask about the garrison", { type: "node", nodeId: "garrison" })]
       : [])
   ];
+  const piratePickup = pirateGoodsPickupStatus(gameState.memory.pirateHavens, city.cityId, context.localHour);
+  if (piratePickup.present) options.push(option("Meet the suspicious merchant", {
+    type: "node", nodeId: piratePickup.eligible ? "pirate-goods" : "pirate-goods-day"
+  }));
   for (const entry of specialInnRootOptions(session, city, gameState, context)) {
     options.splice(4, 0, entry);
   }
@@ -5123,8 +5136,8 @@ function passengerInnRootOptions(session, context, pirateHideout) {
 function specialInnRootOptions(session, city, gameState, context) {
   if (session.disguisedEntry) return [];
   const options = [];
-  if (context.pirateHavenQuestOffer || gameState.memory.pirateHavens[city.isPirateHideout ? "revenge" : "suppression"]) {
-    options.push(option(city.isPirateHideout ? "Hear the pirate captain’s grievance" : "Ask about pirate havens", { type: "node", nodeId: "pirate-haven-commission" }));
+  if (context.pirateHavenQuestOffer || pirateQuestAtIssuer(gameState.memory.pirateHavens, city)) {
+    options.push(option(city.isPirateHideout ? "Ask the pirate captain for work" : "Ask about pirate havens", { type: "node", nodeId: "pirate-haven-commission" }));
   }
   if (city.cityId === TOPSHAM_CITY_ID && !exeterCanalQuestView(gameState, city, context.simMinute ?? 0).complete) {
     options.push(option("Speak with Exeter's canal commissioner", { type: "node", nodeId: "exeter-canal" }));
@@ -5369,6 +5382,7 @@ function illicitCaughtView(session, city) {
 }
 
 function cityMenuPrompt(locationId) {
+  if (locationId === PORT_CITY_LOCATION.ILLICIT_MERCHANT) return "What quiet business brings you here?";
   if (locationId === PORT_CITY_LOCATION.MARKET) return "The merchants await your business.";
   if (locationId === PORT_CITY_LOCATION.SHIP) return "What shall we do aboard?";
   if (locationId === PORT_CITY_LOCATION.SHIPYARD) return "The yard offers several kinds of business.";

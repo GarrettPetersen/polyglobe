@@ -1,8 +1,10 @@
+import { questOfferCooldownReady, recordQuestOffer } from "./questOfferPolicies.js";
+import { arrivalOfferEligible, recordArrivalOffer } from "./arrivalOfferCadence.js";
 import { shipTargetRumorEligible, recordShipTargetRumor, shipTargetRumorText } from "./shipTargetRumors.js";
 import { stationWokouHuntAtPort } from "./npcSeaRoutes.js";
 import { pirateHavenNavigationReasonText } from "./pirateHavenDialogue.js";
 import { shipItemRows } from "./gameState.js";
-import { pirateHavenIsRuined, pirateRevengeTargetPresent, pirateHavenIsVisible, pirateHavenQuestOffer, ruinPirateHaven, seizePirateRevengeItem } from "./pirateHavens.js";
+import { pirateQuestAtIssuer, pirateHavenIsRuined, pirateRevengeTargetPresent, pirateHavenIsVisible, pirateHavenQuestOffer, ruinPirateHaven, seizePirateRevengeItem } from "./pirateHavens.js";
 import { riverPortApproachReachable } from "./riverPortApproach.js";
 import { chartCityLocationId, indexChartCityLocations } from "./chartCityLocations.js";
 import { offscreenCannonCue, CANNON_CUE_DURATION_MS } from "./offscreenCannonCue.js";
@@ -17030,9 +17032,16 @@ function installSaveRestoreSmokeHarness() {
         serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
     },
     async exercisePirateCommission(kind) {
-      if (running || !["revenge", "suppression"].includes(kind)) throw new Error("Invalid pirate commission inspection");
-      const issuerId = kind === "revenge" ? "pirate-haven-14" : "lisbon|portugal";
+      if (running || !["revenge", "suppression", "smuggling"].includes(kind)) throw new Error("Invalid pirate commission inspection");
+      const issuerId = kind === "suppression" ? "lisbon|portugal" : "pirate-haven-14";
+      let foundOffer = false;
+      for (let seed = 0; seed < 100; seed++) {
+        gameState.voyageSeed = `pirate-contract-ui-${kind}-${seed}`;
+        if (pirateQuestOfferForCity(cityById.get(issuerId), Math.floor(weatherClockMinutes))?.kind === kind) { foundOffer = true; break; }
+      }
+      if (!foundOffer) throw new Error(`No local ${kind} fixture offer`);
       const enter = (cityId, nodeId) => {
+        visitPort(gameState, requireEntityById(cityById, cityId, "Pirate smoke visit"), Math.floor(weatherClockMinutes));
         placeCapturePlayerNearTile(requireEntityById(cityById, cityId, "Pirate smoke destination").tileId, { headingDeg: 0 });
         openCapturePortNode(cityId, nodeId);
       };
@@ -17044,6 +17053,12 @@ function installSaveRestoreSmokeHarness() {
         if (index < 0) throw new Error(`Pirate commission has no enabled ${type}: ${view.text}`);
         chooseDialogueOption(index);
       };
+      const capture = async stage => {
+        portCityTransition = null;
+        render(performance.now(), { allowColdCoveredWorldRender: true });
+        if (typeof window.__PIXEL_GLOBE_SMOKE_CAPTURE_STAGE__ === "function") await window.__PIXEL_GLOBE_SMOKE_CAPTURE_STAGE__(stage);
+      };
+      if (kind === "smuggling") await capture("stolen-goods-offer");
       choose("accept-pirate-haven-quest");
       const quest = gameState.memory.pirateHavens[kind];
       if (!quest) throw new Error("Pirate commission was not accepted");
@@ -17052,6 +17067,28 @@ function installSaveRestoreSmokeHarness() {
         if (!merchant || merchant.role !== NPC_ROLE_MERCHANT) throw new Error("Commission did not select a live merchant");
         receivePlayerSurrenderedShipLoot(merchant, { specie: 0, cargo: {} }, null);
         if (!shipItemRows(gameState).some(row => row.id === quest.itemId)) throw new Error("Seized heirloom missing from inventory");
+      } else if (kind === "smuggling") {
+        const pickup = cityById.get(quest.pickupCityId);
+        const arriveAtHour = async hour => {
+          const currentHour = weatherLocalHour(weatherClockMinutes, graph.lonDeg[pickup.tileId]);
+          weatherClockMinutes += ((hour - currentHour + 24) % 24) * 60;
+          resetDistantWorldWorkerSchedule();
+          refreshWeatherState(true);
+          enter(pickup.cityId, "root");
+          await synchronizePortCityScene();
+          portCityTransition = null;
+          render(performance.now(), { allowColdCoveredWorldRender: true });
+          const contact = portCityRuntime.getDestinationIds().includes(PORT_CITY_LOCATION.ILLICIT_MERCHANT);
+          if (!contact) throw new Error("Pickup merchant is absent from the city scene");
+          activatePortCityDestination({ id: PORT_CITY_LOCATION.ILLICIT_MERCHANT });
+        };
+        await arriveAtHour(12);
+        await capture("stolen-goods-daytime");
+        if (currentDialogueView().options.some(option => option.action.type === "collect-pirate-goods")) throw new Error("Daytime pickup was enabled");
+        await arriveAtHour(22);
+        await capture("stolen-goods-nighttime");
+        choose("collect-pirate-goods");
+        if (!shipItemRows(gameState).some(row => row.id === quest.itemId && row.iconId === "item:stolen-chest")) throw new Error("Stolen chest is missing from inventory");
       } else {
         enter(quest.havenCityId, "root");
         await synchronizePortCityScene();
@@ -22646,6 +22683,10 @@ function maybeOpenExeterCanalArrivalDialogue(cityCall) {
       dialogueState.exeterCanalArrivalPresented || dialogueState.disguisedEntry) return false;
   const quest = exeterCanalQuestView(gameState, cityCall, Math.floor(weatherClockMinutes));
   if (!quest || (quest.accepted && !quest.canDeliver)) return false;
+  if (!quest.accepted) {
+    if (!arrivalOfferEligible(gameState.memory.decisions, "exeter", Math.floor(weatherClockMinutes))) return false;
+    recordArrivalOffer(gameState.memory.decisions, "exeter", Math.floor(weatherClockMinutes));
+  }
   dialogueState.exeterCanalArrivalPresented = true;
   dialogueState.exeterCanalReturnNodeId = dialogueState.nodeId;
   dialogueState.nodeId = "exeter-canal";
@@ -22720,8 +22761,9 @@ function maybeOpenSovereignWarLoanDialogue(cityCall) {
       simMinute
     });
   }
+  const hadPendingOffer = Boolean(memory.offer);
   const capitalFactionId = sovereignCapitalFactionId(cityCall);
-  if (!memory.offer && gameState.doubloons >= SOVEREIGN_WAR_LOAN_OFFER_THRESHOLD &&
+  if (!memory.offer && arrivalOfferEligible(gameState.memory.decisions, "war-loan", simMinute) && gameState.doubloons >= SOVEREIGN_WAR_LOAN_OFFER_THRESHOLD &&
       capitalFactionId && npcFactionCanMaintainCapitalNavalReserve(npcSeaRoutes, capitalFactionId)) {
     const enemyFactionId = sovereignWarLoanEnemyForCapital(cityCall, capitalFactionId);
     if (enemyFactionId) {
@@ -22730,11 +22772,15 @@ function maybeOpenSovereignWarLoanDialogue(cityCall) {
         enemyFactionId,
         capital: cityCall,
         simMinute,
-        doubloons: gameState.doubloons
+        doubloons: gameState.doubloons, voyageSeed: gameState.voyageSeed
       });
     }
   }
   if (!sovereignWarLoanOfferNeedsPresentation(memory, cityCall, gameState.doubloons)) return false;
+  if (!hadPendingOffer) {
+    if (!arrivalOfferEligible(gameState.memory.decisions, "war-loan", simMinute)) return false;
+    recordArrivalOffer(gameState.memory.decisions, "war-loan", simMinute);
+  }
   return openSovereignWarLoanOfferDialogue(cityCall);
 }
 
@@ -23238,6 +23284,8 @@ function maybeOpenShipyardInvestmentOfferDialogue(cityCall) {
       dialogueState.shipyardInvestmentOfferApproached === true) {
     return false;
   }
+  const simMinute = Math.floor(weatherClockMinutes);
+  if (!arrivalOfferEligible(gameState.memory.decisions, "shipyard", simMinute)) return false;
   const yard = worldEconomy?.shipyards.yards.get(cityCall.cityId) || null;
   if (!shipyardInvestmentOfferAvailable(
     gameState,
@@ -23247,6 +23295,7 @@ function maybeOpenShipyardInvestmentOfferDialogue(cityCall) {
   )) {
     return false;
   }
+  recordArrivalOffer(gameState.memory.decisions, "shipyard", simMinute);
   dialogueState.shipyardInvestmentOfferApproached = true;
   dialogueState.shipyardInvestmentArrival = true;
   dialogueState.nextPortNodeId = dialogueState.nodeId;
@@ -23307,6 +23356,8 @@ function maybeOpenConquistadorOfferDialogue(cityCall) {
   }
   const memory = gameState.memory.quests.conquistador;
   if (!conquistadorQuestOfferShouldApproach(memory, cityCall, portCities)) return false;
+  if (!arrivalOfferEligible(gameState.memory.decisions, "conquistador", Math.floor(weatherClockMinutes))) return false;
+  recordArrivalOffer(gameState.memory.decisions, "conquistador", Math.floor(weatherClockMinutes));
   ensureConquistadorQuestGiver(gameState);
   markConquistadorOfferSeen(memory);
   dialogueState.conquistadorOfferApproached = true;
@@ -23806,7 +23857,10 @@ function maybeOpenHospitallerMaltaQuestPortDialogue(cityCall) {
   const objective = hospitallerMaltaQuestObjective(memory);
   if (!objective || objective.destination.cityId !== cityCall.cityId) return false;
   if (memory.stage === HOSPITALLER_MALTA_STAGE_SEEK_ROME) {
-    return openHospitallerMaltaPetitionOffer(cityCall, memory);
+    if (!arrivalOfferEligible(gameState.memory.decisions, "hospitaller", Math.floor(weatherClockMinutes))) return false;
+    const opened = openHospitallerMaltaPetitionOffer(cityCall, memory);
+    if (opened) recordArrivalOffer(gameState.memory.decisions, "hospitaller", Math.floor(weatherClockMinutes));
+    return opened;
   }
   if (memory.stage === HOSPITALLER_MALTA_STAGE_PETITION) {
     return openHospitallerMaltaGrantAudience(cityCall, memory);
@@ -24530,6 +24584,10 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     companionOfferAvailable: companionOfferIds.length > 0,
     formerCompanionGreetingAvailable: companionGreetingId !== null
   })) return false;
+  if (!before.met) {
+    if (!arrivalOfferEligible(gameState.memory.decisions, "naturalist", Math.floor(weatherClockMinutes))) return false;
+    recordArrivalOffer(gameState.memory.decisions, "naturalist", Math.floor(weatherClockMinutes));
+  }
   const naturalist = ensureNaturalistCharacter(gameState);
   const naturalistLine = (expressionId, message) => pairedCharacterAlertStep({
     leftCharacter: gameState.playerCharacter,
@@ -28426,19 +28484,7 @@ function portDialogueContext() {
   return {
     get pirateRevengeTargetPresent() { return pirateRevengeTargetPresent(gameState.memory.pirateHavens, npcSeaRoutes.shipById); },
     get pirateHavenQuestOffer() {
-      if (!city || dialogueState?.disguisedEntry) return null;
-      const supplyShipIds = new Set([...worldEconomy.shipyards.yards.values()]
-        .map(yard => yard.upgrades?.supplyCommission?.shipId).filter(Boolean));
-      return pirateHavenQuestOffer(gameState.memory.pirateHavens, city, {
-        havens: npcSeaRoutes.pirateHideouts,
-        merchants: city.isPirateHideout ? npcSeaRoutes.ships.filter(npc => npc.role === NPC_ROLE_MERCHANT).map(npc => ({
-          id: npc.id, seed: npc.seed, slug: npc.slug, role: npc.role, hitPoints: npc.hitPoints,
-          encounter: npc.encounter, currentPort: npc.currentPort, portVisits: npc.portVisits,
-          graceUntilPortVisit: npc.graceUntilPortVisit,
-          commissioned: supplyShipIds.has(npc.id),
-          captainName: npcShipCaptains.get(npc.id)?.name })) : [],
-        sailingDistanceKm: sailingDistanceBetweenPorts, simMinute
-      });
+      return city && !dialogueState?.disguisedEntry ? pirateQuestOfferForCity(city, simMinute) : null;
     },
     random: Math.random,
     missionGiftRandom: Math.random,
@@ -40468,6 +40514,7 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
   const memory = gameState?.memory?.quests?.pirateCaptive;
   if (!memory) throw new Error("Cannot create pirate captive quest without quest memory");
   if (memory.active) return false;
+  if (!questOfferCooldownReady(gameState.memory.decisions, "pirate-captive", weatherClockMinutes)) return false;
   const reservedBerths = futurePermanentCrewFloor(gameState) - permanentCrewFloor(gameState);
   if (!hasPermanentCrewBerth(gameState, reservedBerths)) return false;
   if (!pirateCaptiveRescueAppears(Math.random())) return false;
@@ -40513,6 +40560,7 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
     captiveKindRoll: Math.random()
   });
   if (!quest) return false;
+  recordQuestOffer(gameState.memory.decisions, "pirate-captive", weatherClockMinutes);
   activateDialogueSession(createRescuedTravelerDialogueSession(quest, {
     phase: "offer",
     surrenderPrize
@@ -40529,6 +40577,7 @@ function maybeOpenCastawayQuest(shoreCall) {
   const memory = gameState?.memory?.quests?.castaway;
   if (!memory) throw new Error("Cannot create castaway quest without quest memory");
   if (memory.active) return false;
+  if (!questOfferCooldownReady(gameState.memory.decisions, "castaway", weatherClockMinutes)) return false;
   if (dialogueState) throw new Error(`Cannot find a castaway while ${dialogueState.kind} dialogue is active`);
   const reservedBerths = futurePermanentCrewFloor(gameState) - permanentCrewFloor(gameState);
   if (!hasPermanentCrewBerth(gameState, reservedBerths)) return false;
@@ -40571,6 +40620,7 @@ function maybeOpenCastawayQuest(shoreCall) {
     emergencyAid: castawayEmergencyAidNeed(gameState)
   });
   if (!quest) return false;
+  recordQuestOffer(gameState.memory.decisions, "castaway", weatherClockMinutes);
   activateDialogueSession(createRescuedTravelerDialogueSession(quest, { phase: "offer" }), { movement: "stop" });
   saveVoyageNow("found castaway while weighing anchor");
   dirty = true;
@@ -50015,7 +50065,8 @@ function drawShipPaperDetail(panel, view) {
   const labelW = Math.min(70, Math.floor(contentW * 0.3));
   const valueX = left + labelW;
   const valueW = Math.max(40, contentW - labelW);
-  const titleLines = wrapPixelTextAll(paper.title.toUpperCase(), PIXEL_FONT_DIALOGUE_8, contentW);
+  const iconSpace = paper.iconId ? GAME_ICON_SIZE + 5 : 0;
+  const titleLines = wrapPixelTextAll(paper.title.toUpperCase(), PIXEL_FONT_DIALOGUE_8, contentW - iconSpace);
   const fields = [
     ["TYPE", paper.kind],
     ["ISSUER", paper.issuer],
@@ -50035,7 +50086,7 @@ function drawShipPaperDetail(panel, view) {
     w: contentRight - left,
     h: panel.h - contentTop - UI_PAGER_BUTTON_H - 13
   };
-  const titleHeight = titleLines.length * titleLineHeight;
+  const titleHeight = Math.max(titleLines.length * titleLineHeight, paper.iconId ? GAME_ICON_SIZE : 0);
   const fieldsHeight = fields.reduce((sum, field) => sum + Math.max(1, field.lines.length) * lineHeight + 5, 0);
   const contentHeight = titleHeight + 13 + fieldsHeight;
   shipInfoMenu.paperDetailMaxScrollY = Math.max(0, contentHeight - viewport.h);
@@ -50050,11 +50101,13 @@ function drawShipPaperDetail(panel, view) {
   ctx.rect(viewport.x, viewport.y, viewport.w, viewport.h);
   ctx.clip();
   let y = viewport.y - shipInfoMenu.paperDetailScrollY;
+  if (paper.iconId) drawGameIcon(paper.iconId, left, y);
+  const titleTop = y;
   titleLines.forEach((line) => {
-    drawOptionsText(line, left, y, { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK });
+    drawOptionsText(line, left + iconSpace, y, { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK });
     y += titleLineHeight;
   });
-  y += 5;
+  y = titleTop + titleHeight + 5;
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(left, y, contentW, 1);
   y += 8;
@@ -68443,13 +68496,31 @@ function pirateHavenPresentation(port) {
   return { ...port, pirateHavenRuined: pirateHavenIsRuined(gameState.memory.pirateHavens, port.cityId, weatherClockMinutes) };
 }
 
+function pirateQuestOfferForCity(city, simMinute) {
+  const supplyShipIds = new Set([...worldEconomy.shipyards.yards.values()]
+    .map(yard => yard.upgrades?.supplyCommission?.shipId).filter(Boolean));
+  return pirateHavenQuestOffer(gameState.memory.pirateHavens, city, {
+    havens: npcSeaRoutes.pirateHideouts, ports: playerAccessiblePortCities(), voyageSeed: gameState.voyageSeed,
+    contactForPort: port => portCityStaffMember(port, PORT_CITY_STAFF_ROLE.MERCHANT),
+    merchants: city.isPirateHideout ? npcSeaRoutes.ships.filter(npc => npc.role === NPC_ROLE_MERCHANT).map(npc => ({
+      id: npc.id, seed: npc.seed, slug: npc.slug, role: npc.role, hitPoints: npc.hitPoints,
+      encounter: npc.encounter, currentPort: npc.currentPort, portVisits: npc.portVisits,
+      graceUntilPortVisit: npc.graceUntilPortVisit, commissioned: supplyShipIds.has(npc.id),
+      captainName: npcShipCaptains.get(npc.id)?.name })) : [],
+    sailingDistanceKm: sailingDistanceBetweenPorts, simMinute
+  });
+}
+
 function maybeOpenPirateHavenArrivalDialogue(cityCall) {
   if (!["greeting", "root"].includes(dialogueState.nodeId) || dialogueState.disguisedEntry ||
       dialogueState.pirateHavenArrivalPresented || cityCall.pirateHavenRuined) return false;
   dialogueState.pirateHavenArrivalPresented = true;
-  const quest = gameState.memory.pirateHavens[cityCall.isPirateHideout ? "revenge" : "suppression"];
+  const quest = pirateQuestAtIssuer(gameState.memory.pirateHavens, cityCall);
+  const simMinute = Math.floor(weatherClockMinutes);
+  if (!quest && !arrivalOfferEligible(gameState.memory.decisions, "pirate", simMinute)) return false;
   if (!(quest?.ready && quest.originCityId === cityCall.cityId) &&
       (!(cityCall.isPirateHideout || cityCall.isFactionCapital) || quest || !portDialogueContext().pirateHavenQuestOffer)) return false;
+  if (!quest) recordArrivalOffer(gameState.memory.decisions, "pirate", simMinute);
   dialogueState.nodeId = "pirate-haven-commission";
   dialogueState.selectedIndex = 0;
   dialogueState.feedback = null;
@@ -68461,11 +68532,11 @@ function maybeOpenPirateHavenArrivalDialogue(cityCall) {
 
 function pirateHavenNavigationEntries() {
   if (!gameState) return [];
-  return [gameState.memory.pirateHavens.revenge, gameState.memory.pirateHavens.suppression].filter(Boolean).map(quest => {
+  return [gameState.memory.pirateHavens.revenge, gameState.memory.pirateHavens.suppression, gameState.memory.pirateHavens.smuggling].filter(Boolean).map(quest => {
     const lostTarget = quest.kind === "revenge" && !quest.ready && !pirateRevengeTargetPresent(gameState.memory.pirateHavens, npcSeaRoutes.shipById);
     const target = quest.kind === "revenge" && !quest.ready && !lostTarget ? npcSeaRoutes.shipById.get(quest.targetShipId) : null;
     const targetRouteVector = target ? npcShipSnapshotForId(npcSeaRoutes, target.id, weatherClockMinutes)?.routeVector : null;
-    const destinationId = quest.ready ? quest.originCityId : quest.havenCityId;
+    const destinationId = quest.ready ? quest.originCityId : quest.kind === "smuggling" ? quest.pickupCityId : quest.havenCityId;
     const destination = target?.currentPort || requireEntityById(cityById, destinationId, "Pirate quest destination");
     return { id: quest.id, destinationName: quest.kind === "revenge" && !quest.ready && !lostTarget
       ? `${quest.targetCaptainName}: ${quest.targetShipName}` : cityLabelText(destination),

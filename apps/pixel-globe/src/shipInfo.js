@@ -473,6 +473,7 @@ function shipItemPapers(items) {
   return items.map((item) => ({
     kind: "item",
     title: item.label,
+    iconId: item.iconId || null,
     issuer: item.issuer || "Ship stores",
     route: item.route || "Equipment",
     detail: item.quantity > 1 ? `${item.detail} x${item.quantity}` : item.detail,

@@ -1,3 +1,4 @@
+import { questOfferPolicy } from "./questOfferPolicies.js";
 import {
   RESCUED_TRAVELER_STAGE_ABOARD,
   RESCUED_TRAVELER_STAGE_HOMECOMING,
@@ -193,7 +194,7 @@ export function migratePirateCaptiveQuestMemory(memory, {
 
 export function pirateCaptiveRescueAppears(roll) {
   assertUnitRoll(roll, "pirate captive rescue");
-  return roll < 1 / 3;
+  return roll < questOfferPolicy("pirate-captive").spawnChance;
 }
 
 export function pirateCaptiveKindForRoll(roll) {

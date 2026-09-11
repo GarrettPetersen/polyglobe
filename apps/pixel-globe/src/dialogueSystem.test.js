@@ -5950,6 +5950,7 @@ test("a wealthy captain sees and can begin the major-port shipyard project", () 
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.voyageSeed = "yard-test-4";
   gameState.doubloons = 75000;
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const yard = economy.shipyards.yards.get(city.cityId);
@@ -5996,6 +5997,7 @@ test("opening a funded shipyard atomically creates its portfolio and readable wo
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.voyageSeed = "yard-test-4";
   gameState.doubloons = 75000;
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const yard = shipyardAtPort(economy.shipyards, city);
@@ -6062,6 +6064,7 @@ test("a proactive shipyard offer can be declined back into the arrival queue", (
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.voyageSeed = "yard-test-4";
   gameState.doubloons = 75000;
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const context = {

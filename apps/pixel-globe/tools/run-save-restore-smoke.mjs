@@ -996,7 +996,11 @@ async function exercisePirateHavens(page, browserErrors) {
   assert.match(hostile.text, /Black Gull Cove/);
   await assertNoBrowserFailure(page, browserErrors, "hostile pirate haven entry");
   process.stdout.write("  Feast aftermath, direct departure after waiting, and hostile haven entry passed.\n");
-  for (const kind of ["revenge", "suppression"]) {
+  await page.exposeBinding("__PIXEL_GLOBE_SMOKE_CAPTURE_STAGE__", async ({ page: sourcePage }, stage) => {
+    assert.ok(["stolen-goods-offer", "stolen-goods-daytime", "stolen-goods-nighttime"].includes(stage));
+    await sourcePage.screenshot({ path: path.join(screenshotRoot, `${stage}.png`) });
+  });
+  for (const kind of ["revenge", "suppression", "smuggling"]) {
     await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), baseline);
     await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectPirateCove({ showMercy: true }));
     const result = await page.evaluate(kind => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.exercisePirateCommission(kind), kind);

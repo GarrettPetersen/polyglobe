@@ -1,3 +1,4 @@
+import { questOfferPolicy } from "./questOfferPolicies.js";
 import { COLONIZATION_STAGE_ESTABLISHED } from "./colonizationQuest.js";
 import { CANONICAL_PORTS, portMatchesCanonicalReference } from "./canonicalPorts.js";
 import {
@@ -18,8 +19,8 @@ export const JAPANESE_MATCHLOCK_WORKSHOP_CITY_ID = CANONICAL_PORTS.KYOTO.cityId;
 export const JAPANESE_MATCHLOCK_PRODUCTION_PER_DAY = 1.5;
 export const JAPANESE_MATCHLOCK_INITIAL_STOCK = 6;
 export const JAPANESE_MATCHLOCK_COMPLETION_REWARD = 1200;
-export const JAPANESE_MATCHLOCK_SPAWN_CHANCE = 0.35;
-export const JAPANESE_MATCHLOCK_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
+export const JAPANESE_MATCHLOCK_SPAWN_CHANCE = questOfferPolicy("matchlocks").spawnChance;
+export const JAPANESE_MATCHLOCK_ROLL_PERIOD_MINUTES = questOfferPolicy("matchlocks").rollPeriodMinutes;
 
 export const JAPANESE_MATCHLOCK_STAGE_LOCKED = "locked";
 export const JAPANESE_MATCHLOCK_STAGE_ACTIVE = "active";

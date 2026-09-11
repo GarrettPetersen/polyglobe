@@ -1,3 +1,4 @@
+import { questOfferPolicy, questOfferRoll } from "./questOfferPolicies.js";
 import {
   DIPLOMACY_WAR,
   NEUTRAL_FACTION_ID,
@@ -23,7 +24,7 @@ export const SOVEREIGN_WAR_LOAN_REPAYMENT_READY = "repayment-ready";
 export const SOVEREIGN_WAR_LOAN_DEFAULT_READY = "default-ready";
 
 const SOVEREIGN_WAR_LOAN_MEMORY_VERSION = 2;
-const SOVEREIGN_WAR_LOAN_OFFER_COOLDOWN_MINUTES = 180 * WEATHER_MINUTES_PER_DAY;
+const SOVEREIGN_WAR_LOAN_OFFER_COOLDOWN_MINUTES = questOfferPolicy("war-loan").cooldownMinutes;
 const SOVEREIGN_WAR_LOAN_HISTORY_LIMIT = 12;
 const SOVEREIGN_WAR_LOAN_CUSTOMS_DAILY_BASE = Math.ceil(
   SOVEREIGN_WAR_LOAN_REPAYMENT / SOVEREIGN_WAR_LOAN_CUSTOMS_TERM_DAYS
@@ -114,7 +115,7 @@ export function createSovereignWarLoanOffer(memory, {
   enemyFactionId,
   capital,
   simMinute,
-  doubloons
+  doubloons, voyageSeed = "sovereign-credit", offerRoll
 }) {
   validateSovereignWarLoanMemory(memory);
   assertSovereignFactionId(borrowerFactionId);
@@ -131,11 +132,12 @@ export function createSovereignWarLoanOffer(memory, {
   if (!Number.isFinite(doubloons) || doubloons < 0) throw new Error(`Invalid purse: ${doubloons}`);
   if (doubloons < SOVEREIGN_WAR_LOAN_OFFER_THRESHOLD || memory.contract) return null;
   if (memory.offer) return memory.offer;
-  const lastOfferMinute = memory.lastOfferMinuteByFactionId[borrowerFactionId];
-  if (Number.isFinite(lastOfferMinute) &&
-      simMinute < lastOfferMinute + SOVEREIGN_WAR_LOAN_OFFER_COOLDOWN_MINUTES) {
-    return null;
-  }
+  const latestOfferMinute = Math.max(-Infinity, ...Object.values(memory.lastOfferMinuteByFactionId));
+  if (simMinute < latestOfferMinute + SOVEREIGN_WAR_LOAN_OFFER_COOLDOWN_MINUTES) return null;
+  const roll = offerRoll ?? questOfferRoll(voyageSeed, borrowerFactionId, simMinute, "war-loan");
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) throw new Error("Invalid sovereign loan offer roll");
+  if (roll >= questOfferPolicy("war-loan").spawnChance) return null;
+  memory.lastOfferMinuteByFactionId[borrowerFactionId] = simMinute;
   memory.sequence += 1;
   memory.offer = {
     id: `sovereign-war-loan:${borrowerFactionId}:${memory.sequence}`,

@@ -213,23 +213,29 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
       }
       assertFleetSaleIntegrity(voyage);
       if (month % 2 === 0) {
-        const prize = voyage.npcSeaRoutes.ships.find(ship => ship.role === fleet.NPC_ROLE_MERCHANT && !ship.surrendered && ship.hitPoints > 0);
-        assert.ok(prize, "Campaign needs an eligible merchant prize");
         const memory = voyage.gameState.memory.pirateHavens;
-        const haven = voyage.npcSeaRoutes.pirateHideouts.find(port => !pirateHavenIsRuined(memory, port.cityId, minute));
-        assert.ok(haven, "Campaign requires an operational haven");
-        const commissionContext = { havens: [haven], merchants: [{ ...prize, captainName: `Captain ${prize.id}` }],
-          simMinute: minute, sailingDistanceKm: (a, b) => portSailingDistanceKm(portSailingDistances, a, b) };
-        const offer = pirateHavenQuestOffer(memory, haven, commissionContext);
-        assert.ok(offer, "Real merchant must be reachable for revenge commission");
+        const commissionContext = {
+          havens: voyage.npcSeaRoutes.pirateHideouts,
+          merchants: voyage.npcSeaRoutes.ships.filter(ship => ship.role === fleet.NPC_ROLE_MERCHANT && !ship.surrendered && ship.hitPoints > 0)
+            .map(ship => ({ ...ship, captainName: `Captain ${ship.id}` })),
+          offerRoll: 0, contractKind: "revenge", simMinute: minute,
+          sailingDistanceKm: (a, b) => portSailingDistanceKm(portSailingDistances, a, b)
+        };
+        const offer = commissionContext.havens.map(haven => pirateHavenQuestOffer(memory, haven, commissionContext)).find(Boolean);
+        assert.ok(offer, "Campaign requires a local merchant revenge commission");
+        const haven = commissionContext.havens.find(port => port.cityId === offer.originCityId);
+        const prize = voyage.npcSeaRoutes.ships.find(ship => ship.id === offer.targetShipId);
         acceptPirateHavenQuest(memory, offer);
         fleet.surrenderNpcShip(voyage.npcSeaRoutes, prize.id, null, { preserveHull: true });
         assert.ok(seizePirateRevengeItem(memory, prize));
         completePirateHavenQuest(voyage.gameState, haven.cityId, "revenge", minute);
         pirateCommissions++;
         if (month % 8 === 2) {
-          const issuer = voyage.ports.find(port => port.cityId === "lisbon|portugal");
-          acceptPirateHavenQuest(memory, pirateHavenQuestOffer(memory, issuer, commissionContext));
+          const suppressionContext = { ...commissionContext, havens: [haven] };
+          const suppression = voyage.ports.map(port => pirateHavenQuestOffer(memory, port, suppressionContext)).find(Boolean);
+          assert.ok(suppression, "Campaign requires a nearby suppression issuer");
+          const issuer = voyage.ports.find(port => port.cityId === suppression.originCityId);
+          acceptPirateHavenQuest(memory, suppression);
           ruinPirateHaven(memory, haven.cityId, minute);
           completePirateHavenQuest(voyage.gameState, issuer.cityId, "suppression", minute);
           pirateCommissions++;

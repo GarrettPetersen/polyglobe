@@ -1,3 +1,4 @@
+import { questOfferPolicy } from "./questOfferPolicies.js";
 import { deliverQuestCargoRequirement } from "./gameState.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import { CANONICAL_PORTS, portMatchesCanonicalReference } from "./canonicalPorts.js";
@@ -16,8 +17,8 @@ export const VIKING_LONGSHIP_PORT_CITY = CANONICAL_PORTS.HAFNARFJORDUR.city;
 export const VIKING_LONGSHIP_PORT_COUNTRY = CANONICAL_PORTS.HAFNARFJORDUR.country;
 export const VIKING_LONGSHIP_PORT_CITY_ID = CANONICAL_PORTS.HAFNARFJORDUR.cityId;
 export const VIKING_LONGSHIP_PRICE = 42000;
-export const VIKING_LONGSHIP_SPAWN_CHANCE = 0.2;
-export const VIKING_LONGSHIP_ROLL_PERIOD_MINUTES = 30 * 24 * 60;
+export const VIKING_LONGSHIP_SPAWN_CHANCE = questOfferPolicy("longship").spawnChance;
+export const VIKING_LONGSHIP_ROLL_PERIOD_MINUTES = questOfferPolicy("longship").rollPeriodMinutes;
 export const VIKING_LONGSHIP_CHARACTER_SOURCE_ID =
   "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-9";
 export const VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID =

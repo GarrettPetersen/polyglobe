@@ -21,6 +21,7 @@ test("port dialogue routes each service to its owning staff member", () => {
   assert.equal(roleForNode("equipment"), PORT_CITY_STAFF_ROLE.SMITH);
   assert.equal(roleForNode("equipment-factor-offer"), PORT_CITY_STAFF_ROLE.SMITH);
   assert.equal(roleForNode("market"), PORT_CITY_STAFF_ROLE.MERCHANT);
+  for (const nodeId of ["pirate-goods", "pirate-goods-day"]) assert.equal(roleForNode(nodeId), PORT_CITY_STAFF_ROLE.MERCHANT);
   assert.equal(roleForNode("foreign-settlements"), PORT_CITY_STAFF_ROLE.MERCHANT);
   assert.equal(roleForNode("trade-embargo-warning"), PORT_CITY_STAFF_ROLE.MERCHANT);
   assert.equal(roleForNode("marque"), PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
@@ -30,7 +31,7 @@ test("port dialogue routes each service to its owning staff member", () => {
 });
 
 test("captain monologues use the same speaker policy in visible and restored ports", () => {
-  for (const nodeId of ["colony-clue", "covert-authority", "inn-drink", "drunk-captain", "city-attack", "quest-cargo-sale-warning"]) {
+  for (const nodeId of ["pirate-goods-day", "colony-clue", "covert-authority", "inn-drink", "drunk-captain", "city-attack", "quest-cargo-sale-warning"]) {
     assert.equal(portDialogueHasCaptainSpeaker({ kind: "port", nodeId }), true, nodeId);
     assert.equal(portDialogueHasCaptainSpeaker({ kind: "passenger", nodeId }), false, nodeId);
   }

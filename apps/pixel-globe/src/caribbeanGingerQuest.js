@@ -1,3 +1,4 @@
+import { questOfferPolicy } from "./questOfferPolicies.js";
 import { GINGER_GOOD_ID, tradeGoodById } from "./economy.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import {
@@ -9,8 +10,8 @@ export const CARIBBEAN_GINGER_QUEST_VERSION = 1;
 export const CARIBBEAN_GINGER_PRODUCTION_PER_DAY = 1.25;
 export const CARIBBEAN_GINGER_INITIAL_STOCK = 8;
 export const CARIBBEAN_GINGER_COMPLETION_REWARD = 2000;
-export const CARIBBEAN_GINGER_SPAWN_CHANCE = 0.35;
-export const CARIBBEAN_GINGER_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
+export const CARIBBEAN_GINGER_SPAWN_CHANCE = questOfferPolicy("ginger").spawnChance;
+export const CARIBBEAN_GINGER_ROLL_PERIOD_MINUTES = questOfferPolicy("ginger").rollPeriodMinutes;
 
 export const CARIBBEAN_GINGER_STAGE_LOCKED = "locked";
 export const CARIBBEAN_GINGER_STAGE_ACTIVE = "active";

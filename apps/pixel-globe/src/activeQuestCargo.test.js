@@ -165,6 +165,7 @@ test("colony resupply cargo is protected and offered immediately after landing",
 
 test("shipyard materials are protected and offered immediately after landing", () => {
   const state = game();
+  state.voyageSeed = "yard-test-7";
   state.doubloons = 100000;
   beginShipyardInvestment(state, CADIZ, {
     famous: true,

@@ -1,3 +1,4 @@
+import { questOfferPolicy } from "./questOfferPolicies.js";
 import {
   RESCUED_TRAVELER_STAGE_ABOARD,
   RESCUED_TRAVELER_STAGE_HOMECOMING,
@@ -19,7 +20,7 @@ import {
 
 export const CASTAWAY_STAGE_ABOARD = RESCUED_TRAVELER_STAGE_ABOARD;
 export const CASTAWAY_STAGE_HOMECOMING = RESCUED_TRAVELER_STAGE_HOMECOMING;
-export const CASTAWAY_FIRST_RESCUE_DENOMINATOR = 750;
+export const CASTAWAY_FIRST_RESCUE_DENOMINATOR = 1 / questOfferPolicy("castaway").spawnChance;
 
 export function createCastawayQuestMemory() {
   return createRescuedTravelerQuestMemory();

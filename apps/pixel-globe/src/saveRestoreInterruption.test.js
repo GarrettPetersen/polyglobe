@@ -56,7 +56,7 @@ test("incomplete save diagnostics explicitly identify unknown metadata", () => {
 const capital = { cityId: "seville|spain", tileId: 1, factionId: "spain", isFactionCapital: true, capitalOfFactionId: "spain" };
 function offeredMemory(doubloons) {
   const memory = createSovereignWarLoanMemory();
-  createSovereignWarLoanOffer(memory, { borrowerFactionId: "spain", enemyFactionId: "portugal",
+  createSovereignWarLoanOffer(memory, { offerRoll: 0, borrowerFactionId: "spain", enemyFactionId: "portugal",
     capital, simMinute: 10, doubloons });
   return memory;
 }
