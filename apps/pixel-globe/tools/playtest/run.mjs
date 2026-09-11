@@ -124,7 +124,7 @@ function main() {
           try {
             const performancePath = resolve(output, "performance.json");
             const performanceLog = execFileSync(process.execPath, ["tools/run-performance-benchmark.mjs",
-              "--benchmark", "busy-world", "--headless", "--profile", profile, "--warmup", "5", "--duration", "15",
+              "--benchmark", "busy-world", "--profile", profile, "--warmup", "5", "--duration", "15",
               "--cpu-throttle", "4", "--output", performancePath],
               { cwd: root, timeout: 10 * 60_000, maxBuffer: 16 * 1024 * 1024 });
             writeFileSync(resolve(output, "performance.log"), performanceLog);

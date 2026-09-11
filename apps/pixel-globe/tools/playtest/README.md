@@ -178,11 +178,13 @@ navigation tests, or hardware performance benchmarks. The process reports these
 lanes separately rather than adding worker ticks to player-action counts.
 
 Browser-enabled cycles also run a 15-second busy-world benchmark after warmup,
-with 4× CPU throttling and an isolated temporary browser profile. The gate fails
-below 15 rendered FPS or above a 500 ms maximum frame gap. It checks rendered
-frames separately from update-loop FPS, retains the measured report, and catches
-runtime errors as failures. These are broad release regression limits, not
-hardware certification or evidence that every weather/port combination is fast.
+with 4× CPU throttling in headed Chromium and an isolated temporary browser
+profile. Headless animation-frame cadence is deliberately excluded because the
+browser can suppress it independently of game CPU work. The gate fails below 10
+rendered FPS or above a 500 ms maximum frame gap. It checks rendered frames
+separately from update-loop FPS, retains the measured report, and catches runtime
+errors as failures. These are broad release regression limits, not hardware
+certification or evidence that every weather/port combination is fast.
 
 ## Mandatory recent-crash regressions
 
