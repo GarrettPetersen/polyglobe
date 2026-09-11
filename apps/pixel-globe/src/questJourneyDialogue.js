@@ -58,6 +58,10 @@ export function createDecisionBackedQuestJourneyDialogueSubject({
 }
 
 export function pendingQuestJourneyDialogue(quest, context = {}) {
+  // Journey briefings belong to the outbound leg. Negotiation or a court recall
+  // sends an envoy home, making destination and origin coincide; an unseen
+  // briefing must not be evaluated against that return-leg route (including saves).
+  if (quest?.stage === "return") return null;
   const events = quest?.dialogue?.journeyEvents;
   if (events === undefined) return null;
   if (!Array.isArray(events) || events.length === 0) {

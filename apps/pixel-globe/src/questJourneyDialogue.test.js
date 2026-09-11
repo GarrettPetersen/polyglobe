@@ -53,6 +53,29 @@ test("decision-backed journey dialogue fires en route and persists without a que
   assert.equal(pendingQuestJourneyDialogue(subject, { arrived: true }), null);
 });
 
+test("returning and recalled saved envoys cannot replay an unseen outbound briefing", () => {
+  const quest = {
+    id: "status-envoy-returning",
+    stage: "return",
+    dialogue: { journeyEvents: [{
+      id: "sealed-briefing",
+      trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
+      expressionId: "attentive",
+      text: "The sealed articles await the foreign court."
+    }] }
+  };
+  for (const envoyWorldResolution of [undefined, "target-court-fallen"]) {
+    const saved = JSON.parse(JSON.stringify({ ...quest, envoyWorldResolution }));
+    assert.equal(pendingQuestJourneyDialogue(saved, {
+      originDistance: 1, destinationDistance: 1, directDistance: 0
+    }), null);
+    assert.equal(pendingQuestJourneyDialogue(saved, { arrived: true }), null);
+  }
+  assert.throws(() => pendingQuestJourneyDialogue({ ...quest, stage: "outbound" }, {
+    originDistance: 1, destinationDistance: 1, directDistance: 0
+  }), /requires route distances/, "invalid outbound routes must still fail loudly");
+});
+
 test("journey dialogue localizes authored prose and choice labels through one presentation boundary", () => {
   const event = Object.freeze({
     id: "imperial-memorial",

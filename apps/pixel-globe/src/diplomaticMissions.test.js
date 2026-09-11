@@ -36,6 +36,7 @@ import {
   isWokouHuntQuest
 } from "./diplomaticMissions.js";
 import { envoyOfferForCapital } from "./passengerMissions.js";
+import { pendingQuestJourneyDialogue } from "./questJourneyDialogue.js";
 import {
   SUZERAINTY_KIND_TRIBUTARY,
   establishSuzerainty,
@@ -208,6 +209,14 @@ test("status embassies let rulers decide whether constitutional ties change", ()
     portCities: ports
   });
   assert.equal(typeof negotiation.statusResolution.accepted, "boolean");
+  assert.ok(negotiation.quest.dialogue.journeyEvents.length > 0);
+  assert.equal(negotiation.quest.destinationTileId, negotiation.quest.originTileId);
+  assert.equal(pendingQuestJourneyDialogue(negotiation.quest, {
+    originDistance: 1,
+    destinationDistance: 1,
+    directDistance: 0
+  }), null, "an unseen outbound briefing must not crash the return voyage");
+  assert.equal(pendingQuestJourneyDialogue(negotiation.quest, { arrived: true }), null);
   const after = suzeraintyForVassal(
     state.relations.diplomacy.suzerainties,
     offer.statusProposal.vassalFactionId
