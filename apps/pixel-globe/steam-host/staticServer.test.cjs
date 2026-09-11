@@ -15,6 +15,10 @@ test("desktop assets are immutable and browser-cached for the app session", asyn
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "public, max-age=31536000, immutable");
     assert.equal(await response.text(), "desktop game");
+    await writeFile(join(root, "steam.svg"), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    const logo = await fetch(`${server.url}steam.svg`);
+    assert.equal(logo.status, 200);
+    assert.equal(logo.headers.get("content-type"), "image/svg+xml");
   } finally {
     await server.close();
     await rm(root, { recursive: true, force: true });

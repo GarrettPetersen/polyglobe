@@ -15,6 +15,7 @@ const CONTENT_TYPES = new Map([
   [".mp3", "audio/mpeg"],
   [".ogg", "audio/ogg"],
   [".png", "image/png"],
+  [".svg", "image/svg+xml"],
   [".ttf", "font/ttf"],
   [".woff2", "font/woff2"]
 ]);

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const { join } = require("node:path");
 const steamworks = require("steamworks.js");
 
@@ -112,6 +112,7 @@ function installIpcHandlers() {
     return changed;
   });
   ipcMain.handle("steam:toggle-fullscreen", (event) => toggleSenderFullscreen(event.sender));
+  ipcMain.handle("steam:open-wishlist", () => shell.openExternal("https://store.steampowered.com/app/4516500/Marque__Reprisal/"));
   ipcMain.handle("steam:quit", () => app.quit());
 }
 

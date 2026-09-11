@@ -77,7 +77,7 @@ const fixtures = frozenSaveFixtures();
 const reachabilityOptions = parseReachabilityArguments(process.argv.slice(2));
 const releaseReachability = reachabilityOptions.release;
 const smokeFocus = process.env.PIXEL_GLOBE_SMOKE_FOCUS;
-if (smokeFocus !== undefined && !["port-regressions", "pirate-havens"].includes(smokeFocus)) {
+if (smokeFocus !== undefined && !["port-regressions", "pirate-havens", "wishlist"].includes(smokeFocus)) {
   throw new Error(`Unknown save-restore smoke focus: ${smokeFocus}`);
 }
 if (smokeFocus && releaseReachability) {
@@ -179,7 +179,22 @@ try {
     `Save-restore runtime initialized in ${Math.round(performance.now() - startedAt)} ms\n`
   );
 
-  if (smokeFocus === "pirate-havens") {
+  if (smokeFocus === "wishlist") {
+    await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
+    const screenshotRoot = path.join(APP_ROOT, ".playtest/wishlist");
+    mkdirSync(screenshotRoot, { recursive: true });
+    for (const stage of ["start", "pause", "endgame"]) {
+      const button = await page.evaluate(stage => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectWishlist(stage), stage);
+      await page.evaluate(() => { window.__wishlistLinks = []; window.open = url => { window.__wishlistLinks.push(url); return null; }; });
+      const canvasBounds = await page.locator("#view").boundingBox();
+      await page.mouse.click(canvasBounds.x + (button.rect.x + button.rect.w / 2) * canvasBounds.width / button.width,
+        canvasBounds.y + (button.rect.y + button.rect.h / 2) * canvasBounds.height / button.height);
+      assert.deepEqual(await page.evaluate(() => window.__wishlistLinks), [button.url]);
+      await page.screenshot({ path: path.join(screenshotRoot, `${stage}.png`) });
+      await assertNoBrowserFailure(page, browserErrors, `wishlist ${stage}`);
+    }
+    process.stdout.write("Wishlist start, pause, and endgame presentations passed.\n");
+  } else if (smokeFocus === "pirate-havens") {
     await exercisePirateCoveSaveRoundTrip(page, browserErrors);
     await exercisePirateHavens(page, browserErrors);
   } else if (smokeFocus === "port-regressions") {

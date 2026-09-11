@@ -13,6 +13,7 @@ ipcRenderer.on("steam:input-frame", (_event, frame) => {
 
 contextBridge.exposeInMainWorld("marqueSteamPlatform", Object.freeze({
   platformId: "steam",
+  openWishlist: () => ipcRenderer.invoke("steam:open-wishlist"),
   getCapabilities: () => ipcRenderer.invoke("steam:get-capabilities"),
   getCurrentGameLanguage: () => ipcRenderer.invoke("steam:get-current-game-language"),
   readCloudFile: (name) => ipcRenderer.invoke("steam:cloud-read", name),

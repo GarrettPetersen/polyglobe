@@ -1,3 +1,4 @@
+import { STEAM_WISHLIST_URL, STEAM_WISHLIST_LOGO_URL, wishlistPromotionEnabled, wishlistPulse, wishlistModalLayout } from "./wishlistPromotion.js";
 import { questOfferCooldownReady, recordQuestOffer } from "./questOfferPolicies.js";
 import { arrivalOfferEligible, recordArrivalOffer } from "./arrivalOfferCadence.js";
 import { shipTargetRumorEligible, recordShipTargetRumor, shipTargetRumorText } from "./shipTargetRumors.js";
@@ -3274,19 +3275,33 @@ let POLITICS_BUTTON_X = SHIP_INFO_BUTTON_X - POLITICS_BUTTON_SIZE - 3;
 const POLITICS_BUTTON_Y = OPTIONS_BUTTON_Y;
 const OPTIONS_PANEL_W = 196;
 const OPTIONS_PANEL_H = 282;
+const steamPlatformBridge = platformServicesAdapter(window);
+const SHOW_WISHLIST_CTA = wishlistPromotionEnabled({ editionId: BUILD_EDITION_ID,
+  platformId: steamPlatformBridge?.platformId || "browser" });
+const WISHLIST_ROW_OFFSET = SHOW_WISHLIST_CTA ? 1 : 0;
+const OPTIONS_ROW_WISHLIST = SHOW_WISHLIST_CTA ? 0 : -1;
+let wishlistEndgamePrompt = false;
+let wishlistEndgameSelection = 0;
+const wishlistReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let wishlistSteamLogo = null;
+if (SHOW_WISHLIST_CTA) {
+  wishlistSteamLogo = new Image();
+  wishlistSteamLogo.addEventListener("error", () => { throw new Error("Steam wishlist logo failed to load"); });
+  wishlistSteamLogo.src = STEAM_WISHLIST_LOGO_URL;
+}
 const OPTIONS_ROW_H = 22;
-const OPTIONS_ROW_COUNT = 11;
-const OPTIONS_ROW_FULLSCREEN = 0;
-const OPTIONS_ROW_MUSIC = 1;
-const OPTIONS_ROW_SFX = 2;
-const OPTIONS_ROW_MUTE = 3;
-const OPTIONS_ROW_LANGUAGE = 4;
-const OPTIONS_ROW_CONTROL_SCHEME = 5;
-const OPTIONS_ROW_CONTROLLER_ICONS = 6;
-const OPTIONS_ROW_CONTROLS = 7;
-const OPTIONS_ROW_DIAGNOSTIC_MODE = 8;
-const OPTIONS_ROW_TELEMETRY = 9;
-const OPTIONS_ROW_START_MENU = 10;
+const OPTIONS_ROW_COUNT = 11 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_FULLSCREEN = 0 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_MUSIC = 1 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_SFX = 2 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_MUTE = 3 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_LANGUAGE = 4 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_CONTROL_SCHEME = 5 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_CONTROLLER_ICONS = 6 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_CONTROLS = 7 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_DIAGNOSTIC_MODE = 8 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_TELEMETRY = 9 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_START_MENU = 10 + WISHLIST_ROW_OFFSET;
 const CONTROL_SCHEME_PANEL_W = 342;
 const CONTROL_SCHEME_PANEL_H = 218;
 const TELEMETRY_CONSENT_PANEL_W = 360;
@@ -3846,7 +3861,6 @@ const ITEM_ARRIVAL_SOUND_COIN_CLINK = "coin-clink";
 const ITEM_ARRIVAL_SOUND_QUEST_DELIVERY = "quest-delivery";
 const ITEM_ARRIVAL_SOUND_DISCOVERY_SUCCESS = "discovery-success";
 
-const steamPlatformBridge = platformServicesAdapter(window);
 const platformActivityPublisher = createPlatformActivityPublisher(steamPlatformBridge);
 let nativeFullscreenActive = false;
 let keyBindings = loadKeyBindings(gameStorage);
@@ -7201,7 +7215,8 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   const renderDue = shouldRenderFrame({
     forceRender: forceRender || PERFORMANCE_BENCHMARK?.forceRenderEveryFrame === true,
     dirty,
-    continuousAnimation: Boolean(startMenu || portCityView?.sceneReady || portCityTransition),
+    continuousAnimation: Boolean(startMenu || portCityView?.sceneReady || portCityTransition ||
+      (SHOW_WISHLIST_CTA && !wishlistReducedMotion.matches && (optionsMenu.isOpen || wishlistEndgamePrompt))),
     simulationPaused,
     nowMs,
     lastRenderCompletedAtMs: lastWorldRenderCompletedAtMs,
@@ -7494,6 +7509,7 @@ function startMenuActions() {
     id: START_MENU_ACTION_NEW_GAME,
     label: localSaveResult.status === "ready" ? uiText("start.newGame") : uiText("start.startGame")
   });
+  if (SHOW_WISHLIST_CTA) actions.push({ id: "wishlist", label: "Wishlist on Steam" });
   actions.push({ id: START_MENU_ACTION_LAKE_BATTLE, label: uiText("start.shipBattle") });
   actions.push({ id: START_MENU_ACTION_HISTORICAL_BATTLE, label: uiText("start.historicalBattles") });
   actions.push({ id: START_MENU_ACTION_PAST_VOYAGES, label: uiText("start.pastVoyages") });
@@ -7822,6 +7838,14 @@ function handleCaptainAlertKeyDown(event) {
 
 function handleGameOverKeyDown(event) {
   event.preventDefault();
+  if (wishlistEndgamePrompt) {
+    if (event.repeat) return;
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Tab"].includes(event.key)) wishlistEndgameSelection = 1 - wishlistEndgameSelection;
+    else if (event.key === "Escape") window.location.reload();
+    else if (["Enter", " "].includes(event.key)) activateWishlistEndgameChoice();
+    dirty = true;
+    return;
+  }
   if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
 }
 
@@ -9896,6 +9920,12 @@ function dispatchWorldOverlayPointerDown(event, point) {
   else if (owner === INTERACTION_INPUT.CAPTAIN_ALERT) handleCaptainAlertPointerDown(point);
   else if (owner === INTERACTION_INPUT.PLAYER_INTRO) handlePlayerIntroPointerDown(point);
   else if (owner === INTERACTION_INPUT.GAME_OVER) {
+    if (wishlistEndgamePrompt) {
+      const layout = wishlistModalLayout(SCREEN_W, SCREEN_H);
+      if (pointInRect(point, layout.wishlist)) openSteamWishlist();
+      else if (pointInRect(point, layout.back)) window.location.reload();
+      return true;
+    }
     if (gameOverRestartIsAvailable(lastFrameMs)) restartAfterGameOver();
   } else if (owner === INTERACTION_INPUT.CAPTAIN_MENU) handleCaptainMenuPointerDown(event, point);
   else if (owner === INTERACTION_INPUT.PORT_ASSAULT) handlePortAssaultPointerDown(point);
@@ -17011,6 +17041,26 @@ function installSaveRestoreSmokeHarness() {
       if (dialogueState.nodeId !== "barred") throw new Error("Hostile haven admitted the player");
       return { text: view.text, options: view.options.map(option => option.label) };
     },
+    inspectWishlist(stage) {
+      captainAlertModal = null;
+      dialogueState = null;
+      if (!SHOW_WISHLIST_CTA) throw new Error("Browser wishlist promotion is disabled");
+      if (playerIntroModal) closePlayerIntroModal();
+      closeOptionsMenu();
+      gameOverReason = null;
+      wishlistEndgamePrompt = false;
+      startMenu = stage === "start" ? createStartMenuState() : null;
+      if (stage === "pause") openOptionsMenu();
+      if (stage === "endgame") {
+        gameOverReason = "Wishlist smoke";
+        restartAfterGameOver();
+      }
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      const rect = stage === "start" ? startMenu.buttonRects[startMenuActions().findIndex(action => action.id === "wishlist")]
+        : stage === "pause" ? optionsMenu.rowRects[OPTIONS_ROW_WISHLIST] : wishlistModalLayout(SCREEN_W, SCREEN_H).wishlist;
+      if (!rect || !wishlistSteamLogo?.naturalWidth) throw new Error(`Wishlist CTA is not visible: ${stage}`);
+      return { rect, width: SCREEN_W, height: SCREEN_H, url: STEAM_WISHLIST_URL, enabled: SHOW_WISHLIST_CTA };
+    },
     async inspectPirateCove({ showMercy = false } = {}) {
       if (running) throw new Error("Pirate cove smoke requires an idle voyage");
       const cityId = "pirate-haven-14";
@@ -19654,6 +19704,7 @@ function handleOptionsKeyDown(event) {
     return;
   }
   if (event.key === "Enter" || event.key === " ") {
+    if (SHOW_WISHLIST_CTA && optionsMenu.selectedIndex === OPTIONS_ROW_WISHLIST) openSteamWishlist();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_FULLSCREEN) void toggleFullscreenMode();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_MUTE) toggleAudioMuted();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_LANGUAGE) {
@@ -19961,6 +20012,7 @@ function activateStartMenuSelection() {
   if (!startMenu || startMenu.isLoading) return;
   const action = startMenuActions()[startMenu.selectedIndex];
   if (!action) return;
+  if (action.id === "wishlist") { openSteamWishlist(); return; }
   if (action.id === START_MENU_ACTION_CONTINUE) {
     void continueSavedVoyage();
     return;
@@ -20361,6 +20413,11 @@ function clearPointerSteering() {
 }
 
 function handleOptionsPointerDown(point) {
+  if (SHOW_WISHLIST_CTA && optionsMenu.view === "settings" && pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_WISHLIST])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_WISHLIST;
+    openSteamWishlist();
+    return;
+  }
   if (optionsMenu.view === "bindings") {
     handleKeyBindingsPointerDown(point);
     return;
@@ -37272,6 +37329,12 @@ function gameOverTransitionDurationMs() {
 }
 
 function restartAfterGameOver() {
+  if (SHOW_WISHLIST_CTA) {
+    wishlistEndgamePrompt = true;
+    wishlistEndgameSelection = 0;
+    dirty = true;
+    return;
+  }
   // Rebuild the procedural voyage from scratch; boot now lands on the start menu.
   window.location.reload();
 }
@@ -54234,6 +54297,10 @@ function drawStartMenu(nowMs) {
       h: row.h
     };
     startMenu.buttonRects[row.index] = rect;
+    if (actions[row.index].id === "wishlist") {
+      drawWishlistButton(rect, startMenu.selectedIndex === row.index, nowMs);
+      continue;
+    }
     drawStartMenuButton(
       rect,
       labels[row.index],
@@ -54346,7 +54413,7 @@ function startMenuButtonWidth(actions, panelWidth) {
   }
   const contentWidth = Math.max(...actions.map((action) => {
     const label = renderedUiText(action.label);
-    const iconWidth = startMenuIconId(action.id) ? GAME_ICON_SIZE + 6 : 0;
+    const iconWidth = (action.id === "wishlist" || startMenuIconId(action.id)) ? GAME_ICON_SIZE + 6 : 0;
     return iconWidth + measureRenderedPixelTextWidth(label, PIXEL_FONT_DIALOGUE_8);
   }));
   const horizontalAllowance = 24 + (controllerPromptsVisible() ? GAME_ICON_SIZE + 3 : 0);
@@ -54835,7 +54902,8 @@ function drawOptionsMenu() {
 
 function drawOptionsSettingsRow(index, rowRect) {
   const highlighted = optionsMenu.selectedIndex === index;
-  if (index === OPTIONS_ROW_FULLSCREEN) drawOptionsFullscreenRow(rowRect, highlighted);
+  if (SHOW_WISHLIST_CTA && index === OPTIONS_ROW_WISHLIST) drawWishlistButton(rowRect, highlighted, lastFrameMs);
+  else if (index === OPTIONS_ROW_FULLSCREEN) drawOptionsFullscreenRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_MUSIC) {
     drawOptionsVolumeRow(rowRect, uiText("options.music"), "music", optionsMenu.musicVolume, highlighted);
   } else if (index === OPTIONS_ROW_SFX) {
@@ -65126,6 +65194,7 @@ function drawTutorialArrow(fromX, fromY, toX, toY, color) {
 }
 
 function drawGameOverOverlay(nowMs) {
+  if (wishlistEndgamePrompt) { drawWishlistEndgamePrompt(nowMs); return; }
   const state = gameOverState;
   if (!state) return;
   if (state.outcomeType === "victory") {
@@ -68604,4 +68673,55 @@ function visiblePirateHavenPorts() {
   return [...pirateHideoutPortsByTileId.values()].filter(port =>
     pirateHavenIsVisible(gameState.memory.pirateHavens, port.cityId, weatherClockMinutes, reveal))
     .map(pirateHavenPresentation);
+}
+
+function openSteamWishlist() {
+  if (!SHOW_WISHLIST_CTA) throw new Error("Wishlist promotion is disabled for this build");
+  if (steamPlatformBridge) {
+    void steamPlatformBridge.openWishlist().catch(error => {
+      pendingWorldAssetError = error;
+      dirty = true;
+    });
+  } else {
+    window.open(STEAM_WISHLIST_URL, "_blank", "noopener,noreferrer");
+  }
+}
+
+function activateWishlistEndgameChoice() {
+  if (wishlistEndgameSelection === 0) openSteamWishlist();
+  else window.location.reload();
+}
+
+function drawWishlistButton(rect, highlighted, nowMs) {
+  const pulse = wishlistPulse(nowMs, wishlistReducedMotion.matches);
+  ctx.save();
+  ctx.fillStyle = `rgb(255, ${Math.round(174 + 39 * pulse)}, 70)`;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = highlighted ? "#fff3c0" : "#684620";
+  ctx.lineWidth = highlighted ? 2 : 1;
+  ctx.strokeRect(rect.x + .5, rect.y + .5, rect.w - 1, rect.h - 1);
+  const iconSize = Math.min(18, rect.h - 4);
+  const iconX = rect.x + 6;
+  const iconY = rect.y + Math.floor((rect.h - iconSize) / 2);
+  ctx.fillStyle = "#1b2838";
+  ctx.fillRect(iconX, iconY, iconSize, iconSize);
+  if (wishlistSteamLogo?.complete && wishlistSteamLogo.naturalWidth > 0) {
+    ctx.drawImage(wishlistSteamLogo, 0, 0, 89.333, 89.333, iconX, iconY, iconSize, iconSize);
+  }
+  drawOptionsText(fitPixelText(renderedUiText("Wishlist on Steam"), PIXEL_FONT_SMALL_8, rect.w - iconSize - 24),
+    rect.x + iconSize + 12, controlTextY(rect), { font: PIXEL_FONT_SMALL_8, color: "#241c14" });
+  ctx.restore();
+}
+
+function drawWishlistEndgamePrompt(nowMs) {
+  const { panel, wishlist, back } = wishlistModalLayout(SCREEN_W, SCREEN_H);
+  ctx.save();
+  drawPiratePaperModal(panel, .9);
+  drawOptionsText(fitPixelText(renderedUiText("Your next voyage awaits"), PIXEL_FONT_DIALOGUE_8, panel.w - 28), panel.x + panel.w / 2, panel.y + 14,
+    { font: PIXEL_FONT_DIALOGUE_8, align: "center", color: PIRATE_MENU_INK });
+  drawOptionsText(fitPixelText(renderedUiText("Wishlist Marque & Reprisal on Steam"), PIXEL_FONT_SMALL_8, panel.w - 28), panel.x + panel.w / 2, panel.y + 34,
+    { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK });
+  drawWishlistButton(wishlist, wishlistEndgameSelection === 0, nowMs);
+  drawStartMenuButton(back, renderedUiText("Back to menu"), wishlistEndgameSelection === 1);
+  ctx.restore();
 }

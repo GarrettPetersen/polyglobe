@@ -1,0 +1,61 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+import { wishlistPromotionEnabled, wishlistPulse, wishlistModalLayout, STEAM_WISHLIST_URL } from "./wishlistPromotion.js";
+
+test("wishlist promotion is enabled on the web and every demo, but not full Steam", () => {
+  for (const editionId of ["demo", "full"]) for (const platformId of ["browser", "steam"]) {
+    assert.equal(wishlistPromotionEnabled({ editionId, platformId }), !(editionId === "full" && platformId === "steam"));
+  }
+  assert.throws(() => wishlistPromotionEnabled({ editionId: "unknown", platformId: "browser" }));
+  assert.throws(() => wishlistPromotionEnabled({ editionId: "full", platformId: "unknown" }));
+});
+
+test("wishlist modal fits narrow logical viewports and reduced motion is stationary", () => {
+  for (const [w,h] of [[446,261],[320,200],[256,320],[475,256]]) {
+    const { panel, wishlist, back } = wishlistModalLayout(w,h);
+    assert.ok(panel.x >= 0 && panel.y >= 0 && panel.x+panel.w <= w && panel.y+panel.h <= h);
+    assert.ok(wishlist.y+wishlist.h < back.y && back.y+back.h < panel.y+panel.h);
+  }
+  assert.equal(wishlistPulse(0,true),wishlistPulse(1000,true));
+  assert.notEqual(wishlistPulse(0,false),wishlistPulse(1000,false));
+});
+
+const source = readFileSync(new URL("./main.js",import.meta.url),"utf8");
+function load(name, context) {
+  const start=source.indexOf(`function ${name}(`);
+  const next=source.indexOf("\nfunction ",start+1);
+  vm.runInContext(source.slice(start,next<0?undefined:next),context);
+}
+test("endgame return shows the wishlist step once instead of prematurely reloading", () => {
+  for (const enabled of [false,true]) {
+    let reloads=0, clicks=0;
+    const context=vm.createContext({ SHOW_WISHLIST_CTA:enabled, wishlistEndgamePrompt:false,
+      wishlistEndgameSelection:0, dirty:false, window:{location:{reload:()=>reloads++}},
+      openSteamWishlist:()=>clicks++ });
+    load("restartAfterGameOver",context);
+    load("activateWishlistEndgameChoice",context);
+    context.restartAfterGameOver();
+    assert.equal(reloads,enabled?0:1);
+    assert.equal(context.wishlistEndgamePrompt,enabled);
+    if(enabled) {
+      context.activateWishlistEndgameChoice();
+      assert.equal(clicks,1);
+      assert.equal(reloads,0);
+      context.wishlistEndgameSelection=1;
+      context.activateWishlistEndgameChoice();
+      assert.equal(reloads,1);
+    }
+  }
+});
+test("web wishlist opens the full game's store page in a separate tab", () => {
+  const calls=[];
+  const context=vm.createContext({ SHOW_WISHLIST_CTA:true, steamPlatformBridge:null, STEAM_WISHLIST_URL,
+    window:{open:(...args)=>calls.push(args)} });
+  load("openSteamWishlist",context);
+  context.openSteamWishlist();
+  assert.deepEqual(calls,[[STEAM_WISHLIST_URL,"_blank","noopener,noreferrer"]]);
+  const host=readFileSync(new URL("../steam-host/main.cjs",import.meta.url),"utf8");
+  assert.ok(host.includes(`shell.openExternal("${STEAM_WISHLIST_URL}")`));
+});

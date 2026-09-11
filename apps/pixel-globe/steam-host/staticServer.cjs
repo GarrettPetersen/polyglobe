@@ -11,6 +11,7 @@ const CONTENT_TYPES = Object.freeze({
   ".json": "application/json; charset=utf-8",
   ".ogg": "audio/ogg",
   ".png": "image/png",
+  ".svg": "image/svg+xml",
   ".woff2": "font/woff2"
 });
 

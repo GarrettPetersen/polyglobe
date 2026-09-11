@@ -1336,6 +1336,42 @@ const REVIEWED_OVERRIDES = Object.freeze({
   "SAIL / {0} DEG": Object.freeze({
     pl: "ŻAGIEL / {0} STOPNI"
   }),
+  "Wishlist on Steam": Object.freeze({
+    "de": "Auf Steam wünschen",
+    "es": "Añadir a deseados en Steam",
+    "fr": "Ajouter à la liste de souhaits Steam",
+    "ru": "В желаемое в Steam",
+    "pl": "Dodaj do listy życzeń Steam",
+    "pt-BR": "Adicionar à lista de desejos Steam",
+    "ja": "Steamでウィッシュリストに追加",
+    "ko": "Steam 찜 목록에 추가",
+    "zh-Hans": "加入 Steam 愿望单",
+    "zh-Hant": "加入 Steam 願望清單"
+}),
+  "Your next voyage awaits": Object.freeze({
+    "de": "Deine nächste Reise wartet",
+    "es": "Tu próximo viaje te espera",
+    "fr": "Votre prochain voyage vous attend",
+    "ru": "Следующее плавание ждёт",
+    "pl": "Następna wyprawa czeka",
+    "pt-BR": "Sua próxima viagem espera",
+    "ja": "次の航海が待っている",
+    "ko": "다음 항해가 기다립니다",
+    "zh-Hans": "下一段航程在等你",
+    "zh-Hant": "下一段航程在等你"
+}),
+  "Wishlist Marque & Reprisal on Steam": Object.freeze({
+    "de": "Marque & Reprisal auf Steam vormerken",
+    "es": "Añade Marque & Reprisal a deseados en Steam",
+    "fr": "Ajoutez Marque & Reprisal à vos souhaits Steam",
+    "ru": "Добавьте Marque & Reprisal в желаемое в Steam",
+    "pl": "Dodaj Marque & Reprisal do listy życzeń Steam",
+    "pt-BR": "Adicione Marque & Reprisal à lista de desejos Steam",
+    "ja": "SteamでMarque & Reprisalをウィッシュリストに追加",
+    "ko": "Steam에서 Marque & Reprisal을 찜하세요",
+    "zh-Hans": "将 Marque & Reprisal 加入 Steam 愿望单",
+    "zh-Hant": "將 Marque & Reprisal 加入 Steam 願望清單"
+}),
   "{0}: {1} → {2}": Object.freeze({
     "de": "{0}: {1} → {2}",
     "es": "{0}: {1} → {2}",
