@@ -72,3 +72,33 @@ export function terrainConnectorDrawGroup(call) {
     terrainRowsNeedLandmassChannel(call?.row, call?.nrow)
   );
 }
+
+
+export function whaleTileHasCoastClearance(tileId, earthRows, neighbors) {
+  const adjacent = neighbors[tileId];
+  if (!earthRows[tileId] || !adjacent || adjacent.length === 0) {
+    throw new Error(`Whale clearance requires a terrain tile and its neighbors: ${tileId}`);
+  }
+  return isWhaleSwimmableOceanRow(earthRows[tileId]) && adjacent.every(id => {
+    if (!earthRows[id]) throw new Error(`Whale clearance neighbor is missing: ${tileId}/${id}`);
+    return isWhaleSwimmableOceanRow(earthRows[id]);
+  });
+}
+
+// Used only when loading/seeding a population: older saves allowed coastal
+// tiles, and family offsets could even place calves on land. Find the nearest
+// spatially valid ocean tile without trapping that legacy state behind land.
+export function nearestWhaleClearanceTile(tileId, earthRows, neighbors) {
+  const queue = [tileId];
+  const visited = new Set(queue);
+  for (let index = 0; index < queue.length; index++) {
+    const current = queue[index];
+    if (whaleTileHasCoastClearance(current, earthRows, neighbors)) return current;
+    for (const next of neighbors[current]) {
+      if (visited.has(next)) continue;
+      visited.add(next);
+      queue.push(next);
+    }
+  }
+  throw new Error(`Whale has no water with coastal clearance: ${tileId}`);
+}

@@ -181,7 +181,9 @@ test("an evening ramp stage changes matching pixels in unison without spatial gr
   const colors = new Set();
   for (let offset = 0; offset < pixels.length; offset += 4) colors.add(rgbHex(pixels, offset));
   assert.equal(colors.size, 1);
-  assert.equal(RESURRECT_64_HEX.includes([...colors][0]), true);
+  // A shared interpolated colour preserves hard pixels without hopping through
+  // unrelated entries in the 64-colour source palette.
+  assert.notEqual([...colors][0], "4d9be6");
 });
 
 function perceptualBrightness(hex) {
@@ -269,6 +271,20 @@ test("timber stays separate through the real overlapping twilight cycle on CPU a
       const [r, g, b] = rgba(colours[index]);
       const texel = ((r >> 3) * 1024 + (g >> 3) * 32 + (b >> 3)) * 4;
       assert.equal(rgbHex(variant.pixels, texel), rgbHex(pixels, index * 4));
+    }
+  }
+});
+
+test("sunset shades move directly between endpoints without detouring through other ramps", () => {
+  for (const source of ["4c3e24", "ab947a", "625565", "694f62", "239063", "a2a947", "4d9be6"]) {
+    const start = rgba(source), end = rgba(sunsetPaletteHexForSourceHex(source));
+    for (let stage = 1; stage <= DAY_NIGHT_VARIANT_STEPS; stage++) {
+      const pixels = new Uint8ClampedArray(start);
+      applyDayNightPaletteGrade(pixels, 1, 1, { sunset:stage/DAY_NIGHT_VARIANT_STEPS, night:0 });
+      for (let channel = 0; channel < 3; channel++) {
+        const expected = Math.round(start[channel]+(end[channel]-start[channel])*stage/DAY_NIGHT_VARIANT_STEPS);
+        assert.equal(pixels[channel], expected, `${source}, stage ${stage}, channel ${channel}`);
+      }
     }
   }
 });

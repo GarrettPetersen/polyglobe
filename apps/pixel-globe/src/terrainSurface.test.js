@@ -129,3 +129,19 @@ test("whales can swim and surface in coastal shallows without gaining access to 
     assert.equal(isWhaleOpenSurfaceRow(row, true), false, `surface ice over ${terrain}`);
   }
 });
+
+test("whales require a full water ring while still crossing offshore shallows", async () => {
+  const { whaleTileHasCoastClearance, nearestWhaleClearanceTile } = await import("./terrainSurface.js");
+  const rows = [{ t:"land" }, { t:"beach" }, { t:"water" }, { t:"beach" }, { t:"water" }];
+  const neighbors = [[1], [0,2], [1,3], [2,4], [3]];
+  assert.equal(whaleTileHasCoastClearance(1, rows, neighbors), false);
+  assert.equal(whaleTileHasCoastClearance(2, rows, neighbors), true);
+  assert.equal(whaleTileHasCoastClearance(3, rows, neighbors), true);
+  assert.equal(nearestWhaleClearanceTile(1, rows, neighbors), 2);
+  assert.equal(nearestWhaleClearanceTile(2, rows, neighbors), 2);
+  for (const terrain of ["land", "ice_cap", "lake"]) {
+    assert.equal(whaleTileHasCoastClearance(2, [rows[0], {t:terrain}, ...rows.slice(2)], neighbors), false, terrain);
+  }
+  assert.throws(() => nearestWhaleClearanceTile(1, rows.slice(0,2), [[1],[0]]), /no water/);
+  assert.throws(() => whaleTileHasCoastClearance(2, rows, []), /requires/);
+});

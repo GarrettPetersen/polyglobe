@@ -1085,7 +1085,9 @@ function nearestMate(female, malesOfSpecies) {
 function giveBirth(memory, mother, birthMinute) {
   const idNumber = memory.nextId++;
   const seed = hashInt(mother.seed ^ Math.imul(idNumber, 0x27d4eb2d));
-  const candidate = familyCandidate(mother, seed, FAMILY_FOLLOW_DISTANCE_RAD * 0.5);
+  // Birth inherits the mother's navigated position. A lateral random offset can
+  // put a calf across the coast buffer before it has taken its first swim step.
+  const candidate = { tileId: mother.tileId, position: [...mother.position] };
   const calf = createWhaleIndividual({
     id: numberedWhaleId(idNumber),
     speciesId: mother.speciesId,

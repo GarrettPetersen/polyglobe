@@ -2287,7 +2287,8 @@ import {
   isPermanentSeaIceRow,
   isShipUsableSurfaceWater,
   isWhaleOpenSurfaceRow,
-  isWhaleSwimmableOceanRow,
+  whaleTileHasCoastClearance,
+  nearestWhaleClearanceTile,
   isWaterSurfaceRow,
   terrainRowsFormFrozenWaterBoundary,
   terrainConnectorDrawGroup,
@@ -29442,9 +29443,11 @@ function playerWhaleTowIsActive() {
 function whaleNavigationAtPosition(position) {
   const tileId = findNearestTileId(graph, directionIndex, position);
   const row = earthById[tileId];
+  const clear = whaleTileHasCoastClearance(tileId, earthById, graph.neighbors);
   return {
-    ok: isWhaleSwimmableOceanRow(row),
-    canSurface: isWhaleOpenSurfaceRow(row, tileHasSurfaceIce(tileId)),
+    ok: clear,
+    canSurface: clear &&
+      isWhaleOpenSurfaceRow(row, tileHasSurfaceIce(tileId)),
     tileId
   };
 }
@@ -43167,7 +43170,10 @@ function tileCenterVector(tileId) {
 function ensureWhalePopulation(state) {
   const memory = state?.memory?.whales;
   if (!memory) throw new Error("Whale population requires voyage memory");
-  if (memory.individuals.length > 0) return;
+  if (memory.individuals.length > 0) {
+    reconcileWhaleCoastClearance(memory);
+    return;
+  }
   const ecologyTileCount = geodesicTileCount(WORLD_DISCRETE_WEATHER_SUBDIVISIONS);
   if (weatherBake?.tileCount !== ecologyTileCount || ecologyTileCount > graph.tileCount) {
     throw new Error(
@@ -43180,6 +43186,7 @@ function ensureWhalePopulation(state) {
   // Whales move on the full-resolution globe once the finite population exists.
   for (let tileId = 0; tileId < ecologyTileCount; tileId++) {
     if (earthById[tileId]?.t !== "water" || oceanReachableNavigationMask[tileId] !== 1) continue;
+    if (!whaleTileHasCoastClearance(tileId, earthById, graph.neighbors)) continue;
     candidates.push({
       tileId,
       latitudeDeg: graph.latDeg[tileId],
@@ -43192,7 +43199,22 @@ function ensureWhalePopulation(state) {
     avoidPosition: ship?.position || null,
     seedKey: state.voyageSeed
   });
+  reconcileWhaleCoastClearance(memory);
   console.info(`[pixel-globe] whales: ${memory.individuals.length} multi-species individuals seeded`);
+}
+
+function reconcileWhaleCoastClearance(memory) {
+  let relocated = 0;
+  for (const whale of memory.individuals) {
+    const tileId = findNearestTileId(graph, directionIndex, whale.position);
+    if (whaleTileHasCoastClearance(tileId, earthById, graph.neighbors)) continue;
+    const destinationId = nearestWhaleClearanceTile(tileId, earthById, graph.neighbors);
+    whale.tileId = destinationId;
+    whale.position = tileCenterVector(destinationId);
+    whale.heading = normalizeTangentOrFallback(whale.heading, whale.position, WORLD_NORTH);
+    relocated++;
+  }
+  if (relocated > 0) console.info(`[pixel-globe] moved ${relocated} saved/seeded whales outside the coast buffer`);
 }
 
 function buildIcebergSpawnCandidates() {

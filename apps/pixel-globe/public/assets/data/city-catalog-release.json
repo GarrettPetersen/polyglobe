@@ -97,7 +97,7 @@
     "src/subdivisionEightMapData.js": "cfa3e89ce3ff1624ff9e28bf30839a055bc10d4415302f245fcc98765aa3a236",
     "src/subdivisionSevenPortMigration.js": "ae5be5d13647b5eef8d43d1a14e485b22a07ad2811533c95861254daa8e159d8",
     "src/terrainMetadata.js": "caedd99411b0f38f90fc0f8f0bc414ecfcde780b02129f37514ff19a745e5838",
-    "src/terrainSurface.js": "05c70a3d40bdc169e53a4287212d8ff26b0a77fb18e1bf38b99d863a06b2a049",
+    "src/terrainSurface.js": "04f88e0cd3ebb5b5dcd673a1943ce6608660e7c72bc75d2d00ca9a9651a11eb1",
     "src/test-fixtures/city-catalog-releases/1.json": "27d920fe5fce67329a9da7923141800c8c59713c2b5c81b90e3730330b2aad55",
     "src/test-fixtures/city-catalog-releases/10.json": "e0befb24d386dba9877bc7962615bb609c389aa36f9a19ec16df8706fc0dfb78",
     "src/test-fixtures/city-catalog-releases/11.json": "ef452cf28545f45bce4ff25b4968289b6c858a7758f8c46e3632235b178d27a0",

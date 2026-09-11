@@ -102,6 +102,14 @@ const SUNSET_TERRAIN_SEPARATION = new Map([
 ]);
 const NIGHT_PALETTE_MAP = RESURRECT_COLORS.map((source) => nightTargetFor(source));
 const SUNSET_PALETTE_MAP = RESURRECT_COLORS.map((source) => sunsetTargetFor(source));
+// Resolve material contrast at the endpoints first so intermediate colours
+// approach the colour that will actually be displayed at full grade.
+for (const map of [NIGHT_PALETTE_MAP, SUNSET_PALETTE_MAP]) {
+  const desired = map.map(color => color.lab);
+  separateDominantTerrainColors(map, desired);
+  separateTimberFromWater(map, desired, paletteSubset(
+    map === NIGHT_PALETTE_MAP ? NIGHT_LAND_GRADE_HEX : SUNSET_LAND_GRADE_HEX));
+}
 let sourcePaletteLut = null;
 let nightRgbRamp = null;
 let sunsetRgbRamp = null;
@@ -151,15 +159,13 @@ function combinedGradeRamp(sunsetStage, nightStage) {
   if (nightStage === 0) return sunsetRgbRamp[sunsetStage];
   const key = `${sunsetStage}:${nightStage}`;
   if (COMBINED_GRADE_CACHE.has(key)) return COMBINED_GRADE_CACHE.get(key);
-  const pixels = new Uint8ClampedArray(RESURRECT_COLORS.flatMap(({ r, g, b }) => [r, g, b, 255]));
-  applyByteGrade(pixels, sunsetRgbRamp[sunsetStage]);
-  applyByteGrade(pixels, nightRgbRamp[nightStage]);
-  const map = RESURRECT_COLORS.map((_, i) => parsePaletteColor({
-    r: pixels[i * 4], g: pixels[i * 4 + 1], b: pixels[i * 4 + 2]
-  }));
+  const map = RESURRECT_COLORS.map((source, index) => blendGradeColor(
+    blendGradeColor(source, SUNSET_PALETTE_MAP[index], sunsetStage / COLOR_RAMP_STEPS),
+    NIGHT_PALETTE_MAP[index], nightStage / COLOR_RAMP_STEPS
+  ));
   const desired = map.map(color => color.lab);
-  // Preserve original material identity across both filters. Once the first
-  // pass merges two pigments, a second pass cannot separate them by RGB alone.
+  // Blend original pigments towards their fixed sunset/night endpoints. Feeding
+  // sunset output into a palette classifier again caused unrelated hue changes.
   separateDominantTerrainColors(map, desired);
   separateTimberFromWater(map, desired);
   const lut = buildRgbGradeLut(map, sourcePaletteLut);
@@ -263,6 +269,14 @@ function buildRgbGradeLut(paletteMap, preparedSourcePaletteLut) {
   return lut;
 }
 
+function blendGradeColor(source, target, progress) {
+  return parsePaletteColor({
+    r: Math.round(mix(source.r, target.r, progress)),
+    g: Math.round(mix(source.g, target.g, progress)),
+    b: Math.round(mix(source.b, target.b, progress))
+  });
+}
+
 function buildRgbGradeRamp(targetMap, preparedSourcePaletteLut) {
   const ramp = [];
   for (let stage = 0; stage <= COLOR_RAMP_STEPS; stage++) {
@@ -271,12 +285,9 @@ function buildRgbGradeRamp(targetMap, preparedSourcePaletteLut) {
       continue;
     }
     const progress = stage / COLOR_RAMP_STEPS;
-    const desiredMap = RESURRECT_COLORS.map((source, index) => (
-      mixLab(source.lab, targetMap[index].lab, progress)
-    ));
-    const stageMap = stage === COLOR_RAMP_STEPS
-      ? [...targetMap]
-      : desiredMap.map((desired) => nearestLabColor(desired, RESURRECT_COLORS));
+    const stageMap = RESURRECT_COLORS.map((source, index) =>
+      blendGradeColor(source, targetMap[index], progress));
+    const desiredMap = stageMap.map(color => color.lab);
     separateDominantTerrainColors(stageMap, desiredMap);
     separateTimberFromWater(stageMap, desiredMap);
     ramp.push(buildRgbGradeLut(stageMap, preparedSourcePaletteLut));
@@ -286,10 +297,10 @@ function buildRgbGradeRamp(targetMap, preparedSourcePaletteLut) {
 
 // Grading is applied to the composited scene, so timber pigments must retain a
 // separate ramp from water at every quantized transition, not only midnight.
-function separateTimberFromWater(stageMap, desiredMap) {
+function separateTimberFromWater(stageMap, desiredMap, eligibleColors = RESURRECT_COLORS) {
   const waterColors = new Set([...NIGHT_WATER_TERRAIN_SEPARATION.keys()]
     .map(hex => stageMap[paletteIndexForHex(hex)].hex));
-  const candidates = RESURRECT_COLORS.filter(color => !waterColors.has(color.hex));
+  const candidates = eligibleColors.filter(color => !waterColors.has(color.hex));
   for (const hex of TIMBER_SOURCES) {
     const index = paletteIndexForHex(hex);
     if (waterColors.has(stageMap[index].hex)) {
@@ -360,14 +371,6 @@ function labDistanceSquared(a, b) {
   const da = a.a - b.a;
   const db = a.b - b.b;
   return dl * dl + da * da + db * db;
-}
-
-function mixLab(a, b, t) {
-  return {
-    l: mix(a.l, b.l, t),
-    a: mix(a.a, b.a, t),
-    b: mix(a.b, b.b, t)
-  };
 }
 
 function paletteSubset(hexValues) {

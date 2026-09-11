@@ -1,4 +1,4 @@
-import { isWhaleSwimmableOceanRow, isWhaleOpenSurfaceRow } from "./terrainSurface.js";
+import { whaleTileHasCoastClearance, isWhaleSwimmableOceanRow, isWhaleOpenSurfaceRow } from "./terrainSurface.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -586,6 +586,7 @@ test("adult whales mate and produce a persisted calf that remains with its mothe
   const calf = memory.individuals.find((whale) => whale.id === birth.whaleId);
   assert.equal(calf.lifeStage, WHALE_LIFE_STAGE_CALF);
   assert.equal(calf.motherId, female.id);
+  assert.deepEqual(calf.position, female.position, "birth must not offset a calf into coastal land");
   validateWhaleMemory(memory);
 });
 
@@ -673,5 +674,35 @@ for (const phase of [WHALE_PHASE_SUBMERGED, WHALE_PHASE_SURFACED]) {
     }
     assert.ok(crossed.has(2), "whale must swim across the shallow ring instead of reversing at its edge");
     assert.ok(crossed.has(3), "whale must reach the surrounding ocean");
+  });
+}
+
+
+for (const phase of [WHALE_PHASE_SUBMERGED, WHALE_PHASE_SURFACED]) {
+  test(`${phase} whales turn before entering the one-tile coast buffer`, () => {
+    const memory = createWhaleMemory();
+    seedWhalePopulation(memory, candidates(), 6);
+    const whale = memory.individuals.find(w => w.id !== WHITE_WHALE_ID && w.lifeStage === WHALE_LIFE_STAGE_ADULT);
+    whale.motherId = null;
+    whale.phase = phase;
+    whale.tileId = 0;
+    const origin = [...whale.position];
+    const limit = whaleSpeciesById(whale.speciesId).cruiseSpeedRad * 2;
+    const rows = [{t:"water"}, {t:"beach"}, {t:"land"}];
+    const neighbors = [[0], [0,2], [1]];
+    let rejected = 0;
+    const navigate = position => {
+      const distance = Math.acos(Math.max(-1, Math.min(1, position.reduce((sum,v,i) => sum+v*origin[i],0))));
+      const tileId = distance < limit ? 0 : 1;
+      const ok = whaleTileHasCoastClearance(tileId, rows, neighbors);
+      if (!ok) rejected++;
+      return {tileId, ok, canSurface:ok};
+    };
+    for (let step = 0; step < 300; step++) {
+      advanceWhaleMemory(memory, 0.1, navigate, step / 10);
+      assert.equal(navigate(whale.position).ok, true);
+      assert.equal(whale.tileId, 0);
+    }
+    assert.ok(rejected > 0, "the simulation must actually attempt a coastal approach");
   });
 }
