@@ -48,19 +48,25 @@ export function browserExecutablePath(playwrightModule) {
   return executable;
 }
 
-export async function startStaticServer() {
-  if (!existsSync(path.join(DIST_ROOT, "index.html"))) {
+export async function startStaticServer({ rootDirectory = DIST_ROOT, mountPath = "/" } = {}) {
+  if (!mountPath.startsWith("/") || !mountPath.endsWith("/")) {
+    throw new Error("Static server mount path must begin and end with a slash");
+  }
+  if (!existsSync(path.join(rootDirectory, "index.html"))) {
     throw new Error("Save-restore smoke requires a completed production build");
   }
   const server = createServer((request, response) => {
     try {
       const requestUrl = new URL(request.url || "/", "http://127.0.0.1");
       const pathname = decodeURIComponent(requestUrl.pathname);
-      const relativePath = pathname.endsWith("/")
-        ? `${pathname.replace(/^\/+/, "")}index.html`
-        : pathname.replace(/^\/+/, "");
-      const filePath = path.resolve(DIST_ROOT, relativePath);
-      const relation = path.relative(DIST_ROOT, filePath);
+      if (!pathname.startsWith(mountPath)) {
+        response.writeHead(404).end("Outside application mount");
+        return;
+      }
+      const mountedPath = pathname.slice(mountPath.length);
+      const relativePath = pathname.endsWith("/") ? `${mountedPath}index.html` : mountedPath;
+      const filePath = path.resolve(rootDirectory, relativePath);
+      const relation = path.relative(rootDirectory, filePath);
       if (relation.startsWith("..") || path.isAbsolute(relation)) {
         response.writeHead(403).end("Forbidden");
         return;

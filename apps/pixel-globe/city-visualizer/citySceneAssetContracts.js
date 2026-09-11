@@ -7,6 +7,13 @@ export const CITY_DOCKSIDE_SHADOW_MAX_LEFT_REACH_PX = 32;
 const PUBLIC_ASSET_PREFIX = "apps/pixel-globe/public";
 const CANONICAL_ASSET_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+export function resolveCitySceneAssetUrl(assetUrl, moduleUrl) {
+  if (assetUrl.startsWith("//")) throw new Error("City assets cannot use protocol-relative URLs");
+  // Both the source city module and the production bootstrap live one directory
+  // beneath the app root. Preserve that root when hosted under an itch subpath.
+  return assetUrl.startsWith("/") ? new URL(`..${assetUrl}`, moduleUrl).href : assetUrl;
+}
+
 export function publicCityAssetUrl(file) {
   if (typeof file !== "string" || !file.startsWith(`${PUBLIC_ASSET_PREFIX}/`)) {
     throw new Error(`City scene requires a public asset path: ${file}`);
@@ -43,6 +50,19 @@ export function requireCityFlag(flagCatalog, factionId) {
   const flag = flagCatalog?.byFactionId?.get(factionId);
   if (!flag) throw new Error(`City faction flag manifest has no canonical ID: ${factionId}`);
   return flag;
+}
+
+// The embedded city scene shares the game's loaded flags. In demo builds these
+// are atlas slices, not standalone PNG files; the standalone viewer loads PNGs.
+export function preloadedCityFlagEntries(flagCatalog, images) {
+  if (!(images instanceof Map)) throw new Error("City flags require a canonical image map");
+  return flagCatalog.manifest.factions.map((flag) => {
+    const image = images.get(flag.id);
+    if (!image || image.width !== flag.width || image.height !== flag.height) {
+      throw new Error(`Preloaded city flag is missing or has invalid dimensions: ${flag.id}`);
+    }
+    return [flag.id, image];
+  });
 }
 
 export function cityFlagAssetUrl(flag) {

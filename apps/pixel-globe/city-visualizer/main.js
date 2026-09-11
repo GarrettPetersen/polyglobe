@@ -224,10 +224,12 @@ import {
   cityDocksideAssetUrls,
   cityFlagAssetUrl,
   indexCitySideViewShips,
+  preloadedCityFlagEntries,
   publicCityAssetUrl,
   requireCityDocksideShip,
   requireCityFlag,
   requireCitySideViewShip,
+  resolveCitySceneAssetUrl,
   validateCityDocksideShipManifest,
   validateCityFlagManifest
 } from "./citySceneAssetContracts.js";
@@ -269,6 +271,7 @@ export async function createCitySceneRuntime({
   initialCityId = null,
   initialShipSlug = null,
   initialSaleShipSlugs = null,
+  factionFlagImages = null,
   externalFrameClock = false,
   separateEmissiveOverlay = false,
   benchmark = null,
@@ -525,7 +528,9 @@ async function loadRequiredCityFont(font) {
 
 async function preloadSharedCitySceneImages() {
   const [flagEntries, sideViewEntries] = await Promise.all([
-    Promise.all(state.flagCatalog.manifest.factions.map(async (flag) => {
+    factionFlagImages !== null
+      ? preloadedCityFlagEntries(state.flagCatalog, factionFlagImages)
+      : Promise.all(state.flagCatalog.manifest.factions.map(async (flag) => {
       const image = await loadImage(cityFlagAssetUrl(flag));
       if (image.width !== flag.width || image.height !== flag.height) {
         throw new Error(
@@ -4986,7 +4991,7 @@ function incrementOccurrence(map, layerName) {
 }
 
 async function fetchJson(url, options) {
-  const response = await fetch(url, options);
+  const response = await fetch(resolveCitySceneAssetUrl(url, import.meta.url), options);
   if (!response.ok) throw new Error(`Could not load ${url}: HTTP ${response.status}`);
   return response.json();
 }
@@ -5012,6 +5017,7 @@ function cityPeopleAtlasUrl(manifest) {
 }
 
 function loadImage(url) {
+  url = resolveCitySceneAssetUrl(url, import.meta.url);
   if (imageCache.has(url)) return imageCache.get(url);
   const request = new Promise((resolve, reject) => {
     const image = new Image();
@@ -5027,6 +5033,7 @@ function loadImage(url) {
 }
 
 function loadTransientImage(url) {
+  url = resolveCitySceneAssetUrl(url, import.meta.url);
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);

@@ -6,11 +6,13 @@ import {
   CITY_DOCKSIDE_SHADOW_MAX_LEFT_REACH_PX,
   cityDocksideAssetUrls,
   cityFlagAssetUrl,
+  preloadedCityFlagEntries,
   indexCitySideViewShips,
   publicCityAssetUrl,
   requireCityDocksideShip,
   requireCityFlag,
   requireCitySideViewShip,
+  resolveCitySceneAssetUrl,
   validateCityDocksideShipManifest,
   validateCityFlagManifest
 } from "./citySceneAssetContracts.js";
@@ -20,6 +22,36 @@ const flagManifest = readJson("../public/assets/factions/flags/manifest.json");
 const docksideManifest = readJson("../public/assets/vehicles/unity-ships/port-assault/manifest.json");
 const sideViewManifest = readJson("../public/assets/vehicles/unity-ships/side-views/manifest.json");
 const visualizerSource = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+
+test("city manifest URLs retain the deployed application prefix in both bootstraps", () => {
+  const asset = publicCityAssetUrl("apps/pixel-globe/public/assets/ships/example.png");
+  for (const entry of ["src/bootstrap.js", "city-visualizer/bootstrap.js"]) {
+    assert.equal(resolveCitySceneAssetUrl(asset, `https://example.test/html/build/${entry}`),
+      "https://example.test/html/build/assets/ships/example.png");
+    assert.equal(resolveCitySceneAssetUrl(asset, `https://example.test/${entry}`),
+      "https://example.test/assets/ships/example.png");
+  }
+  assert.equal(resolveCitySceneAssetUrl("./assets/atlas.png", "https://example.test/city-visualizer/main.js"),
+    "./assets/atlas.png");
+  assert.throws(() => resolveCitySceneAssetUrl("//example.test/image.png", "https://example.test/src/main.js"),
+    /protocol-relative/);
+});
+
+test("embedded city scenes reuse every canonical flag atlas slice without standalone PNGs", () => {
+  const catalog = validateCityFlagManifest(flagManifest);
+  const images = new Map(flagManifest.factions.map(flag => [flag.id, {
+    width: flag.width, height: flag.height
+  }]));
+  for (const [id, image] of preloadedCityFlagEntries(catalog, images)) {
+    assert.strictEqual(image, images.get(id));
+  }
+  const first = flagManifest.factions[0];
+  images.delete(first.id);
+  assert.throws(() => preloadedCityFlagEntries(catalog, images), /missing or has invalid dimensions/);
+  images.set(first.id, { width: 1, height: 1 });
+  assert.throws(() => preloadedCityFlagEntries(catalog, images), /missing or has invalid dimensions/);
+  assert.throws(() => preloadedCityFlagEntries(catalog, {}), /canonical image map/);
+});
 
 test("city asset manifests resolve canonical assets without substitution", () => {
   const flags = validateCityFlagManifest(flagManifest);

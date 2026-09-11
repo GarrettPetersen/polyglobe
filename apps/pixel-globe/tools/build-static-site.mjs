@@ -289,8 +289,8 @@ function shouldCopyPublicPath(path) {
   if (
     normalized === "assets/social" ||
     normalized.startsWith("assets/social/") ||
-    normalized === "assets/factions/flags" ||
-    normalized.startsWith("assets/factions/flags/") ||
+    (normalized.startsWith("assets/factions/flags/") &&
+      normalized !== "assets/factions/flags/manifest.json") ||
     normalized === "assets/ui/ship-icons" ||
     normalized.startsWith("assets/ui/ship-icons/") ||
     normalized === "assets/buildings/city-types/README.md" ||
@@ -569,6 +569,8 @@ async function stripDemoSocialMetadata() {
   const html = source
     .split("\n")
     .filter((line) => !/^\s*<meta (?:property="og:|name="twitter:)/.test(line))
+    // The demo uses the packed icon atlas, not the standalone favicon PNG.
+    .filter((line) => !line.includes('<link rel="icon"'))
     .join("\n");
   await writeFile(indexPath, html);
 }

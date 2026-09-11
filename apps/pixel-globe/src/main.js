@@ -4535,6 +4535,7 @@ async function main() {
   initializeWorldAssetStores();
   initializeDistantWorldWorker();
   const shellReady = Promise.all([loadPixelFonts(), capsuleLoadingScreen.ready]);
+  const factionFlagImagesReady = loadFactionFlagImages();
   const startupAssets = Promise.all([
     loadTerrainImages(),
     loadShipWakeAnchors(),
@@ -4546,7 +4547,7 @@ async function main() {
     loadCloudSpriteSheet(),
     loadWorldDiscoveryImages(),
     loadCityImages(),
-    loadFactionFlagImages(),
+    factionFlagImagesReady,
     loadAlwaysVisibleAnimalImages(),
     loadStatusHudImages(),
     loadCityCatalog(CITY_DATA_YEAR),
@@ -4568,8 +4569,9 @@ async function main() {
       `shared/globe-runtime-bake-${WORLD_RUNTIME_WEATHER_SUBDIVISIONS}.bin`,
       "globe runtime bake"
     ),
-    createCitySceneRuntime({
+    factionFlagImagesReady.then((factionFlagImages) => createCitySceneRuntime({
       canvas: portCitySceneCanvas,
+      factionFlagImages,
       assetBaseUrl: "/city-visualizer/assets",
       initialShipSlug: START_SHIP_SLUG,
       externalFrameClock: true,
@@ -4578,7 +4580,7 @@ async function main() {
       renderText: renderedUiText,
       smallFontForText: (text) => resolvedPixelFont(PIXEL_FONT_SMALL_8, text),
       titleFontForText: (text) => languageTitleFont(currentLanguage, text)
-    })
+    }))
   ]);
   const initializationReady = Promise.all([shellReady, startupAssets]);
   await shellReady;
