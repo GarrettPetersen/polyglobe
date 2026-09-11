@@ -1,3 +1,4 @@
+import { verifyRollingDaylightGpu } from "./reachability/rolling-daylight.mjs";
 import { PIRATE_HAVEN_SPECS } from "../src/pirateHavenCatalog.js";
 import { exerciseSeasonalColonyDialogues } from "./reachability/seasonal-colony-dialogues.mjs";
 import { exerciseSavedStartMenu } from "./reachability/saved-start-menu.mjs";
@@ -8,7 +9,7 @@ import { decodeGeodesicGraphBake } from "../src/geodesicBake.js";
 import { createSoundDuesMemory } from "../src/soundDues.js";
 import assert from "node:assert/strict";
 import { monitorBrowserFailures } from "./reachability/browser-failures.mjs";
-import { existsSync, readFileSync, readdirSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -77,7 +78,7 @@ const fixtures = frozenSaveFixtures();
 const reachabilityOptions = parseReachabilityArguments(process.argv.slice(2));
 const releaseReachability = reachabilityOptions.release;
 const smokeFocus = process.env.PIXEL_GLOBE_SMOKE_FOCUS;
-if (smokeFocus !== undefined && !["port-regressions", "pirate-havens", "wishlist", "port-authorities"].includes(smokeFocus)) {
+if (smokeFocus !== undefined && !["port-regressions", "pirate-havens", "wishlist", "port-authorities", "daylight"].includes(smokeFocus)) {
   throw new Error(`Unknown save-restore smoke focus: ${smokeFocus}`);
 }
 if (smokeFocus && releaseReachability) {
@@ -179,7 +180,20 @@ try {
     `Save-restore runtime initialized in ${Math.round(performance.now() - startedAt)} ms\n`
   );
 
-  if (smokeFocus === "port-authorities") {
+  if (smokeFocus === "daylight") {
+    process.stdout.write(`Verified ${await verifyRollingDaylightGpu(page)} daylight GPU pixels against CPU grading.\n`);
+    await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
+    const root = path.join(APP_ROOT, ".playtest/daylight");
+    mkdirSync(root, { recursive: true });
+    for (const sunset of [false, true]) {
+      for (const offsetMinutes of [-20, -10, 0, 10, 20]) {
+        const result = await page.evaluate(options => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectDaylight(options), { sunset, offsetMinutes });
+        writeFileSync(path.join(root, `${sunset ? "sunset" : "sunrise"}-${offsetMinutes}.png`), Buffer.from(result.image.split(",")[1], "base64"));
+        await assertNoBrowserFailure(page, browserErrors, "rolling daylight");
+      }
+    }
+    process.stdout.write("Rendered sunrise and sunset on the restored overworld.\n");
+  } else if (smokeFocus === "port-authorities") {
     const screenshotRoot = path.join(APP_ROOT, ".playtest/port-authorities");
     mkdirSync(screenshotRoot, { recursive: true });
     for (const cityId of ["istanbul|turkey", "guangzhou|china", "seoul|republic of korea"]) {

@@ -5213,7 +5213,7 @@ function exeterCanalDialogueView(session, city, gameState, context) {
       option(session.exeterCanalReturnNodeId ? "Continue" : "Back to inn", {
         type: "node",
         nodeId: session.exeterCanalReturnNodeId || "inn-drink"
-      })
+      }, { iconId: "action:back" })
     ]
   };
 }

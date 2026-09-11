@@ -87,6 +87,73 @@ test("Topsham's commissioner approaches on arrival and resumes the interrupted g
   assert.equal(session.nodeId, "root");
 });
 
+test("ordinary Topsham greetings surface mixed partial canal loads, including restored voyages", () => {
+  const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  const start = source.indexOf("function maybeOpenExeterCanalArrivalDialogue(");
+  const end = source.indexOf("function maybeOpenCrewRecruitmentArrival(", start);
+  for (const restored of [false, true]) {
+    const original = commission();
+    original.choose("accept-exeter-canal");
+    Object.assign(original.state.cargo, { timber: 3, iron: 2, grain: 4 });
+    const state = restored ? migrateGameState(JSON.parse(JSON.stringify(original.state))) : original.state;
+    const session = createPortDialogueSession(topsham, { initialNodeId: "greeting", admittedToPort: true });
+    const context = vm.createContext({
+      arrivalOfferEligible, recordArrivalOffer,
+      dialogueState: session, gameState: state, weatherClockMinutes: 1440,
+      exeterCanalQuestView, invalidateDialogueOptionGeometry() {},
+      ensureDialoguePortraitLoaded() {}, dirty: false
+    });
+    vm.runInContext(source.slice(start, end), context);
+    assert.equal(context.maybeOpenExeterCanalArrivalDialogue(topsham), true);
+    const view = () => portDialogueView(session, topsham, state, null, [topsham], { simMinute: 1440 });
+    const delivery = view().options.find(entry => entry.action.type === "deliver-exeter-canal");
+    assert.equal(delivery.disabled, false);
+    selectPortDialogueAction(session, topsham, state, null, [topsham], delivery, { simMinute: 1440 });
+    assert.deepEqual(state.memory.quests.cargoDeliveries, {
+      "exeter-canal.timber": 3, "exeter-canal.iron": 2, "exeter-canal.grain": 4
+    });
+    const next = view().options.at(-1);
+    assert.equal(next.action.nodeId, "greeting");
+    selectPortDialogueAction(session, topsham, state, null, [topsham], next, { simMinute: 1440 });
+    assert.equal(session.nodeId, "greeting");
+    assert.equal(context.maybeOpenExeterCanalArrivalDialogue(topsham), false);
+  }
+});
+
+test("partial canal deliveries interrupt other landing offers and preserve their continuation", () => {
+  const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  const start = source.indexOf("function maybeOpenExeterCanalArrivalDialogue(");
+  const end = source.indexOf("function maybeOpenCrewRecruitmentArrival(", start);
+  for (const nodeId of ["quest", "loadout", "marque-factor-offer", "drunk-captain"]) {
+    for (const goodId of ["timber", "iron", "grain"]) {
+      const { state, session, view, choose } = commission();
+      choose("accept-exeter-canal");
+      state.cargo[goodId] = 1;
+      session.nodeId = nodeId;
+      session.nextPortNodeId = "greeting";
+      const context = vm.createContext({
+        arrivalOfferEligible, recordArrivalOffer,
+        dialogueState: session, gameState: state, weatherClockMinutes: 0,
+        exeterCanalQuestView, invalidateDialogueOptionGeometry() {},
+        ensureDialoguePortraitLoaded() {}, dirty: false
+      });
+      vm.runInContext(source.slice(start, end), context);
+      assert.equal(context.maybeOpenExeterCanalArrivalDialogue(topsham), false,
+        "ordinary submenu navigation must not interrupt the player");
+      assert.equal(context.maybeOpenExeterCanalArrivalDialogue(topsham, { arriving: true }), true,
+        `${goodId} delivery must surface before ${nodeId}`);
+      assert.equal(view().options.at(-1).action.nodeId, nodeId);
+      choose("deliver-exeter-canal");
+      assert.equal(state.memory.quests.cargoDeliveries[`exeter-canal.${goodId}`], 1);
+      choose("node");
+      assert.equal(session.nodeId, nodeId);
+      assert.equal(session.nextPortNodeId, "greeting");
+      assert.equal(context.maybeOpenExeterCanalArrivalDialogue(topsham, { arriving: true }), false);
+    }
+  }
+  assert.match(source, /maybeOpenExeterCanalArrivalDialogue\(cityCall, \{ arriving: true \}\)/);
+});
+
 test("the canal commission permits partial deliveries and never offers an executable empty delivery", () => {
   const { state, view, choose } = commission();
   choose("accept-exeter-canal");

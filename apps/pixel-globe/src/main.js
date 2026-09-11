@@ -1977,6 +1977,7 @@ import {
 } from "./riverBankRaster.js";
 import {
   dayNightPaletteVariant,
+  rollingDayNightPaletteAtlas,
   prepareDayNightPalette
 } from "./dayNightPalette.js";
 import {
@@ -4596,6 +4597,7 @@ async function main() {
   await shellReady;
   drawLoading();
   prepareDayNightPalette();
+  rollingDayNightPaletteAtlas();
   const [, loadedStartupAssets] = await initializationReady;
   const [
     loadedImages,
@@ -17038,6 +17040,31 @@ function installSaveRestoreSmokeHarness() {
       if (dialogueState.nodeId !== "barred") throw new Error("Hostile haven admitted the player");
       return { text: view.text, options: view.options.map(option => option.label) };
     },
+    inspectDaylight({ sunset, offsetMinutes }) {
+      if (!chart) throw new Error("Daylight inspection requires a rendered world");
+      const savedParts = weatherParts;
+      try {
+        const dayStart = Math.floor(weatherClockMinutes / 1440) * 1440;
+        let crossing = null;
+        let previous = null;
+        for (let minute = 0; minute <= 1440; minute++) {
+          weatherParts = weatherClockParts(dayStart + minute);
+          const altitude = localDayNightLight().sunAltitude;
+          if (previous !== null && (sunset ? previous > 0.25 && altitude <= 0.25
+              : previous < 0.25 && altitude >= 0.25)) {
+            crossing = dayStart + minute;
+            break;
+          }
+          previous = altitude;
+        }
+        if (crossing === null) throw new Error("Daylight fixture has no solar crossing");
+        weatherParts = weatherClockParts(crossing + offsetMinutes);
+        worldFramePresented = false;
+        render(performance.now(), { allowColdCoveredWorldRender: true });
+        return { image: worldRenderer.captureFrameCanvas().toDataURL("image/png"),
+          light: localDayNightLight() };
+      } finally { weatherParts = savedParts; }
+    },
     async inspectPortAuthority(cityId) {
       if (running) throw new Error("Port authority inspection requires an idle voyage");
       if (playerIntroModal) closePlayerIntroModal();
@@ -22675,7 +22702,9 @@ function openPortDialogue(cityCall) {
     ));
   }
   if (!rescuedTravelerSession && !campaignSession && dialogueState.kind === "port") {
-    continuePortArrivalDialogues();
+    if (!maybeOpenExeterCanalArrivalDialogue(cityCall, { arriving: true })) {
+      continuePortArrivalDialogues();
+    }
   }
   saveVoyageNow("port arrival");
   dirty = true;
@@ -22786,11 +22815,14 @@ function continuePortArrivalDialogues() {
   ]);
 }
 
-function maybeOpenExeterCanalArrivalDialogue(cityCall) {
-  if (!["greeting", "root"].includes(dialogueState.nodeId) ||
-      dialogueState.exeterCanalArrivalPresented || dialogueState.disguisedEntry) return false;
+function maybeOpenExeterCanalArrivalDialogue(cityCall, { arriving = false } = {}) {
+  if (dialogueState.exeterCanalArrivalPresented || dialogueState.disguisedEntry) return false;
   const quest = exeterCanalQuestView(gameState, cityCall, Math.floor(weatherClockMinutes));
   if (!quest || (quest.accepted && !quest.canDeliver)) return false;
+  // A delivery takes precedence over new offers selected for this landing.
+  // Preserve that pending node so the original arrival continues afterwards.
+  if (!["greeting", "root"].includes(dialogueState.nodeId) &&
+      !(arriving && quest.canDeliver)) return false;
   if (!quest.accepted) {
     if (!arrivalOfferEligible(gameState.memory.decisions, "exeter", Math.floor(weatherClockMinutes))) return false;
     recordArrivalOffer(gameState.memory.decisions, "exeter", Math.floor(weatherClockMinutes));
@@ -43589,8 +43621,8 @@ function drawDayNightWorld(layers, nowMs) {
   if (!layers || !Number.isFinite(nowMs)) {
     throw new Error("Cannot present the world without cached layers and a frame time");
   }
-  const light = localDayNightLight();
-  const variant = dayNightPaletteVariant(light);
+  const sun = currentSunDirection();
+  const variant = rollingDayNightPaletteAtlas();
   const swell = currentOceanSwellPresentation();
   const modalReframe = currentModalReframePresentation(nowMs);
   measurePerformanceBenchmarkStage("render.world.begin", () => {
@@ -43599,6 +43631,8 @@ function drawDayNightWorld(layers, nowMs) {
       height: SCREEN_H,
       clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
       paletteVariant: variant,
+      daylight: { sunScreen: [dot3(sun, camera.right), -dot3(sun, camera.up), dot3(sun, ship.position)],
+        radiansPerPixel: 1 / PIXELS_PER_RADIAN },
       timeMs: nowMs,
       oceanSwell: swell,
       modalReframe: modalReframe?.frame || null
