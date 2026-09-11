@@ -55,3 +55,16 @@ function rgbaImage(width, height, pixels) {
 function pixel(image, index) {
   return Array.from(image.data.slice(index * 4, index * 4 + 4));
 }
+
+
+test("explicit magenta chroma key preserves red plumes, skin and green clothing", () => {
+  const image = rgbaImage(7, 1, [
+    [255, 0, 255, 255], [90, 22, 76, 150], [46, 34, 47, 255],
+    [180, 35, 35, 255], [180, 80, 60, 255], [22, 90, 76, 255], [90, 22, 76, 255]
+  ]);
+  assert.equal(removePortraitChromaFringe(image, 7, 1, { chromaKey: "magenta" }), 2);
+  assert.deepEqual(pixel(image, 0), [0, 0, 0, 0]);
+  assert.deepEqual(pixel(image, 1), [0, 0, 0, 0]);
+  for (let i = 2; i < 7; i++) assert.equal(pixel(image, i)[3], 255);
+  assert.throws(() => removePortraitChromaFringe(image, 7, 1, { chromaKey: "unknown" }), /Unsupported/);
+});

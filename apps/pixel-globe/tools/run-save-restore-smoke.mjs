@@ -77,7 +77,7 @@ const fixtures = frozenSaveFixtures();
 const reachabilityOptions = parseReachabilityArguments(process.argv.slice(2));
 const releaseReachability = reachabilityOptions.release;
 const smokeFocus = process.env.PIXEL_GLOBE_SMOKE_FOCUS;
-if (smokeFocus !== undefined && !["port-regressions", "pirate-havens", "wishlist"].includes(smokeFocus)) {
+if (smokeFocus !== undefined && !["port-regressions", "pirate-havens", "wishlist", "port-authorities"].includes(smokeFocus)) {
   throw new Error(`Unknown save-restore smoke focus: ${smokeFocus}`);
 }
 if (smokeFocus && releaseReachability) {
@@ -179,7 +179,18 @@ try {
     `Save-restore runtime initialized in ${Math.round(performance.now() - startedAt)} ms\n`
   );
 
-  if (smokeFocus === "wishlist") {
+  if (smokeFocus === "port-authorities") {
+    const screenshotRoot = path.join(APP_ROOT, ".playtest/port-authorities");
+    mkdirSync(screenshotRoot, { recursive: true });
+    for (const cityId of ["istanbul|turkey", "guangzhou|china", "seoul|republic of korea"]) {
+      await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
+      const authority = await page.evaluate(cityId => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectPortAuthority(cityId), cityId);
+      assert.ok(authority.sourceRoles.includes("warrior"), JSON.stringify(authority));
+      await page.screenshot({ path: path.join(screenshotRoot, `${cityId.split("|")[0]}.png`) });
+      await assertNoBrowserFailure(page, browserErrors, `port authority ${cityId}`);
+    }
+    process.stdout.write("Regional port authorities rendered successfully after save restore.\n");
+  } else if (smokeFocus === "wishlist") {
     await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
     const screenshotRoot = path.join(APP_ROOT, ".playtest/wishlist");
     mkdirSync(screenshotRoot, { recursive: true });

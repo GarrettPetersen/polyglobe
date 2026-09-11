@@ -1211,7 +1211,7 @@ test("port assignments use their authored culture-group portrait pools", () => {
   assert.ok(assignments.get("malacca|malaysia")[PORT_CITY_STAFF_ROLE.MERCHANT]
     .sourceId.startsWith("southeast-asian-portrait-pack-by-openai-"));
   assert.ok(assignments.get("alexandria|egypt")[PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER]
-    .sourceId.startsWith("indian-ocean-portrait-pack-by-openai-"));
+    .sourceId.startsWith("turban-helmet-warriors-by-openai-"));
   assert.equal(usedNames.size, 35);
 });
 
@@ -1564,4 +1564,57 @@ test("reported Mediterranean captain survives changed portrait eligibility on re
       ...options,captainIdentitiesByShipId:new Map([[ship.id,unknown]])
     }), /Stored character identity is incompatible/);
   }
+});
+
+
+test("every catalog port authority uses a regional warrior or haven captain, including on repeated startup", () => {
+  const ports = JSON.parse(readFileSync(new URL("../city-visualizer/data/cities.json", import.meta.url))).cities;
+  const sourceById = new Map(GENERATED_MANIFEST.sourceCharacters.map(source => [source.id, source]));
+  // The visualizer also contains inland/inactive sites. Exercise each possible
+  // port roster; the browser smoke covers the actual shared startup roster.
+  for (const port of ports) {
+    const first = assignPortCityStaff([port], GENERATED_MANIFEST, new Set());
+    const restored = assignPortCityStaff([port], GENERATED_MANIFEST, new Set());
+    const character = first.get(port.cityId)[PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER];
+    const source = sourceById.get(character.sourceId);
+    assert.ok(source.roles.includes("warrior") || (port.isPirateHideout && source.roles.includes("pirate")), `${port.cityId}: ${source.label}`);
+    assert.ok(source.regions.includes(character.region) || (port.isPirateHideout && source.regions.includes("global")), port.cityId);
+    const alternate = assignPortCityStaff([port], GENERATED_MANIFEST, new Set(), { excludedSourceIds: [source.id] });
+    assert.notEqual(alternate.get(port.cityId)[PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER].sourceId, source.id);
+    assert.deepEqual(restored.get(port.cityId)[PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER], character);
+  }
+});
+
+test("regional warrior packs have native, opaque-or-transparent Resurrect 64 pixels", async () => {
+  const { REGIONAL_WARRIOR_PORTRAIT_PACKS } = await import("../tools/regionalWarriorPortraits.mjs");
+  const { RESURRECT_64_HEX } = await import("./waterLatitudePalette.js");
+  const palette = new Set(RESURRECT_64_HEX.map(hex => parseInt(hex, 16)));
+  for (const pack of REGIONAL_WARRIOR_PORTRAIT_PACKS) {
+    const portraits = GENERATED_MANIFEST.sourceCharacters.filter(source => source.sourceDirectory === pack.directory);
+    assert.equal(portraits.length, 4, pack.directory);
+    for (const source of portraits) {
+      assert.deepEqual(source.roles, ["warrior"]);
+      assert.deepEqual(source.regions, [pack.region]);
+      const expression = source.expressions[0];
+      const image = await loadImage(fileURLToPath(new URL(`../public/${decodeURIComponent(expression.src)}`, import.meta.url)));
+      assert.equal(image.width, 64); assert.equal(image.height, 64);
+      const canvas = createCanvas(64, 64), context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0);
+      const { data } = context.getImageData(0, 0, 64, 64);
+      let opaque = 0;
+      for (let offset = 0; offset < data.length; offset += 4) {
+        assert.ok(data[offset + 3] === 0 || data[offset + 3] === 255);
+        if (!data[offset + 3]) continue;
+        opaque++;
+        assert.ok(palette.has(data[offset] * 65536 + data[offset + 1] * 256 + data[offset + 2]), source.id);
+      }
+      assert.ok(opaque > 500 && opaque < 3500, source.id);
+    }
+  }
+});
+
+test("port authority selection rejects civilian-only catalogs instead of dressing a merchant as commander", () => {
+  const manifest = { ...GENERATED_MANIFEST, sourceCharacters: GENERATED_MANIFEST.sourceCharacters.filter(source => !source.roles.includes("warrior")) };
+  assert.throws(() => assignPortCityStaffMember({ cityId: "cadiz|spain", city: "Cadiz", country: "Spain", cityType: "mediterranean", tileId: 7 },
+    PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER, manifest, new Set()), /no mediterranean sources for garrison-commander/);
 });

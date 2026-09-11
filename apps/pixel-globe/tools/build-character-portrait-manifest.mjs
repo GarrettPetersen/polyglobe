@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { retiredCharacterPortrait } from "../src/retiredCharacterPortraits.js";
 import { validateCharacterPortraitManifest } from "../src/characterPortraits.js";
 
+import { REGIONAL_WARRIOR_PORTRAIT_PACKS } from "./regionalWarriorPortraits.mjs";
+
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const characterRoot = join(appRoot, "public/assets/characters");
 const outputPath = join(characterRoot, "generated/character-portraits.json");
@@ -500,6 +502,14 @@ const numberedPortraitAgeRanges = new Map([
   })]
 ]);
 
+for (const pack of REGIONAL_WARRIOR_PORTRAIT_PACKS) {
+  individualSequencePacks.add(pack.directory);
+  singleSexPortraitDirectories.set(pack.directory, "male");
+  numberedPortraitAgeRanges.set(pack.directory, numberedRanges({
+    1: [28, 42], 2: [28, 45], 3: [38, 55], 4: [52, 70]
+  }));
+}
+
 function ageRange(minAge, maxAge) {
   return Object.freeze({ minAge, maxAge });
 }
@@ -811,6 +821,8 @@ const portraitMetadataOverrides = new Map([
 ]);
 
 function portraitMetadata(label, sourceDirectory) {
+  const warriorPack = REGIONAL_WARRIOR_PORTRAIT_PACKS.find(pack => pack.directory === sourceDirectory);
+  if (warriorPack) return { roles: ["warrior"], regions: [warriorPack.region] };
   const override = portraitMetadataOverrides.get(`${sourceDirectory}/${label}`);
   if (override) return override;
   const text = `${label} ${sourceDirectory}`.toLowerCase();

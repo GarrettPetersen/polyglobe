@@ -22,7 +22,7 @@ import { portPersonalityForKey } from "./portDialoguePersonality.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 import { retiredCharacterPortrait } from "./retiredCharacterPortraits.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-23";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-24";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const OLD_BUCCANEER_MINIMUM_AGE = 45;
@@ -44,7 +44,7 @@ const PORT_CITY_STAFF_SOURCE_ROLES = Object.freeze({
   [PORT_CITY_STAFF_ROLE.INNKEEPER]: Object.freeze(["civilian", "factor"]),
   [PORT_CITY_STAFF_ROLE.SMITH]: Object.freeze(["artisan", "factor"]),
   [PORT_CITY_STAFF_ROLE.MERCHANT]: Object.freeze(["factor"]),
-  [PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER]: Object.freeze(["warrior", "captain", "factor"])
+  [PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER]: Object.freeze(["warrior"])
 });
 
 const EXPRESSION_FALLBACK_IDS = Object.freeze({

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   formatWaypointLabel,
+  visibleWaypointArrowPlacement,
   waypointArrowDirectionFromCenter,
   waypointArrowEdgePoint,
   waypointArrowGeometry,
@@ -191,4 +192,49 @@ test("waypoint geometry and labels reject malformed input", () => {
   );
   assert.throws(() => formatWaypointLabel("", 100), /destination name/);
   assert.throws(() => formatWaypointLabel("Cairo", -1), /non-negative distance/);
+});
+
+
+test("partially visible destinations aim at their visible sprite instead of offscreen", () => {
+  for (const targetBounds of [
+    { x: -12, y: 80, w: 20, h: 30 }, { x: 195, y: 80, w: 20, h: 30 },
+    { x: 80, y: -25, w: 20, h: 30 }, { x: 80, y: 145, w: 20, h: 30 },
+    { x: -12, y: -25, w: 20, h: 30 }
+  ]) {
+    const placement = visibleWaypointArrowPlacement({
+      anchorPoint: { x: targetBounds.x + 10, y: targetBounds.y - 18 },
+      targetBounds, screenWidth: 200, screenHeight: 150, margin: 15
+    });
+    assert.ok(placement);
+    const target = {
+      x: (Math.max(0, targetBounds.x) + Math.min(200, targetBounds.x + targetBounds.w)) / 2,
+      y: (Math.max(0, targetBounds.y) + Math.min(150, targetBounds.y + targetBounds.h)) / 2
+    };
+    const dx = target.x - placement.point.x, dy = target.y - placement.point.y;
+    assert.ok(dx * placement.direction.x + dy * placement.direction.y > 0);
+    assert.ok(Math.abs(dx * placement.direction.y - dy * placement.direction.x) < 1e-9);
+  }
+});
+
+test("a visible destination above the old marker threshold is still an on-screen target", () => {
+  assert.deepEqual(visibleWaypointArrowPlacement({
+    anchorPoint: { x: 100, y: 2 }, targetBounds: { x: 90, y: 20, w: 20, h: 20 },
+    screenWidth: 200, screenHeight: 150, margin: 15
+  }), { point: { x: 100, y: 15 }, direction: { x: 0, y: 1 } });
+  assert.equal(visibleWaypointArrowPlacement({
+    anchorPoint: { x: -40, y: 80 }, targetBounds: { x: -50, y: 70, w: 20, h: 20 },
+    screenWidth: 200, screenHeight: 150, margin: 15
+  }), null);
+});
+
+test("HUD avoidance re-aims the displaced marker at the visible destination", () => {
+  const control = { x: 80, y: 100, w: 40, h: 50 };
+  const placement = visibleWaypointArrowPlacement({
+    anchorPoint: { x: 100, y: 110 }, targetBounds: { x: 95, y: 125, w: 10, h: 10 },
+    screenWidth: 200, screenHeight: 150, margin: 15, reservedRects: [control], clearance: 4
+  });
+  assert.equal(waypointPointOverlapsReservedRects(placement.point, [control], 4), false);
+  const dx = 100 - placement.point.x, dy = 130 - placement.point.y;
+  assert.ok(dx * placement.direction.x + dy * placement.direction.y > 0);
+  assert.ok(Math.abs(dx * placement.direction.y - dy * placement.direction.x) < 1e-9);
 });

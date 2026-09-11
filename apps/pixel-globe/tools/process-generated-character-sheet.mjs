@@ -15,11 +15,14 @@ const MIN_OPAQUE_PIXELS = 500;
 const MAX_OPAQUE_PIXELS = 3500;
 
 async function main() {
-  const [sourceArg, outputArg, slug, sourceCopyArg] = process.argv.slice(2);
+  const [sourceArg, outputArg, slug, sourceCopyArg, chromaKey = "green", downscaleOption] = process.argv.slice(2);
   if (!sourceArg || !outputArg || !slug) {
     throw new Error(
-      "Usage: node tools/process-generated-character-sheet.mjs <source.png> <output-dir> <slug> [source-copy.png]"
+      "Usage: node tools/process-generated-character-sheet.mjs <source.png> <output-dir> <slug> [source-copy.png] [green|magenta] [--retro-diffusion]"
     );
+  }
+  if (downscaleOption !== undefined && downscaleOption !== "--retro-diffusion") {
+    throw new Error(`Unknown downscale option: ${downscaleOption}`);
   }
   if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
     throw new Error(`Portrait slug must be lowercase kebab-case: ${slug}`);
@@ -39,7 +42,7 @@ async function main() {
   const sourceCanvas = createCanvas(sourceImage.width, sourceImage.height);
   const sourceContext = sourceCanvas.getContext("2d", { alpha: true, willReadFrequently: true });
   sourceContext.drawImage(sourceImage, 0, 0);
-  prepareSourceTransparency(sourceContext, sourceCanvas.width, sourceCanvas.height);
+  prepareSourceTransparency(sourceContext, sourceCanvas.width, sourceCanvas.height, chromaKey);
   const isNativeSheet = sourceCanvas.width === NATIVE_SHEET_SIZE
     && sourceCanvas.height === NATIVE_SHEET_SIZE;
 
@@ -72,6 +75,21 @@ async function main() {
           0,
           0
         );
+      } else if (downscaleOption === "--retro-diffusion") {
+        // Submit individual cells to stay below the API request-size limit.
+        const cell = createCanvas(x1 - x0, y1 - y0);
+        // The downscaler emits RGB. Carry transparency through an explicit
+        // chroma background instead of letting transparent pixels turn black.
+        const cellContext = cell.getContext("2d");
+        cellContext.fillStyle = "#ff00ff";
+        cellContext.fillRect(0, 0, cell.width, cell.height);
+        cellContext.drawImage(sourceCanvas, x0, y0, x1 - x0, y1 - y0, 0, 0, cell.width, cell.height);
+        context.drawImage(await downscaleWithRetroDiffusion(cell.toBuffer("image/png")), 0, 0);
+        const image = context.getImageData(0, 0, PORTRAIT_SIZE, PORTRAIT_SIZE);
+        removePortraitChromaFringe(image, PORTRAIT_SIZE, PORTRAIT_SIZE, { chromaKey: "magenta" });
+        context.putImageData(image, 0, 0);
+        // Per-character coverage is validated below; a full-sheet gutter
+        // fraction does not apply to an individual broad-shouldered portrait.
       } else {
         context.drawImage(
           sourceCanvas,
@@ -104,7 +122,38 @@ async function main() {
   console.log(sheetPath);
 }
 
-function prepareSourceTransparency(context, width, height) {
+// Explicitly use the free editing endpoint; generation and paid image edits
+// are not part of asset downscaling. Recheck the live cost before submitting.
+async function downscaleWithRetroDiffusion(png) {
+  const apiKey = process.env.RETRO_DIFFUSION_API_KEY;
+  if (!apiKey) throw new Error("Retro Diffusion downscaling requires RETRO_DIFFUSION_API_KEY");
+  const endpoint = "https://api.retrodiffusion.ai/v2/edit/tools/k_centroid_downscale";
+  const payload = { input_image: png.toString("base64"), width: PORTRAIT_SIZE, height: PORTRAIT_SIZE };
+  const post = async (url) => {
+    const response = await fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json", "X-RD-Token": apiKey },
+      body: JSON.stringify(payload), signal: AbortSignal.timeout(120000)
+    });
+    if (!response.ok) throw new Error(`Retro Diffusion downscale HTTP ${response.status}`);
+    return response.json();
+  };
+  const estimate = await post(`${endpoint}/estimate`);
+  if (estimate.balance_cost !== 0 || estimate.credit_cost !== 0) {
+    throw new Error("Retro Diffusion downscaling is no longer free; no operation submitted");
+  }
+  const result = await post(endpoint);
+  if (result.balance_cost !== 0 || result.base64_images?.length !== 1) {
+    throw new Error("Retro Diffusion downscaler returned an unexpected result");
+  }
+  const image = await loadImage(Buffer.from(result.base64_images[0], "base64"));
+  if (image.width !== PORTRAIT_SIZE || image.height !== PORTRAIT_SIZE) {
+    throw new Error(`Retro Diffusion returned ${image.width}x${image.height}, expected ${PORTRAIT_SIZE}x${PORTRAIT_SIZE}`);
+  }
+  console.log("Retro Diffusion K-centroid downscale completed (zero cost)");
+  return image;
+}
+
+function prepareSourceTransparency(context, width, height, chromaKey) {
   const image = context.getImageData(0, 0, width, height);
   let transparentPixels = 0;
   for (let offset = 3; offset < image.data.length; offset += 4) {
@@ -125,7 +174,7 @@ function prepareSourceTransparency(context, width, height) {
     return;
   }
 
-  const removed = removePortraitChromaFringe(image, width, height);
+  const removed = removePortraitChromaFringe(image, width, height, { chromaKey });
   const removedShare = removed / (width * height);
   if (removedShare < 0.35 || removedShare > 0.85) {
     throw new Error(`Chroma-key coverage is implausible: ${(removedShare * 100).toFixed(1)}%`);

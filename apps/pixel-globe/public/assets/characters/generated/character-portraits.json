@@ -999,6 +999,110 @@
       ]
     },
     {
+      "id": "indigenous-american-warriors-by-openai-indigenous-american-warrior-1",
+      "label": "Indigenous American Warrior 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Indigenous American Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "americas"
+      ],
+      "minAge": 28,
+      "maxAge": 42,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Indigenous%20American%20Warriors%20by%20OpenAI/Indigenous%20American%20Warrior%201.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "indigenous-american-warriors-by-openai-indigenous-american-warrior-2",
+      "label": "Indigenous American Warrior 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Indigenous American Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "americas"
+      ],
+      "minAge": 28,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Indigenous%20American%20Warriors%20by%20OpenAI/Indigenous%20American%20Warrior%202.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "indigenous-american-warriors-by-openai-indigenous-american-warrior-3",
+      "label": "Indigenous American Warrior 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Indigenous American Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "americas"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Indigenous%20American%20Warriors%20by%20OpenAI/Indigenous%20American%20Warrior%203.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "indigenous-american-warriors-by-openai-indigenous-american-warrior-4",
+      "label": "Indigenous American Warrior 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Indigenous American Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "americas"
+      ],
+      "minAge": 52,
+      "maxAge": 70,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Indigenous%20American%20Warriors%20by%20OpenAI/Indigenous%20American%20Warrior%204.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
       "id": "japanese-portrait-pack-by-openai-japanese-1",
       "label": "Japanese 1",
       "groupingMode": "single-portrait",
@@ -1917,6 +2021,110 @@
           "label": "Neutral",
           "index": 0,
           "src": "assets/characters/Joseon%20Korean%20Portrait%20Pack%20by%20OpenAI/joseon-korean-09.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-warriors-by-openai-joseon-warrior-1",
+      "label": "Joseon Warrior 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 28,
+      "maxAge": 42,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Warriors%20by%20OpenAI/Joseon%20Warrior%201.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-warriors-by-openai-joseon-warrior-2",
+      "label": "Joseon Warrior 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 28,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Warriors%20by%20OpenAI/Joseon%20Warrior%202.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-warriors-by-openai-joseon-warrior-3",
+      "label": "Joseon Warrior 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Warriors%20by%20OpenAI/Joseon%20Warrior%203.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "joseon-warriors-by-openai-joseon-warrior-4",
+      "label": "Joseon Warrior 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Joseon Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "joseon"
+      ],
+      "minAge": 52,
+      "maxAge": 70,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Joseon%20Warriors%20by%20OpenAI/Joseon%20Warrior%204.png",
           "width": 64,
           "height": 64
         }
@@ -3266,6 +3474,110 @@
           "label": "Neutral",
           "index": 0,
           "src": "assets/characters/Ming%20Chinese%20Portrait%20Pack%20by%20OpenAI/ming-chinese-09.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ming-warriors-by-openai-ming-warrior-1",
+      "label": "Ming Warrior 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Ming Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "east-asia"
+      ],
+      "minAge": 28,
+      "maxAge": 42,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Ming%20Warriors%20by%20OpenAI/Ming%20Warrior%201.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ming-warriors-by-openai-ming-warrior-2",
+      "label": "Ming Warrior 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Ming Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "east-asia"
+      ],
+      "minAge": 28,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Ming%20Warriors%20by%20OpenAI/Ming%20Warrior%202.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ming-warriors-by-openai-ming-warrior-3",
+      "label": "Ming Warrior 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Ming Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "east-asia"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Ming%20Warriors%20by%20OpenAI/Ming%20Warrior%203.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "ming-warriors-by-openai-ming-warrior-4",
+      "label": "Ming Warrior 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Ming Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "east-asia"
+      ],
+      "minAge": 52,
+      "maxAge": 70,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Ming%20Warriors%20by%20OpenAI/Ming%20Warrior%204.png",
           "width": 64,
           "height": 64
         }
@@ -5386,6 +5698,110 @@
       ]
     },
     {
+      "id": "polynesian-warriors-by-openai-polynesian-warrior-1",
+      "label": "Polynesian Warrior 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Polynesian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "polynesia"
+      ],
+      "minAge": 28,
+      "maxAge": 42,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Polynesian%20Warriors%20by%20OpenAI/Polynesian%20Warrior%201.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "polynesian-warriors-by-openai-polynesian-warrior-2",
+      "label": "Polynesian Warrior 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Polynesian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "polynesia"
+      ],
+      "minAge": 28,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Polynesian%20Warriors%20by%20OpenAI/Polynesian%20Warrior%202.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "polynesian-warriors-by-openai-polynesian-warrior-3",
+      "label": "Polynesian Warrior 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Polynesian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "polynesia"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Polynesian%20Warriors%20by%20OpenAI/Polynesian%20Warrior%203.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "polynesian-warriors-by-openai-polynesian-warrior-4",
+      "label": "Polynesian Warrior 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Polynesian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "polynesia"
+      ],
+      "minAge": 52,
+      "maxAge": 70,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Polynesian%20Warriors%20by%20OpenAI/Polynesian%20Warrior%204.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
       "id": "merchant-portrait-pack-by-captainskolot-portrait-merchant",
       "label": "Portrait Merchant",
       "groupingMode": "expression-set",
@@ -5498,6 +5914,110 @@
           "label": "Hurt",
           "index": 12,
           "src": "assets/characters/Merchant%20Portrait%20Pack%20by%20Captainskolot/portrait%20merchant_12.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sahel-warriors-by-openai-sahel-warrior-1",
+      "label": "Sahel Warrior 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sahel Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "africa"
+      ],
+      "minAge": 28,
+      "maxAge": 42,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sahel%20Warriors%20by%20OpenAI/Sahel%20Warrior%201.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sahel-warriors-by-openai-sahel-warrior-2",
+      "label": "Sahel Warrior 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sahel Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "africa"
+      ],
+      "minAge": 28,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sahel%20Warriors%20by%20OpenAI/Sahel%20Warrior%202.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sahel-warriors-by-openai-sahel-warrior-3",
+      "label": "Sahel Warrior 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sahel Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "africa"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sahel%20Warriors%20by%20OpenAI/Sahel%20Warrior%203.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "sahel-warriors-by-openai-sahel-warrior-4",
+      "label": "Sahel Warrior 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Sahel Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "africa"
+      ],
+      "minAge": 52,
+      "maxAge": 70,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Sahel%20Warriors%20by%20OpenAI/Sahel%20Warrior%204.png",
           "width": 64,
           "height": 64
         }
@@ -6448,6 +6968,110 @@
       ]
     },
     {
+      "id": "south-asian-warriors-by-openai-south-asian-warrior-1",
+      "label": "South Asian Warrior 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "South Asian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "south-asia"
+      ],
+      "minAge": 28,
+      "maxAge": 42,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/South%20Asian%20Warriors%20by%20OpenAI/South%20Asian%20Warrior%201.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "south-asian-warriors-by-openai-south-asian-warrior-2",
+      "label": "South Asian Warrior 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "South Asian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "south-asia"
+      ],
+      "minAge": 28,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/South%20Asian%20Warriors%20by%20OpenAI/South%20Asian%20Warrior%202.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "south-asian-warriors-by-openai-south-asian-warrior-3",
+      "label": "South Asian Warrior 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "South Asian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "south-asia"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/South%20Asian%20Warriors%20by%20OpenAI/South%20Asian%20Warrior%203.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "south-asian-warriors-by-openai-south-asian-warrior-4",
+      "label": "South Asian Warrior 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "South Asian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "south-asia"
+      ],
+      "minAge": 52,
+      "maxAge": 70,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/South%20Asian%20Warriors%20by%20OpenAI/South%20Asian%20Warrior%204.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
       "id": "southeast-asian-portrait-pack-by-openai-southeast-asian-1",
       "label": "Southeast Asian 1",
       "groupingMode": "single-portrait",
@@ -6906,6 +7530,110 @@
           "label": "Neutral",
           "index": 0,
           "src": "assets/characters/Southeast%20Asian%20Portrait%20Pack%20by%20OpenAI/southeast-asian-09.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "southeast-asian-warriors-by-openai-southeast-asian-warrior-1",
+      "label": "Southeast Asian Warrior 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Southeast Asian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "southeast-asia"
+      ],
+      "minAge": 28,
+      "maxAge": 42,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Southeast%20Asian%20Warriors%20by%20OpenAI/Southeast%20Asian%20Warrior%201.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "southeast-asian-warriors-by-openai-southeast-asian-warrior-2",
+      "label": "Southeast Asian Warrior 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Southeast Asian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "southeast-asia"
+      ],
+      "minAge": 28,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Southeast%20Asian%20Warriors%20by%20OpenAI/Southeast%20Asian%20Warrior%202.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "southeast-asian-warriors-by-openai-southeast-asian-warrior-3",
+      "label": "Southeast Asian Warrior 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Southeast Asian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "southeast-asia"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Southeast%20Asian%20Warriors%20by%20OpenAI/Southeast%20Asian%20Warrior%203.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "southeast-asian-warriors-by-openai-southeast-asian-warrior-4",
+      "label": "Southeast Asian Warrior 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Southeast Asian Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "southeast-asia"
+      ],
+      "minAge": 52,
+      "maxAge": 70,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Southeast%20Asian%20Warriors%20by%20OpenAI/Southeast%20Asian%20Warrior%204.png",
           "width": 64,
           "height": 64
         }
@@ -7440,6 +8168,110 @@
           "label": "Sad",
           "index": 6,
           "src": "assets/characters/Ultimate%20Portrait%20Pack%20V1.0/Tavern%20Keeper/Tavern%20Keeper%20Portrait6.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "turban-helmet-warriors-by-openai-turban-helmet-warrior-1",
+      "label": "Turban Helmet Warrior 1",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Turban Helmet Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "indian-ocean"
+      ],
+      "minAge": 28,
+      "maxAge": 42,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Turban%20Helmet%20Warriors%20by%20OpenAI/Turban%20Helmet%20Warrior%201.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "turban-helmet-warriors-by-openai-turban-helmet-warrior-2",
+      "label": "Turban Helmet Warrior 2",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Turban Helmet Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "indian-ocean"
+      ],
+      "minAge": 28,
+      "maxAge": 45,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Turban%20Helmet%20Warriors%20by%20OpenAI/Turban%20Helmet%20Warrior%202.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "turban-helmet-warriors-by-openai-turban-helmet-warrior-3",
+      "label": "Turban Helmet Warrior 3",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Turban Helmet Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "indian-ocean"
+      ],
+      "minAge": 38,
+      "maxAge": 55,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Turban%20Helmet%20Warriors%20by%20OpenAI/Turban%20Helmet%20Warrior%203.png",
+          "width": 64,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "id": "turban-helmet-warriors-by-openai-turban-helmet-warrior-4",
+      "label": "Turban Helmet Warrior 4",
+      "groupingMode": "single-portrait",
+      "sourceDirectory": "Turban Helmet Warriors by OpenAI",
+      "sex": "male",
+      "roles": [
+        "warrior"
+      ],
+      "regions": [
+        "indian-ocean"
+      ],
+      "minAge": 52,
+      "maxAge": 70,
+      "expressionCount": 1,
+      "expressions": [
+        {
+          "id": "neutral",
+          "label": "Neutral",
+          "index": 0,
+          "src": "assets/characters/Turban%20Helmet%20Warriors%20by%20OpenAI/Turban%20Helmet%20Warrior%204.png",
           "width": 64,
           "height": 64
         }

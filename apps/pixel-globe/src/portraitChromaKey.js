@@ -1,11 +1,16 @@
-const STRONG_GREEN_MIN = 150;
-const STRONG_GREEN_MARGIN = 60;
-const FRINGE_GREEN_MIN = 48;
+const STRONG_CHROMA_MIN = 150;
+const STRONG_CHROMA_MARGIN = 60;
+const FRINGE_CHROMA_MIN = 48;
 const FRINGE_GREEN_RED_MARGIN = 18;
 const FRINGE_GREEN_BLUE_MARGIN = 8;
 const MAX_FRINGE_DEPTH = 2;
 
-export function removePortraitChromaFringe(imageData, width, height) {
+export function removePortraitChromaFringe(imageData, width, height, { chromaKey = "green" } = {}) {
+  if (chromaKey !== "green" && chromaKey !== "magenta") {
+    throw new Error(`Unsupported portrait chroma key: ${chromaKey}`);
+  }
+  const isStrong = chromaKey === "green" ? isStrongChromaGreen : isStrongChromaMagenta;
+  const isFringe = chromaKey === "green" ? isChromaFringe : isMagentaFringe;
   const data = imageData?.data;
   if (!data || data.length !== width * height * 4) {
     throw new Error("Portrait chroma cleanup requires matching RGBA image dimensions");
@@ -19,7 +24,7 @@ export function removePortraitChromaFringe(imageData, width, height) {
 
   for (let pixel = 0; pixel < pixelCount; pixel += 1) {
     const offset = pixel * 4;
-    if (!isStrongChromaGreen(data[offset], data[offset + 1], data[offset + 2])) continue;
+    if (!isStrong(data[offset], data[offset + 1], data[offset + 2])) continue;
     remove[pixel] = 1;
     queue[queueLength] = pixel;
     queueLength += 1;
@@ -39,7 +44,7 @@ export function removePortraitChromaFringe(imageData, width, height) {
         const next = nextY * width + nextX;
         if (remove[next]) continue;
         const offset = next * 4;
-        if (!isChromaFringe(data[offset], data[offset + 1], data[offset + 2])) continue;
+        if (!isFringe(data[offset], data[offset + 1], data[offset + 2])) continue;
         remove[next] = 1;
         depth[next] = depth[pixel] + 1;
         queue[queueLength] = next;
@@ -63,13 +68,21 @@ export function removePortraitChromaFringe(imageData, width, height) {
 }
 
 function isStrongChromaGreen(red, green, blue) {
-  return green >= STRONG_GREEN_MIN
-    && green - red >= STRONG_GREEN_MARGIN
-    && green - blue >= STRONG_GREEN_MARGIN;
+  return green >= STRONG_CHROMA_MIN
+    && green - red >= STRONG_CHROMA_MARGIN
+    && green - blue >= STRONG_CHROMA_MARGIN;
 }
 
 function isChromaFringe(red, green, blue) {
-  return green >= FRINGE_GREEN_MIN
+  return green >= FRINGE_CHROMA_MIN
     && green - red >= FRINGE_GREEN_RED_MARGIN
     && green - blue >= FRINGE_GREEN_BLUE_MARGIN;
+}
+
+function isStrongChromaMagenta(red, green, blue) {
+  return Math.min(red, blue) >= STRONG_CHROMA_MIN && Math.min(red, blue) - green >= STRONG_CHROMA_MARGIN;
+}
+
+function isMagentaFringe(red, green, blue) {
+  return Math.min(red, blue) >= FRINGE_CHROMA_MIN && Math.min(red, blue) - green >= FRINGE_GREEN_RED_MARGIN;
 }

@@ -1,6 +1,37 @@
 const WAYPOINT_TRACK_CACHE_LIMIT = 24;
 const waypointTrackCache = new Map();
 
+// A destination can already be visible while its overhead marker is outside the
+// viewport. Aim at the visible portion of its sprite, not beyond the screen edge.
+export function visibleWaypointArrowPlacement({
+  anchorPoint, targetBounds, screenWidth, screenHeight, margin,
+  reservedRects = [], clearance = 0
+}) {
+  assertPoint(anchorPoint, "anchor point");
+  assertPositive(screenWidth, "screen width");
+  assertPositive(screenHeight, "screen height");
+  assertNonNegative(margin, "edge margin");
+  assertNonNegative(clearance, "reserved clearance");
+  if (margin * 2 > Math.min(screenWidth, screenHeight)) throw new Error("Waypoint arrow viewport has no drawable area");
+  const bounds = inflateReservedRect(targetBounds, 0, "target");
+  const left = Math.max(0, bounds.x), right = Math.min(screenWidth, bounds.x + bounds.w);
+  const top = Math.max(0, bounds.y), bottom = Math.min(screenHeight, bounds.y + bounds.h);
+  if (right < left || bottom < top) return null;
+  const target = { x: (left + right) / 2, y: (top + bottom) / 2 };
+  let point = {
+    x: Math.max(margin, Math.min(screenWidth - margin, anchorPoint.x)),
+    y: Math.max(margin, Math.min(screenHeight - margin, anchorPoint.y))
+  };
+  if (waypointPointOverlapsReservedRects(point, reservedRects, clearance)) {
+    const direction = waypointArrowDirectionFromCenter({ point: target, screenWidth, screenHeight })
+      || { x: 0, y: 1 };
+    point = waypointArrowEdgePoint({ direction, screenWidth, screenHeight, margin, reservedRects, clearance });
+  }
+  const dx = target.x - point.x, dy = target.y - point.y;
+  const length = Math.hypot(dx, dy);
+  return { point, direction: length > 1e-9 ? { x: dx / length, y: dy / length } : { x: 0, y: 1 } };
+}
+
 export function waypointArrowDirectionFromCenter({ point, screenWidth, screenHeight }) {
   assertPoint(point, "target point");
   assertPositive(screenWidth, "screen width");

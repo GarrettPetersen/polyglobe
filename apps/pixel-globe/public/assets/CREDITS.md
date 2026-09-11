@@ -113,3 +113,4 @@
 - CaptainSkolot - "Ultimate Portrait Pack" and related portrait packs (itch.io asset license; selected and curated for the 1522 setting)
 - CaptainSkolot - "Wild Animal Portrait Pack," "Panda Portrait," "Racoon Portrait," and "Penguin Portraits" (itch.io asset license)
 - Retro Diffusion - "Sengoku Samurai Portrait Pack" (AI-generated with touch-up by Garrett Petersen)
+- OpenAI - Regional warrior portraits (AI-generated; downscaled with Retro Diffusion and palette-adapted to Resurrect 64)

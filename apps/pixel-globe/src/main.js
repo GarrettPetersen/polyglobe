@@ -2237,6 +2237,7 @@ import { formatCompactNumber } from "./compactNumber.js";
 import { EARTH_RADIUS_KM, initialBearingDeg } from "./worldDistance.js";
 import {
   formatWaypointLabel,
+  visibleWaypointArrowPlacement,
   waypointArrowDirectionFromCenter,
   waypointArrowEdgePoint,
   waypointArrowGeometry,
@@ -17036,6 +17037,22 @@ function installSaveRestoreSmokeHarness() {
       const view = currentDialogueView();
       if (dialogueState.nodeId !== "barred") throw new Error("Hostile haven admitted the player");
       return { text: view.text, options: view.options.map(option => option.label) };
+    },
+    async inspectPortAuthority(cityId) {
+      if (running) throw new Error("Port authority inspection requires an idle voyage");
+      if (playerIntroModal) closePlayerIntroModal();
+      captainAlertModal = null;
+      placeCapturePlayerNearTile(cityById.get(cityId).tileId, { headingDeg: 0 });
+      openCapturePortNode(cityId, "root");
+      await synchronizePortCityScene();
+      portCityTransition = null;
+      activatePortCityDestination({ id: PORT_CITY_LOCATION.AUTHORITY });
+      const role = portCityStaffRoleForDialogueSession(dialogueState);
+      if (role !== PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER) throw new Error("Authority opened with the wrong speaker");
+      const character = portCityStaffMember(currentDialogueCity(), role);
+      await ensureCharacterPortraitLoaded(character, characterExpression(character));
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      return { cityId, role, sourceId: character.sourceId, sourceRoles: character.sourceRoles };
     },
     inspectWishlist(stage) {
       captainAlertModal = null;
@@ -62150,8 +62167,10 @@ function drawQuestShipArrow(spec, { idPrefix, label, nowMs }) {
   const snapshot = npcShipSnapshotForId(npcSeaRoutes, spec.id, weatherClockMinutes);
   if (!snapshot || snapshot.hidden || !snapshot.routeVector) return;
   const visualState = npcVisualShips.get(spec.id);
+  const drawCall = visualState ? currentNpcShipDrawCall(visualState, nowMs) : null;
   drawWorldTargetArrow({
     id: `${idPrefix}:${spec.id}`,
+    screenTargetBounds: drawCall ? { x: drawCall.x, y: drawCall.y, w: SHIP_SHEET_FRAME_SIZE, h: SHIP_SHEET_FRAME_SIZE } : null,
     label: renderedUiText(label),
     targetVector: snapshot.routeVector,
     localPoint: visualState
@@ -62420,6 +62439,7 @@ function beginWaypointArrowFrame() {
 }
 
 function drawWorldTargetArrow({
+  screenTargetBounds = null,
   id,
   label,
   targetVector,
@@ -62436,15 +62456,18 @@ function drawWorldTargetArrow({
       x: Math.round(localPoint.x + offset.x),
       y: Math.round(localPoint.y + offset.y + localYOffset)
     };
-    const pointIsOnScreen = pointWithinWaypointBounds(
-      point,
-      QUEST_ARROW_EDGE_MARGIN_PX,
-      SCREEN_H - QUEST_ARROW_EDGE_MARGIN_PX
-    );
-    if (pointIsOnScreen && !waypointPointOverlapsReservedRects(point, reservedRects, reservedClearance)) {
-      const direction = { x: 0, y: 1 };
-      const hitRect = drawQuestArrowGlyph(point, direction, nowMs, style);
-      registerWaypointArrow({ id, label, targetVector, point, direction, hitRect });
+    const targetBounds = screenTargetBounds || (Number.isFinite(localPoint.spriteW)
+      ? { x: localPoint.spriteX + offset.x, y: localPoint.spriteY + offset.y,
+        w: localPoint.spriteW, h: localPoint.spriteH }
+      : { x: localPoint.x + offset.x, y: localPoint.y + offset.y, w: 0, h: 0 });
+    const visiblePlacement = visibleWaypointArrowPlacement({
+      anchorPoint: point, targetBounds, screenWidth: SCREEN_W, screenHeight: SCREEN_H,
+      margin: QUEST_ARROW_EDGE_MARGIN_PX, reservedRects, clearance: reservedClearance
+    });
+    if (visiblePlacement) {
+      const { point: visiblePoint, direction } = visiblePlacement;
+      const hitRect = drawQuestArrowGlyph(visiblePoint, direction, nowMs, style);
+      registerWaypointArrow({ id, label, targetVector, point: visiblePoint, direction, hitRect });
       return;
     }
     const direction = waypointArrowDirectionFromCenter({
