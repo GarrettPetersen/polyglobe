@@ -1,5 +1,5 @@
 const CONNECTOR_EDGE_NOISE_PX = 1;
-const SAME_SURFACE_JUNCTION_OVERLAP_PX = 1;
+const SAME_SURFACE_JUNCTION_OVERLAP_PX = 2;
 
 const TERRAIN_CONNECTOR_SURFACE_KINDS = new Set(["water", "land", "coast"]);
 
@@ -18,7 +18,8 @@ export function terrainConnectorHalfWidthPx({
     throw new Error(`Unknown terrain connector surface kind: ${surfaceKind}`);
   }
   // Irregular sprites can otherwise leave a one-pixel clear-buffer hole where
-  // three integer-projected silhouettes of the same surface meet. Mixed coast
+  // three integer-projected silhouettes of the same surface meet. Two pixels
+  // cover opposing half-pixel rounding plus the irregular edge. Mixed coast
   // edges retain their authored width so land does not bleed into water.
   return baseHalfWidthPx + Math.min(2, levelDifference) +
     (surfaceKind === "coast" ? 0 : SAME_SURFACE_JUNCTION_OVERLAP_PX);

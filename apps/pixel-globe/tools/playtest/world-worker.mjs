@@ -14,10 +14,10 @@ import * as land from "../../src/landTradeSystem.js";
 import * as distant from "../../src/distantWorldSimulation.js";
 import { parseLandRoadNetwork } from "../../src/landRoadNetwork.js";
 import { applyPortConquestOwnership } from "../../src/portConquest.js";
-import { createGameState, diplomacyBetweenForState, sovereignTradeOpenToFaction, advanceGamePolitics, migrateGameState } from "../../src/gameState.js";
+import { createGameState, diplomacyBetweenForState, sovereignTradeOpenToFaction, advanceGamePolitics, migrateGameState, isWokouHuntQuest } from "../../src/gameState.js";
 import { SOVEREIGN_TRADE_ACCESS_POLICIES } from "../../src/sovereignTradeAccess.js";
 import { fisheryForHabitat } from "../../src/fishEcology.js";
-import { FACTIONS } from "../../src/factions.js";
+import { FACTIONS, PIRATE_FACTION_ID, markFactionSeaCapitalsOnPorts } from "../../src/factions.js";
 import { registerShipyardTradeIn, purchaseShipyardUpgrade } from "../../src/shipyards.js";
 import { snapshotPlayerShipyards, restorePlayerShipyardSnapshot } from "../../src/playerShipyardPersistence.js";
 
@@ -28,7 +28,7 @@ const initialPortIds = new Set(initialCatalog.ports.map(port => port.cityId));
 const roadData = JSON.parse(readFileSync(new URL("../../public/assets/data/land-roads.json", import.meta.url)));
 const roads = parseLandRoadNetwork(roadData, roadData);
 const source = ts.createSourceFile("main.js", readFileSync(new URL("../../src/main.js", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
-const names = ["createDistantWorldApplyState", "advanceDistantWorldSimulationApply",
+const names = ["activeWokouHuntQuest", "ensureWokouHuntEncounter", "createDistantWorldApplyState", "advanceDistantWorldSimulationApply",
   "advanceCurrentDistantWorldPartSnapshot", "advanceCurrentDistantWorldPartComparison",
   "advanceDistantWorldPartRestore", "finishDistantWorldSimulationApply",
   "currentDistantWorldProtectedNpcShipIds", "finishPendingDistantWorldCommit", "snapshotVoyagePayload"];
@@ -42,6 +42,7 @@ export function createWorkerVoyage(seed = "worker-interruption", { startMinute =
   const cities = structuredClone(initialCatalog.cities);
   const ports = cities.filter(city => initialPortIds.has(city.cityId));
   for (const port of ports) port.services = scenes.get(port.cityId).services;
+  markFactionSeaCapitalsOnPorts(ports);
   const gameState = createGameState({ cargoCapacity: 200, voyageSeed: seed, startMinute });
   const initialPolitics = startMinute > 0 ? advanceGamePolitics(gameState, startMinute, { portCities: ports, cities }) : null;
   applyPortConquestOwnership(gameState.memory.conquest, cities);
@@ -98,6 +99,7 @@ export function createWorkerDriver() {
 
 export function createApplyProbe(voyage, event, minute) {
   const context = { ...economy, ...fleet, ...land, ...distant, ...voyage,
+    isWokouHuntQuest, PIRATE_FACTION_ID, ensureNpcShipCaptain: () => {},
     snapshotPlayerShipyards, weatherClockMinutes: minute, voyageStartClockMinutes: 0,
     SUBDIVISIONS: 8, PORT_CATALOG_VERSION, firstDayNightNoticeState: {}, anchored: false,
     survivalDeprivationTimers: {}, demoVoyageScope: null, npcVisualShips: new Map(),

@@ -1160,7 +1160,7 @@ export function migrateGameState(state, shipStats, {
     },
     relations: {
       ...migratedRelationBase,
-      factionReputationChanges: {},
+      factionReputationChanges: state.version >= 106 ? structuredClone(state.relations.factionReputationChanges) : {},
       factionReputation: migrateLawfulWartimeAttackReputation(
         state,
         migrateFactionReputationTable(state.relations.factionReputation, {
@@ -5517,13 +5517,14 @@ export function playerPortDisguiseSuccessChance(state) {
   );
 }
 
-export function recordTradeWithFaction(state, factionId) {
+export function recordTradeWithFaction(state, factionId, quantity = 1) {
+  assertQuantity(quantity, "trade reputation quantity");
   assertGameState(state);
   const id = assertFactionId(factionId);
   if (id === NEUTRAL_FACTION_ID) return factionReputation(state, id);
   const before = factionReputation(state, id);
-  const after = adjustFactionReputation(state, id, TRADE_REPUTATION_GAIN, { reason: "trade" });
-  if (after !== before) recordDecision(state, `reputation.trade.${id}`, 1);
+  const after = adjustFactionReputation(state, id, TRADE_REPUTATION_GAIN * quantity, { reason: "trade" });
+  if (after !== before) recordDecision(state, `reputation.trade.${id}`, quantity);
   return after;
 }
 
@@ -5908,7 +5909,7 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
     costBasis: total,
     pnl: null
   });
-  if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId);
+  if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId, quantity);
   if (embargoOrders.length > 0) {
     recordTradeEmbargoPurchase(state.memory.tradeEmbargoEnforcement, embargoOrders, {
       port: city,
@@ -6040,7 +6041,7 @@ function sellGoodWithPricing(state, economy, city, goodId, quantity, context, pr
     costBasis: soldCost,
     pnl
   });
-  if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId);
+  if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId, quantity);
   consumeTrackedEmbargoCargo(state.memory.tradeEmbargoEnforcement, row.good.id, quantity);
   const embargoReputationChanges = recordTradeEmbargoDeliveryConsequences(state, embargoOrders);
   return {
@@ -7472,15 +7473,19 @@ export function playerPortAttackStatus(state, city, context = null) {
       });
     }
     return Object.freeze({
-      available: false,
-      reason: "This independent settlement is not a lawful conquest target without a sovereign warrant.",
+      available: true,
+      reason: null,
+      independentTarget: true,
+      ownPort: false,
+      targetIsPirate: false,
+      commissionedFactionId: null,
       playerFactionId,
       targetFactionId,
       commissioned: false,
       ownNationAtWar: false,
       privateeringAuthority: false,
-      piracy: false,
-      mode: null,
+      piracy: true,
+      mode: "raid",
       captureFactionId: null,
       assaultFactionId: playerFactionId
     });

@@ -60,6 +60,7 @@ for (const phase of ["in-flight", "queued", "compare", "restore"]) {
     if (phase === "queued") pending.push(stale);
     const completed = new Error("Transaction completed; stop before unrelated audiovisual effects");
     const runtime = {
+      activeWokouHuntQuest: () => null,
       createWorldMutationBoundary, dialogueState, gameState: state, worldEconomy: economy, distantWorldWorkerClient: client,
       pendingDistantWorldEvents: pending, distantWorldWorkerResetPending: false,
       distantWorldApplyState: ["compare", "restore"].includes(phase)

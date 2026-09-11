@@ -110,3 +110,27 @@ test("released mixed-generation Istanbul books cannot resell an existing fleet h
     assertFleetSaleIntegrity(voyage);
   } finally { await worker.close(); }
 });
+
+test("worker catch-up restores a missing commissioned quarry at its promised hunting port", { timeout: 120000 }, async () => {
+  const { adjustFactionReputation, factionReputation, wokouHuntMissionOfferForCity, acceptQuest } = await import("./gameState.js");
+  const voyage = createWorkerVoyage("missing-wokou-quarry");
+  adjustFactionReputation(voyage.gameState, "ming", 30 - factionReputation(voyage.gameState, "ming"), { reason: "direct", simMinute: 0 });
+  const capital = voyage.cities.find(city => city.factionId === "ming" && city.isFactionCapital);
+  const quest = wokouHuntMissionOfferForCity(voyage.gameState, capital, voyage.ports, { simMinute: 0, spawnChance: 1 });
+  assert.ok(quest);
+  acceptQuest(voyage.gameState, quest, { simMinute: 0 });
+  assert.equal(voyage.npcSeaRoutes.shipById.has(quest.targetShipId), false);
+  const worker = createWorkerDriver();
+  try {
+    await worker.reset(voyage);
+    const event = await worker.advance(voyage, 360);
+    const probe = createApplyProbe(voyage, event, 360);
+    let steps = 0;
+    while (probe.state()) { probe.step(); assert.ok(++steps < 2000); }
+    const target = voyage.npcSeaRoutes.shipById.get(quest.targetShipId);
+    assert.ok(target);
+    assert.equal(target.encounter.destinationCityId, quest.patrolCityId);
+    assert.equal(target.encounter.holdAtDestination, true);
+    assert.equal(target.hiddenAtHideout, false);
+  } finally { await worker.close(); }
+});

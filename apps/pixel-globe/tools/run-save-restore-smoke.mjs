@@ -985,6 +985,17 @@ async function exercisePirateHavens(page, browserErrors) {
   }));
   state.ship.crew = state.ship.crewCapacity;
   const baseline = JSON.stringify(save);
+  await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), baseline);
+  await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectPortFeedback());
+  await page.screenshot({ path: path.join(screenshotRoot, "feast-controls.png") });
+  const departure = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectPortFeedback({ depart: true }));
+  assert.equal(departure.departed, true);
+  await assertNoBrowserFailure(page, browserErrors, "feast aftermath and safe waiting departure");
+  await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), baseline);
+  const hostile = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectHostilePirateHaven());
+  assert.match(hostile.text, /Black Gull Cove/);
+  await assertNoBrowserFailure(page, browserErrors, "hostile pirate haven entry");
+  process.stdout.write("  Feast aftermath, direct departure after waiting, and hostile haven entry passed.\n");
   for (const kind of ["revenge", "suppression"]) {
     await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), baseline);
     await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectPirateCove({ showMercy: true }));

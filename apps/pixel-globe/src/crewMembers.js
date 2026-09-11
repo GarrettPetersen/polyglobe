@@ -252,8 +252,7 @@ export function createCrewRecruitmentOffer({
   appearances,
   identityForKey,
   baseHireCost,
-  allowEmpty = false,
-  includeReplacementCandidates = false
+  allowEmpty = false
 }) {
   validateCrewRecruitmentMemory(memory);
   if (!state?.ship) throw new Error("Crew recruitment requires a player ship");
@@ -272,14 +271,9 @@ export function createCrewRecruitmentOffer({
   if (typeof identityForKey !== "function") throw new Error("Crew recruitment requires an identity factory");
   const cityId = requireCityId(city, "Crew recruitment city");
   const existing = memory.offersByCityId[cityId];
-  if (existing) return existing;
-  if (typeof includeReplacementCandidates !== "boolean") {
-    throw new Error("Crew replacement-candidate policy must be boolean");
-  }
-  const shortfall = Math.max(0, Math.min(targetCrew, state.ship.crewCapacity) - state.ship.crew);
-  const maximum = includeReplacementCandidates
-    ? recruitmentMaximumForCity(city)
-    : Math.min(shortfall, state.ship.crewCapacity - state.ship.crew, recruitmentMaximumForCity(city));
+  if (existing && simMinute - existing.generatedAtMinute < 7 * 24 * 60) return existing;
+  // The local labour pool exists independently of vacancies aboard this ship.
+  const maximum = recruitmentMaximumForCity(city);
   const serial = memory.nextOfferSerial++;
   const seedKey = [state.voyageSeed, cityId, CREW_OFFER_ID_COMPONENT, serial, simMinute].join("|");
   let seed = hashString32(seedKey);

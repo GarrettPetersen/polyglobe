@@ -3829,6 +3829,7 @@ test("crew recruitment presents a clean empty state when no hands are available"
     baseHireCost: 2,
     allowEmpty: true
   });
+  gameState.memory.crewRecruitment.offersByCityId[city.cityId].candidates = [];
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const session = createPortDialogueSession(city, { initialNodeId: "crew-recruitment" });
   const view = portDialogueView(session, city, gameState, economy, [city], { simMinute: 120 });
@@ -8873,4 +8874,36 @@ test("seasonally icebound colonies warn before embarkation and during resupply",
     check(settlement);
     check(origin);
   }
+});
+
+test("hostile pirate havens can bar entry without a national ruler", () => {
+  const city = { tileId: 141, cityId: "pirate-haven-1", city: "Black Gull Cove", country: "Algeria", territoryId: "algeria",
+    factionId: "pirate", isPirateHideout: true, cityType: "islamic-desert", population: 1200,
+    character: { name: "Hasan", role: "harbour-master" } };
+  const state = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const context = { simMinute: 100, portEntryStatus: portEntryStatus(state, city, 100),
+    portAttackStatus: playerPortAttackStatus(state, city),
+    portConquestStatus: { canAttempt: false, playerAssaultActive: false } };
+  const session = createPortDialogueSession(city, { initialNodeId: "barred" });
+  const view = portDialogueView(session, city, state, economy, [city], context);
+  assert.match(view.text, /Black Gull Cove/);
+  assert.ok(view.options.some(option => option.label === "Leave"));
+  for (const [index, option] of view.options.entries()) {
+    if (!option.disabled) assert.doesNotThrow(() => selectPortDialogueOption(structuredClone(session), city,
+      structuredClone(state), economy, [city], index, context));
+  }
+});
+test("an independent port can be raided without authorizing annexation", () => {
+  const city = { tileId: 141, cityId: "aden|yemen", city: "Aden", country: "Yemen", factionId: "neutral",
+    cityType: "islamic-desert", population: 18000, character: { name: "Ali", role: "harbour-master" } };
+  const state = createGameState({ cargoCapacity: 20 });
+  const attack = playerPortAttackStatus(state, city);
+  assert.equal(attack.available, true);
+  assert.equal(attack.mode, "raid");
+  assert.equal(attack.piracy, true);
+  assert.equal(attack.captureFactionId, null);
+  const session = createPortDialogueSession(city, { initialNodeId: "city-attack" });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  assert.match(portDialogueView(session, city, state, economy, [city], { portAttackStatus: attack }).text, /piracy/);
 });

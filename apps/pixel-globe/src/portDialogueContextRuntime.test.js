@@ -44,10 +44,13 @@ test("freshwater checks the ship's actual ocean tile, not the inland river segme
     localLayout: { viewX: 0, viewY: 0 }, chart: {}, freshWaterSurfaceMask: [0, 0],
     SALTWATER_PASSAGE_TILE_IDS: [], freshwaterIceAtWorldTile: () => false,
     shipNavigabilityAtLocalPoint: () => ({ ok: true, kind: "river", riverTileId: 1 }), shipCanRefillFreshWater };
+  context.localCollisionTileAtPoint = () => ({ tileId: context.ship.tileId });
   const canRefill = runInNewContext(`${code}; shipIsInFreshWater`, context);
   assert.equal(canRefill(), false);
   context.ship.tileId = 1;
   assert.equal(canRefill(), true);
+  context.localCollisionTileAtPoint = () => ({ tileId: 0 });
+  assert.equal(canRefill(), false, "the visible ocean wins even when the globe anchor is on land");
 });
 
 test("a fatal assault hit keeps the scene active for the whole sink before applying defeat", () => {

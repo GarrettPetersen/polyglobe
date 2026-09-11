@@ -897,6 +897,33 @@ export function reconcileNpcRouteEncounterIdentity(system, shipId, {
   });
 }
 
+// A commissioned hunt is a local encounter, not an intercontinental trade route.
+// Older hunts are repositioned once; subsequent restores preserve combat damage.
+export function stationWokouHuntAtPort(system, shipId, cityId, clockMinutes) {
+  assertSaveableNpcRouteSystem(system);
+  if (!Number.isFinite(clockMinutes) || clockMinutes < 0) throw new Error(`Invalid wokou staging minute: ${clockMinutes}`);
+  const ship = requiredNpcShip(system, shipId);
+  if (ship.encounter?.kind !== "wokou-hunt") throw new Error(`Not a commissioned wokou: ${shipId}`);
+  if (ship.encounter.holdAtDestination && ship.encounter.destinationCityId === cityId) return false;
+  const destination = requiredNpcRoutePort(system, cityId, "Wokou hunting port");
+  const origin = system.ports.filter(port => !samePort(port, destination) && npcRoutePortAcceptsTraffic(port) &&
+    npcPortsShareRouteNetwork(system, port, destination))
+    .sort((a, b) => npcTravelDistanceKm(system, a, destination) - npcTravelDistanceKm(system, b, destination) || a.cityId.localeCompare(b.cityId))[0];
+  if (!origin) throw new Error(`Wokou hunting port has no navigable approach: ${cityId}`);
+  ship.encounter.originCityId = origin.cityId;
+  ship.encounter.destinationCityId = cityId;
+  ship.encounter.holdAtDestination = true;
+  ship.hiddenAtHideout = false;
+  ship.hiddenUntilMinute = 0;
+  ship.seekingHideout = false;
+  ship.hideoutDestinationTileId = null;
+  ship.currentPort = origin;
+  ship.finalDestination = destination;
+  ship.plan = buildNpcPlan(origin, destination, routeBetweenPorts(system, origin, destination, ship.slug, clockMinutes), clockMinutes);
+  stageNpcRouteEncounterAtDestination(system, shipId, clockMinutes, { holdProgress: 0.98 });
+  return true;
+}
+
 export function stageNpcRouteEncounterAtDestination(
   system,
   shipId,
@@ -2858,7 +2885,7 @@ function buildFishingGrounds(ports, fishState, startMinute, fishingGroundIsNavig
           tileId: habitat.tileId,
           isFishingGround: true,
           city: `Fishing grounds ${key}`,
-          displayCity: fishingGroundLabel(point, fishery.speciesLabel),
+          displayCity: fishingGroundLabel(port, fishery.speciesLabel, distanceKmValue, bearingDeg),
           country: "Open sea",
           cityType: "northern-european",
           population: Math.max(1000, fishery.capacity * 100),
@@ -2905,10 +2932,10 @@ function fishingGroundKey(point) {
   return `${Math.round(point.lat * 10)},${Math.round(normalizeLonDeg(point.lon) * 10)}`;
 }
 
-function fishingGroundLabel(point, speciesLabel) {
-  const latLabel = `${Math.abs(point.lat).toFixed(1)}${point.lat >= 0 ? "N" : "S"}`;
-  const lonLabel = `${Math.abs(normalizeLonDeg(point.lon)).toFixed(1)}${point.lon >= 0 ? "E" : "W"}`;
-  return `${speciesLabel} grounds ${latLabel} ${lonLabel}`;
+function fishingGroundLabel(port, speciesLabel, distanceKm, bearingDeg) {
+  const directions = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+  const direction = directions[Math.round(bearingDeg / 45) % 8];
+  return `${speciesLabel} grounds ${Math.round(distanceKm / 5.556)} leagues ${direction} of ${portName(port)}`;
 }
 
 export function updateNpcSeaRouteSystem(system, clockMinutes) {

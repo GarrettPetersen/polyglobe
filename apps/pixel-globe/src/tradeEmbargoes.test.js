@@ -541,6 +541,9 @@ test("Papal observance news names its followers and does not imply the ban was l
   const event = { ...order, orderId: order.id, id: `${order.id}:followers-changed:100`,
     kind: "followers-changed", simMinute: 100, source: "papal-alignment",
     targetFactionId: "tidore", followerFactionIds: ["papal-states", "portugal"], previousFollowerFactionIds: null };
+  const { tradeEmbargoHudNotice } = await import("./tradeEmbargoes.js");
+  assert.match(tradeEmbargoHudNotice(event), /OBSERVED BY 2 POLITIES/);
+  assert.doesNotMatch(tradeEmbargoHudNotice(event), /PORTUGAL/);
   const text = tradeEmbargoEventNotice(event);
   assert.match(text, /ARMS BAN AGAINST TIDORE/);
   assert.match(text, /PORTUGAL/);

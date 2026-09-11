@@ -474,6 +474,13 @@ export function tradeEmbargoRegimeLabel(order) {
   return `the ${issuer.adjective} ban on ${target.adjective} merchandise`;
 }
 
+export function tradeEmbargoHudNotice(event) {
+  const full = tradeEmbargoEventNotice(event);
+  if (event.kind !== "followers-changed" || (event.previousFollowerFactionIds !== null && full.length <= 150)) return full;
+  const target = factionById(event.targetFactionId);
+  return `PAPAL ARMS BAN AGAINST ${target.shortName.toUpperCase()}: OBSERVED BY ${event.followerFactionIds.length} POLITIES`;
+}
+
 export function tradeEmbargoEventNotice(event) {
   validateEmbargoEvent(event);
   const issuer = factionById(event.issuerFactionId);

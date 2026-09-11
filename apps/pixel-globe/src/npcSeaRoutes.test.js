@@ -3971,3 +3971,26 @@ test("a ruined haven cannot outfit a hidden pirate with a larger hull", async ()
     assert.equal(pirate.slug, ruined ? small : large);
   }
 });
+
+test("old wandering wokou hunts are stationed off their promised port and remain there after restore", async () => {
+  const { stationWokouHuntAtPort } = await import("./npcSeaRoutes.js");
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const encounter = configureNpcRouteEncounter(routes, { id: "wokou-hunt:test", originCityId: PORTS[0].cityId,
+    factionId: PIRATE_FACTION_ID, role: NPC_ROLE_PIRATE, shipSlug: "pirate-brig", replaceOnSink: false,
+    hiddenAtOrigin: true, encounter: { kind: "wokou-hunt" } }, 1000);
+  encounter.hitPoints -= 3;
+  const hp = encounter.hitPoints;
+  assert.equal(stationWokouHuntAtPort(routes, encounter.id, PORTS[0].cityId, 1000), true);
+  assert.equal(encounter.hiddenAtHideout, false);
+  assert.equal(encounter.currentPort.cityId, PORTS[0].cityId);
+  assert.equal(encounter.hitPoints, hp);
+  const position = [...encounter.visualNavigation.vector];
+  assert.equal(stationWokouHuntAtPort(routes, encounter.id, PORTS[0].cityId, 1001), false);
+  updateNpcSeaRouteSystem(routes, 1000 + 180 * 1440);
+  assert.equal(encounter.currentPort.cityId, PORTS[0].cityId);
+  assert.deepEqual(encounter.visualNavigation.vector, position);
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  restoreNpcSeaRouteSystem(routes, snapshot);
+  assert.equal(routes.shipById.get(encounter.id).encounter.holdAtDestination, true);
+});

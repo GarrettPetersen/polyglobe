@@ -66,3 +66,21 @@ test("production reputation mutations supply an explanation instead of silently 
   }
   assert.deepEqual(offenders, []);
 });
+
+test("upgrading a released save preserves its recorded last reputation action", () => {
+  const state = createPlayerTestGameState({ cargoCapacity: 30 });
+  state.survival.lastMinute = 120;
+  recordTradeWithFaction(state, "spain");
+  const before = structuredClone(state.relations.factionReputationChanges);
+  state.version = 109;
+  const restored = migrateGameState(JSON.parse(JSON.stringify(state)));
+  assert.deepEqual(restored.relations.factionReputationChanges, before);
+  assert.notEqual(restored.relations.factionReputationChanges, state.relations.factionReputationChanges);
+});
+test("trade reputation is independent of transaction batching", () => {
+  const bulk = createPlayerTestGameState({ cargoCapacity: 30 });
+  const singles = structuredClone(bulk);
+  recordTradeWithFaction(bulk, "spain", 8);
+  for (let i = 0; i < 8; i++) recordTradeWithFaction(singles, "spain");
+  assert.ok(Math.abs(bulk.relations.factionReputation.spain - singles.relations.factionReputation.spain) < 1e-8);
+});

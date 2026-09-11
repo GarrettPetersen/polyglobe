@@ -1,3 +1,5 @@
+import { shipTargetRumorEligible, recordShipTargetRumor, shipTargetRumorText } from "./shipTargetRumors.js";
+import { stationWokouHuntAtPort } from "./npcSeaRoutes.js";
 import { pirateHavenNavigationReasonText } from "./pirateHavenDialogue.js";
 import { shipItemRows } from "./gameState.js";
 import { pirateHavenIsRuined, pirateRevengeTargetPresent, pirateHavenIsVisible, pirateHavenQuestOffer, ruinPirateHaven, seizePirateRevengeItem } from "./pirateHavens.js";
@@ -475,7 +477,7 @@ import {
   activeTradeEmbargoCombatFactionIds,
   resolveTradeEmbargoInspection,
   tradeEmbargoIncidentForInspection,
-  tradeEmbargoEventNotice,
+  tradeEmbargoHudNotice,
   tradeEmbargoOrderById,
   tradeEmbargoRegimeLabel,
   tradeEmbargoScopeLabel
@@ -836,7 +838,6 @@ import {
   crewExperienceSummary,
   crewMemberExperienceStars,
   crewMemberIsWounded,
-  crewRecruitmentOfferAt,
   dismissCrewMember,
   removeCrewCasualties,
   removeCrewMembersById,
@@ -8807,11 +8808,14 @@ function resolveNingboDelegationShipLoss(shipId) {
   return result;
 }
 
-function ensureWokouHuntEncounter({ assignCaptains = true, respawnAtPort = false } = {}) {
+function ensureWokouHuntEncounter({ assignCaptains = true } = {}) {
   const quest = activeWokouHuntQuest();
   if (!quest || quest.stage !== "hunt" || !npcSeaRoutes) return null;
   const existing = npcSeaRoutes.shipById.get(quest.targetShipId);
-  if (existing) return existing;
+  if (existing) {
+    stationWokouHuntAtPort(npcSeaRoutes, existing.id, quest.patrolCityId, weatherClockMinutes);
+    return existing;
+  }
   const strategic = configureNpcRouteEncounter(npcSeaRoutes, {
     id: quest.targetShipId,
     originCityId: quest.patrolCityId,
@@ -8819,7 +8823,7 @@ function ensureWokouHuntEncounter({ assignCaptains = true, respawnAtPort = false
     role: NPC_ROLE_PIRATE,
     shipSlug: quest.targetShipSlug,
     replaceOnSink: false,
-    hiddenAtOrigin: respawnAtPort,
+    hiddenAtOrigin: true,
     encounter: {
       kind: "wokou-hunt",
       questId: quest.id,
@@ -8827,6 +8831,7 @@ function ensureWokouHuntEncounter({ assignCaptains = true, respawnAtPort = false
       challenge: "The wokou captain orders you away from their hunting waters."
     }
   }, weatherClockMinutes);
+  stationWokouHuntAtPort(npcSeaRoutes, strategic.id, quest.patrolCityId, weatherClockMinutes);
   if (assignCaptains) ensureNpcShipCaptain(strategic.id);
   return strategic;
 }
@@ -16922,6 +16927,37 @@ function installSaveRestoreSmokeHarness() {
         optionRects: dialogueLayout.optionRects, width: SCREEN_W, height: SCREEN_H,
         serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
     },
+    async inspectPortFeedback({ depart = false } = {}) {
+      if (running) throw new Error("Port feedback inspection requires an idle voyage");
+      if (playerIntroModal) closePlayerIntroModal();
+      const cityId = "lisbon|portugal";
+      placeCapturePlayerNearTile(cityById.get(cityId).tileId, { headingDeg: 0 });
+      openCapturePortNode(cityId, "root");
+      await synchronizePortCityScene();
+      // This paused fixture starts after both the city-entry wipe and feast cut.
+      portCityTransition = null;
+      portCityView.feast = { phase: "afterwards", startedAtMs: lastFrameMs - 4000, elapsedMs: 4000 };
+      portCityRuntime.setFeastPresentation(portCityView.feast);
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      if (depart) {
+        startWaitingInPort(currentDialogueCity());
+        stopWaitingInPort();
+        if (dialogueState || portWaitState) throw new Error("Safe waiting did not depart");
+      }
+      return { departed: dialogueState === null && portWaitState === null };
+    },
+    async inspectHostilePirateHaven() {
+      const cityId = "pirate-haven-1";
+      adjustFactionReputation(gameState, "pirate", 30 - factionReputation(gameState, "pirate"), { reason: "direct", simMinute: Math.max(0, weatherClockMinutes) });
+      placeCapturePlayerNearTile(cityById.get(cityId).tileId, { headingDeg: 0 });
+      const city = capturePortCallById(cityId);
+      adjustFactionReputation(gameState, "pirate", -100 - factionReputation(gameState, "pirate"), { reason: "direct", simMinute: Math.max(0, weatherClockMinutes) });
+      openPortDialogue(city);
+      await synchronizePortCityScene();
+      const view = currentDialogueView();
+      if (dialogueState.nodeId !== "barred") throw new Error("Hostile haven admitted the player");
+      return { text: view.text, options: view.options.map(option => option.label) };
+    },
     async inspectPirateCove({ showMercy = false } = {}) {
       if (running) throw new Error("Pirate cove smoke requires an idle voyage");
       const cityId = "pirate-haven-14";
@@ -22324,6 +22360,14 @@ function openPortDialogue(cityCall) {
     combatMusicUntilMs = 0;
     setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
   }
+  const approachStatus = portEntryStatus(gameState, cityCall, Math.floor(weatherClockMinutes));
+  if (!citySiteIsRuined(cityCall) && approachStatus.canPurchaseSafePassage &&
+      !arrivingBattery.playerHailed && !arrivingBattery.playerAttackActive &&
+      !shoreBatteryIsDisabled(arrivingBattery, Math.floor(weatherClockMinutes)) &&
+      !playerPortAttackStatus(gameState, cityCall).commissioned) {
+    openShoreBatteryCombatHail(cityCall, arrivingBattery, approachStatus);
+    return;
+  }
   ensurePortCityView(cityCall);
   if (citySiteIsRuined(cityCall)) {
     openPortMenu(cityCall, {
@@ -22589,11 +22633,8 @@ function maybeOpenCrewRecruitmentArrival(cityCall) {
 }
 
 function prepareCrewRecruitmentAt(city, {
-  allowEmpty,
-  includeReplacementCandidates = false
+  allowEmpty
 }) {
-  const existing = crewRecruitmentOfferAt(gameState.memory.crewRecruitment, city);
-  if (existing) return existing;
   const targetCrew = gameState.ship.loadoutTargets?.crew || gameState.ship.crewCapacity;
   const generation = crewGenerationContextForHomePort(city.cityId);
   return createCrewRecruitmentOffer({
@@ -22605,8 +22646,7 @@ function prepareCrewRecruitmentAt(city, {
     appearances: generation.appearances,
     identityForKey: generation.identityForKey,
     baseHireCost: CREW_HIRE_COST,
-    allowEmpty,
-    includeReplacementCandidates
+    allowEmpty
   });
 }
 
@@ -25893,7 +25933,8 @@ function openShipDialogue(shipCall, options = {}) {
     strategicShip.encounter?.kind !== TREASURE_PIRATE_ENCOUNTER_KIND
     ? treasureGoal.treasureCaptainName
     : null;
-  const campaignRumor = enforcementDialogue || hostileHail
+  const commissionedYard = commissionedShipyard(worldEconomy.shipyards, shipCall.id);
+  const campaignRumor = enforcementDialogue || hostileHail || commissionedYard
     ? null
     : maybeCampaignRumor(`ship:${shipCall.id}`);
   const simMinute = Math.floor(weatherClockMinutes);
@@ -25912,7 +25953,6 @@ function openShipDialogue(shipCall, options = {}) {
   if (papalGossip) {
     recordNpcGossipHeard(gameState.memory.decisions, papalGossip, simMinute);
   }
-  const commissionedYard = commissionedShipyard(worldEconomy.shipyards, shipCall.id);
   activateDialogueSession(createShipDialogueSession(shipCall, {
     ...options,
     rumorText: enforcementDialogue
@@ -25951,7 +25991,36 @@ function maybeWhiteWhaleRumor(interactionKey) {
   return rumor;
 }
 
+function maybeShipTargetRumor(interactionKey) {
+  const simMinute = Math.max(0, Math.floor(weatherClockMinutes));
+  const hunt = activeWokouHuntQuest();
+  const revenge = gameState.memory.pirateHavens.revenge;
+  const targets = [];
+  if (hunt?.stage === "hunt") targets.push({ kind: "wokou", id: hunt.targetShipId, label: `the wokou ${shipLabelForProse(hunt.targetShipSlug)}` });
+  if (revenge && !revenge.ready && pirateRevengeTargetPresent(gameState.memory.pirateHavens, npcSeaRoutes.shipById)) {
+    targets.push({ kind: "revenge", id: revenge.targetShipId, label: revenge.targetShipName });
+  }
+  for (const target of targets) {
+    const roll = (spriteKeyHash(`${interactionKey}|${target.id}|${Math.floor(simMinute / 1440)}`) >>> 0) / 0x100000000;
+    if (!shipTargetRumorEligible(gameState.memory.decisions, target.kind, simMinute, roll)) continue;
+    const strategic = npcSeaRoutes.shipById.get(target.id);
+    if (!strategic || strategic.hitPoints <= 0) continue;
+    const snapshot = npcShipSnapshotForId(npcSeaRoutes, target.id, simMinute);
+    const position = strategic.visualNavigation?.vector || snapshot?.routeVector;
+    if (!position) throw new Error(`Live ship target lacks a sighting position: ${target.id}`);
+    const coordinates = vectorLatLon(position);
+    const reference = nearestCityToPosition(position);
+    const text = shipTargetRumorText(target.label, { lat: coordinates.latitudeDeg, lon: coordinates.longitudeDeg }, reference);
+    recordShipTargetRumor(gameState.memory.decisions, target.kind, simMinute);
+    saveVoyageNow("heard ship-target sighting");
+    return { text };
+  }
+  return null;
+}
+
 function maybeCampaignRumor(interactionKey) {
+  const shipRumor = maybeShipTargetRumor(interactionKey);
+  if (shipRumor) return shipRumor;
   const goal = gameState?.memory?.campaignGoal;
   if (!goal) return null;
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE) return maybeWhiteWhaleRumor(interactionKey);
@@ -26002,7 +26071,7 @@ function maybeTreasurePirateRumor(interactionKey, { force = false, preferredPira
 
 function nearestCityToPosition(position) {
   if (!(cityByTileId instanceof Map) || cityByTileId.size === 0) {
-    throw new Error("White whale rumor requires the placed city catalog");
+    throw new Error("Sighting rumor requires the placed city catalog");
   }
   let nearest = null;
   let nearestDistance = Infinity;
@@ -26015,7 +26084,7 @@ function nearestCityToPosition(position) {
     nearest = city;
     nearestDistance = distance;
   }
-  if (!nearest) throw new Error("White whale rumor could not find a reference city");
+  if (!nearest) throw new Error("Sighting rumor could not find a reference city");
   return nearest;
 }
 
@@ -26804,6 +26873,7 @@ function stopWaitingInPort() {
     illicitTradeAttemptedPolicyId,
     illicitTradeVisit
   });
+  closeDialogue();
   saveVoyageNow("stopped waiting in port");
   dirty = true;
   return true;
@@ -26812,7 +26882,7 @@ function stopWaitingInPort() {
 function handlePortWaitKeyDown(event) {
   event.preventDefault();
   if (isSteeringKeyAction(keyActionForEvent(keyBindings, event))) {
-    signalBlockedDepartureControl();
+    stopWaitingInPort();
     return;
   }
   if (event.key === "Enter" || event.key === " " || event.key === "Escape") stopWaitingInPort();
@@ -27002,6 +27072,7 @@ function performDialogueOption(optionIndex, displayedOption) {
   invalidateDialogueOptionGeometry();
   if (dialogueState.kind === "port") {
     if (!displayedOption) throw new Error("Port dialogue selection has no displayed option");
+    missionGiftCharacter = currentDialogueCity().character;
     const doubloonsBefore = gameState.doubloons;
     result = selectPortDialogueAction(
       dialogueState,
@@ -28858,7 +28929,7 @@ function activeInteractionTargets() {
     .sort((a, b) => a.distancePx - b.distancePx || a.id.localeCompare(b.id))
     .map((call) => ({ kind: "whale", call })));
   const fishCall = activeFishCall();
-  if (fishCall) targets.push({ kind: "fish", call: fishCall });
+  if (fishCall) targets.unshift({ kind: "fish", call: fishCall });
   targets.push(...activeNpcShipCalls().map((call) => ({ kind: "ship", call })));
   return targets;
 }
@@ -30002,16 +30073,30 @@ function showSurvivalNotice(text, tone, action = null) {
     text,
     tone,
     action,
-    expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.survival
+    expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.survival,
+    lastVisibilityCheckMs: lastFrameMs,
+    pendingVisibility: hudNoticesAreObscured()
   };
   survivalNoticeRect = null;
   dirty = true;
 }
 
+function hudNoticesAreObscured() {
+  return Boolean(startMenu || playerIntroModal || captainAlertModal || dialogueState ||
+    portCityView?.sceneReady || portCityTransition || portAssaultState || gameOverReason || menusAreOpen());
+}
+
 // Political history is durable; this queue only owns uninterrupted HUD reading time.
 function updatePoliticalNotices(nowMs) {
-  const obscured = Boolean(startMenu || playerIntroModal || captainAlertModal || dialogueState ||
-    portCityView?.sceneReady || portCityTransition || portAssaultState || gameOverReason || menusAreOpen());
+  const obscured = hudNoticesAreObscured();
+  if (survivalNotice && survivalNotice.action === null) {
+    if (survivalNotice.pendingVisibility && !obscured) {
+      survivalNotice.expiresAtMs = nowMs + NOTICE_DURATION_MS.survival;
+      survivalNotice.pendingVisibility = false;
+    }
+    if (obscured) survivalNotice.expiresAtMs += Math.max(0, nowMs - survivalNotice.lastVisibilityCheckMs);
+    survivalNotice.lastVisibilityCheckMs = nowMs;
+  }
   if (obscured) {
     if (survivalNotice?.action === "politics-news") {
       if (nowMs < survivalNotice.expiresAtMs) politicalNoticeQueue.prepend(survivalNotice);
@@ -33272,10 +33357,12 @@ function shipIsInFreshWater() {
     ship.position
   );
   const waterTileId = navigation.riverTileId ?? navigation.tileId ?? ship.tileId;
+  const surface = localCollisionTileAtPoint(localLayout.viewX, localLayout.viewY);
+  if (!surface) return false;
   return shipCanRefillFreshWater({
     navigationKind: navigation.kind,
     waterTileId,
-    oceanSurface: earthById[ship.tileId]?.t === "water",
+    oceanSurface: earthById[surface.tileId]?.t === "water",
     frozen: freshwaterIceAtWorldTile(waterTileId),
     freshwaterSurface: Boolean(freshWaterSurfaceMask?.[waterTileId]),
     saltwaterPassageTileIds: SALTWATER_PASSAGE_TILE_IDS
@@ -35997,7 +36084,7 @@ function updateWorldDiplomacy() {
     announce(papalCommissionRevocationNotice(result.papalCommissionRevoked));
   }
   for (const matter of result.papalMattersOpened) announce(papalMatterNotice(matter));
-  for (const event of result.embargoEvents) announce(tradeEmbargoEventNotice(event));
+  for (const event of result.embargoEvents) announce(tradeEmbargoHudNotice(event));
   for (const action of result.courtActions) announce(courtActionNotice(action));
   for (const matter of result.courtMattersOpened) announce(courtMatterNotice(matter));
   if (expulsions.length > 0) announce(foreignSettlementExpulsionNotice(expulsions));
@@ -37616,7 +37703,10 @@ function finishDistantWorldSimulationApply(state) {
     recordNpcDiplomaticPortCall(call.visitorFactionId, call.hostFactionId, call.minute);
   }
   distantWorldApplyState = null;
-  return Boolean(result.changed || state.visualFleetChanged || result.foreignPortCalls.length > 0);
+  const hunt = activeWokouHuntQuest();
+  const targetMissing = hunt?.stage === "hunt" && !npcSeaRoutes.shipById.has(hunt.targetShipId);
+  if (targetMissing) ensureWokouHuntEncounter();
+  return Boolean(targetMissing || result.changed || state.visualFleetChanged || result.foreignPortCalls.length > 0);
 }
 
 function updateNpcVisualShips(dt) {
@@ -38863,7 +38953,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
           playerHostile,
           hostileByWar: entryStatus.hostileByWar,
           withinWeaponRange: true,
-          withinTollRange: playerDistance <= PORT_INTERACTION_RADIUS_PX,
+          withinTollRange: playerDistance <= playerEngagementRange,
           tollDemandEligible: entryStatus.canPurchaseSafePassage &&
             shoreBatteryMayDemandToll(city, gameState.memory.flags),
           playerHailed: state.playerHailed,
@@ -40217,7 +40307,7 @@ function handleNpcSinking(loserId, winnerId, {
   }
   if (wokouEncounter) {
     if (playerVictory) resolveWokouHuntPlayerVictory(loserId);
-    else ensureWokouHuntEncounter({ respawnAtPort: true });
+    else ensureWokouHuntEncounter();
     return true;
   }
   if (escapedCaptiveEncounter) {
@@ -40443,26 +40533,17 @@ function maybeOpenCastawayQuest(shoreCall) {
 
 function rescuedTravelerHomePort(identityKey) {
   if (!npcSeaRoutes) throw new Error("Rescued traveler home selection requires NPC sea routes");
-  const routeRegionByTileId = new Map(
-    npcSeaRoutes.ports.map((port) => [port.tileId, port.routeRegion])
-  );
+  const occupiedHomes = new Set(activeRescuedTravelers().map(quest => quest.homePortCityId));
   const candidates = playerAccessiblePortCities()
-    .filter((city) => city.factionId !== PIRATE_FACTION_ID)
-    .filter((city) => routeRegionByTileId.get(city.tileId) === "europe")
-    .map((city) => ({
-      city,
-      distanceKm: EARTH_RADIUS_KM * vectorArcDistance(ship.position, tileCenterVector(city.tileId)),
-      jitter: (spriteKeyHash(`${identityKey}|${requireCityId(city, "Rescued traveler home city")}|rescued-traveler-home`) % 401) - 200
-    }))
-    .filter((entry) => entry.distanceKm >= 500)
-    .sort((a, b) => (
-      Math.abs(a.distanceKm - 2200) + a.jitter -
-      (Math.abs(b.distanceKm - 2200) + b.jitter)
-    ));
-  if (candidates.length === 0) {
-    throw new Error(`No European home port is available for rescued traveler ${identityKey}`);
-  }
-  return candidates[0].city;
+    .filter(city => city.factionId !== PIRATE_FACTION_ID && !city.isPirateHideout)
+    .map(city => ({ city,
+      distanceKm: EARTH_RADIUS_KM * vectorArcDistance(ship.position, tileCenterVector(city.tileId)) }))
+    .filter(entry => entry.distanceKm >= 500)
+    .sort((a, b) => Math.abs(a.distanceKm - 2200) - Math.abs(b.distanceKm - 2200) || a.city.cityId.localeCompare(b.city.cityId));
+  if (!candidates.length) throw new Error(`No accessible home port for rescued traveler ${identityKey}`);
+  const unoccupied = candidates.filter(entry => !occupiedHomes.has(entry.city.cityId));
+  const regional = (unoccupied.length ? unoccupied : candidates).slice(0, 12);
+  return regional[spriteKeyHash(`${identityKey}|rescued-traveler-home`) % regional.length].city;
 }
 
 function pirateCaptiveWantedCapital(identityKey) {
@@ -49115,7 +49196,7 @@ function drawShipInfoMenu() {
     leftX: artX,
     rightX: artX + SHIP_INFO_SIDE_VIEW_W,
     y: provisionY,
-    leftColor: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
+    leftColor: view.survival.drinkDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
     rightColor: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
 
@@ -49236,7 +49317,7 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
     leftX: artX,
     rightX: leftValueX,
     y: supplyY,
-    leftColor: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
+    leftColor: view.survival.drinkDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
     rightColor: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
   const holdY = supplyY + compactLineHeight;
@@ -49387,7 +49468,7 @@ function drawCompactShipVessel(panel, view, cargoPage) {
     leftX: labelX,
     rightX: valueX,
     y: y + 1,
-    leftColor: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
+    leftColor: view.survival.drinkDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
     rightColor: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
   y += statLineHeight + 1;
@@ -52389,9 +52470,7 @@ function politicsStandingColor(reputation) {
   if (reputation <= -25) return "#cd683d";
   if (reputation < 0) return PIRATE_MENU_INK_MUTED;
   if (reputation === 0) return PIRATE_MENU_INK_MUTED;
-  if (reputation < 15) return PIRATE_MENU_SUCCESS;
-  if (reputation < 50) return PIRATE_MENU_CHART_LINE;
-  return PIRATE_MENU_INK;
+  return PIRATE_MENU_SUCCESS;
 }
 
 function politicsFactionColor(factionId) {
@@ -63524,7 +63603,7 @@ function drawPortWaitControls(nowMs) {
     active: true,
     attention: departureControlAttention(DEPARTURE_CONTROL_FEEDBACK_KINDS.PORT, nowMs)
   });
-  drawControlIconLabel(portWaitButtonRect, "RETURN TO PORT", "action:dock", { controllerAction: "confirm" });
+  drawControlIconLabel(portWaitButtonRect, "Set Sail", "action:dock", { controllerAction: "confirm" });
 }
 
 function drawStormStatus(nowMs) {

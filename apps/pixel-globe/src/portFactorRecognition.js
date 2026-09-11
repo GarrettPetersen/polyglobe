@@ -95,7 +95,7 @@ function captainRecognitionCandidates(gameState, city, cities, simMinute) {
     typeof event.newFactionId === "string"
   ));
   const localMajorCaptures = playerCaptures
-    .filter((event) => event.newFactionId === city.factionId)
+    .filter((event) => event.newFactionId === city.factionId && event.cityId !== city.cityId)
     .filter((event) => {
       const capturedCity = cityById.get(event.cityId);
       return Boolean(event.capitalCapturedFactionId) ||

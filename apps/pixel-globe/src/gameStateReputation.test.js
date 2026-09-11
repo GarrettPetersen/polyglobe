@@ -1380,3 +1380,19 @@ test("marque offers and authority exclude collapsed factions despite historical 
   state.memory.conquest.collapsedFactionIds.push("england");
   assert.equal(hasPrivateeringAuthorityAgainst(state, "morocco"), false);
 });
+
+test("buy-all and sell-all preserve the same standing and diplomatic trade weight as single-unit trades", async () => {
+  const { sellGood } = await import("./gameState.js");
+  const bulk = createGameState({ cargoCapacity: 100, playerCharacter: PLAYER });
+  bulk.doubloons = 100000;
+  const singles = structuredClone(bulk);
+  const bulkEconomy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const singleEconomy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  buyGood(bulk, bulkEconomy, LONDON, "wool", 3, { simMinute: 100 });
+  for (let i = 0; i < 3; i++) buyGood(singles, singleEconomy, LONDON, "wool", 1, { simMinute: 100 });
+  assert.ok(Math.abs(factionReputation(bulk, "england") - factionReputation(singles, "england")) < 1e-8);
+  sellGood(bulk, bulkEconomy, LONDON, "wool", 3, { simMinute: 101 });
+  for (let i = 0; i < 3; i++) sellGood(singles, singleEconomy, LONDON, "wool", 1, { simMinute: 101 });
+  assert.ok(Math.abs(factionReputation(bulk, "england") - factionReputation(singles, "england")) < 1e-8);
+  assert.equal(bulk.memory.decisions["reputation.trade.england"], singles.memory.decisions["reputation.trade.england"]);
+});

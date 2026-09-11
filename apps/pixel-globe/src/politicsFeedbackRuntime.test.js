@@ -20,7 +20,7 @@ function noticeHarness() {
     portCityView: null, portCityTransition: null, portAssaultState: null, gameOverReason: null,
     menusAreOpen: () => false, uiText: (key, params) => translate("en", key, params)
   };
-  const api = runtime(["showSurvivalNotice", "updatePoliticalNotices", "clearPoliticalNotices"], context);
+  const api = runtime(["hudNoticesAreObscured", "showSurvivalNotice", "updatePoliticalNotices", "clearPoliticalNotices"], context);
   return { context, ...api, tick(now) { context.lastFrameMs = now; api.updatePoliticalNotices(now); } };
 }
 
@@ -140,7 +140,7 @@ test("a political update announces every category and applies commission revocat
     clearPapalCommissionSafePassage: () => effects.push("passage cleared"),
     clearPapalCommissionCargoProgress: () => effects.push("cargo cleared"),
     papalActionNotice: (event) => event, papalCommissionRevocationNotice: (event) => event,
-    papalMatterNotice: (event) => event, tradeEmbargoEventNotice: (event) => event,
+    papalMatterNotice: (event) => event, tradeEmbargoHudNotice: (event) => event,
     courtActionNotice: (event) => event, courtMatterNotice: (event) => event,
     foreignSettlementExpulsionNotice: (events) => events.join(), diplomacyEventNotice: (event) => event.kind,
     showSurvivalNotice: notice.showSurvivalNotice

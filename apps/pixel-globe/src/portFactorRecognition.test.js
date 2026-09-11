@@ -61,6 +61,8 @@ test("a factor calls the captain the hero of a major enemy port taken for the re
   const result = recognition(state);
   assert.equal(result.kind, "hero-of-port");
   assert.match(result.text, /Hero of Rhodes/);
+  const local = recognition(state, { city: { ...rhodes, factionId: "ottoman" } });
+  assert.notEqual(local?.kind, "hero-of-port");
 });
 
 test("a wealthy captain is received as a magnate rather than an ordinary carrier", () => {

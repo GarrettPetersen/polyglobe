@@ -4290,7 +4290,7 @@ function refreshDestinationLabelLayouts() {
 
 function drawSceneLabels() {
   drawCityNameLabel();
-  if (state.feast) return;
+  if (state.feast && (state.feast.phase !== "afterwards" || state.feast.elapsedMs < 3000)) return;
   drawSetSailControl();
   drawDestinationLabels();
 }

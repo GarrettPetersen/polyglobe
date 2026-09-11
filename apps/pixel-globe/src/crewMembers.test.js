@@ -183,8 +183,7 @@ test("an inn can show replacement candidates while every bunk is occupied", () =
     targetCrew: state.ship.crewCapacity,
     appearances: APPEARANCES,
     identityForKey: crewIdentityFactory(),
-    baseHireCost: 2,
-    includeReplacementCandidates: true
+    baseHireCost: 2
   });
 
   assert.ok(offer.candidates.length > 0);
@@ -374,3 +373,18 @@ function crewState(crewRoster) {
   validateCrewAggregate(state);
   return state;
 }
+
+test("full ships see local recruits, and offers renew weekly without rerolling on clicks", () => {
+  const state = crewState([]);
+  state.ship.crewCapacity = 1;
+  const memory = createCrewRecruitmentMemory();
+  const options = { memory, state, city: PORT, simMinute: 100, targetCrew: 1,
+    appearances: APPEARANCES, identityForKey: crewIdentityFactory(), baseHireCost: 2 };
+  const first = createCrewRecruitmentOffer(options);
+  assert.ok(first.candidates.length > 0);
+  assert.throws(() => hireCrewCandidate(state, memory, PORT, first.candidates[0].member.id, 101), /No crew berth/);
+  assert.equal(createCrewRecruitmentOffer({ ...options, simMinute: 100 + 7 * 1440 - 1 }), first);
+  const next = createCrewRecruitmentOffer({ ...options, simMinute: 100 + 7 * 1440 });
+  assert.notEqual(next.id, first.id);
+  assert.ok(next.candidates.every(candidate => !first.candidates.some(old => old.member.id === candidate.member.id)));
+});

@@ -46,7 +46,7 @@ test("water-only connectors cover integer-projected three-tile junctions", () =>
     baseHalfWidthPx: 9,
     levelDifference: 0,
     surfaceKind: "water"
-  }), 10);
+  }), 11);
   assert.equal(terrainConnectorHalfWidthPx({
     baseHalfWidthPx: 9,
     levelDifference: 0,
@@ -56,7 +56,7 @@ test("water-only connectors cover integer-projected three-tile junctions", () =>
     baseHalfWidthPx: 9,
     levelDifference: 4,
     surfaceKind: "water"
-  }), 12);
+  }), 13);
 });
 
 test("land-only connectors close the same three-tile junction pinholes", () => {
@@ -64,7 +64,7 @@ test("land-only connectors close the same three-tile junction pinholes", () => {
     baseHalfWidthPx: 9,
     levelDifference: 0,
     surfaceKind: "land"
-  }), 10);
+  }), 11);
 });
 
 test("terrain connector width rejects malformed geometry state", () => {
@@ -115,4 +115,26 @@ test("equivalent visible connector arrays share one beach-wave cache key", () =>
   );
   assert.equal(terrainConnectorEdgeKey({ a: 7, b: 2 }), "2:7");
   assert.throws(() => terrainConnectorCallSequenceKey([{ a: 3, b: 3 }]), /distinct integer tile ids/);
+});
+
+test("same-surface overlap covers the rounded center of an expanded three-tile junction", () => {
+  const side = 38;
+  const nodes = [{ x: 0, y: 0 }, { x: side, y: 0 }, { x: side / 2, y: side * Math.sqrt(3) / 2 }];
+  for (const surfaceKind of ["land", "water"]) {
+    const width = terrainConnectorHalfWidthPx({ baseHalfWidthPx: 9, levelDifference: 0, surfaceKind });
+    const pixels = new Set();
+    for (let i = 0; i < 3; i++) {
+      const a = nodes[i], b = nodes[(i + 1) % 3];
+      const nx = -(b.y - a.y) / side, ny = (b.x - a.x) / side;
+      const polygon = [{ x: a.x + nx * width, y: a.y + ny * width }, { x: b.x + nx * width, y: b.y + ny * width },
+        { x: b.x - nx * width, y: b.y - ny * width }, { x: a.x - nx * width, y: a.y - ny * width }];
+      for (const span of terrainConnectorRasterSpans(polygon, 77 + i)) {
+        for (let x = span.x; x < span.x + span.width; x++) pixels.add(`${x},${span.y}`);
+      }
+    }
+    const centerY = Math.floor(nodes[2].y / 3);
+    for (let y = centerY - 1; y <= centerY + 1; y++) {
+      for (let x = 18; x <= 20; x++) assert.ok(pixels.has(`${x},${y}`), `${surfaceKind}: exposed pixel at ${x},${y}`);
+    }
+  }
 });

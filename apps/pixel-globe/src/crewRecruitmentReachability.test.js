@@ -36,7 +36,7 @@ test("every recruitable appearance at every port can be hired, saved and inspect
           nationalityId: city.factionId
         })
       });
-      assert.equal(offer.candidates.length, 1);
+      assert.ok(offer.candidates.length >= 1, "the local pool has applicants even for one vacant berth");
       const candidate = offer.candidates[0];
       const before = state.doubloons;
       hireCrewCandidate(state, memory, city, candidate.member.id, 11);

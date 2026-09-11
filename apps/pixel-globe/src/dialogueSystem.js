@@ -1,3 +1,4 @@
+import { PIRATE_FACTION_ID } from "./factions.js";
 import { pirateHavenCommissionView, selectPirateHavenCommission } from "./pirateHavenDialogue.js";
 import { colonySeasonalAccessWarning } from "./colonySeasonalAccess.js";
 import { activeQuestById } from "./activeQuests.js";
@@ -2153,8 +2154,7 @@ export function selectPortDialogueAction(
       throw new Error("Crew recruitment requires a port recruitment provider");
     }
     context.prepareCrewRecruitment({
-      allowEmpty: true,
-      includeReplacementCandidates: true
+      allowEmpty: true
     });
     session.crewRecruitmentReturnNodeId = null;
     session.nodeId = "crew-recruitment";
@@ -4665,8 +4665,7 @@ function barredPortView(city, gameState, context) {
   if (!status?.hostile && !conquest?.canAttempt && !conquest?.playerAssaultActive && !attack?.commissioned) {
     throw new Error("Barred port dialogue requires hostility or an exposed foreign port");
   }
-  const independentTarget = status.factionId === NEUTRAL_FACTION_ID &&
-    attack?.independentTarget === true;
+  const independentTarget = status.factionId === NEUTRAL_FACTION_ID || status.factionId === PIRATE_FACTION_ID;
   const conquistadorLanding = conquest?.conquistadorCompany?.ready === true;
   if (conquistadorLanding && attack?.mode !== "conquest") {
     throw new Error("Conquistador landing lost its Spanish conquest commission");

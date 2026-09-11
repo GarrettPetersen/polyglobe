@@ -5,6 +5,13 @@ import { resolve } from "node:path";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const files = [
+  "src/playtesterPortRegressions.test.js",
+  "src/shipTargetRumors.test.js",
+  "src/reputationHistory.test.js",
+  "src/crewMembers.test.js",
+  "src/gameStateReputation.test.js",
+  "src/freshWaterAccess.test.js",
+  "src/terrainConnectorRaster.test.js",
   "src/chartCityLocations.test.js",
   "src/pirateHavens.test.js",
   "src/pirateHavenCatalog.test.js",
@@ -41,6 +48,7 @@ const files = [
 for (const path of files) if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing telemetry regression: ${path}`);
 execFileSync(process.execPath, ["--test", "--test-concurrency=1", ...files], { cwd: root, stdio: "inherit", timeout: 9 * 60_000 });
 console.log(JSON.stringify({ status: "passed", files, fingerprints: [
+  "c126a3134cec33fdf403c9691eac0fcb93573c356f105fa760c1aaaad9bac135",
   "a3069b42c03aa6ce771faa94b7b4e136e414a677ba4f4d74e33a86389f8046d1",
   "a69a460ab5a00d3131fcccb271d10dd8a0f4d85153b9f8d25ac3786579c931a9",
   "c91f3b7befbc9bf2f24ae8cece01b6c55e684b586cf38e5879caa88f19629e07",
