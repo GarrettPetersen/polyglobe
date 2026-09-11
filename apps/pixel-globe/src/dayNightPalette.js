@@ -183,33 +183,6 @@ export function dayNightPaletteVariant(light) {
   return cachedDayNightPaletteVariant(light);
 }
 
-let rollingPaletteAtlas = null;
-
-// One immutable atlas for all stage pairs; sunlight only updates uniforms per frame.
-export function rollingDayNightPaletteAtlas() {
-  if (rollingPaletteAtlas) return rollingPaletteAtlas;
-  prepareDayNightPalette();
-  const width = PALETTE_TEXTURE_WIDTH * 2;
-  const height = PALETTE_TEXTURE_HEIGHT * 41;
-  const pixels = new Uint8ClampedArray(width * height * 4);
-  for (let sunset = 0; sunset <= 8; sunset++) {
-    for (let night = 0; night <= 8; night++) {
-      const variant = cachedDayNightPaletteVariant({ sunset: sunset / 8, night: night / 8 });
-      if (variant) {
-        const layer = sunset * 9 + night;
-        for (let row = 0; row < PALETTE_TEXTURE_HEIGHT; row++) {
-          const sourceOffset = row * PALETTE_TEXTURE_WIDTH * 4;
-          const targetOffset = ((Math.floor(layer / 2) * PALETTE_TEXTURE_HEIGHT + row) * width +
-            (layer % 2) * PALETTE_TEXTURE_WIDTH) * 4;
-          pixels.set(variant.pixels.subarray(sourceOffset, sourceOffset + PALETTE_TEXTURE_WIDTH * 4), targetOffset);
-        }
-      }
-    }
-  }
-  rollingPaletteAtlas = Object.freeze({ key: "rolling-daylight", width, height, pixels });
-  return rollingPaletteAtlas;
-}
-
 function cachedDayNightPaletteVariant(light) {
   const sunsetStage = colorRampStage(light?.sunset);
   const nightStage = colorRampStage(light?.night);

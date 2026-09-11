@@ -7120,8 +7120,13 @@ function handleShipyardSupplyArrival(system, ship, yard, minute) {
   const multiplier = npcPurchaseMultiplier(system, ship, ship.currentPort)(goodId);
   const cartazCost = npcCartazVoyageCost(system, ship, ship.currentPort, home);
   if (!Number.isFinite(cartazCost) || cartazCost > ship.specie) return;
+  if (!need) throw new Error(`Commissioned supply material is not stocked by shipyard ${yard.portId}: ${goodId}`);
+  const requestedQuantity = Math.min(Math.floor(need.stockpileMissing), npcCargoAvailableQuantity(ship, goodId));
+  // Storage can fill while this ship is sailing, or leave less than one unit
+  // of room. Wait for demand instead of submitting an invalid zero-unit trade.
+  if (requestedQuantity <= 0) return;
   const quantity = maximumPortSaleQuantity(system.economy, ship.currentPort, goodId,
-    Math.min(Math.floor(need?.stockpileMissing || 0), npcCargoAvailableQuantity(ship, goodId)), ship.specie - cartazCost, multiplier);
+    requestedQuantity, ship.specie - cartazCost, multiplier);
   if (quantity <= 0) return;
   const transaction = executePortSale(system.economy, ship.currentPort, goodId, quantity, multiplier);
   ship.specie -= transaction.total + cartazCost;

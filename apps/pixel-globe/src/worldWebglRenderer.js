@@ -1,5 +1,3 @@
-import { DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER, DAY_NIGHT_FULL_DAY_ALTITUDE, DAY_NIGHT_FULL_NIGHT_ALTITUDE,
-  DAY_NIGHT_WARM_START_ALTITUDE, DAY_NIGHT_WARM_END_ALTITUDE } from "./dayNightCycle.js";
 import { UNDERWATER_REFRACTION_SHADER_TIME_COEFFICIENT } from "./underwaterRefraction.js";
 import { SHIP_SURFACE_LIGHTING_BLEND } from "./shipLighting.js";
 import { OCEAN_SWELL_SPATIAL_CYCLES } from "./oceanSwell.js";
@@ -196,12 +194,6 @@ uniform sampler2D u_scene;
 uniform sampler2D u_palette;
 uniform sampler2D u_repairCloudMask;
 uniform bool u_grade;
-uniform bool u_rollingDaylight;
-uniform vec3 u_sunScreen;
-uniform sampler2D u_hexDaylight;
-uniform vec2 u_hexMapOrigin;
-uniform vec2 u_hexCenterOrigin;
-uniform float u_radiansPerPixel;
 uniform bool u_repairCloudBlur;
 uniform bool u_repairCloudFullscreen;
 uniform bool u_repairCloudWideBlur;
@@ -226,32 +218,6 @@ vec3 paletteGrade(vec3 source) {
   float paletteY = floor(index / 1024.0);
   float atlasHeight = 32.0;
   float atlasWidth = 1024.0;
-  if (u_rollingDaylight) {
-    vec2 sceneSize = vec2(textureSize(u_scene, 0));
-    vec2 screenPixel = vec2(v_texCoord.x, 1.0 - v_texCoord.y) * sceneSize;
-    vec2 hexSize = vec2(textureSize(u_hexDaylight, 0));
-    vec4 encoded = floor(texture(u_hexDaylight, (screenPixel - u_hexMapOrigin) / hexSize) * 255.0 + 0.5);
-    vec2 center = vec2(encoded.r * 256.0 + encoded.g, encoded.b * 256.0 + encoded.a) + u_hexCenterOrigin;
-    vec2 offset = (center - sceneSize * 0.5) * u_radiansPerPixel;
-    float altitude = clamp((u_sunScreen.z + dot(offset, u_sunScreen.xy)) /
-      sqrt(1.0 + dot(offset, offset)), -1.0, 1.0);
-    altitude = sin(asin(altitude) / ${DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER.toFixed(6)});
-    float day = smoothstep(${(DAY_NIGHT_FULL_NIGHT_ALTITUDE * 0.65).toFixed(6)}, ${DAY_NIGHT_FULL_DAY_ALTITUDE.toFixed(6)}, altitude);
-    float night = 1.0 - smoothstep(${DAY_NIGHT_FULL_NIGHT_ALTITUDE.toFixed(6)}, 0.08, altitude);
-    float twilight = clamp(1.0 - day - night, 0.0, 1.0);
-    float warm = smoothstep(${DAY_NIGHT_WARM_START_ALTITUDE.toFixed(6)}, 0.05, altitude) * (1.0 - smoothstep(0.06, ${DAY_NIGHT_WARM_END_ALTITUDE.toFixed(6)}, altitude));
-    float sunset = max(twilight * 0.85, warm);
-    night = night * night * (3.0 - 2.0 * night);
-    sunset = sunset * sunset * (3.0 - 2.0 * sunset);
-    float sunsetStage = floor(sunset * 8.0 + 0.5);
-    float nightStage = floor(night * 8.0 + 0.5);
-    if (sunsetStage == 0.0 && nightStage == 0.0) return source;
-    float layer = sunsetStage * 9.0 + nightStage;
-    paletteX += mod(layer, 2.0) * 1024.0;
-    paletteY += floor(layer / 2.0) * 32.0;
-    atlasWidth *= 2.0;
-    atlasHeight *= 41.0;
-  }
   return texture(u_palette,
     vec2((paletteX + 0.5) / atlasWidth, (paletteY + 0.5) / atlasHeight)).rgb;
 }
@@ -810,12 +776,6 @@ export function createWorldWebGL2Renderer({
     palette: requiredUniform(gl, presentProgram, "u_palette"),
     repairCloudMask: requiredUniform(gl, presentProgram, "u_repairCloudMask"),
     grade: requiredUniform(gl, presentProgram, "u_grade"),
-    rollingDaylight: requiredUniform(gl, presentProgram, "u_rollingDaylight"),
-    sunScreen: requiredUniform(gl, presentProgram, "u_sunScreen"),
-    hexDaylight: requiredUniform(gl, presentProgram, "u_hexDaylight"),
-    hexMapOrigin: requiredUniform(gl, presentProgram, "u_hexMapOrigin"),
-    hexCenterOrigin: requiredUniform(gl, presentProgram, "u_hexCenterOrigin"),
-    radiansPerPixel: requiredUniform(gl, presentProgram, "u_radiansPerPixel"),
     repairCloudBlur: requiredUniform(gl, presentProgram, "u_repairCloudBlur"),
     repairCloudFullscreen: requiredUniform(gl, presentProgram, "u_repairCloudFullscreen"),
     repairCloudWideBlur: requiredUniform(gl, presentProgram, "u_repairCloudWideBlur"),
@@ -875,11 +835,6 @@ export function createWorldWebGL2Renderer({
     gl.UNSIGNED_BYTE,
     new Uint8Array([0, 0, 0, 0])
   );
-  gl.activeTexture(gl.TEXTURE3);
-  const hexDaylightTexture = createNearestTexture(gl);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
-    new Uint8Array([0, 0, 0, 0]));
-  let hexDaylightMap = null;
   gl.activeTexture(gl.TEXTURE0);
   const atlasAllocator = new PagedTextureAtlasAllocator(atlasSize, atlasSize);
   const atlasPages = [];
@@ -912,7 +867,6 @@ export function createWorldWebGL2Renderer({
   let frameOceanSwell = null;
   let frameModalReframe = null;
   let frameGrade = false;
-  let frameDaylight = null;
   let frameRepairCloudBlur = null;
   let frameHeatHaze = null;
   let repairCloudMaskSource = null;
@@ -961,7 +915,6 @@ export function createWorldWebGL2Renderer({
     gl.uniform1i(presentLocations.scene, 0);
     gl.uniform1i(presentLocations.palette, 1);
     gl.uniform1i(presentLocations.repairCloudMask, 2);
-    gl.uniform1i(presentLocations.hexDaylight, 3);
   }
 
   function configureBitMaskAttributes() {
@@ -1019,7 +972,6 @@ export function createWorldWebGL2Renderer({
     height,
     clearColor,
     paletteVariant = null,
-    daylight = null,
     timeMs = 0,
     oceanSwell = null,
     modalReframe = null
@@ -1040,22 +992,6 @@ export function createWorldWebGL2Renderer({
     validateModalReframe(modalReframe);
     frameOceanSwell = oceanSwell;
     frameModalReframe = modalReframe;
-    if (daylight && (!Array.isArray(daylight.sunScreen) || daylight.sunScreen.length !== 3 ||
-        !daylight.sunScreen.every(Number.isFinite) || !Number.isFinite(daylight.radiansPerPixel) ||
-        daylight.radiansPerPixel <= 0 || !daylight.hexes?.map || !daylight.hexes?.offset || paletteVariant?.key !== "rolling-daylight")) {
-      throw new Error("Rolling daylight requires a projected sun, positive scale and palette atlas");
-    }
-    if (daylight && hexDaylightMap !== daylight.hexes.map) {
-      const map = daylight.hexes.map;
-      if (!(map.pixels instanceof Uint8ClampedArray) || map.pixels.length !== map.width * map.height * 4) {
-        throw new Error("Invalid hex daylight raster");
-      }
-      gl.activeTexture(gl.TEXTURE3);
-      gl.bindTexture(gl.TEXTURE_2D, hexDaylightTexture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, map.width, map.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, map.pixels);
-      hexDaylightMap = map;
-    }
-    frameDaylight = daylight;
     frameGrade = Boolean(paletteVariant);
     updatePaletteTexture(paletteVariant);
     gl.useProgram(sceneProgram);
@@ -1848,16 +1784,6 @@ export function createWorldWebGL2Renderer({
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, repairCloudMaskTexture);
     gl.uniform1i(presentLocations.grade, frameGrade ? 1 : 0);
-    gl.activeTexture(gl.TEXTURE3);
-    gl.bindTexture(gl.TEXTURE_2D, hexDaylightTexture);
-    gl.uniform1i(presentLocations.rollingDaylight, frameDaylight ? 1 : 0);
-    const hexes = frameDaylight?.hexes;
-    gl.uniform2f(presentLocations.hexMapOrigin, hexes ? hexes.map.x + hexes.offset.x : 0,
-      hexes ? hexes.map.y + hexes.offset.y : 0);
-    gl.uniform2f(presentLocations.hexCenterOrigin, hexes ? hexes.map.centerOrigin.x + hexes.offset.x : 0,
-      hexes ? hexes.map.centerOrigin.y + hexes.offset.y : 0);
-    gl.uniform3fv(presentLocations.sunScreen, frameDaylight?.sunScreen || [0, 0, 1]);
-    gl.uniform1f(presentLocations.radiansPerPixel, frameDaylight?.radiansPerPixel || 1);
     const haze = frameHeatHaze;
     gl.uniform1i(presentLocations.heatHaze, haze ? 1 : 0);
     gl.uniform1f(presentLocations.heatHazeStrength, haze?.strength ?? 0);

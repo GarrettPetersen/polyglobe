@@ -3491,8 +3491,18 @@ test("commissioned merchant makes repeated paid supply runs, preserves its voyag
   assert.notEqual(ship.plan.destination.cityId, home.cityId);
   const source = ship.plan.destination;
   const sourceStock = economy.portStates.get(source.cityId).goods.get("iron").stock;
-  const supplierMinute = ship.plan.endMinute;
-  updateNpcSeaRouteEvents(routes, supplierMinute, [ship.id]);
+  const supplierSpecie = ship.specie;
+  for (const remainingRoom of [0, 0.25]) {
+    yard.materialInventory.iron = shipyardMaterialStockTargets(yard).iron - remainingRoom;
+    updateNpcSeaRouteEvents(routes, ship.plan.endMinute, [ship.id]);
+    assert.equal(ship.cargo.iron, undefined, "full or fractional warehouse room must not trigger a purchase");
+    assert.equal(ship.specie, supplierSpecie);
+    assert.equal(economy.portStates.get(source.cityId).goods.get("iron").stock, sourceStock);
+  }
+  yard.materialInventory.iron = 0;
+  for (let stop = 0; stop < 4 && !(ship.cargo.iron > 0); stop++) {
+    updateNpcSeaRouteEvents(routes, ship.plan.endMinute, [ship.id]);
+  }
   assert.ok(ship.cargo.iron > 0);
   assert.ok(economy.portStates.get(source.cityId).goods.get("iron").stock < sourceStock);
   assert.equal(ship.plan.destination.cityId, home.cityId);

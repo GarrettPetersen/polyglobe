@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { realSecondsPerGameDay } from "./gamePacing.js";
 
 import {
-  DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER,
-  DAY_NIGHT_FULL_DAY_ALTITUDE,
-  DAY_NIGHT_FULL_NIGHT_ALTITUDE,
   FIRST_DAY_NIGHT_NOTICE_SUNRISE,
   FIRST_DAY_NIGHT_NOTICE_SUNSET,
   advanceFirstDayNightNoticeState,
@@ -15,34 +11,18 @@ import {
   snapshotFirstDayNightNoticeState
 } from "./dayNightCycle.js";
 
-test("dawn and dusk grading last 1.5 times longer without changing the physical sun", () => {
-  const actualAltitude = gradeAltitude => Math.sin(Math.asin(gradeAltitude) * DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER);
-  const oldDuration = equatorialCycleSecondsBetween(DAY_NIGHT_FULL_DAY_ALTITUDE, DAY_NIGHT_FULL_NIGHT_ALTITUDE);
-  const duration = equatorialCycleSecondsBetween(actualAltitude(DAY_NIGHT_FULL_DAY_ALTITUDE), actualAltitude(DAY_NIGHT_FULL_NIGHT_ALTITUDE));
-  assert.ok(Math.abs(duration / oldDuration - 1.5) < 1e-9);
-  assert.ok(Math.abs(duration - 8) < 1e-9);
-  for (const altitude of [-1, -0.6, 0, 0.6, 1]) {
-    assert.equal(dayNightLightForSunAltitude(altitude).sunAltitude, altitude);
+test("the entire solar cycle uses only stable day, sunset and night palettes", () => {
+  const phases = new Set();
+  for (let step = -1000; step <= 1000; step++) {
+    const altitude = step / 1000;
+    const light = dayNightLightForSunAltitude(altitude);
+    assert.equal(light.sunAltitude, altitude);
+    assert.equal(light.night, altitude <= -0.3 ? 1 : 0);
+    assert.equal(light.sunset, altitude > -0.3 && altitude < 0.3 ? 1 : 0);
+    phases.add(`${light.sunset}:${light.night}`);
   }
-  assert.equal(dayNightLightForSunAltitude(0.6).sunset > 0, true);
-  assert.equal(dayNightLightForSunAltitude(-0.6).night < 1, true);
-});
-
-test("visual twilight eases through warm light without changing full day or night", () => {
-  assert.deepEqual(dayNightLightForSunAltitude(1), {
-    sunAltitude: 1,
-    night: 0,
-    sunset: 0
-  });
-  assert.deepEqual(dayNightLightForSunAltitude(-1), {
-    sunAltitude: -1,
-    night: 1,
-    sunset: 0
-  });
-  const horizon = dayNightLightForSunAltitude(0);
-  assert.ok(horizon.sunset > 0.9);
-  assert.ok(horizon.night < 0.1);
-  assert.throws(() => dayNightLightForSunAltitude(Number.NaN), /unit value/);
+  assert.deepEqual([...phases].sort(), ["0:0", "0:1", "1:0"]);
+  assert.throws(() => dayNightLightForSunAltitude(NaN), /unit value/);
 });
 
 test("a new voyage labels its first sunset and following sunrise once", () => {
@@ -94,10 +74,4 @@ test("day/night guidance rejects malformed saved and runtime state", () => {
 
 function advance(state, sunAltitude, elapsedVoyageMinutes) {
   return advanceFirstDayNightNoticeState(state, { sunAltitude, elapsedVoyageMinutes });
-}
-
-function equatorialCycleSecondsBetween(descendingStartAltitude, descendingEndAltitude) {
-  const startAngle = Math.acos(descendingStartAltitude);
-  const endAngle = Math.acos(descendingEndAltitude);
-  return (endAngle - startAngle) / (Math.PI * 2) * realSecondsPerGameDay();
 }

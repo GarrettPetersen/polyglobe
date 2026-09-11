@@ -1,11 +1,5 @@
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
-export const DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER = 1.5;
-
-export const DAY_NIGHT_FULL_DAY_ALTITUDE = 0.5;
-export const DAY_NIGHT_FULL_NIGHT_ALTITUDE = -0.5;
-export const DAY_NIGHT_WARM_START_ALTITUDE = -0.46;
-export const DAY_NIGHT_WARM_END_ALTITUDE = 0.46;
 export const FIRST_DAY_NIGHT_NOTICE_SUNSET = "sunset";
 export const FIRST_DAY_NIGHT_NOTICE_SUNRISE = "sunrise";
 const FIRST_DAY_NIGHT_NOTICE_SUNSET_ALTITUDE = 0.3;
@@ -13,22 +7,12 @@ const FIRST_DAY_NIGHT_NOTICE_SUNRISE_ALTITUDE = -0.3;
 
 export function dayNightLightForSunAltitude(sunAltitude) {
   assertSunAltitude(sunAltitude);
-  // Stretch solar elevation angles, not the voyage clock or physical sun.
-  // At the equator this makes each grading transition exactly 1.5 times longer.
-  const gradingAltitude = Math.sin(Math.asin(sunAltitude) / DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER);
-  const day = smoothstep(
-    DAY_NIGHT_FULL_NIGHT_ALTITUDE * 0.65,
-    DAY_NIGHT_FULL_DAY_ALTITUDE,
-    gradingAltitude
-  );
-  const night = 1 - smoothstep(DAY_NIGHT_FULL_NIGHT_ALTITUDE, 0.08, gradingAltitude);
-  const twilight = clamp(1 - day - night, 0, 1);
-  const warm = smoothstep(DAY_NIGHT_WARM_START_ALTITUDE, 0.05, gradingAltitude) *
-    (1 - smoothstep(0.06, DAY_NIGHT_WARM_END_ALTITUDE, gradingAltitude));
+  // Choose one complete palette for the whole scene. Intermediate ramps and
+  // spatial wipes distract from sailing; the physical sun and clock still advance.
   return {
     sunAltitude,
-    night: easeInOut(night),
-    sunset: easeInOut(Math.max(twilight * 0.85, warm))
+    night: sunAltitude <= -0.3 ? 1 : 0,
+    sunset: sunAltitude > -0.3 && sunAltitude < 0.3 ? 1 : 0
   };
 }
 
@@ -118,17 +102,4 @@ function assertSunAltitude(value) {
   if (!Number.isFinite(value) || value < -1 || value > 1) {
     throw new Error(`Sun altitude must be a finite unit value: ${value}`);
   }
-}
-
-function smoothstep(edge0, edge1, value) {
-  return easeInOut((value - edge0) / (edge1 - edge0));
-}
-
-function easeInOut(value) {
-  const x = clamp(value, 0, 1);
-  return x * x * (3 - 2 * x);
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
 }

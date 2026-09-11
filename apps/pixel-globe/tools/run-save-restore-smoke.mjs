@@ -1,4 +1,4 @@
-import { verifyRollingDaylightGpu } from "./reachability/rolling-daylight.mjs";
+import { verifyDaylightGpu } from "./reachability/daylight.mjs";
 import { PIRATE_HAVEN_SPECS } from "../src/pirateHavenCatalog.js";
 import { exerciseSeasonalColonyDialogues } from "./reachability/seasonal-colony-dialogues.mjs";
 import { exerciseSavedStartMenu } from "./reachability/saved-start-menu.mjs";
@@ -195,15 +195,15 @@ try {
     writeFileSync(path.join(root,"world.png"),Buffer.from(full.image.split(",")[1],"base64"));
     await assertNoBrowserFailure(page,browserErrors,"cached full-world chart");
   } else if (smokeFocus === "daylight") {
-    process.stdout.write(`Verified ${await verifyRollingDaylightGpu(page)} daylight GPU pixels against CPU grading.\n`);
+    process.stdout.write(`Verified ${await verifyDaylightGpu(page)} daylight GPU pixels against CPU grading.\n`);
     await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
     const root = path.join(APP_ROOT, ".playtest/daylight");
     mkdirSync(root, { recursive: true });
     for (const sunset of [false, true]) {
-      for (const offsetMinutes of [-20, -10, 0, 10, 20]) {
+      for (const offsetMinutes of [-120, -80, -20, 0, 20, 80, 120]) {
         const result = await page.evaluate(options => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectDaylight(options), { sunset, offsetMinutes });
         writeFileSync(path.join(root, `${sunset ? "sunset" : "sunrise"}-${offsetMinutes}.png`), Buffer.from(result.image.split(",")[1], "base64"));
-        await assertNoBrowserFailure(page, browserErrors, "rolling daylight");
+        await assertNoBrowserFailure(page, browserErrors, "daylight palette");
       }
     }
     process.stdout.write("Rendered sunrise and sunset on the restored overworld.\n");

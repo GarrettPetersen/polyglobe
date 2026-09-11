@@ -1,6 +1,5 @@
 import { MINIMAP_BAKE_MAX_LATITUDE, decodeMinimapBake, createMinimapPixelCache } from "./minimapBake.js";
 import { simulatePortAssaultInWorker } from "./portAssaultSimulationClient.js";
-import { buildHexDaylightMap } from "./hexDaylight.js";
 import { STEAM_WISHLIST_URL, wishlistPromotionEnabled, wishlistPulse, wishlistModalLayout, startWishlistRect } from "./wishlistPromotion.js";
 import { questOfferCooldownReady, recordQuestOffer } from "./questOfferPolicies.js";
 import { arrivalOfferEligible, recordArrivalOffer } from "./arrivalOfferCadence.js";
@@ -1979,7 +1978,6 @@ import {
 } from "./riverBankRaster.js";
 import {
   dayNightPaletteVariant,
-  rollingDayNightPaletteAtlas,
   prepareDayNightPalette
 } from "./dayNightPalette.js";
 import {
@@ -4599,7 +4597,6 @@ async function main() {
   await shellReady;
   drawLoading();
   prepareDayNightPalette();
-  rollingDayNightPaletteAtlas();
   const [, loadedStartupAssets] = await initializationReady;
   const [
     loadedImages,
@@ -43704,41 +43701,12 @@ function normalizeOrNull(v) {
   return [v[0] / length, v[1] / length, v[2] / length];
 }
 
-let hexDaylightWindow = null;
-
-function hexDaylightForWorld(layers, nowMs) {
-  const calls = layers.terrainCalls;
-  const iceStage = surfaceIceTransition ? surfaceIceTransitionStage(surfaceIceTransition, nowMs) : -1;
-  if (hexDaylightWindow?.calls !== calls || hexDaylightWindow.screenWidth !== SCREEN_W ||
-      hexDaylightWindow.screenHeight !== SCREEN_H || hexDaylightWindow.iceStage !== iceStage ||
-      hexDaylightWindow.weatherDay !== weatherMaskDayIndex) {
-    const margin = TILE_ART_SIZE + RENDER_CALL_WINDOW_STEP_PX;
-    const x = Math.floor(-layers.offset.x / RENDER_CALL_WINDOW_STEP_PX) * RENDER_CALL_WINDOW_STEP_PX - margin;
-    const y = Math.floor(-layers.offset.y / RENDER_CALL_WINDOW_STEP_PX) * RENDER_CALL_WINDOW_STEP_PX - margin;
-    const visibleIds = new Set(calls.map(call => call.id));
-    const map = buildHexDaylightMap(calls.map(call => ({ id: call.id,
-      x: call.drawSurfaceX, y: call.drawSurfaceY })), {
-      x, y, width: SCREEN_W + margin * 2, height: SCREEN_H + margin * 2, radiusPx: TILE_ART_SIZE / 2,
-      connectors: layers.connectors.entries.filter(entry => visibleIds.has(entry.call.a) && visibleIds.has(entry.call.b))
-        .map(entry => ({a: entry.call.a, b: entry.call.b, spans: entry.spans})),
-      sprites: calls.flatMap(call => terrainDrawImagesForTile(call, nowMs).map(source => ({
-        id: call.id, x: Math.round(call.drawSurfaceX - TILE_ART_HALF),
-        y: Math.round(call.drawSurfaceY - TILE_ART_HALF), width: TILE_ART_SIZE, height: TILE_ART_SIZE,
-        mask: spriteAlphaMask(source)
-      })))
-    });
-    hexDaylightWindow = { calls, screenWidth: SCREEN_W, screenHeight: SCREEN_H, iceStage, weatherDay: weatherMaskDayIndex, map };
-  }
-  return { map: hexDaylightWindow.map, offset: layers.offset };
-}
-
 function drawDayNightWorld(layers, nowMs) {
   if (!ship) throw new Error("Cannot present the world before the player ship exists");
   if (!layers || !Number.isFinite(nowMs)) {
     throw new Error("Cannot present the world without cached layers and a frame time");
   }
-  const sun = currentSunDirection();
-  const variant = rollingDayNightPaletteAtlas();
+  const variant = dayNightPaletteVariant(localDayNightLight());
   const swell = currentOceanSwellPresentation();
   const modalReframe = currentModalReframePresentation(nowMs);
   measurePerformanceBenchmarkStage("render.world.begin", () => {
@@ -43747,8 +43715,6 @@ function drawDayNightWorld(layers, nowMs) {
       height: SCREEN_H,
       clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
       paletteVariant: variant,
-      daylight: { sunScreen: [dot3(sun, camera.right), -dot3(sun, camera.up), dot3(sun, ship.position)],
-        radiansPerPixel: 1 / PIXELS_PER_RADIAN, hexes: hexDaylightForWorld(layers, nowMs) },
       timeMs: nowMs,
       oceanSwell: swell,
       modalReframe: modalReframe?.frame || null
