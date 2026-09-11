@@ -1,4 +1,4 @@
-import { STEAM_WISHLIST_URL, STEAM_WISHLIST_LOGO_URL, wishlistPromotionEnabled, wishlistPulse, wishlistModalLayout, startWishlistRect } from "./wishlistPromotion.js";
+import { STEAM_WISHLIST_URL, wishlistPromotionEnabled, wishlistPulse, wishlistModalLayout, startWishlistRect } from "./wishlistPromotion.js";
 import { questOfferCooldownReady, recordQuestOffer } from "./questOfferPolicies.js";
 import { arrivalOfferEligible, recordArrivalOffer } from "./arrivalOfferCadence.js";
 import { shipTargetRumorEligible, recordShipTargetRumor, shipTargetRumorText } from "./shipTargetRumors.js";
@@ -3283,12 +3283,6 @@ const OPTIONS_ROW_WISHLIST = SHOW_WISHLIST_CTA ? 0 : -1;
 let wishlistEndgamePrompt = false;
 let wishlistEndgameSelection = 0;
 const wishlistReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-let wishlistSteamLogo = null;
-if (SHOW_WISHLIST_CTA) {
-  wishlistSteamLogo = new Image();
-  wishlistSteamLogo.addEventListener("error", () => { throw new Error("Steam wishlist logo failed to load"); });
-  wishlistSteamLogo.src = STEAM_WISHLIST_LOGO_URL;
-}
 const OPTIONS_ROW_H = 22;
 const OPTIONS_ROW_COUNT = 11 + WISHLIST_ROW_OFFSET;
 const OPTIONS_ROW_FULLSCREEN = 0 + WISHLIST_ROW_OFFSET;
@@ -17059,7 +17053,7 @@ function installSaveRestoreSmokeHarness() {
       render(performance.now(), { allowColdCoveredWorldRender: true });
       const rect = stage === "start" ? startMenu.wishlistRect
         : stage === "pause" ? optionsMenu.rowRects[OPTIONS_ROW_WISHLIST] : wishlistModalLayout(SCREEN_W, SCREEN_H).wishlist;
-      if (!rect || !wishlistSteamLogo?.naturalWidth) throw new Error(`Wishlist CTA is not visible: ${stage}`);
+      if (!rect || !gameIconAtlasImage?.naturalWidth) throw new Error(`Wishlist CTA is not visible: ${stage}`);
       return { rect, width: SCREEN_W, height: SCREEN_H, url: STEAM_WISHLIST_URL, enabled: SHOW_WISHLIST_CTA };
     },
     async inspectPirateCove({ showMercy = false } = {}) {
@@ -68712,16 +68706,12 @@ function drawWishlistButton(rect, highlighted, nowMs) {
   ctx.strokeStyle = highlighted ? "#fff3c0" : "#684620";
   ctx.lineWidth = highlighted ? 2 : 1;
   ctx.strokeRect(rect.x + .5, rect.y + .5, rect.w - 1, rect.h - 1);
-  const iconSize = Math.min(18, rect.h - 4);
+  const iconSize = GAME_ICON_SIZE;
   const iconX = rect.x + 6;
   const iconY = rect.y + Math.floor((rect.h - iconSize) / 2);
-  ctx.fillStyle = "#1b2838";
-  ctx.fillRect(iconX, iconY, iconSize, iconSize);
-  if (wishlistSteamLogo?.complete && wishlistSteamLogo.naturalWidth > 0) {
-    ctx.drawImage(wishlistSteamLogo, 0, 0, 89.333, 89.333, iconX, iconY, iconSize, iconSize);
-  }
+  drawGameIcon("platform:steam", iconX, iconY);
   drawOptionsText(fitPixelText(renderedUiText("Wishlist on Steam"), PIXEL_FONT_SMALL_8, rect.w - iconSize - 24),
-    rect.x + iconSize + 12, controlTextY(rect), { font: PIXEL_FONT_SMALL_8, color: "#241c14" });
+    rect.x + iconSize + 12, controlTextY(rect), { font: PIXEL_FONT_SMALL_8, color: "#000000" });
   ctx.restore();
 }
 
@@ -68746,14 +68736,8 @@ function drawFloatingWishlist(rect, highlighted, nowMs) {
   const left = rect.x + Math.floor((rect.w - textWidth - 22) / 2);
   const y = rect.y + 6 + (wishlistReducedMotion.matches ? 0 : Math.round(pulse * 2) - 1);
   ctx.save();
-  ctx.fillStyle = "#1b2838";
-  ctx.fillRect(left, y - 3, 14, 14);
-  if (wishlistSteamLogo?.complete && wishlistSteamLogo.naturalWidth > 0) {
-    ctx.drawImage(wishlistSteamLogo, 0, 0, 89.333, 89.333, left, y - 3, 14, 14);
-  }
-  drawOptionsText(label, left + 22 + 1, y + 1, { font: PIXEL_FONT_SMALL_8, color: "#45293f" });
-  drawOptionsText(label, left + 22, y, { font: PIXEL_FONT_SMALL_8,
-    color: `rgb(255, ${Math.round(174 + pulse * 39)}, 70)` });
+  drawGameIcon("platform:steam", left, y - 4);
+  drawOptionsText(label, left + 22, y, { font: PIXEL_FONT_SMALL_8, color: "#000000" });
   if (highlighted) {
     ctx.fillStyle = "#684620";
     ctx.fillRect(left + 22, y + 10, textWidth, 1);

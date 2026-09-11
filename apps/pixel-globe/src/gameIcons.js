@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-52";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-53";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -133,6 +133,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:silver": glionox(570),
   "good:gold": glionox(567),
 
+  "platform:steam": nikoichu("Platforms_Steam_Valve.png", "#2e222f"),
   "menu:continue": nikoichu("Arrows_Media_Controls_Play_Triangle.png", ICON_COLOR.success),
   "menu:new-game": nikoichu("Travel_Ship_Medieval_Caravel.png", ICON_COLOR.sea),
   "menu:lake-battle": nikoichu("RPG_Crossed_Swords_Duel_PvP_Combat_Battle_War.png", ICON_COLOR.danger),

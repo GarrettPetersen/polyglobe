@@ -89,3 +89,15 @@ test("floating wishlist remains keyboard accessible without changing the menu ac
   key("ArrowDown"); assert.equal(context.startMenu.wishlistFocused,false);
   key("Enter"); assert.equal(activated,1);
 });
+
+test("wishlist label is black and uses the pixel icon atlas at every pulse phase", () => {
+  const icons=[], labels=[];
+  const context=vm.createContext({ wishlistPulse, wishlistReducedMotion:{matches:false},
+    renderedUiText:value=>value, fitPixelText:value=>value, PIXEL_FONT_SMALL_8:{},
+    measureRenderedPixelTextWidth:()=>100, ctx:{save(){},restore(){},fillRect(){}},
+    drawGameIcon:(id)=>icons.push(id), drawOptionsText:(label,x,y,options)=>labels.push(options.color) });
+  load("drawFloatingWishlist",context);
+  for (const now of [0,500,1000]) context.drawFloatingWishlist({x:0,y:0,w:224,h:22},false,now);
+  assert.deepEqual(icons,["platform:steam","platform:steam","platform:steam"]);
+  assert.deepEqual(labels,["#000000","#000000","#000000"]);
+});
