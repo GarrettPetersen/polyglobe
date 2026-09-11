@@ -1,3 +1,4 @@
+import { commissionGarrisonTroops, recordCommissionGarrisonLosses, captureCommissionTroopsAboard, captureCommissionTroopsForAssault, recordCaptureCommissionTroopLosses } from "./captureCommissionTroops.js";
 import { landCollisionSoundVolume } from "./landCollisionSound.js";
 import { MINIMAP_BAKE_MAX_LATITUDE, decodeMinimapBake, createMinimapPixelCache } from "./minimapBake.js";
 import { simulatePortAssaultInWorker } from "./portAssaultSimulationClient.js";
@@ -210,7 +211,8 @@ import {
 import {
   colonistSexes,
   createColonistTravelerPeople,
-  createConquistadorTravelerPeople
+  createConquistadorTravelerPeople,
+  createCommissionTravelerPeople
 } from "./expeditionTravelers.js";
 import { stepAboardGridIndex } from "./aboardGridSelection.js";
 import {
@@ -15432,6 +15434,7 @@ function closeLakeBattleModeToStartMenu() {
     releaseDialogueSession({ destination: "handoff" });
   }
   clearLakeBattlePortAssault();
+  deactivatePortCityView({ animate: false });
   lakeBattleMode = null;
   clearLakeBattleTerrainCache();
   combatMusicUntilMs = 0;
@@ -17926,6 +17929,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   // All persisted domain systems and required player assets are prepared before
   // publishing any of them. The remainder rebuilds transient presentation state.
   clearPoliticalNotices();
+  deactivatePortCityView({ animate: false });
   resetStormPassageState(stormPassageState);
   resetFogStrengthEnvelope(stormFogStrengthEnvelope);
   resetStormWaveState(stormWaveState);
@@ -19469,6 +19473,7 @@ function returnToStartMenuFromOptions() {
 
   closeOptionsMenu();
   closeCaptainMenu();
+  deactivatePortCityView({ animate: false });
   startMenu = createStartMenuState();
   syncCanvasAriaLabel();
   keys.clear();
@@ -22327,10 +22332,12 @@ function resetWorldNorthUpBehindPortCityCover() {
   chartReframeCoverWasActive = true;
 }
 
-function deactivatePortCityView() {
-  if (!portCityView) return;
-  const { centerX, centerY, sceneReady } = portCityView;
-  const snapshot = sceneReady ? capturePresentedFrame() : null;
+function deactivatePortCityView({ animate = true } = {}) {
+  if (animate && !portCityView) return;
+  const { centerX, centerY, sceneReady } = portCityView ?? {};
+  // Mode changes and save restoration must discard the old scene, including
+  // a pending exit wipe, without capturing it over the newly restored world.
+  const snapshot = animate && sceneReady ? capturePresentedFrame() : null;
   portCityView = null;
   portCitySceneSyncKey = null;
   portCityPointerDown = null;
@@ -25305,7 +25312,8 @@ function playerPortConquestStatus(cityCall) {
   const alreadyOwned = cityCall.factionId === attackStatus.assaultFactionId;
   const playerRaidActive = playerPortRaidIsActive(gameState.memory.flags, cityCall, simMinute);
   const availableCrew = availableCrewRosterMembers(gameState);
-  const landingForce = availableCrew.length + (company?.ready ? company.strength : 0);
+  const commissionedTroops = captureCommissionTroopsForAssault(gameState.memory.quests.captureActive, cityCall.cityId);
+  const landingForce = availableCrew.length + (company?.ready ? company.strength : 0) + commissionedTroops.length;
   const canAttempt = attackStatus.available && batteryDisabled && !alreadyOwned && landingForce > 0 &&
     !playerRaidActive && !pirateHavenIsRuined(gameState.memory.pirateHavens, cityCall.cityId, simMinute) && (company === null || company.ready);
   const baseStatus = {
@@ -25349,6 +25357,9 @@ function playerPortConquestStatus(cityCall) {
       }));
     }
   }
+  attackers.push(...commissionedTroops.map(member => portAssaultCombatant({
+    ...member, experienceStars: 2, auxiliary: true
+  })));
   attackers.push(...availableCrew.map((member) => portAssaultCombatant({
     id: member.id,
     appearanceId: member.appearanceId,
@@ -25365,6 +25376,8 @@ function playerPortConquestStatus(cityCall) {
       experienceStars: cityCall.isFactionCapital === true ? 2 : index % 4 === 0 ? 1 : 0,
       auxiliary: false
     }));
+  defenders.push(...commissionGarrisonTroops(gameState.memory.quests, cityCall).map(member =>
+    portAssaultCombatant({ ...member, experienceStars: 2, auxiliary: false })));
   const scenario = createPortAssaultScenario({
     cityId: cityCall.cityId,
     attackers,
@@ -25489,11 +25502,14 @@ function completePlayerPortAssault(cityCall, status, battle) {
 }
 
 function finishPlayerPortAssault(cityCall, status, battle, crewFates) {
+  recordCaptureCommissionTroopLosses(gameState.memory.quests.captureActive, battle.auxiliaryCasualtyIds);
+  recordCommissionGarrisonLosses(gameState.memory.quests, cityCall, battle.defenderCasualtyIds);
+  const conquistadorLosses = battle.auxiliaryCasualtyIds.filter(id => id.startsWith("conquistador:")).length;
   if (battle.outcome === PORT_ASSAULT_OUTCOME.DEFEAT) {
-    const companyFailure = status.conquistadorCompany && battle.auxiliaryCasualtyIds.length > 0
+    const companyFailure = status.conquistadorCompany && conquistadorLosses > 0
       ? recordConquistadorAssaultFailure(
           gameState.memory.quests.conquistador,
-          battle.auxiliaryCasualtyIds.length
+          conquistadorLosses
         )
       : null;
     const lost = crewFates.deaths.length;
@@ -25752,7 +25768,9 @@ function breakOffPortAssault() {
   const downedCrewIds = deadIds.filter((id) => combatantById.get(id)?.side === "attacker" &&
     combatantById.get(id)?.auxiliary === false);
   const auxiliaryLosses = deadIds.filter((id) => combatantById.get(id)?.side === "attacker" &&
-    combatantById.get(id)?.auxiliary === true).length;
+    combatantById.get(id)?.auxiliary === true && id.startsWith("conquistador:")).length;
+  recordCaptureCommissionTroopLosses(gameState.memory.quests.captureActive, deadIds);
+  recordCommissionGarrisonLosses(gameState.memory.quests, assault.cityCall, deadIds);
   const resolvedFates = resolvePortAssaultCrewFates({
     combatants: assault.status.scenario.attackers,
     downedIds: downedCrewIds,
@@ -51071,11 +51089,19 @@ function currentExpeditionTravelerPeople({ travelerGroups, colonyLeader }) {
       identityForPerson: expeditionIdentityFactory(origin, [colonyLeader])
     }));
   }
-  const soldierCount = travelerGroups
-    .filter(({ kind }) => kind === TRAVELER_KIND_SOLDIER)
-    .reduce((sum, { count }) => sum + count, 0);
-  if (soldierCount > 0) people.push(...currentConquistadorTravelerPeople(soldierCount));
+  const conquistador = gameState.memory.quests.conquistador;
+  if (conquistador.stage === CONQUISTADOR_STAGE_CAPTURE && conquistador.companyStrength > 0) {
+    people.push(...currentConquistadorTravelerPeople(conquistador.companyStrength));
+  }
+  people.push(...currentCaptureCommissionTravelerPeople());
   return Object.freeze(people);
+}
+
+function currentCaptureCommissionTravelerPeople() {
+  const quest = gameState.memory.quests.captureActive;
+  if (!captureCommissionTroopsAboard(quest).length) return [];
+  const origin = requireEntityById(cityById, quest.originCityId, "Commission company origin");
+  return createCommissionTravelerPeople({ quest, identityForPerson: expeditionIdentityFactory(origin) });
 }
 
 function currentConquistadorTravelerPeople(count) {

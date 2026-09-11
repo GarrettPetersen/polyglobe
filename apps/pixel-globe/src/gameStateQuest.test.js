@@ -1,3 +1,6 @@
+import { localizeText } from "./localization.js";
+import { createCaptureCommissionTroops, recordCaptureCommissionTroopLosses } from "./captureCommissionTroops.js";
+import { shipTravelerManifest } from "./gameState.js";
 import { PIRATE_HAVEN_SPECS } from "./pirateHavenCatalog.js";
 import { envoyOfferForCapital } from "./passengerMissions.js";
 import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
@@ -700,6 +703,7 @@ test("a fallen issuing court recalls its capture order through the original offi
   reconcileQuestWorldAssumptions(state, [capturedLondon, CALAIS, PARIS]);
 
   assert.equal(state.memory.quests.captureActive.stage, "return");
+  assert.equal(shipTravelerManifest(state).some(group => group.kind === "soldier"), false);
   assert.equal(state.memory.quests.captureActive.captureCommissionResolution, "issuer-fallen");
   assert.equal(state.memory.quests.captureActive.destinationTileId, LONDON.tileId);
   completeQuest(state, capturedLondon, { simMinute: 100 });
@@ -832,7 +836,20 @@ test("a capable letter-of-marque captain can receive and complete a nearby captu
   assert.equal(offer.reward % 250, 0);
   assert.equal(questStateForCity(state, LONDON, ports).quest, offer);
 
+  offer.commissionTroops = createCaptureCommissionTroops(offer, LONDON, CALAIS, 0);
+  const grantedCount = offer.commissionTroops.length;
+  const offerSession = createPortDialogueSession(LONDON, { initialNodeId: "quest" });
+  const offerView = portDialogueView(offerSession, LONDON, state, null, ports, { simMinute: 0, sailingDistanceKm });
+  assert.ok(offerView.text.includes(`The crown places ${grantedCount} of its finest soldiers`));
+  assert.ok(offerView.text.includes(`fight at ${offer.targetName} alone`));
+  assert.match(offerView.text, /remain as its garrison/);
+  assert.doesNotMatch(localizeText("fr", offerView.text), /The crown places|Keep the spoils/);
   acceptQuest(state, offer);
+  assert.equal(shipTravelerManifest(state).find(group => group.kind === "soldier").count, grantedCount);
+  recordCaptureCommissionTroopLosses(state.memory.quests.captureActive, [offer.commissionTroops[0].id]);
+  assert.equal(offer.commissionTroops[0].alive, true, "accepted company does not mutate the offer");
+  const restored = migrateGameState(JSON.parse(JSON.stringify(state)), stats);
+  assert.equal(shipTravelerManifest(restored).find(group => group.kind === "soldier").count, grantedCount - 1);
   assert.equal(commissionedPortCaptureFactionId(state, CALAIS), "england");
   assert.equal(questStateForCity(state, CALAIS, ports).kind, "in-progress-here");
 
@@ -854,6 +871,12 @@ test("a capable letter-of-marque captain can receive and complete a nearby captu
   assert.equal(state.memory.quests.captureActive.stage, "capture");
   assert.equal(capturePortMissionMatchesConquest(state, CALAIS, event), true);
   advanceCapturePortMissionAfterConquest(state, CALAIS, event, 600);
+  assert.equal(shipTravelerManifest(state).some(group => group.kind === "soldier"), false);
+  assert.equal(state.memory.quests.commissionGarrisons[CALAIS.cityId].troops.length, grantedCount - 1);
+  const garrisonSave = migrateGameState(JSON.parse(JSON.stringify(state)), stats);
+  reconcileQuestPortTiles(garrisonSave, ports);
+  assert.equal(garrisonSave.memory.quests.commissionGarrisons[CALAIS.cityId].troops.length, grantedCount - 1,
+    "load-time identity resolution uses the base catalog before conquest ownership is applied");
   assert.equal(state.memory.quests.captureActive.stage, "return");
   assert.equal(state.memory.quests.captureActive.destinationTileId, LONDON.tileId);
   assert.equal(questStateForCity(state, LONDON, ports).kind, "ready-to-complete");

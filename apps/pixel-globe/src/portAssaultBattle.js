@@ -635,9 +635,13 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const previousPosition = unit.position;
       const previousLane = unit.lane;
       const destination = tactic?.destination || target || { position: goal, lane: unit.lane };
-      // Stop at weapon reach instead of walking through the enemy. Lateral
-      // movement consumes the same speed budget as advancing along the road.
-      const next = portAssaultMoveInFormation(unit, destination, movement, occupancy, tactic?.range ?? (target ? unit.stats.range : 0), timeMs, {
+      // A running horse aims through its target. Infantry's weapon stand-off
+      // preserves a lateral offset, which could stop cavalry beside a victim
+      // outside its impact cone and replace the charge with a sword swing.
+      // Physical body collisions still constrain the movement sweep.
+      const charging = target && unit.stats.mounted && unit.momentum >= PORT_ASSAULT_CHARGE_MIN_MOMENTUM;
+      const approachRange = charging ? 0 : tactic?.range ?? (target ? unit.stats.range : 0);
+      const next = portAssaultMoveInFormation(unit, destination, movement, occupancy, approachRange, timeMs, {
         holdingScreen: tactic?.mode === "support",
         holdingFront: tactic?.holdingFront === true,
         leaveRetreatGaps: (unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackerSkirmishers : defenderSkirmishers).length > 0,

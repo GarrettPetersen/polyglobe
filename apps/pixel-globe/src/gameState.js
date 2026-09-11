@@ -1,3 +1,4 @@
+import { stationCaptureCommissionTroops, validateCommissionGarrisons, reconcileCommissionGarrisons, createCaptureCommissionTroops, captureCommissionTroopsAboard, validateCaptureCommissionTroops } from "./captureCommissionTroops.js";
 import { createWorkshopSupplyOffer, validateWorkshopSupplyQuest, workshopSupplyReady } from "./workshopSupplyQuest.js";
 import { isPirateHavenCityId } from "./pirateHavenCatalog.js";
 import { questOfferPolicy, questOfferWindowOpen, questOfferCooldownReady, recordQuestOffer } from "./questOfferPolicies.js";
@@ -567,7 +568,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 112;
+export const GAME_STATE_VERSION = 113;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -885,6 +886,7 @@ export function createGameState({
         passengerActive: null,
         envoyActive: null,
         captureActive: null,
+        commissionGarrisons: {},
         completed: {},
         failed: {},
         onboardingDeliveriesCompleted: 0,
@@ -988,7 +990,7 @@ export function migrateGameState(state, shipStats, {
   crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -1236,6 +1238,7 @@ export function migrateGameState(state, shipStats, {
         failed: state.memory?.quests?.failed || {},
         cargoDeliveries: state.memory?.quests?.cargoDeliveries ||
           createQuestCargoDeliveryMemory(),
+        commissionGarrisons: state.memory?.quests?.commissionGarrisons || {},
         capturePortOffers: state.memory?.quests?.capturePortOffers || {},
         capturePortRolls: state.memory?.quests?.capturePortRolls || {},
         courtMissionOffers: state.memory?.quests?.courtMissionOffers || {},
@@ -3851,6 +3854,10 @@ function travelerManifestCount(groups) {
 
 function activeQuestTravelerGroup(quest) {
   if (!quest) return null;
+  if (isCaptureCommissionQuest(quest)) {
+    const troops = captureCommissionTroopsAboard(quest);
+    return troops.length ? createTravelerGroup(TRAVELER_KIND_SOLDIER, troops.length) : null;
+  }
   if (quest.kind === "passenger") return createTravelerGroup(TRAVELER_KIND_PASSENGER, 1);
   if (isEnvoyQuest(quest)) {
     const count = quest.envoyCount ?? 1;
@@ -7393,6 +7400,8 @@ function createCapturePortMissionOffer(
     reward,
     offerPeriod
   };
+  offer.commissionTroops = createCaptureCommissionTroops(offer, city, candidate.port,
+    hashString32(`${state.voyageSeed}|${offer.id}|troops`) / 0x100000000);
   quests.capturePortOffers[offer.originKey] = offer;
   return offer;
 }
@@ -7546,6 +7555,7 @@ export function advanceCapturePortMissionAfterConquest(state, city, event, simMi
   if (event.newFactionId !== quest.originFactionId || event.source !== "player") {
     throw new Error(`Capture-port commission was not won for ${quest.originFactionId}`);
   }
+  stationCaptureCommissionTroops(questMemory(state), city.cityId, event.newFactionId);
   quest.stage = "return";
   quest.capturedAtMinute = simMinute;
   quest.destinationKey = quest.originKey;
@@ -8847,6 +8857,7 @@ export function reconcileQuestWorldAssumptions(state, portCities, options = {}) 
     identityCities
   });
   const quests = questMemory(state);
+  reconcileCommissionGarrisons(quests, identityCities);
   const events = [];
 
   removeInvalidatedQuestOffers(state, portCities, events);
@@ -8960,6 +8971,7 @@ export function acceptQuest(state, quest, context = {}) {
   if (isTreatyOfMadridQuest(quest)) removeSiblingTreatyOfMadridOffers(quests, quest);
   quests[captureSlot ? "captureActive" : envoySlot ? "envoyActive" : passengerSlot ? "passengerActive" : "active"] = {
     ...quest,
+    ...(captureSlot ? { commissionTroops: quest.commissionTroops?.map(troop => ({ ...troop })) || null } : {}),
     passenger,
     ...(isTeaRaceQuest(quest)
       ? {
@@ -9001,6 +9013,7 @@ export function questAcceptanceEligibility(state, quest) {
       `Quest already completed: ${quest.id}`
     );
   }
+  validateCaptureCommissionTroops(quest);
   const passengerSlot = quest.kind === "passenger";
   const envoySlot = isEnvoyQuest(quest);
   const captureSlot = isCaptureCommissionQuest(quest);
@@ -11378,6 +11391,10 @@ function assertDiplomaticQuestMemory(quests) {
   if (isCaptureCommissionQuest(quests.active) || isCaptureCommissionQuest(quests.passengerActive)) {
     throw new Error("Capture commission must occupy the capture slot");
   }
+  for (const quest of [...activeQuests(quests), ...Object.values(quests.capturePortOffers || {})]) {
+    validateCaptureCommissionTroops(quest);
+  }
+  validateCommissionGarrisons(quests);
   const missionIds = activeQuests(quests).map(quest => quest.id);
   if (new Set(missionIds).size !== missionIds.length) {
     throw new Error("Active missions have duplicate canonical IDs");

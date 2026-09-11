@@ -7,6 +7,39 @@ import { portAssaultGroundLaneBounds } from "./portAssaultGround.js";
 import { cityAssaultChargeOffset } from "../city-visualizer/cityAssaultMotion.js";
 const soldier=(id,type,experienceStars=1)=>({id,appearanceId:type,crewTypeId:type,combatProfileId:type,experienceStars,auxiliary:false});
 
+test("unobstructed cavalry close into an impact instead of stopping beside weapon reach", () => {
+  for (const type of ["cavalier", "horseman", "horse-samurai"]) {
+    for (const side of ["attacker", "defender"]) for (const dockKind of ["stone", "wood", "none"]) {
+      for (const seed of [1, 3, 7, 9, 11]) {
+        const battle = simulatePortAssault(createPortAssaultScenario({
+          cityId: "tunis|tunisia", dockKind, fortified: false,
+          attackers: [soldier("a", side === "attacker" ? type : "swordsman")],
+          defenders: [soldier("d", side === "defender" ? type : "swordsman")],
+          shipHitPoints: 100, shipMaxHitPoints: 100
+        }), seed);
+        const horseId = side === "attacker" ? "a" : "d";
+        const firstAttack = battle.events.find(event => event.type === "attack" && event.unitId === horseId);
+        const context = `${type}/${side}/${dockKind}/seed ${seed}`;
+        assert.equal(firstAttack?.chargeContact, true, `${context}: an open run-up must end in a charge`);
+        assert.ok(battle.events.some(event => event.attackerId === horseId && event.chargeLaunch),
+          `${context}: the impact must launch its victim`);
+      }
+    }
+  }
+});
+
+test("defending knights retain their charge when approaching a spread infantry squad", () => {
+  for (let seed = 1; seed <= 12; seed++) {
+    const battle = simulatePortAssault(createPortAssaultScenario({
+      cityId: "tunis|tunisia", dockKind: "stone", fortified: false,
+      attackers: Array.from({ length: 5 }, (_, index) => soldier(`a${index}`, "swordsman")),
+      defenders: [soldier("knight", "cavalier")], shipHitPoints: 100, shipMaxHitPoints: 100
+    }), seed);
+    assert.ok(battle.events.some(event => event.attackerId === "knight" && event.chargeLaunch),
+      `seed ${seed}: approaching an offset infantry target must not cancel the charge`);
+  }
+});
+
 test("a full-speed launch clears five body widths and intervening ranks, with a safe landing",()=>{
   const target={id:"target",position:.5,lane:1,dockKind:"stone",stats:{mounted:false}};
   const width=portAssaultBodyRadius(target)*2;
@@ -44,7 +77,8 @@ test("each body spends momentum until ordinary melee is necessary",()=>{
 for (const type of ["cavalier","horseman","horse-samurai"]) test(`${type} bowls through several victims, damages them, and enforces airborne recovery`,()=>{
   const scenario=createPortAssaultScenario({cityId:"tunis|tunisia",dockKind:"stone",fortified:false,
     attackers:[soldier("horse",type,3)],defenders:Array.from({length:8},(_,i)=>soldier(`d${i}`,"swordsman")),shipHitPoints:100,shipMaxHitPoints:100});
-  const battle=simulatePortAssault(scenario,37);
+  // This formation places several victims in the direct charge path.
+  const battle=simulatePortAssault(scenario,1);
   const launches=battle.events.filter(e=>e.chargeLaunch);
   assert.ok(launches.length>=3);
   assert.ok(new Set(launches.map(e=>e.unitId)).size>=3);
@@ -57,7 +91,7 @@ for (const type of ["cavalier","horseman","horse-samurai"]) test(`${type} bowls 
     assert.ok(frames.every(f=>f.position===frames[0].position && f.lane===frames[0].lane));
     assert.ok(!battle.events.some(e=>e.type==="attack" && e.unitId===launch.unitId && e.timeMs>launch.timeMs && e.timeMs<launch.timeMs+PORT_ASSAULT_CHARGE_STAGGER_MS));
   }
-  const forecast=simulatePortAssault(scenario,37,{collectPresentation:false});
+  const forecast=simulatePortAssault(scenario,1,{collectPresentation:false});
   for(const key of ["durationMs","outcome","finalShipHitPoints","attackerDeathIds","defenderCasualtyIds"]) assert.deepEqual(forecast[key],battle[key]);
 });
 

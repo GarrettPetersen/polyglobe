@@ -1,3 +1,4 @@
+import { captureCommissionTroopsAboard } from "./captureCommissionTroops.js";
 import {
   TRAVELER_KIND_SETTLER,
   TRAVELER_KIND_SOLDIER
@@ -68,6 +69,21 @@ export function createConquistadorTravelerPeople({
     identityForPerson,
     combatRoles
   });
+}
+
+export function createCommissionTravelerPeople({ quest, identityForPerson }) {
+  if (!captureCommissionTroopsAboard(quest).length) return [];
+  requireId(quest.originCityId, "Commission company origin");
+  // Name every original soldier before filtering losses: survivors must retain
+  // their names even when the regional name factory avoids duplicate names.
+  return Object.freeze(quest.commissionTroops.map(troop => {
+    const identity = identityForPerson({ id: troop.id, sex: "male" });
+    if (!identity?.givenName) throw new Error(`Commission soldier has no name: ${troop.id}`);
+    return Object.freeze({ ...troop, kind: TRAVELER_KIND_SOLDIER, name: identity.givenName,
+      fullName: identity.name || identity.givenName, nameCulture: identity.nameCulture,
+      religionId: identity.religionId, homePortCityId: quest.originCityId,
+      sex: "male", experienceStars: 2, auxiliary: true });
+  }).filter(person => person.alive));
 }
 
 function createTravelerPeople({

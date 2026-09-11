@@ -1,3 +1,4 @@
+import { captureCommissionTroopOfferText } from "./captureCommissionTroops.js";
 import { pirateQuestAtIssuer, pirateGoodsPickupStatus, collectPirateGoods } from "./pirateHavens.js";
 import { PIRATE_FACTION_ID } from "./factions.js";
 import { pirateHavenCommissionView, selectPirateHavenCommission, pirateGoodsPickupView } from "./pirateHavenDialogue.js";
@@ -8798,8 +8799,8 @@ function capturePortQuestView(session, questState, returnNodeId, gameState) {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "stern",
       text: quest.independentTarget
-        ? `The council has chosen the independent harbor of ${quest.targetName}; no foreign sovereign is named. By ${quest.originRulerName}'s sealed warrant, silence its batteries, take ${quest.targetName}, raise ${quest.originFactionAdjective} colors, and return for ${quest.reward.toLocaleString("en-US")} doubloons.`
-        : `By ${quest.originRulerName}'s warrant: capture ${quest.targetName} from ${quest.targetFactionNoun}. Silence its batteries, land your company, and raise ${quest.originFactionAdjective} colors. Keep the spoils; return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
+        ? `The council has chosen the independent harbor of ${quest.targetName}; no foreign sovereign is named. By ${quest.originRulerName}'s sealed warrant, silence its batteries, take ${quest.targetName}, raise ${quest.originFactionAdjective} colors, and return for ${quest.reward.toLocaleString("en-US")} doubloons. ${captureCommissionTroopOfferText(quest)}`
+        : `By ${quest.originRulerName}'s warrant: capture ${quest.targetName} from ${quest.targetFactionNoun}. Silence its batteries, land your company, and raise ${quest.originFactionAdjective} colors. Keep the spoils; return for ${quest.reward.toLocaleString("en-US")} doubloons. ${captureCommissionTroopOfferText(quest)}`,
       feedback: session.feedback,
       options: [
         questAcceptanceOption(`Accept commission: capture ${quest.targetName}`, quest, gameState, {
@@ -8892,7 +8893,7 @@ function captureCapitalQuestView(session, questState, returnNodeId, gameState) {
       text: `The war against ${quest.targetFactionNoun} is nearly won. ${politicalContext} Take ` +
         `${quest.targetName} in ${quest.originRulerName}'s name and hold its court for the commissioners ` +
         `who will press the terms. Keep the spoils; ` +
-        `return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
+        `return for ${quest.reward.toLocaleString("en-US")} doubloons. ${captureCommissionTroopOfferText(quest)}`,
       feedback: session.feedback,
       options: [
         questAcceptanceOption(`Accept final commission: capture ${quest.targetName}`, quest, gameState, {

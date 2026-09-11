@@ -29,8 +29,7 @@ export function createWorkshopSupplyOffer(economy, city, portCities, {offerPerio
         destinationName: cityName, destinationCountry: city.country || "", distanceKm: 0, reward,
         cargoLabel: `${good.label.toLowerCase()} x${quantity}`,
         procurement: {goodId: good.id, quantity, outputGoodId, sourceCityId: port.cityId},
-        offerText: `My workshop makes ${output.label.toLowerCase()}, but we are short of ${good.label.toLowerCase()}. ` +
-          `Bring me ${quantity} measures and I will pay ${reward} doubloons, above the usual price. ` +
+        offerText: `I need ${quantity} measures of ${good.label.toLowerCase()} to make ${output.label.toLowerCase()}. I offer ${reward} doubloons, above the market price. ` +
           `Try ${sourceName}, about ${Math.round(distanceKm)} km by sea. Buy elsewhere if you prefer; it is the material I need.`,
         completionText: `Good. With this, my people can get back to making ${output.label.toLowerCase()}.`
       };

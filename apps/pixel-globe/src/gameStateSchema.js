@@ -1,3 +1,4 @@
+import { stationCaptureCommissionTroops, createCaptureCommissionTroops } from "./captureCommissionTroops.js";
 import { acceptPirateHavenQuest, pirateHavenQuestOffer, seizePirateRevengeItem, ruinPirateHaven, collectPirateGoods } from "./pirateHavens.js";
 import { EXETER_CANAL_MATERIALS } from "./exeterCanal.js";
 import {
@@ -86,8 +87,21 @@ export function canonicalGameStateFixtures() {
   acceptQuest(workshop, createWorkshopSupplyOffer(economy, ports[0], ports, {
     offerPeriod: 0, sailingDistanceKm: () => 700
   }));
+  const commission = structuredClone(campaignFixtures[0].state);
+  const warrant = { id: "schema-warrant", kind: "capture-port", stage: "capture", petitioned: false,
+    originCityId: "london|united kingdom", targetCityId: "calais|france" };
+  warrant.commissionTroops = createCaptureCommissionTroops(warrant,
+    { cityId: warrant.originCityId, populationProfileId: "european" },
+    { cityId: warrant.targetCityId, population: 50000 }, 0);
+  warrant.commissionTroops[0].alive = false;
+  commission.memory.quests.captureActive = warrant;
+  const garrison = structuredClone(commission);
+  stationCaptureCommissionTroops(garrison.memory.quests, warrant.targetCityId, "england");
+  garrison.memory.quests.captureActive = null;
   return [
     ...campaignFixtures,
+    { campaignGoalType: "commission-garrison", state: garrison },
+    { campaignGoalType: "capture-company", state: commission },
     { campaignGoalType: "workshop-supply", state: workshop },
     { campaignGoalType: "pirate-stolen-goods", state: pirateSmuggling },
     { campaignGoalType: "pirate-haven-campaign", state: pirateCampaign },

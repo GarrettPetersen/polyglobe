@@ -67,3 +67,25 @@ test("preparation rejects a menu replaced during restoration", async () => {
   await assert.rejects(pending, /changed during restoration/);
   assert.equal(h.context.startMenu.preparedVoyage, null);
 });
+
+test("mode exits discard city views, pending wipes and stale selection work without a departure animation", () => {
+  const declaration = name => source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name).getText(source);
+  for (const ready of [false, true]) for (const active of [false, true]) {
+    const context = {
+      portCityView: active ? { sceneReady: ready, centerX: 10, centerY: 20 } : null,
+      portCityTransition: { direction: "exit" }, portCitySceneSyncKey: "old city",
+      portCityPointerDown: {}, portCityIllicitEvent: {}, portCitySceneSelectionSerial: 4,
+      worldFramePresented: true, dirty: false,
+      capturePresentedFrame: () => assert.fail("mode changes must not show the old city over the restored voyage")
+    };
+    runInNewContext(`${declaration("deactivatePortCityView")}\ndeactivatePortCityView({ animate: false });`, context);
+    for (const key of ["portCityView", "portCityTransition", "portCitySceneSyncKey", "portCityPointerDown", "portCityIllicitEvent"]) {
+      assert.equal(context[key], null, key);
+    }
+    assert.equal(context.portCitySceneSelectionSerial, 5, "invalidate pending scene selections even without an active view");
+    assert.equal(context.worldFramePresented, false);
+  }
+  for (const name of ["closeLakeBattleModeToStartMenu", "returnToStartMenuFromOptions", "restoreSavedVoyage"]) {
+    assert.match(declaration(name), /deactivatePortCityView\(\{ animate: false \}\)/, `${name} must discard the previous mode's city`);
+  }
+});

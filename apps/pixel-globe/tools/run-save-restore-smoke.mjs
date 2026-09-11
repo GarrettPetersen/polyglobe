@@ -1,3 +1,5 @@
+import { colonyHistoryChanges } from "./reachability/colony-history.mjs";
+import { exerciseCommissionTroops } from "./reachability/commission-troops.mjs";
 import { verifyDaylightGpu } from "./reachability/daylight.mjs";
 import { PIRATE_HAVEN_SPECS } from "../src/pirateHavenCatalog.js";
 import { exerciseSeasonalColonyDialogues } from "./reachability/seasonal-colony-dialogues.mjs";
@@ -78,7 +80,7 @@ const fixtures = frozenSaveFixtures();
 const reachabilityOptions = parseReachabilityArguments(process.argv.slice(2));
 const releaseReachability = reachabilityOptions.release;
 const smokeFocus = process.env.PIXEL_GLOBE_SMOKE_FOCUS;
-if (smokeFocus !== undefined && !["port-regressions", "pirate-havens", "wishlist", "port-authorities", "daylight", "cached-chart"].includes(smokeFocus)) {
+if (smokeFocus !== undefined && !["commission-troops", "saved-start-menu", "port-regressions", "pirate-havens", "wishlist", "port-authorities", "daylight", "cached-chart"].includes(smokeFocus)) {
   throw new Error(`Unknown save-restore smoke focus: ${smokeFocus}`);
 }
 if (smokeFocus && releaseReachability) {
@@ -180,7 +182,13 @@ try {
     `Save-restore runtime initialized in ${Math.round(performance.now() - startedAt)} ms\n`
   );
 
-  if (smokeFocus === "cached-chart") {
+  if (smokeFocus === "commission-troops") {
+    await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
+    await exerciseCommissionTroops(context, baseUrl);
+  } else if (smokeFocus === "saved-start-menu") {
+    await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
+    await exerciseSavedStartMenu(context, baseUrl);
+  } else if (smokeFocus === "cached-chart") {
     await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
     const root = path.join(APP_ROOT,".playtest/cached-chart");mkdirSync(root,{recursive:true});
     for (const zoom of [0,1,2,3,0]) {
@@ -270,6 +278,7 @@ try {
     }
     process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
     await exerciseSavedStartMenu(context, baseUrl);
+    await exerciseCommissionTroops(context, baseUrl);
     await exercisePlayerShipyardSaveRoundTrips(page, fixtures.at(-1).serialized, browserErrors);
     await exercisePirateCoveSaveRoundTrip(page, browserErrors);
     await exercisePirateHavens(page, browserErrors);
@@ -847,11 +856,9 @@ async function exerciseColonySaveRoundTrips(page, browserErrors) {
           window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), serialized),
         RESTORE_TIMEOUT_MS, `${stage} colony save/load ${pass + 1}`);
         await assertNoBrowserFailure(page, browserErrors, `${stage} colony save/load`);
-        if (JSON.stringify(restored.colonization) !== JSON.stringify(memory)) {
-          const changedFields = Object.keys(memory).filter((key) =>
-            JSON.stringify(restored.colonization[key]) !== JSON.stringify(memory[key]));
-          throw new Error(`${stage} colony save/load changed the colony's persistent history: ` +
-            JSON.stringify(changedFields.map((key) => ({ key, expected: memory[key], actual: restored.colonization[key] }))));
+        const changes = colonyHistoryChanges(memory, restored.colonization);
+        if (changes.length) {
+          throw new Error(`${stage} colony save/load changed the colony's persistent history: ` + JSON.stringify(changes));
         }
         if (typeof restored.serialized !== "string" || restored.serialized.length === 0) {
           throw new Error(`${stage} colony did not write a save`);
