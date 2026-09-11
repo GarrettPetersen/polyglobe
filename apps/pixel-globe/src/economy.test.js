@@ -1865,3 +1865,29 @@ test("unchanged market targets preserve fractional specie exactly across repeate
     }
   }
 });
+
+test("Asian sailmaking recovers depleted saved markets without imported flax and remains sustainable", () => {
+  const ports = ["malacca|malaysia", "nanjing|china", "cambay|india", "calicut|india"]
+    .map((cityId, index) => ({ ...CITY_CATALOG.find(city => city.cityId === cityId), tileId: 5000 + index }));
+  for (const port of ports) assert.ok(port.cityId);
+  const original = createWorldEconomy({ ports, startMinute: 0 });
+  for (const port of original.portStates.values()) {
+    for (const goodId of ["flax", "linen-cloth", "cotton"]) port.goods.get(goodId).stock = 0;
+  }
+  const saved = snapshotWorldEconomy(original);
+  const restored = createWorldEconomy({ ports, startMinute: 0 });
+  restoreWorldEconomy(restored, saved);
+  for (const port of restored.portStates.values()) {
+    assert.equal(port.goods.get("linen-cloth").stock, 0, "restoring does not grant free cargo");
+  }
+  for (let year = 1; year <= 3; year++) {
+    advanceWorldEconomy(restored, year * 365 * 1440);
+    for (const port of ports) {
+      const state = restored.portStates.get(port.cityId);
+      assert.equal(state.goods.get("flax").stock, 0, `${port.cityId} must not rely on flax imports`);
+      const cloth = portMarket(restored, port).find(row => row.good.id === "linen-cloth");
+      assert.ok(cloth.stock >= 10, `${port.cityId} year ${year}: sailcloth must be available (${cloth.stock})`);
+      state.goods.get("linen-cloth").stock = 0; // Repeated purchases must replenish, too.
+    }
+  }
+});

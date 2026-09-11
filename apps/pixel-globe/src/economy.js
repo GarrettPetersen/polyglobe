@@ -767,9 +767,9 @@ const SHIPBUILDING_CITY_SPECIALTIES = uniqueMap([
   canonicalSpecialty("lisbon|portugal", ["timber", SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
   canonicalSpecialty("bristol|united kingdom", ["timber", "iron"]),
   canonicalSpecialty("alexandria|egypt", [SAILCLOTH_GOOD_ID]),
-  canonicalSpecialty("cambay|india", ["timber", "iron", SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("cambay|india", ["cotton", "timber", "iron", SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
   canonicalSpecialty("cochin|india", ["timber", NAVAL_STORES_GOOD_ID]),
-  canonicalSpecialty("calicut|india", ["timber", SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("calicut|india", ["cotton", "timber", SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
   canonicalSpecialty("kilwa|tanzania", ["timber", NAVAL_STORES_GOOD_ID]),
   canonicalSpecialty("nanjing|china", ["timber", "iron", SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
   canonicalSpecialty("fuzhou|china", ["timber", NAVAL_STORES_GOOD_ID]),
@@ -877,6 +877,19 @@ const PRODUCTION_INPUTS = Object.freeze({
   lacquerware: rates({ timber: 0.2, dyes: 0.08 }),
   carpets: rates({ wool: 0.4, cotton: 0.3, dyes: 0.1 })
 });
+
+// Sailcloth is the shipbuilding abstraction, not exclusively linen. Asian
+// matting uses locally gathered fibres that are not separate traded goods.
+// See https://www.rmg.co.uk/collections/objects/rmgc-object-271581.
+const MATTING_SAIL_INPUTS = Object.freeze({});
+const COTTON_SAIL_INPUTS = rates({ cotton: 0.8 });
+function productionInputsFor(goodId, economyRegion) {
+  if (goodId === SAILCLOTH_GOOD_ID) {
+    if (["east-asian", "southeast-asian"].includes(economyRegion)) return MATTING_SAIL_INPUTS;
+    if (economyRegion === "south-asian") return COTTON_SAIL_INPUTS;
+  }
+  return PRODUCTION_INPUTS[goodId];
+}
 
 export function tradeGoodById(goodId) {
   const good = TRADE_GOODS_BY_ID.get(goodId);
@@ -1861,7 +1874,8 @@ function createPortState(port, seedKey) {
     });
   }
 
-  for (const [outputGoodId, inputs] of Object.entries(PRODUCTION_INPUTS)) {
+  for (const outputGoodId of Object.keys(PRODUCTION_INPUTS)) {
+    const inputs = productionInputsFor(outputGoodId, economyRegion);
     const outputRate = goods.get(outputGoodId).productionPerDay;
     for (const [inputGoodId, unitsPerOutput] of Object.entries(inputs)) {
       goods.get(inputGoodId).consumptionPerDay += outputRate * unitsPerOutput;
@@ -1940,7 +1954,7 @@ function advancePortEconomy(port, elapsedDays) {
     if (good.alwaysAvailable) continue;
     const state = port.goods.get(good.id);
     const desiredProduction = state.productionPerDay * elapsedDays;
-    const inputs = PRODUCTION_INPUTS[good.id];
+    const inputs = productionInputsFor(good.id, port.economyRegion);
     let produced = desiredProduction;
     if (inputs) {
       for (const [inputGoodId, unitsPerOutput] of Object.entries(inputs)) {
@@ -2443,7 +2457,7 @@ function establishIndustryAtPort(port, goodId, productionPerDay, initialStock) {
   state.productionPerDay += productionPerDay;
   state.targetStock = targetStockForState(state);
   refreshPortGoodPriceFactors(port, good);
-  for (const [inputGoodId, unitsPerOutput] of Object.entries(PRODUCTION_INPUTS[goodId] || {})) {
+  for (const [inputGoodId, unitsPerOutput] of Object.entries(productionInputsFor(goodId, port.economyRegion) || {})) {
     const inputState = port.goods.get(inputGoodId);
     inputState.consumptionPerDay += productionPerDay * unitsPerOutput;
     inputState.targetStock = targetStockForState(inputState);
