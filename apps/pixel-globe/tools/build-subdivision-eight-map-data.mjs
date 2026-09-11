@@ -631,6 +631,9 @@ for (const [tile, waterTileId] of [[228481, 228460], [228470, 227346], [228470, 
   blockedRiverMouths.push({ tile, edge });
 }
 const saltwaterPassageTileIds = unique([
+  // The pre-canal route is the tidal Exe estuary, not a fresh-water canal.
+  // https://www.exe-estuary.org/visitor-information/about-the-exe/
+  ...topshamExeRoute,
   ...refineChain([98820, 98676, 98678, 24757]),
   ...refineChain([98682, 6233, 98694, 98704])
 ]);

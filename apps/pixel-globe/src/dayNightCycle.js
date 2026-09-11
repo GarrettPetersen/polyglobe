@@ -1,5 +1,7 @@
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
+export const DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER = 1.5;
+
 export const DAY_NIGHT_FULL_DAY_ALTITUDE = 0.5;
 export const DAY_NIGHT_FULL_NIGHT_ALTITUDE = -0.5;
 export const DAY_NIGHT_WARM_START_ALTITUDE = -0.46;
@@ -11,15 +13,18 @@ const FIRST_DAY_NIGHT_NOTICE_SUNRISE_ALTITUDE = -0.3;
 
 export function dayNightLightForSunAltitude(sunAltitude) {
   assertSunAltitude(sunAltitude);
+  // Stretch solar elevation angles, not the voyage clock or physical sun.
+  // At the equator this makes each grading transition exactly 1.5 times longer.
+  const gradingAltitude = Math.sin(Math.asin(sunAltitude) / DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER);
   const day = smoothstep(
     DAY_NIGHT_FULL_NIGHT_ALTITUDE * 0.65,
     DAY_NIGHT_FULL_DAY_ALTITUDE,
-    sunAltitude
+    gradingAltitude
   );
-  const night = 1 - smoothstep(DAY_NIGHT_FULL_NIGHT_ALTITUDE, 0.08, sunAltitude);
+  const night = 1 - smoothstep(DAY_NIGHT_FULL_NIGHT_ALTITUDE, 0.08, gradingAltitude);
   const twilight = clamp(1 - day - night, 0, 1);
-  const warm = smoothstep(DAY_NIGHT_WARM_START_ALTITUDE, 0.05, sunAltitude) *
-    (1 - smoothstep(0.06, DAY_NIGHT_WARM_END_ALTITUDE, sunAltitude));
+  const warm = smoothstep(DAY_NIGHT_WARM_START_ALTITUDE, 0.05, gradingAltitude) *
+    (1 - smoothstep(0.06, DAY_NIGHT_WARM_END_ALTITUDE, gradingAltitude));
   return {
     sunAltitude,
     night: easeInOut(night),

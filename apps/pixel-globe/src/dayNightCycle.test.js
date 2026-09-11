@@ -3,10 +3,9 @@ import test from "node:test";
 import { realSecondsPerGameDay } from "./gamePacing.js";
 
 import {
+  DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER,
   DAY_NIGHT_FULL_DAY_ALTITUDE,
   DAY_NIGHT_FULL_NIGHT_ALTITUDE,
-  DAY_NIGHT_WARM_END_ALTITUDE,
-  DAY_NIGHT_WARM_START_ALTITUDE,
   FIRST_DAY_NIGHT_NOTICE_SUNRISE,
   FIRST_DAY_NIGHT_NOTICE_SUNSET,
   advanceFirstDayNightNoticeState,
@@ -16,18 +15,17 @@ import {
   snapshotFirstDayNightNoticeState
 } from "./dayNightCycle.js";
 
-test("stylized dawn and dusk each span more than five seconds of the longer day", () => {
-  assert.equal(DAY_NIGHT_FULL_DAY_ALTITUDE, 0.5);
-  assert.equal(DAY_NIGHT_FULL_NIGHT_ALTITUDE, -0.5);
-  assert.ok(Math.abs(equatorialCycleSecondsBetween(
-    DAY_NIGHT_FULL_DAY_ALTITUDE,
-    DAY_NIGHT_FULL_NIGHT_ALTITUDE
-  ) - 16 / 3) < 1e-9);
-  const warmSeconds = equatorialCycleSecondsBetween(
-    DAY_NIGHT_WARM_END_ALTITUDE,
-    DAY_NIGHT_WARM_START_ALTITUDE
-  );
-  assert.ok(warmSeconds > 4.8 && warmSeconds < 5);
+test("dawn and dusk grading last 1.5 times longer without changing the physical sun", () => {
+  const actualAltitude = gradeAltitude => Math.sin(Math.asin(gradeAltitude) * DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER);
+  const oldDuration = equatorialCycleSecondsBetween(DAY_NIGHT_FULL_DAY_ALTITUDE, DAY_NIGHT_FULL_NIGHT_ALTITUDE);
+  const duration = equatorialCycleSecondsBetween(actualAltitude(DAY_NIGHT_FULL_DAY_ALTITUDE), actualAltitude(DAY_NIGHT_FULL_NIGHT_ALTITUDE));
+  assert.ok(Math.abs(duration / oldDuration - 1.5) < 1e-9);
+  assert.ok(Math.abs(duration - 8) < 1e-9);
+  for (const altitude of [-1, -0.6, 0, 0.6, 1]) {
+    assert.equal(dayNightLightForSunAltitude(altitude).sunAltitude, altitude);
+  }
+  assert.equal(dayNightLightForSunAltitude(0.6).sunset > 0, true);
+  assert.equal(dayNightLightForSunAltitude(-0.6).night < 1, true);
 });
 
 test("visual twilight eases through warm light without changing full day or night", () => {

@@ -6246,6 +6246,9 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
   ],
   "riverMouths": [],
   "saltwaterPassageTileIds": [
+    644451,
+    161146,
+    644444,
     98820,
     394582,
     98676,

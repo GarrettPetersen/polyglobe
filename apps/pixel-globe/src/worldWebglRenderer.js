@@ -1,4 +1,4 @@
-import { DAY_NIGHT_FULL_DAY_ALTITUDE, DAY_NIGHT_FULL_NIGHT_ALTITUDE,
+import { DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER, DAY_NIGHT_FULL_DAY_ALTITUDE, DAY_NIGHT_FULL_NIGHT_ALTITUDE,
   DAY_NIGHT_WARM_START_ALTITUDE, DAY_NIGHT_WARM_END_ALTITUDE } from "./dayNightCycle.js";
 import { UNDERWATER_REFRACTION_SHADER_TIME_COEFFICIENT } from "./underwaterRefraction.js";
 import { SHIP_SURFACE_LIGHTING_BLEND } from "./shipLighting.js";
@@ -235,6 +235,7 @@ vec3 paletteGrade(vec3 source) {
     vec2 offset = (center - sceneSize * 0.5) * u_radiansPerPixel;
     float altitude = clamp((u_sunScreen.z + dot(offset, u_sunScreen.xy)) /
       sqrt(1.0 + dot(offset, offset)), -1.0, 1.0);
+    altitude = sin(asin(altitude) / ${DAY_NIGHT_TRANSITION_DURATION_MULTIPLIER.toFixed(6)});
     float day = smoothstep(${(DAY_NIGHT_FULL_NIGHT_ALTITUDE * 0.65).toFixed(6)}, ${DAY_NIGHT_FULL_DAY_ALTITUDE.toFixed(6)}, altitude);
     float night = 1.0 - smoothstep(${DAY_NIGHT_FULL_NIGHT_ALTITUDE.toFixed(6)}, 0.08, altitude);
     float twilight = clamp(1.0 - day - night, 0.0, 1.0);

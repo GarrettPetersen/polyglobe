@@ -94,7 +94,7 @@
     "src/shipStats.js": "c8cadff6ddd156f4983d56dfa65bb8e10fada9db4c1990dc636ecfd3143a4de7",
     "src/shipyardListingPresentation.js": "a8800d5d045975ad9c8d646df259bd863bb081244eb69b2368e32455543300ba",
     "src/staticAssetFetch.js": "502a7a5b5c2efc6f5c8fc7093d9c16e7ef183b1146e1cf1ab8f847b0506a0f1e",
-    "src/subdivisionEightMapData.js": "cfa3e89ce3ff1624ff9e28bf30839a055bc10d4415302f245fcc98765aa3a236",
+    "src/subdivisionEightMapData.js": "5bad588a25aaeebcb2ede7bd1d33d9ccb0620646ed6d525f924dc6c727d43398",
     "src/subdivisionSevenPortMigration.js": "ae5be5d13647b5eef8d43d1a14e485b22a07ad2811533c95861254daa8e159d8",
     "src/terrainMetadata.js": "caedd99411b0f38f90fc0f8f0bc414ecfcde780b02129f37514ff19a745e5838",
     "src/terrainSurface.js": "04f88e0cd3ebb5b5dcd673a1943ce6608660e7c72bc75d2d00ca9a9651a11eb1",
@@ -121,7 +121,7 @@
     "tools/build-city-visualizer-catalog.mjs": "7cf8b0ac8a6395150de9d20b46d00ab884ed9f1447f618afa134905991fecc4d",
     "tools/build-land-roads.mjs": "e79b1b10e083e83de7714f3087f204ecaadf4ebbb08d401ceea1991a54f185c9",
     "tools/build-port-sailing-distances.mjs": "5e2f30259ac1879d477578878c0b37a5977265c6fa03971e092d57584bc2c74f",
-    "tools/build-subdivision-eight-map-data.mjs": "d4031062150af43d330367c35829bd17b16149e321d4876dc524beb5ce4a39a2",
+    "tools/build-subdivision-eight-map-data.mjs": "0613c9a8112378249debedc3a4429000ebfca5c0ad8a2f96f587d9092b665b0c",
     "tools/finalize-city-catalog.mjs": "8bbd3eb9c04c77bd43a47d58668ea8c9e04f35d2f662388f081d27dbb39072f8",
     "tools/seasonal-colony-access.mjs": "de37d4e3ab23163b4d3d7428b5ef38f2b1901714d3249bb403b9815ce2468312",
     "tools/update-city-catalog.mjs": "bcdbee55ab7a6f510e0e74a8ad0b84cc69c506c5956c80d3522baf72644a70f8"

@@ -1,3 +1,5 @@
+import { SUBDIVISION_EIGHT_MAP_DATA } from "./subdivisionEightMapData.js";
+import { EXETER_CANAL_TILE_CHAIN } from "./exeterCanalNavigation.js";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -86,4 +88,20 @@ test("river geometry protruding onto ocean never supplies fresh water", () => {
   assert.equal(shipCanRefillFreshWater(access), false);
   assert.equal(shipCanRefillFreshWater({ ...access, oceanSurface: false }), true);
   assert.throws(() => shipCanRefillFreshWater({ navigationKind: "river", waterTileId: 12345 }), /ocean surface classification/);
+});
+
+test("Topsham's tidal approach never refills casks while the inland canal retains fresh water", () => {
+  const route = SUBDIVISION_EIGHT_MAP_DATA.cityRiverChains["topsham|united kingdom"];
+  const saltwaterPassageTileIds = SUBDIVISION_EIGHT_MAP_DATA.saltwaterPassageTileIds;
+  assert.ok(route.includes(EXETER_CANAL_TILE_CHAIN[0]));
+  for (const waterTileId of route) {
+    assert.equal(shipCanRefillFreshWater({ navigationKind: "river", waterTileId,
+      oceanSurface: false, saltwaterPassageTileIds }), false, `Tidal Exe tile ${waterTileId}`);
+  }
+  for (const waterTileId of EXETER_CANAL_TILE_CHAIN.slice(1)) {
+    assert.equal(shipCanRefillFreshWater({ navigationKind: "river", waterTileId,
+      oceanSurface: false, saltwaterPassageTileIds }), true, `Constructed inland canal tile ${waterTileId}`);
+    assert.equal(shipCanRefillFreshWater({ navigationKind: "blocked", waterTileId,
+      oceanSurface: false, saltwaterPassageTileIds }), false, "Unbuilt canal is not a water source");
+  }
 });
