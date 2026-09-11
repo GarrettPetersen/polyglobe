@@ -59,3 +59,33 @@ test("web wishlist opens the full game's store page in a separate tab", () => {
   const host=readFileSync(new URL("../steam-host/main.cjs",import.meta.url),"utf8");
   assert.ok(host.includes(`shell.openExternal("${STEAM_WISHLIST_URL}")`));
 });
+
+test("start wishlist floats below the title and outside regular menu rows", async () => {
+  const { startWishlistRect } = await import("./wishlistPromotion.js");
+  for (const w of [224, 280, 320]) {
+    const panel = { x: 8, y: 10, w, h: 236 };
+    const rect = startWishlistRect(panel);
+    assert.ok(rect.y > panel.y + 32);
+    assert.ok(rect.y + rect.h < panel.y + 64);
+    assert.ok(rect.x >= panel.x && rect.x + rect.w <= panel.x + panel.w);
+  }
+  const context = vm.createContext({ localSaveResult: {status:"missing"}, startMenu: {},
+    uiText:key=>key, START_MENU_ACTION_NEW_GAME:"new", START_MENU_ACTION_LAKE_BATTLE:"battle",
+    START_MENU_ACTION_HISTORICAL_BATTLE:"history", START_MENU_ACTION_PAST_VOYAGES:"past",
+    START_MENU_ACTION_OPTIONS:"options", START_MENU_ACTION_CREDITS:"credits", START_MENU_ACTION_ACHIEVEMENTS:"achievements" });
+  load("startMenuActions", context);
+  assert.ok(context.startMenuActions().every(action=>action.id!=="wishlist"));
+});
+
+test("floating wishlist remains keyboard accessible without changing the menu action list", () => {
+  let opened=0, activated=0;
+  const context=vm.createContext({ SHOW_WISHLIST_CTA:true, dirty:false,
+    startMenu:{selectedIndex:0,wishlistFocused:false}, startMenuActions:()=>[{},{}],
+    stepMenuIndex:(i,d,n)=>(i+d+n)%n, openSteamWishlist:()=>opened++, activateStartMenuSelection:()=>activated++ });
+  load("handleStartMenuKeyDown",context);
+  const key=key=>context.handleStartMenuKeyDown({key,preventDefault(){}});
+  key("ArrowUp"); assert.equal(context.startMenu.wishlistFocused,true);
+  key("Enter"); assert.equal(opened,1); assert.equal(activated,0);
+  key("ArrowDown"); assert.equal(context.startMenu.wishlistFocused,false);
+  key("Enter"); assert.equal(activated,1);
+});

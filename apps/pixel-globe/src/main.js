@@ -1,4 +1,4 @@
-import { STEAM_WISHLIST_URL, STEAM_WISHLIST_LOGO_URL, wishlistPromotionEnabled, wishlistPulse, wishlistModalLayout } from "./wishlistPromotion.js";
+import { STEAM_WISHLIST_URL, STEAM_WISHLIST_LOGO_URL, wishlistPromotionEnabled, wishlistPulse, wishlistModalLayout, startWishlistRect } from "./wishlistPromotion.js";
 import { questOfferCooldownReady, recordQuestOffer } from "./questOfferPolicies.js";
 import { arrivalOfferEligible, recordArrivalOffer } from "./arrivalOfferCadence.js";
 import { shipTargetRumorEligible, recordShipTargetRumor, shipTargetRumorText } from "./shipTargetRumors.js";
@@ -7483,6 +7483,8 @@ function createAboardMenuState() {
 
 function createStartMenuState() {
   return {
+    wishlistRect: null,
+    wishlistFocused: false,
     selectedIndex: 0,
     buttonRects: [],
     hoverPoint: null,
@@ -7509,7 +7511,6 @@ function startMenuActions() {
     id: START_MENU_ACTION_NEW_GAME,
     label: localSaveResult.status === "ready" ? uiText("start.newGame") : uiText("start.startGame")
   });
-  if (SHOW_WISHLIST_CTA) actions.push({ id: "wishlist", label: "Wishlist on Steam" });
   actions.push({ id: START_MENU_ACTION_LAKE_BATTLE, label: uiText("start.shipBattle") });
   actions.push({ id: START_MENU_ACTION_HISTORICAL_BATTLE, label: uiText("start.historicalBattles") });
   actions.push({ id: START_MENU_ACTION_PAST_VOYAGES, label: uiText("start.pastVoyages") });
@@ -17056,7 +17057,7 @@ function installSaveRestoreSmokeHarness() {
         restartAfterGameOver();
       }
       render(performance.now(), { allowColdCoveredWorldRender: true });
-      const rect = stage === "start" ? startMenu.buttonRects[startMenuActions().findIndex(action => action.id === "wishlist")]
+      const rect = stage === "start" ? startMenu.wishlistRect
         : stage === "pause" ? optionsMenu.rowRects[OPTIONS_ROW_WISHLIST] : wishlistModalLayout(SCREEN_W, SCREEN_H).wishlist;
       if (!rect || !wishlistSteamLogo?.naturalWidth) throw new Error(`Wishlist CTA is not visible: ${stage}`);
       return { rect, width: SCREEN_W, height: SCREEN_H, url: STEAM_WISHLIST_URL, enabled: SHOW_WISHLIST_CTA };
@@ -19967,12 +19968,19 @@ function handleStartMenuKeyDown(event) {
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
     const direction = event.key === "ArrowDown" ? 1 : -1;
     const actionCount = startMenuActions().length;
-    startMenu.selectedIndex = stepMenuIndex(startMenu.selectedIndex, direction, actionCount);
+    if (SHOW_WISHLIST_CTA && startMenu.wishlistFocused) {
+      startMenu.wishlistFocused = false;
+      startMenu.selectedIndex = direction > 0 ? 0 : actionCount - 1;
+    } else if (SHOW_WISHLIST_CTA && ((direction < 0 && startMenu.selectedIndex === 0) ||
+        (direction > 0 && startMenu.selectedIndex === actionCount - 1))) {
+      startMenu.wishlistFocused = true;
+    } else startMenu.selectedIndex = stepMenuIndex(startMenu.selectedIndex, direction, actionCount);
     dirty = true;
     return;
   }
   if (event.key === "Enter" || event.key === " ") {
-    activateStartMenuSelection();
+    if (SHOW_WISHLIST_CTA && startMenu.wishlistFocused) openSteamWishlist();
+    else activateStartMenuSelection();
     return;
   }
   if (event.key === "Escape") {
@@ -20012,7 +20020,6 @@ function activateStartMenuSelection() {
   if (!startMenu || startMenu.isLoading) return;
   const action = startMenuActions()[startMenu.selectedIndex];
   if (!action) return;
-  if (action.id === "wishlist") { openSteamWishlist(); return; }
   if (action.id === START_MENU_ACTION_CONTINUE) {
     void continueSavedVoyage();
     return;
@@ -20570,6 +20577,10 @@ function handleStartMenuPointerDown(point) {
     return;
   }
   updateStartMenuSelectionFromPoint(point);
+  if (SHOW_WISHLIST_CTA && pointInRect(point, startMenu.wishlistRect)) {
+    openSteamWishlist();
+    return;
+  }
   if (pointInRect(point, startMenu.scrollUpRect)) {
     startMenu.selectedIndex = Math.max(0, startMenu.scrollOffset - 1);
     dirty = true;
@@ -21477,6 +21488,7 @@ function updateOptionsSelectionFromPoint(point) {
 
 function updateStartMenuSelectionFromPoint(point) {
   startMenu.hoverPoint = point;
+  startMenu.wishlistFocused = SHOW_WISHLIST_CTA && pointInRect(point, startMenu.wishlistRect);
   for (let i = 0; i < startMenu.buttonRects.length; i++) {
     if (!pointInRect(point, startMenu.buttonRects[i])) continue;
     startMenu.selectedIndex = i;
@@ -54255,21 +54267,25 @@ function drawStartMenu(nowMs) {
   });
   if (START_MENU_EDITION_LABEL) {
     ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-    drawPixelText(START_MENU_EDITION_LABEL, panel.x + panel.w / 2, panel.y + 40, {
+    drawPixelText(START_MENU_EDITION_LABEL, panel.x + panel.w / 2, panel.y + (SHOW_WISHLIST_CTA ? 8 : 40), {
       font: PIXEL_FONT_SMALL_8,
       align: "center"
     });
   }
-  ctx.fillStyle = `rgba(84, 126, 100, ${0.58 + pulse * 0.32})`;
-  ctx.fillRect(panel.x + 54, panel.y + 51, panel.w - 108, 1);
+  startMenu.wishlistRect = SHOW_WISHLIST_CTA ? startWishlistRect(panel) : null;
+  if (startMenu.wishlistRect) drawFloatingWishlist(startMenu.wishlistRect, startMenu.wishlistFocused, nowMs);
+  else {
+    ctx.fillStyle = `rgba(84, 126, 100, ${0.58 + pulse * 0.32})`;
+    ctx.fillRect(panel.x + 54, panel.y + 51, panel.w - 108, 1);
+  }
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-  drawPixelText("1522", panel.x + panel.w / 2, panel.y + 57, {
+  drawPixelText("1522", panel.x + panel.w / 2, panel.y + (SHOW_WISHLIST_CTA ? 64 : 57), {
     font: PIXEL_FONT_SMALL_8,
     align: "center"
   });
 
   const labels = actions.map((action) => action.label);
-  const firstButtonY = panel.y + (denseActions ? 68 : 76);
+  const firstButtonY = panel.y + (SHOW_WISHLIST_CTA ? 78 : denseActions ? 68 : 76);
   const buttonAreaBottom = panel.y + panel.h - 10 - (startMenu.message ? 16 : 0);
   const buttonLayout = scrollableStackedMenuRows({
     startY: firstButtonY,
@@ -54297,14 +54313,10 @@ function drawStartMenu(nowMs) {
       h: row.h
     };
     startMenu.buttonRects[row.index] = rect;
-    if (actions[row.index].id === "wishlist") {
-      drawWishlistButton(rect, startMenu.selectedIndex === row.index, nowMs);
-      continue;
-    }
     drawStartMenuButton(
       rect,
       labels[row.index],
-      startMenu.selectedIndex === row.index,
+      !startMenu.wishlistFocused && startMenu.selectedIndex === row.index,
       startMenuIconId(actions[row.index].id)
     );
   }
@@ -54413,7 +54425,7 @@ function startMenuButtonWidth(actions, panelWidth) {
   }
   const contentWidth = Math.max(...actions.map((action) => {
     const label = renderedUiText(action.label);
-    const iconWidth = (action.id === "wishlist" || startMenuIconId(action.id)) ? GAME_ICON_SIZE + 6 : 0;
+    const iconWidth = startMenuIconId(action.id) ? GAME_ICON_SIZE + 6 : 0;
     return iconWidth + measureRenderedPixelTextWidth(label, PIXEL_FONT_DIALOGUE_8);
   }));
   const horizontalAllowance = 24 + (controllerPromptsVisible() ? GAME_ICON_SIZE + 3 : 0);
@@ -68723,5 +68735,28 @@ function drawWishlistEndgamePrompt(nowMs) {
     { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK });
   drawWishlistButton(wishlist, wishlistEndgameSelection === 0, nowMs);
   drawStartMenuButton(back, renderedUiText("Back to menu"), wishlistEndgameSelection === 1);
+  ctx.restore();
+}
+
+
+function drawFloatingWishlist(rect, highlighted, nowMs) {
+  const pulse = wishlistPulse(nowMs, wishlistReducedMotion.matches);
+  const label = fitPixelText(renderedUiText("Wishlist on Steam"), PIXEL_FONT_SMALL_8, rect.w - 26);
+  const textWidth = measureRenderedPixelTextWidth(label, PIXEL_FONT_SMALL_8);
+  const left = rect.x + Math.floor((rect.w - textWidth - 22) / 2);
+  const y = rect.y + 6 + (wishlistReducedMotion.matches ? 0 : Math.round(pulse * 2) - 1);
+  ctx.save();
+  ctx.fillStyle = "#1b2838";
+  ctx.fillRect(left, y - 3, 14, 14);
+  if (wishlistSteamLogo?.complete && wishlistSteamLogo.naturalWidth > 0) {
+    ctx.drawImage(wishlistSteamLogo, 0, 0, 89.333, 89.333, left, y - 3, 14, 14);
+  }
+  drawOptionsText(label, left + 22 + 1, y + 1, { font: PIXEL_FONT_SMALL_8, color: "#45293f" });
+  drawOptionsText(label, left + 22, y, { font: PIXEL_FONT_SMALL_8,
+    color: `rgb(255, ${Math.round(174 + pulse * 39)}, 70)` });
+  if (highlighted) {
+    ctx.fillStyle = "#684620";
+    ctx.fillRect(left + 22, y + 10, textWidth, 1);
+  }
   ctx.restore();
 }
