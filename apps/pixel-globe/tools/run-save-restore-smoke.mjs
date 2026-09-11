@@ -638,6 +638,7 @@ async function exerciseInaccessibleDiscoverySaveRoundTrips(page, browserErrors) 
   declareDiplomaticWar(save.payload.gameState.relations.diplomacy, "spain", "portugal", save.payload.worldClock.currentMinute);
   memory.quests.sovereignWarLoan = createSovereignWarLoanMemory();
   createSovereignWarLoanOffer(memory.quests.sovereignWarLoan, {
+    offerRoll: 0,
     borrowerFactionId: "spain", enemyFactionId: "portugal",
     capital: { ...capital, isFactionCapital: capital.capital, capitalOfFactionId: capital.factionId },
     simMinute: save.payload.worldClock.currentMinute, doubloons: 1_000_000
