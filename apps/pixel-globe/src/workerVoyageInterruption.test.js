@@ -111,14 +111,21 @@ test("released mixed-generation Istanbul books cannot resell an existing fleet h
   } finally { await worker.close(); }
 });
 
-test("worker catch-up restores a missing commissioned quarry at its promised hunting port", { timeout: 120000 }, async () => {
+test("worker catch-up resolves a lost commissioned quarry without resurrecting it", { timeout: 120000 }, async () => {
   const { adjustFactionReputation, factionReputation, wokouHuntMissionOfferForCity, acceptQuest } = await import("./gameState.js");
+  const { configureNpcRouteEncounter, sinkNpcShip } = await import("./npcSeaRoutes.js");
   const voyage = createWorkerVoyage("missing-wokou-quarry");
   adjustFactionReputation(voyage.gameState, "ming", 30 - factionReputation(voyage.gameState, "ming"), { reason: "direct", simMinute: 0 });
   const capital = voyage.cities.find(city => city.factionId === "ming" && city.isFactionCapital);
   const quest = wokouHuntMissionOfferForCity(voyage.gameState, capital, voyage.ports, { simMinute: 0, spawnChance: 1 });
   assert.ok(quest);
   acceptQuest(voyage.gameState, quest, { simMinute: 0 });
+  configureNpcRouteEncounter(voyage.npcSeaRoutes, {
+    id: quest.targetShipId, originCityId: quest.patrolCityId, factionId: "pirate",
+    role: "pirate", shipSlug: quest.targetShipSlug, replaceOnSink: false,
+    hiddenAtOrigin: true, encounter: { kind: "wokou-hunt", questId: quest.id }
+  }, 0);
+  sinkNpcShip(voyage.npcSeaRoutes, quest.targetShipId, 1);
   assert.equal(voyage.npcSeaRoutes.shipById.has(quest.targetShipId), false);
   const worker = createWorkerDriver();
   try {
@@ -127,10 +134,9 @@ test("worker catch-up restores a missing commissioned quarry at its promised hun
     const probe = createApplyProbe(voyage, event, 360);
     let steps = 0;
     while (probe.state()) { probe.step(); assert.ok(++steps < 2000); }
-    const target = voyage.npcSeaRoutes.shipById.get(quest.targetShipId);
-    assert.ok(target);
-    assert.equal(target.encounter.destinationCityId, quest.patrolCityId);
-    assert.equal(target.encounter.holdAtDestination, true);
-    assert.equal(target.hiddenAtHideout, false);
+    assert.equal(voyage.npcSeaRoutes.shipById.has(quest.targetShipId), false);
+    assert.equal(voyage.gameState.memory.quests.active.stage, "return");
+    assert.equal(voyage.gameState.memory.quests.active.destinationCityId, capital.cityId);
+    assert.equal(voyage.gameState.memory.quests.active.reward, 0);
   } finally { await worker.close(); }
 });

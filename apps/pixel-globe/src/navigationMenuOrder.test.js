@@ -6,6 +6,7 @@ import ts from "typescript";
 
 const source = ts.createSourceFile("main.js", readFileSync(new URL("./main.js", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
 const declaration = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name.text === "navigationMenuEntries");
+const targetDeclaration = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name.text === "questNavigationTarget");
 
 test("waypoints list quests and price tips before shipyard dividends", () => {
   const destination = { cityId: "london|united kingdom", city: "London", tileId: 1 };
@@ -17,6 +18,7 @@ test("waypoints list quests and price tips before shipyard dividends", () => {
     PAPAL_MATTER_COMMISSIONED: "commissioned", papalPendingMatter: () => null,
     hospitallerMaltaQuestObjective: () => null, activeConquistadorDestination: () => null,
     activeQuestDestinations: () => [{ quest: { id: "delivery" }, destination }],
+    isWokouHuntQuest: () => false,
     activeRescuedTravelerDestinations: () => [], activeColonizationObjective: () => null,
     currentReadyFetchQuestDestinations: () => [], activeCampaignGoalDestinations: () => [],
     activeNaturalistReportDestination: () => null, cityLabelText: city => city.city,
@@ -26,6 +28,6 @@ test("waypoints list quests and price tips before shipyard dividends", () => {
     pirateHavenNavigationEntries: () => [{ id: "pirate-quest" }],
     shipyardDividendNavigationEntries: () => [{ id: "dividend-a" }, { id: "dividend-b" }]
   };
-  const entries = runInNewContext(`${declaration.getText(source)}; navigationMenuEntries()`, context);
+  const entries = runInNewContext(`${targetDeclaration.getText(source)}\n${declaration.getText(source)}; navigationMenuEntries()`, context);
   assert.deepEqual(Array.from(entries, entry => entry.id), ["quest:delivery:london|united kingdom", "price-tip", "pirate-quest", "dividend-a", "dividend-b"]);
 });

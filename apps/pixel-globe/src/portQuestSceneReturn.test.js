@@ -41,6 +41,37 @@ for (const admitted of [false, true]) {
     assert.doesNotThrow(() => assertPortRootScene(runtime.dialogueState, { cityId: city.cityId }));
   });
 }
+test("captive handover drains passenger and envoy arrivals during the same port visit", () => {
+  const city = { cityId: "bremen|germany" };
+  const quests = ["passenger", "envoy"].map(kind => ({ id: kind, kind, destinationCityId: city.cityId }));
+  const runtime = entryRuntime({
+    gameState: {},
+    dialogueState: { kind: "rescued-traveler", phase: "authority", cityId: city.cityId,
+      admittedToPort: true, nextPortNodeId: "root" },
+    currentDialogueCity: () => city, currentPortArrivalGreetingPresented: () => true,
+    portDialogueContext: () => ({}), resolvePortDialogueContinuation,
+    admitPlayerToPort: () => { throw new Error("Already admitted; must not repeat port entry"); },
+    activeTravelMissionQuests: () => quests,
+    questHasDestination: (quest, port) => quest.destinationCityId === port.cityId,
+    createWorldPassengerDialogueSession: (port, quest, options) => ({ kind: "passenger", cityId: port.cityId, questId: quest.id, ...options })
+  });
+  const helperStart = source.indexOf("function maybeOpenArrivingPassengerDialogue(");
+  const helperEnd = source.indexOf("function openPassengerDialogue(", helperStart);
+  const api = vm.runInNewContext(`${entryCode}\n${source.slice(helperStart, helperEnd)}\n${source.slice(start, end)}\n({continuePortDialogueAfterQuestCharacter, maybeOpenArrivingPassengerDialogue})`, runtime);
+  runtime.continuePortArrivalDialogues = () => api.maybeOpenArrivingPassengerDialogue(city);
+  api.continuePortDialogueAfterQuestCharacter();
+  assert.equal(runtime.dialogueState.questId, "passenger");
+  assert.equal(runtime.dialogueState.admittedToPort, true);
+  // Postponing one traveller must allow the next, not reopen the first forever.
+  api.continuePortDialogueAfterQuestCharacter();
+  assert.equal(runtime.dialogueState.questId, "envoy");
+  api.continuePortDialogueAfterQuestCharacter();
+  assert.equal(runtime.dialogueState.kind, "port");
+  assert.equal(runtime.dialogueState.nodeId, "root");
+  assert.equal(runtime.activations, 1);
+  assert.equal(runtime.portCityView.presentedPassengerQuestIds.size, 2);
+});
+
 test("legacy city-root escapes fail while scene loading and entry dialogues remain allowed", () => {
   const root = { kind: "port", nodeId: "root", cityId: "bremen|germany", admittedToPort: true };
   for (const scene of [null, { cityId: "london|united kingdom" }]) {

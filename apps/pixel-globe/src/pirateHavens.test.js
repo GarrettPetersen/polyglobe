@@ -9,6 +9,30 @@ const haven={cityId:"pirate-haven-1",city:"Black Gull Cove",isPirateHideout:true
 const port={cityId:"lisbon|portugal",city:"Lisbon"};
 const merchant={id:"merchant-12",seed:77,name:"Santa Maria",captainName:"Joao",role:"merchant",hitPoints:10,currentPort:port};
 const context={offerRoll: 0, contractKind: "revenge", havens:[haven],merchants:[merchant],sailingDistanceKm:()=>200,simMinute:0};
+test("pirate commissions appear only at their canonical issuer without allowing duplicate contracts", async () => {
+  const { pirateQuestAtIssuer } = await import("./pirateHavens.js");
+  const { pirateHavenCommissionView, selectPirateHavenCommission } = await import("./pirateHavenDialogue.js");
+  for (const issuer of [haven, port]) {
+    const state = createGameState({ cargoCapacity: 20 });
+    const memory = state.memory.pirateHavens;
+    const offer = pirateHavenQuestOffer(memory, issuer, context);
+    acceptPirateHavenQuest(memory, offer);
+    const elsewhere = { ...issuer, cityId: "other-port", city: "Another port" };
+    assert.equal(pirateQuestAtIssuer(memory, issuer).id, offer.id);
+    assert.equal(pirateQuestAtIssuer(memory, elsewhere), null);
+    assert.equal(pirateHavenQuestOffer(memory, elsewhere, context), null);
+    const view = pirateHavenCommissionView(state, elsewhere, { pirateHavenQuestOffer: null });
+    assert.equal(view.text, "I have no business for you today.");
+    assert.ok(view.options.every(option => !["complete-pirate-haven-quest", "abandon-pirate-haven-quest"].includes(option.action.type)));
+    assert.equal(memory[offer.kind].id, offer.id);
+    assert.throws(() => selectPirateHavenCommission(state, elsewhere,
+      { type: "abandon-pirate-haven-quest", kind: offer.kind }, context), /with its issuer/);
+    selectPirateHavenCommission(state, issuer,
+      { type: "abandon-pirate-haven-quest", kind: offer.kind }, context);
+    assert.equal(memory[offer.kind], null);
+  }
+});
+
 test("a revenge commission names a real merchant and the unique item survives saves until delivered",()=>{
  const state=createGameState({cargoCapacity:20}); const memory=state.memory.pirateHavens;
  const offer=pirateHavenQuestOffer(memory,haven,context); acceptPirateHavenQuest(memory,offer);

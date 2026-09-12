@@ -45,6 +45,9 @@ export function selectPirateHavenCommission(state, city, action, context) {
     completePirateHavenQuest(state, city.cityId, action.kind, context.simMinute);
   } else if (action.type === "abandon-pirate-haven-quest") {
     if (!["revenge", "suppression", "smuggling"].includes(action.kind) || !memory[action.kind]) throw new Error("No pirate commission to abandon");
+    if (pirateQuestAtIssuer(memory, city)?.kind !== action.kind) {
+      throw new Error("Pirate commission must be abandoned with its issuer");
+    }
     memory[action.kind] = null;
   } else throw new Error(`Unknown pirate commission action: ${action.type}`);
   return { changed: true, feedback: null };

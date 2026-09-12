@@ -52,6 +52,17 @@ test("accepted supply orders expose an optional source heading, not an enforced 
   assert.ok(!view.options.some(option => option.action.type === "complete-quest" && !option.disabled));
 });
 
+test("other inns explain the existing commission without impersonating its workshop master", () => {
+  const {economy, offer, state} = fixture();
+  acceptQuest(state, offer);
+  const session = createPortDialogueSession(ports[1], { initialNodeId: "quest" });
+  const view = portDialogueView(session, ports[1], state, economy, ports);
+  assert.doesNotMatch(view.speaker, /workshop master of Lisbon/);
+  assert.match(view.text, /commission from Lisbon/);
+  assert.ok(view.options.every(option => option.action.type !== "accept-quest"));
+  assert.equal(state.memory.quests.active.id, offer.id);
+});
+
 test("stocked workshops do not request inputs, and order quantities fit a small hold", () => {
   const {economy, offer} = fixture();
   assert.ok(offer.procurement.quantity * tradeGoodById(offer.procurement.goodId).unitSize <= 12);

@@ -4005,6 +4005,15 @@ test("old wandering wokou hunts are stationed off their promised port and remain
   const snapshot = snapshotNpcSeaRouteSystem(routes);
   restoreNpcSeaRouteSystem(routes, snapshot);
   assert.equal(routes.shipById.get(encounter.id).encounter.holdAtDestination, true);
+  const restored = routes.shipById.get(encounter.id);
+  restored.visualNavigation = null;
+  assert.equal(stationWokouHuntAtPort(routes, restored.id, PORTS[0].cityId, 1000 + 180 * 1440), true);
+  assert.equal(restored.hitPoints, hp);
+  assert.equal(restored.hiddenAtHideout, false);
+  const visible = npcShipSnapshots(routes, 1000 + 180 * 1440).find(ship => ship.id === restored.id);
+  assert.ok(visible && !visible.hidden);
+  assert.deepEqual(visible.routeVector, position);
+  assert.equal(stationWokouHuntAtPort(routes, restored.id, PORTS[0].cityId, 1000 + 180 * 1440), false);
 });
 
 test("workshop procurement sails real cargo repeatedly and survives a saved voyage", () => {

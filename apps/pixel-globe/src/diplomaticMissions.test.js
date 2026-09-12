@@ -15,6 +15,9 @@ import {
   questStateForCity,
   recordTributeTheft,
   recordWokouHuntVictory,
+  recordWokouHuntDefeatedByOthers,
+  wokouHuntWasDefeatedByOthers,
+  migrateGameState,
   tributeSaleTheftStatus,
   wokouHuntMissionOfferForCity
 } from "./gameState.js";
@@ -284,6 +287,66 @@ test("Ming and Japanese capitals can commission a persistent wokou hunt", () => 
   assert.equal(recordWokouHuntVictory(state, offer.targetShipId, { simMinute: 600 }).stage, "return");
   completeQuest(state, BEIJING, { simMinute: 800 });
   assert.equal(state.memory.quests.completed[offer.id], true);
+});
+
+test("a wokou defeated by others can be reported after reload without a false victory reward", () => {
+  let state = stateFor("ming", 30);
+  adjustFactionReputation(state, "ming", 20 - factionReputation(state, "ming"));
+  const ports = [BEIJING, NINGBO, NANJING];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const offer = wokouHuntMissionOfferForCity(state, BEIJING, ports, { simMinute: 0, spawnChance: 1 });
+  acceptQuest(state, offer);
+  assert.equal(recordWokouHuntDefeatedByOthers(state, "unrelated", { simMinute: 600 }), null);
+  assert.throws(() => recordWokouHuntDefeatedByOthers(state, offer.targetShipId, { simMinute: NaN }));
+  assert.equal(state.memory.quests.active.stage, "hunt");
+  recordWokouHuntDefeatedByOthers(state, offer.targetShipId, { simMinute: 600 });
+  assert.equal(recordWokouHuntDefeatedByOthers(state, offer.targetShipId, { simMinute: 601 }), null);
+  assert.equal(recordWokouHuntVictory(state, offer.targetShipId), null);
+  state = migrateGameState(JSON.parse(JSON.stringify(state)));
+  const quest = state.memory.quests.active;
+  assert.equal(wokouHuntWasDefeatedByOthers(state, quest), true);
+  assert.equal(quest.destinationCityId, BEIJING.cityId);
+  assert.equal(questStateForCity(state, BEIJING, ports).kind, "ready-to-complete");
+  const patrol = ports.find(city => city.cityId === quest.patrolCityId);
+  const patrolView = portDialogueView(createPortDialogueSession(patrol, { initialNodeId: "quest" }),
+    patrol, state, economy, ports);
+  assert.match(patrolView.text, /close the account/);
+  assert.doesNotMatch(patrolView.text, /reward|bounty/);
+  assert.throws(() => completeQuest(state, NINGBO, { questId: quest.id }), /No active quest|Quest destination/);
+  const session = createPortDialogueSession(BEIJING, { initialNodeId: "quest" });
+  const view = portDialogueView(session, BEIJING, state, economy, ports);
+  assert.match(view.text, /no bounty/);
+  const complete = view.options.find(option => option.action.type === "complete-quest");
+  assert.ok(complete && !complete.disabled);
+  const money = state.doubloons;
+  const standing = factionReputation(state, "ming");
+  const result = selectPortDialogueAction(session, BEIJING, state, economy, ports, complete,
+    { simMinute: 800, missionGiftRandom: () => 0 });
+  assert.equal(result.missionItemGift, null);
+  assert.equal(session.feedback, "Commission discharged. No bounty claimed.");
+  assert.equal(state.memory.quests.active, null);
+  assert.equal(state.doubloons, money);
+  assert.equal(factionReputation(state, "ming"), standing);
+  assert.equal(state.memory.decisions[`quest.wokou.defeated.${quest.id}`], undefined);
+  assert.equal(state.memory.decisions["reputation.mission.ming"], undefined);
+});
+
+test("unrelated inns do not impersonate the wokou commissioner", () => {
+  const state = stateFor("ming", 30);
+  adjustFactionReputation(state, "ming", 20 - factionReputation(state, "ming"));
+  const ports = [BEIJING, NINGBO, NANJING];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const offer = wokouHuntMissionOfferForCity(state, BEIJING, ports, { simMinute: 0, spawnChance: 1 });
+  acceptQuest(state, offer);
+  const other = ports.find(city => ![offer.originCityId, offer.patrolCityId].includes(city.cityId));
+  for (const stage of ["hunt", "return"]) {
+    if (stage === "return") recordWokouHuntVictory(state, offer.targetShipId);
+    const session = createPortDialogueSession(other, { initialNodeId: "quest" });
+    const view = portDialogueView(session, other, state, economy, ports);
+    assert.doesNotMatch(view.speaker, /commissioner/);
+    assert.match(view.text, /already carry a commission from Beijing/);
+    assert.ok(view.options.every(option => option.action.type !== "complete-quest"));
+  }
 });
 
 test("a pending wokou commission cannot be accepted while a passenger is aboard", () => {

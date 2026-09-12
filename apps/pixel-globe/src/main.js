@@ -623,6 +623,7 @@ import {
   recordTeaRacePlayerArrival,
   recordTeaRaceRivalArrival,
   recordWokouHuntVictory,
+  recordWokouHuntDefeatedByOthers,
   reconcileFactionReputationAfterPlayerVassalage,
   resolveSovereignWarLoanForState,
   holdSovereignWarLoanBondForState,
@@ -8942,13 +8943,21 @@ function resolveNingboDelegationShipLoss(shipId) {
   return result;
 }
 
-function ensureWokouHuntEncounter({ assignCaptains = true } = {}) {
+function ensureWokouHuntEncounter({ assignCaptains = true, createIfMissing = false } = {}) {
   const quest = activeWokouHuntQuest();
   if (!quest || quest.stage !== "hunt" || !npcSeaRoutes) return null;
   const existing = npcSeaRoutes.shipById.get(quest.targetShipId);
   if (existing) {
     stationWokouHuntAtPort(npcSeaRoutes, existing.id, quest.patrolCityId, weatherClockMinutes);
     return existing;
+  }
+  // Only acceptance creates the quarry. Restore and world simulation must
+  // resolve a lost target rather than resurrecting it beneath the port's guns.
+  if (!createIfMissing) {
+    recordWokouHuntDefeatedByOthers(gameState, quest.targetShipId, {
+      simMinute: Math.floor(weatherClockMinutes)
+    });
+    return null;
   }
   const strategic = configureNpcRouteEncounter(npcSeaRoutes, {
     id: quest.targetShipId,
@@ -22393,6 +22402,12 @@ function openCityDialogue(cityCall, session) {
   }
   ensurePortCityView(cityCall);
   assertPortRootScene(session, portCityView, { ruinedSite: citySiteIsRuined(cityCall) });
+  if (session.kind === "passenger" && typeof session.questId === "string") {
+    // A postponed landing conversation must not immediately reopen. This is
+    // presentation state for one port visit, never persisted quest progress.
+    portCityView.presentedPassengerQuestIds ??= new Set();
+    portCityView.presentedPassengerQuestIds.add(session.questId);
+  }
   activateDialogueSession(session, { movement: "stop" });
   queuePortCitySceneSync();
   dirty = true;
@@ -23009,6 +23024,7 @@ function continuePortArrivalDialogues() {
   const cityCall = currentDialogueCity();
   return openNextPortArrivalFollowup([
     () => maybeOpenSovereignWarLoanDialogue(cityCall),
+    () => maybeOpenArrivingPassengerDialogue(cityCall),
     () => maybeOpenShipyardArrivalDialogue(cityCall),
     () => maybeOpenPirateHavenArrivalDialogue(cityCall),
     () => maybeOpenExeterCanalArrivalDialogue(cityCall),
@@ -26313,6 +26329,20 @@ function createWorldPassengerDialogueSession(cityCall, quest, options = {}) {
   });
 }
 
+function maybeOpenArrivingPassengerDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId)) return false;
+  const quest = activeTravelMissionQuests(gameState).find(candidate =>
+    questHasDestination(candidate, cityCall) &&
+    !portCityView.presentedPassengerQuestIds?.has(candidate.id));
+  if (!quest) return false;
+  openCityDialogue(cityCall, createWorldPassengerDialogueSession(cityCall, quest, {
+    admittedToPort: true,
+    continueToPortOnClose: true,
+    nextPortNodeId: dialogueState.nodeId
+  }));
+  return true;
+}
+
 function openPassengerDialogue(cityCall, quest) {
   if (!gameState) throw new Error("Cannot open passenger dialogue before game state is ready");
   markPassengerOfferSeen(gameState, quest);
@@ -27540,7 +27570,7 @@ function completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOr
       presentQuestCargoTransfers(result.questCargoTransfers, purchaseIconOrigin, lastFrameMs);
     },
     "ningbo-fleet": () => { ensureNingboMissionEncounters(); },
-    "wokou-fleet": () => { ensureWokouHuntEncounter(); },
+    "wokou-fleet": () => { ensureWokouHuntEncounter({ createIfMissing: true }); },
     "tea-fleet": () => { ensureTeaRaceEncounters(); },
     "tea-theft": () => { retireTeaRaceFleet(result.questCargoTheft.quest); },
     "completed-fleet": () => { retireTeaRaceFleet(result.completedQuest); },
@@ -49152,12 +49182,13 @@ function navigationMenuEntries() {
     });
   }
   for (const { quest, destination: questDestination } of activeQuestDestinations()) {
+    const target = questNavigationTarget(quest, questDestination);
     entries.push({
       id: `quest:${quest.id}:${questDestination.cityId}`,
-      destinationName: cityLabelText(questDestination),
+      destinationName: target.label,
       reason: navigationQuestReason(quest),
       style: QUEST_NAVIGATION_STYLE,
-      targetVector: placedCityTargetVector(questDestination),
+      targetVector: target.vector,
       optionalWaypointId: null
     });
   }
@@ -62360,14 +62391,15 @@ function visibleChartCity(city) {
 function drawQuestDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout) return;
   for (const { quest, destination } of activeQuestDestinations()) {
-    const destinationVector = placedCityTargetVector(destination);
-    const visibleCity = visibleChartCity(destination);
+    const target = questNavigationTarget(quest, destination);
+    const destinationVector = target.vector;
+    const visibleCity = target.shipTarget ? null : visibleChartCity(destination);
     drawWorldTargetArrow({
       id: `quest:${quest.id}:${destination.cityId}`,
-      label: cityLabelText(destination),
+      label: target.label,
       targetVector: destinationVector,
       localPoint: visibleCity || localPointForGlobeVector(destinationVector),
-      localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+      localYOffset: target.shipTarget ? 0 : QUEST_ARROW_CITY_Y_OFFSET,
       nowMs,
       style: QUEST_NAVIGATION_STYLE
     });
@@ -62907,6 +62939,16 @@ function nearestDiscoveryDirection(discovery, position) {
   return directions.reduce((nearest, direction) => (
     dot3(direction, position) > dot3(nearest, position) ? direction : nearest
   ), directions[0]);
+}
+
+function questNavigationTarget(quest, destination) {
+  if (isWokouHuntQuest(quest) && quest.stage === "hunt") {
+    const position = npcShipSightingPosition(npcSeaRoutes, quest.targetShipId, weatherClockMinutes);
+    if (position) {
+      return { vector: position, label: `the wokou ${shipLabelForProse(quest.targetShipSlug)}`, shipTarget: true };
+    }
+  }
+  return { vector: placedCityTargetVector(destination), label: cityLabelText(destination), shipTarget: false };
 }
 
 function activeQuestDestinations() {

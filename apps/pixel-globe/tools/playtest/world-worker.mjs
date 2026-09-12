@@ -14,7 +14,7 @@ import * as land from "../../src/landTradeSystem.js";
 import * as distant from "../../src/distantWorldSimulation.js";
 import { parseLandRoadNetwork } from "../../src/landRoadNetwork.js";
 import { applyPortConquestOwnership } from "../../src/portConquest.js";
-import { createGameState, diplomacyBetweenForState, sovereignTradeOpenToFaction, advanceGamePolitics, migrateGameState, isWokouHuntQuest } from "../../src/gameState.js";
+import { createGameState, diplomacyBetweenForState, sovereignTradeOpenToFaction, advanceGamePolitics, migrateGameState, isWokouHuntQuest, recordWokouHuntDefeatedByOthers } from "../../src/gameState.js";
 import { SOVEREIGN_TRADE_ACCESS_POLICIES } from "../../src/sovereignTradeAccess.js";
 import { fisheryForHabitat } from "../../src/fishEcology.js";
 import { FACTIONS, PIRATE_FACTION_ID, markFactionSeaCapitalsOnPorts } from "../../src/factions.js";
@@ -99,7 +99,7 @@ export function createWorkerDriver() {
 
 export function createApplyProbe(voyage, event, minute) {
   const context = { ...economy, ...fleet, ...land, ...distant, ...voyage,
-    isWokouHuntQuest, PIRATE_FACTION_ID, ensureNpcShipCaptain: () => {},
+    isWokouHuntQuest, recordWokouHuntDefeatedByOthers, PIRATE_FACTION_ID, ensureNpcShipCaptain: () => {},
     snapshotPlayerShipyards, weatherClockMinutes: minute, voyageStartClockMinutes: 0,
     SUBDIVISIONS: 8, PORT_CATALOG_VERSION, firstDayNightNoticeState: {}, anchored: false,
     survivalDeprivationTimers: {}, demoVoyageScope: null, npcVisualShips: new Map(),

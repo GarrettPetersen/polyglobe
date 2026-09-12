@@ -908,7 +908,11 @@ export function stationWokouHuntAtPort(system, shipId, cityId, clockMinutes) {
   if (!Number.isFinite(clockMinutes) || clockMinutes < 0) throw new Error(`Invalid wokou staging minute: ${clockMinutes}`);
   const ship = requiredNpcShip(system, shipId);
   if (ship.encounter?.kind !== "wokou-hunt") throw new Error(`Not a commissioned wokou: ${shipId}`);
-  if (ship.encounter.holdAtDestination && ship.encounter.destinationCityId === cityId) return false;
+  if (ship.encounter.holdAtDestination && ship.encounter.destinationCityId === cityId) {
+    // Held encounters still need a visible offshore position after restoring
+    // a save that omitted their reconstructible navigation state.
+    return stageNpcRouteEncounterAtDestination(system, shipId, clockMinutes);
+  }
   const destination = requiredNpcRoutePort(system, cityId, "Wokou hunting port");
   const origin = system.ports.filter(port => !samePort(port, destination) && npcRoutePortAcceptsTraffic(port) &&
     npcPortsShareRouteNetwork(system, port, destination))

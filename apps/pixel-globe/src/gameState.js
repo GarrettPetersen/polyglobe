@@ -7913,11 +7913,24 @@ export function pendingWokouHuntMissionOfferForCity(state, city) {
 }
 
 export function recordWokouHuntVictory(state, shipId, context = {}) {
+  return resolveWokouHuntTarget(state, shipId, { ...context, defeatedByPlayer: true });
+}
+
+export function recordWokouHuntDefeatedByOthers(state, shipId, context = {}) {
+  return resolveWokouHuntTarget(state, shipId, { ...context, defeatedByPlayer: false });
+}
+
+export function wokouHuntWasDefeatedByOthers(state, quest) {
+  return state.memory.decisions[`quest.wokou.defeated-by-others.${quest.id}`] === 1;
+}
+
+function resolveWokouHuntTarget(state, shipId, context) {
   assertGameState(state);
   const active = questMemory(state).active;
   if (!isWokouHuntQuest(active) || active.stage !== "hunt" || active.targetShipId !== shipId) {
     return null;
   }
+  assertSimulationMinute(context.simMinute ?? 0);
   active.stage = "return";
   active.defeatedAtMinute = context.simMinute ?? 0;
   active.destinationKey = active.originKey;
@@ -7925,7 +7938,12 @@ export function recordWokouHuntVictory(state, shipId, context = {}) {
   active.destinationTileId = active.originTileId;
   active.destinationName = active.originName;
   active.destinationCountry = active.originCountry;
-  recordDecision(state, `quest.wokou.defeated.${active.id}`, 1);
+  if (context.defeatedByPlayer) {
+    recordDecision(state, `quest.wokou.defeated.${active.id}`, 1);
+  } else {
+    active.reward = 0;
+    recordDecision(state, `quest.wokou.defeated-by-others.${active.id}`, 1);
+  }
   return active;
 }
 
@@ -9470,7 +9488,7 @@ export function completeQuest(state, city, context = {}) {
   }
   recordDecision(state, `quest.complete.${active.id}`, 1);
   const missionFactionId = active.originFactionId || active.factionId || city.factionId || null;
-  if (!isEnvoyQuest(active) && missionFactionId &&
+  if (!isEnvoyQuest(active) && !wokouHuntWasDefeatedByOthers(state, active) && missionFactionId &&
       missionFactionId !== NEUTRAL_FACTION_ID && missionFactionId !== PIRATE_FACTION_ID) {
     recordDecision(state, `reputation.mission.${assertFactionId(missionFactionId)}`, 1);
   }
@@ -9500,7 +9518,7 @@ export function completeQuest(state, city, context = {}) {
       recordDecision(state, `reputation.${active.kind}.${active.originFactionId}`, 1);
     }
   }
-  if (isWokouHuntQuest(active)) {
+  if (isWokouHuntQuest(active) && !wokouHuntWasDefeatedByOthers(state, active)) {
     adjustFactionReputation(state, active.originFactionId, WOKOU_HUNT_REPUTATION_GAIN, { reason: "mission", simMinute: context.simMinute ?? Math.max(0, state.survival.lastMinute) });
     recordDecision(state, `reputation.wokou-hunt.${active.originFactionId}`, 1);
     adjustSovereignAuthority(state.relations.authority, active.originFactionId, 0.8, {

@@ -100,6 +100,35 @@ test("NPC hints use the current target hull position and never report a lost rep
   assert.equal(rumor("speaker-4"), null);
 });
 
+test("a live wokou marker follows its ship, while concealed or returning hunts mark the port", () => {
+  const quest = { id: "hunt", kind: "wokou-hunt", stage: "hunt", targetShipId: "quarry", targetShipSlug: "small-junk" };
+  const position = [0, 1, 0];
+  const context = { npcSeaRoutes: {}, weatherClockMinutes: 100,
+    isWokouHuntQuest: quest => quest.kind === "wokou-hunt",
+    npcShipSightingPosition: (_routes, id) => { assert.equal(id, quest.targetShipId); return position; },
+    shipLabelForProse: () => "small junk", placedCityTargetVector: () => [1, 0, 0], cityLabelText: () => "Nagasaki" };
+  const target = compiled("questNavigationTarget", context);
+  assert.equal(target(quest, {}).vector, position);
+  assert.equal(target(quest, {}).shipTarget, true);
+  context.npcShipSightingPosition = () => null;
+  assert.equal(target(quest, {}).label, "Nagasaki");
+  context.npcShipSightingPosition = () => { throw new Error("Returning quest must not track the ship"); };
+  quest.stage = "return";
+  assert.equal(target(quest, {}).shipTarget, false);
+});
+
+test("docked and hidden commissioned ships are not mistaken for sunk quarry", () => {
+  for (const hiddenAtHideout of [false, true]) {
+    const quest = { stage: "hunt", targetShipId: "quarry", patrolCityId: "nagasaki|japan" };
+    const ship = { id: quest.targetShipId, hiddenAtHideout, hitPoints: 20, currentPort: { cityId: quest.patrolCityId } };
+    const context = { activeWokouHuntQuest: () => quest, npcSeaRoutes: { shipById: new Map([[ship.id, ship]]) },
+      weatherClockMinutes: 100, stationWokouHuntAtPort: () => {},
+      recordWokouHuntDefeatedByOthers: () => { throw new Error("Living quarry was declared defeated"); } };
+    assert.equal(compiled("ensureWokouHuntEncounter", context)(), ship);
+    assert.equal(quest.stage, "hunt");
+  }
+});
+
 test("a hostile toll offer intercepts attempted docking before opening the barred city screen", () => {
   const calls = [];
   const city = { cityId: "calais|france", factionId: "france", character: {} };

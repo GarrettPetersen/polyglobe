@@ -71,6 +71,7 @@ import {
   isCaptureCommissionQuest,
   isEnvoyQuest,
   isWokouHuntQuest,
+  wokouHuntWasDefeatedByOthers,
   letterOfMarqueStatus,
   maybeGrantMissionPerkItem,
   negotiateEnvoyQuest,
@@ -3710,7 +3711,8 @@ export function selectPortDialogueAction(
   }
   if (action.type === "complete-quest") {
     const quest = completeQuest(gameState, city, { ...context, economy, questId: action.questId ?? context.questId });
-    const missionItemGift = quest.kind === "delivery" || isTeaRaceQuest(quest)
+    const closedWithoutVictory = isWokouHuntQuest(quest) && wokouHuntWasDefeatedByOthers(gameState, quest);
+    const missionItemGift = quest.kind === "delivery" || isTeaRaceQuest(quest) || closedWithoutVictory
       ? null
       : maybeGrantMissionPerkItem(gameState, city, {
           missionId: quest.id,
@@ -3719,7 +3721,9 @@ export function selectPortDialogueAction(
           random: context.missionGiftRandom || neverGrantMissionItem,
           context
         });
-    session.feedback = isCaptureCommissionQuest(quest)
+    session.feedback = closedWithoutVictory
+      ? "Commission discharged. No bounty claimed."
+      : isCaptureCommissionQuest(quest)
       ? isCaptureCapitalQuest(quest)
         ? `War-ending commission fulfilled. Earned ${quest.reward} db. Standing transformed.`
         : `Commission fulfilled. Earned ${quest.reward} db. Standing greatly improved.`
@@ -8478,11 +8482,21 @@ function questView(session, city, gameState, portCities, context) {
   const returnNodeId = session.questReturnNodeId || session.nextPortNodeId || "root";
   const backLabel = returnNodeId === "inn-drink" ? "Back to inn" : "Back";
   const questState = questStateForCity(gameState, city, portCities);
+  if (questState.kind === "busy" && (isWokouHuntQuest(questState.quest) ||
+      isCaptureCommissionQuest(questState.quest) || questState.quest?.procurement)) {
+    return {
+      speaker: speakerName(city),
+      expressionId: "concerned",
+      text: `You already carry a commission from ${questState.quest.originName}. Settle that charge before taking another; I have no part in your patron's business.`,
+      feedback: session.feedback,
+      options: [option(backLabel, { type: "node", nodeId: returnNodeId })]
+    };
+  }
   if (isCaptureCommissionQuest(questState.quest)) {
     return captureCommissionQuestView(session, questState, returnNodeId, gameState);
   }
   if (isWokouHuntQuest(questState.quest)) {
-    return wokouHuntQuestView(session, questState, returnNodeId, gameState);
+    return wokouHuntQuestView(session, questState, returnNodeId, gameState, city);
   }
   if (questState.kind === "ready-to-complete") {
     if (questState.quest.kind === "passenger" || isEnvoyQuest(questState.quest)) {
@@ -8642,7 +8656,7 @@ function questView(session, city, gameState, portCities, context) {
   };
 }
 
-function wokouHuntQuestView(session, questState, returnNodeId, gameState) {
+function wokouHuntQuestView(session, questState, returnNodeId, gameState, city) {
   const quest = questState.quest;
   const back = option("Back", { type: "node", nodeId: returnNodeId });
   if (questState.kind === "available") {
@@ -8663,6 +8677,15 @@ function wokouHuntQuestView(session, questState, returnNodeId, gameState) {
     };
   }
   if (questState.kind === "ready-to-complete") {
+    if (wokouHuntWasDefeatedByOthers(gameState, quest)) {
+      return {
+        speaker: `${quest.originRulerName}'s coastal commissioner`,
+        expressionId: "thoughtful",
+        text: "Word has reached us that the vessel is gone. Since the victory was not yours, no bounty is due; we can discharge your commission.",
+        feedback: session.feedback,
+        options: [option("Close the commission without claiming the bounty", { type: "complete-quest" }), back]
+      };
+    }
     if (quest.captureCommissionResolution) {
       return recalledCaptureCommissionView(session, quest, back);
     }
@@ -8678,9 +8701,11 @@ function wokouHuntQuestView(session, questState, returnNodeId, gameState) {
     };
   }
   return {
-    speaker: `${quest.originRulerName}'s coastal commissioner`,
+    speaker: city.cityId === quest.originCityId ? `${quest.originRulerName}'s coastal commissioner` : speakerName(city),
     expressionId: "stern",
-    text: quest.stage === "return"
+    text: wokouHuntWasDefeatedByOthers(gameState, quest)
+      ? `The commission for ${quest.patrolName} has been recalled. Return to ${quest.originName} to close the account.`
+      : quest.stage === "return"
       ? `The wokou are defeated. Return to ${quest.originName} for the court's reward.`
       : `Patrol the waters near ${quest.patrolName}. Sink the marked wokou vessel or force its surrender. Pirates require no letter of marque.`,
     feedback: session.feedback,

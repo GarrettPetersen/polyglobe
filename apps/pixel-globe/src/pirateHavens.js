@@ -86,7 +86,10 @@ export function pirateQuestInventory(memory) {
   }));
 }
 export function pirateQuestAtIssuer(memory, city) {
-  return city.isPirateHideout ? memory.revenge || memory.smuggling : memory.suppression;
+  return pirateQuestsForPortType(memory, city).find(quest => quest.originCityId === city.cityId) || null;
+}
+function pirateQuestsForPortType(memory, city) {
+  return (city.isPirateHideout ? [memory.revenge, memory.smuggling] : [memory.suppression]).filter(Boolean);
 }
 function offerHash(text) {
   let hash = 2166136261;
@@ -98,7 +101,7 @@ export function pirateHavenQuestOffer(memory, city, {
   offerRoll, contractKind, contactForPort
 }) {
   minute(simMinute);
-  if (pirateQuestAtIssuer(memory, city)) return null;
+  if (pirateQuestsForPortType(memory, city).length > 0) return null;
   if (city.isPirateHideout && pirateHavenIsRuined(memory, city.cityId, simMinute)) return null;
   const period = Math.floor(simMinute / PIRATE_OFFER_PERIOD_MINUTES);
   const seed = `${voyageSeed}|${city.cityId}|${period}`;
