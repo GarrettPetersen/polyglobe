@@ -3,6 +3,31 @@ import { PORT_ASSAULT_LANE_COUNT, PORT_ASSAULT_LANE_SPACING, portAssaultBodyRadi
 const LOCAL_RADIUS = 0.24;
 const PROTECTION_DISTANCE = 0.09;
 const SCREEN_GAP = 0.055;
+const RANGED_RETREAT_DURATION_MS = 2000;
+
+function rangedRecoveryCommitted(unit, timeMs) {
+  const recovery = unit.rangedRecovery;
+  if (!recovery) return false;
+  const rear = unit.side === "attacker" ? -1 : 1;
+  return recovery.phase === "reload-and-fire" || timeMs - recovery.startedAtMs >= RANGED_RETREAT_DURATION_MS ||
+    (unit.position - recovery.position) * rear >= SCREEN_GAP - .003;
+}
+
+// Called when executing a decision, not while inspecting it. A short retreat
+// has a fixed origin and a deadline even when bodies prevent reaching cover.
+// Once planted, the soldier finishes loading and finds a shot before retreating again.
+export function recordPortAssaultTacticalAction(unit, tactic, timeMs) {
+  if (unit.stats.attackType === "melee") {
+    unit.meleeAdvanceTargetId = tactic?.mode === "charge" ? tactic.target.id : null;
+    return;
+  }
+  if (!unit.rangedRecovery && ["withdraw", "seek-cover", "yield", "reload"].includes(tactic?.mode)) {
+    unit.rangedRecovery = { startedAtMs: timeMs, position: unit.position, phase: "retreat" };
+  }
+  if (unit.rangedRecovery && (tactic?.mode === "reload" || rangedRecoveryCommitted(unit, timeMs))) {
+    unit.rangedRecovery.phase = "reload-and-fire";
+  }
+}
 const ready = unit => unit.alive && unit.spawned && unit.landed && !unit.airborne && unit.surface !== "deck";
 const ranged = unit => unit.stats.attackType !== "melee";
 
@@ -85,7 +110,15 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
       return distance > 0 && ((enemy.position-unit.position)*unit.chargeDirectionX +
         (enemy.lane-unit.lane)*PORT_ASSAULT_LANE_SPACING*unit.chargeDirectionY)/distance > .65;
     }) : [];
-  const target = nearest(unit, chargeTargets) || nearest(unit, enemies);
+  const advancingTarget = !ranged(unit) && !unit.stats.mounted
+    ? enemies.find(enemy => enemy.id === unit.meleeAdvanceTargetId && ready(enemy) &&
+      portAssaultGroundDistance(unit, enemy) <= LOCAL_RADIUS * 1.5) : null;
+  const nearestTarget = nearest(unit, enemies);
+  // Commitment is an order to close, not permission to ignore an enemy body
+  // now within weapon reach while pursuing someone behind it.
+  const contactTarget = !ranged(unit) && !unit.stats.mounted && nearestTarget &&
+    portAssaultGroundDistance(unit, nearestTarget) <= unit.stats.range ? nearestTarget : null;
+  const target = contactTarget || advancingTarget || nearest(unit, chargeTargets) || nearestTarget;
   if (unit.surface === "deck") {
     if (unit.side !== "attacker") throw new Error(`Defender boarded player ship: ${unit.id}`);
     if (unit.firearmReload !== null) return move("reload", unit.position, unit.lane);
@@ -107,7 +140,7 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
     return move("clear-quay", .38, unit.deploymentLane);
   }
   if (!ranged(unit) || unit.stats.mounted) {
-    if (!unit.stats.mounted && distance > unit.stats.range) {
+    if (!unit.stats.mounted && !advancingTarget && distance > unit.stats.range) {
       const localScreen = rangedAllies.filter(ally => portAssaultGroundDistance(unit, ally) <= LOCAL_RADIUS);
       const screen = localScreen.filter(ready);
       const fallenScreen = localScreen.filter(ally => !ally.alive && ally.spawned);
@@ -143,18 +176,20 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
   const reloading = unit.stats.attackType === "firearm"
     ? unit.firearmReload !== null : timeMs < unit.nextPrimaryAttackAtMs;
   const rearDirection = unit.side === "attacker" ? -1 : 1;
+  const committed = rangedRecoveryCommitted(unit, timeMs);
+  if (committed && reloading) return move("reload", unit.position, unit.lane);
   const withdrawing = withdrawingComradeInPath(unit, friends, timeMs);
-  if (!threatened && withdrawing) {
+  if (!committed && !threatened && withdrawing) {
     return yieldToWithdrawingComrade(unit, withdrawing, allies, enemies);
   }
-  if (threatened) {
+  if (!committed && threatened) {
     if (unit.side === "attacker" && unit.position <= .055) return { mode: "board" };
     // Retreat from immediate danger without needing to select a protector.
-    const retreat = move("withdraw", unit.position + rearDirection * SCREEN_GAP, unit.lane);
+    const retreat = move("withdraw", (unit.rangedRecovery?.position ?? unit.position) + rearDirection * SCREEN_GAP, unit.lane);
     // At the field edge there is no room to withdraw behind another rank.
     // Stand and defend instead of endlessly trying to retreat into the wall.
-    if (unit.side === "attacker" || Math.abs(retreat.destination.position - unit.position) >= SCREEN_GAP * .9) return retreat;
-  } else if (reloading && unit.lastRangedAttackPosition !== null && unit.stats.attackType === "firearm") {
+    if (unit.side === "attacker" || retreat.destination.position < 1 || 1 - unit.position >= SCREEN_GAP * .9) return retreat;
+  } else if (!committed && reloading && unit.lastRangedAttackPosition !== null && unit.stats.attackType === "firearm") {
     // Reload behind the firing position, not an additional step back every tick.
     // Never advance during this retreat if an enemy already drove us farther back.
     const coverPosition = unit.lastRangedAttackPosition + rearDirection * SCREEN_GAP;
@@ -163,13 +198,12 @@ export function portAssaultTacticalDecision(unit, allies, opponents, timeMs, ran
       (destination === (rearDirection > 0 ? 1 : 0) && Math.abs(destination - unit.position) < SCREEN_GAP);
     const protectedByComrade = screen.some(ally =>
       (ally.position - unit.position) * -rearDirection >= portAssaultBodyRadius(unit) + portAssaultBodyRadius(ally));
-    // Personal-space preferences cannot postpone loading indefinitely. The
-    // retreat-corridor check above still makes a covered gunner yield.
+    // Once reloading starts, later movement requests cannot interrupt it.
     if (reachedCover || protectedByComrade) return move("reload", unit.position, unit.lane);
     return move("seek-cover", destination, unit.lane);
   }
   // A skirmisher pressed against the rear boundary must still defend itself.
-  if (threatened && distance <= unit.stats.meleeFallback.range) return { mode: "fight", target };
+  if (!committed && threatened && distance <= unit.stats.meleeFallback.range) return { mode: "fight", target };
   const clearTarget = nearest(unit, enemies.filter(enemy => ready(enemy) &&
     portAssaultGroundDistance(unit, enemy) <= unit.stats.range && portAssaultShotIsClear(unit, enemy, allies)));
   if (clearTarget && !reloading) return { mode: "fire", target: clearTarget };

@@ -20,20 +20,39 @@ try {
     window.boardingScene=await createCitySceneRuntime({canvas:document.querySelector('canvas'),assetBaseUrl:'/city-visualizer/assets',
       initialCityId:'london|united kingdom',initialShipSlug:'galleon',externalFrameClock:true,onDestination:()=>{throw new Error('Unexpected navigation in boarding smoke');}});
     const c=(id,type,stars)=>({id,appearanceId:type==='cavalier'?'cavalier-covered':type+'-light',crewTypeId:type,combatProfileId:type,experienceStars:stars,auxiliary:false});
-    window.boardingBattles=[8,20].map(count=>battle.simulatePortAssault(battle.createPortAssaultScenario({cityId:'london|united kingdom',
-      attackers:Array.from({length:15},(_,i)=>c('a'+i,'gunner',1)),defenders:Array.from({length:count},(_,i)=>c('d'+i,'swordsman',3)),
-      shipHitPoints:80,shipMaxHitPoints:100,dockKind:'wood',fortified:false}),42));
+    window.boardingBattles=[{count:14,seed:19},{count:20,seed:42}].map(({count,seed})=>battle.simulatePortAssault(battle.createPortAssaultScenario({cityId:'london|united kingdom',
+      attackers:Array.from({length:15},(_,i)=>c('a'+i,'gunner',1)),defenders:Array.from({length:count},(_,i)=>c('d'+i,'shieldman',3)),
+      attackerModifiers:{meleeDamageMultiplier:1,arrowDamageMultiplier:1,firearmDamageMultiplier:1,
+        defenseMultiplier:3,armorCoverageBonus:.5},
+      shipHitPoints:80,shipMaxHitPoints:100,dockKind:'wood',fortified:false}),seed));
   });
   await mkdir(`${appRoot}/.playtest/boarding`,{recursive:true});
-  for (const [name,battleIndex,offset] of [['deck-firing',0,-33000],['return-ashore',0,-15000],['sinking',1,2000],['afloat',1,7000]]) {
-    const result=await page.evaluate(({battleIndex,offset})=>{
+  for (const [name,battleIndex] of [['deck-firing',0],['return-ashore',0],['sinking',1],['afloat',1]]) {
+    const result=await page.evaluate(({battleIndex,name})=>{
       const battle=window.boardingBattles[battleIndex];
-      const elapsedMs=battle.durationMs+offset;
+      // Select the actual behavior being tested, rather than a timestamp that
+      // can silently become an unrelated scene when combat tactics change.
+      let elapsedMs;
+      if(name==='deck-firing') {
+        const shot=battle.events.find(event=>event.type==='attack'&&event.surface==='deck');
+        if(!shot) throw new Error('Boarding fixture never fired from the deck');
+        elapsedMs=shot.timeMs;
+      } else if(name==='return-ashore') {
+        const returning=Object.values(battle.tracks).flatMap(track=>track.filter((frame,index)=>
+          index>0&&track[index-1].surface==='deck'&&frame.surface==='shore'&&frame.transferFrom==='deck'));
+        if(returning.length===0) throw new Error('Boarding fixture never returned ashore');
+        elapsedMs=Math.min(...returning.map(frame=>frame.timeMs))+200;
+      } else {
+        if(battle.finalShipHitPoints!==0) throw new Error('Sinking fixture did not sink the ship');
+        const last=window.boardingBattleApi.portAssaultPresentationAt(battle,battle.durationMs);
+        if(!last.units.some(unit=>unit.alive&&unit.surface==='deck')) throw new Error('Sinking fixture has no live deck occupants');
+        elapsedMs=battle.durationMs+(name==='sinking'?2000:7000);
+      }
       const presentation=window.boardingBattleApi.portAssaultPresentationAt(battle,elapsedMs);
       window.boardingScene.setAssaultPresentation(presentation,{immediateCamera:true});
       window.boardingScene.render(elapsedMs);
       return {elapsedMs,deck:presentation.units.filter(u=>u.surface==='deck').length,hull:presentation.shipHitPoints};
-    },{battleIndex,offset});
+    },{battleIndex,name});
     await page.locator('canvas').screenshot({path:`${appRoot}/.playtest/boarding/${name}.png`});
     console.log(name,result);
   }

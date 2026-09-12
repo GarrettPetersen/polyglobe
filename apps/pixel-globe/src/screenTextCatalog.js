@@ -3133,6 +3133,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Seven Seas",
   "Several commissions are waiting. Choose one charge; your chart will mark the way.",
   "Several people look up as you enter.",
+  "Shabout",
   "Shah",
   "Shah {0}",
   "Shall I strike every market trade made during this visit from the ledger and restore your coin, cargo, and the merchant's stock?",

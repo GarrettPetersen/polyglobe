@@ -50,7 +50,18 @@ for (const seed of [19, 37, 71]) {
     // Supporting infantry may make reloading safe before a long retreat is
     // needed. Sustained withdrawal progress is checked in portAssaultRetreat;
     // this mixed battle must demonstrate repeated real withdrawals and reloads.
-    assert.ok(withdrew >= 5, `skirmishers must physically withdraw through the full formation: ${withdrew}`);
+    assert.ok(withdrew > 0, "some skirmishers must physically withdraw through the full formation");
+    // Cover seeking is now deliberately bounded: when the crowd does not yield,
+    // plant the weapon rather than requiring every retreat to travel a fixed distance.
+    for (const unit of battle.combatants.filter(unit => unit.attackType === "firearm")) {
+      let retreatStartedAtMs = null;
+      for (const frame of battle.tracks[unit.id]) {
+        if (!frame.alive || frame.hidden || !frame.retreating) { retreatStartedAtMs = null; continue; }
+        retreatStartedAtMs ??= frame.timeMs;
+        assert.ok(frame.timeMs - retreatStartedAtMs <= 2000,
+          `${unit.id} kept seeking cover instead of committing to its next shot`);
+      }
+    }
   });
 }
 

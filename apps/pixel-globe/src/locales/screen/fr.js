@@ -3133,6 +3133,7 @@ export default Object.freeze({
   "Seven Seas": "Sept mers",
   "Several commissions are waiting. Choose one charge; your chart will mark the way.": "Plusieurs commissions vous attendent. Choisissez une charge ; votre carte indiquera le chemin.",
   "Several people look up as you enter.": "Plusieurs personnes lèvent les yeux à votre entrée.",
+  "Shabout": "Shabout",
   "Shah": "Shah",
   "Shah {0}": "Shah {0}",
   "Shall I strike every market trade made during this visit from the ledger and restore your coin, cargo, and the merchant's stock?": "Dois-je rayer du registre toutes les transactions effectuées au cours de cette visite et restituer votre pièce, votre cargaison et le stock du marchand ?",

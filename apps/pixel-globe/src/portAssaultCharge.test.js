@@ -109,10 +109,14 @@ test("packed landings search past the crowd, and only attackers can be thrown on
 
 test("crowded charges remain valid across troop mixes, shores and seeds, including throws aboard",()=>{
   let throwsAboard=0;
+  // A larger landing force also exercises late arrivals still near the ship
+  // when cavalry breaks through; planted skirmishers no longer flee there en masse.
+  for (const [attackerCount, defenderCount, defenderExperience] of [[15,5,1], [40,20,3]])
   for (const dockKind of ["wood","stone","none"]) for (const seed of [1,7,19,37,71]) {
     const scenario=createPortAssaultScenario({cityId:"tunis|tunisia",dockKind,fortified:false,
-      attackers:Array.from({length:15},(_,i)=>soldier(`a${i}`,"gunner")),
-      defenders:Array.from({length:5},(_,i)=>soldier(`d${i}`,seed===1 ? "cavalier" : ["cavalier","horseman","horse-samurai"][i%3])),
+      attackers:Array.from({length:attackerCount},(_,i)=>soldier(`a${i}`,"gunner")),
+      defenders:Array.from({length:defenderCount},(_,i)=>soldier(`d${i}`,seed===1 || defenderCount===20
+        ? "cavalier" : ["cavalier","horseman","horse-samurai"][i%3],defenderExperience)),
       shipHitPoints:100,shipMaxHitPoints:100});
     const battle=simulatePortAssault(scenario,seed);
     for (const [id,track] of Object.entries(battle.tracks)) for (const frame of track) {

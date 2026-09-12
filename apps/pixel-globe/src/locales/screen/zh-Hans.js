@@ -3133,6 +3133,7 @@ export default Object.freeze({
   "Seven Seas": "七大洋",
   "Several commissions are waiting. Choose one charge; your chart will mark the way.": "几个委员会正在等待。选择一项费用；你的图表将为你指明道路。",
   "Several people look up as you enter.": "几个人在你进门时抬起头来。",
+  "Shabout": "沙布特鱼",
   "Shah": "沙阿",
   "Shah {0}": "沙阿{0}",
   "Shall I strike every market trade made during this visit from the ledger and restore your coin, cargo, and the merchant's stock?": "我要从账本中删除这次访问期间进行的所有市场交易并恢复您的硬币、货物和商人的库存吗？",

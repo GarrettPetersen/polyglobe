@@ -3133,6 +3133,7 @@ export default Object.freeze({
   "Seven Seas": "일곱 바다",
   "Several commissions are waiting. Choose one charge; your chart will mark the way.": "여러 커미션이 기다리고 있습니다. 하나의 요금을 선택하세요. 당신의 차트가 길을 표시할 것입니다.",
   "Several people look up as you enter.": "들어서자 몇 사람이 고개를 든다.",
+  "Shabout": "샤부트",
   "Shah": "샤",
   "Shah {0}": "샤 {0}",
   "Shall I strike every market trade made during this visit from the ledger and restore your coin, cargo, and the merchant's stock?": "이번 방문 동안 이루어진 모든 시장 거래를 원장에서 파기하고 귀하의 동전, 화물, 상인의 재고를 복원할까요?",

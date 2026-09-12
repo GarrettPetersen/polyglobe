@@ -2,7 +2,7 @@ import { portAssaultChargeMomentumAfterImpact, PORT_ASSAULT_CHARGE_ACCELERATION_
 import { portAssaultGroundLaneBounds } from "./portAssaultGround.js";
 import { portAssaultAttackTiming, portAssaultProjectileFlightMs } from "./portAssaultAttackTiming.js";
 import { portAssaultMoveInFormation } from "./portAssaultSteering.js";
-import { portAssaultTacticalDecision, portAssaultShotIsClear } from "./portAssaultTactics.js";
+import { portAssaultTacticalDecision, portAssaultShotIsClear, recordPortAssaultTacticalAction } from "./portAssaultTactics.js";
 import {
   PORT_ASSAULT_LANE_COUNT,
   PORT_ASSAULT_LANE_SPACING,
@@ -554,6 +554,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const allies = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackers : defenders;
       const tactic = portAssaultTacticalDecision(unit, allies, opponents, timeMs,
         unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackerSkirmishers : defenderSkirmishers);
+      recordPortAssaultTacticalAction(unit, tactic, timeMs);
       if (tactic?.mode === "board" || tactic?.mode === "disembark") {
         if (tactic.mode === "disembark" && !portAssaultPositionIsFree(unit, occupancy.nearby(unit))) continue;
         beginShipTransfer(unit, unit.surface, tactic.mode === "board" ? "deck" : "shore", timeMs, events);
@@ -561,9 +562,10 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       }
       // Yielding opens local passage without propagating a withdrawal through every rank.
       unit.retreating = ["withdraw", "seek-cover"].includes(tactic?.mode);
-      if (tactic?.mode === "reload" && unit.firearmReload !== null) {
-        // Only this stationary action advances a firearm reload. Retreats,
-        // hit reactions and melee interruptions leave the remaining work intact.
+      if (tactic?.mode === "reload") {
+        if (unit.stats.attackType !== "firearm") continue;
+        // Only this stationary action advances a firearm reload. Retreats
+        // and forced hit reactions leave the remaining work intact.
         unit.laneGoal = null;
         unit.facingRight = unit.side === PORT_ASSAULT_SIDE.ATTACKER;
         // Firing and ramming the next charge cannot occupy the same frames.
@@ -578,7 +580,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const target = tactic?.target || null;
       const targetDistance = target ? portAssaultGroundDistance(unit, target) : null;
       const attackProfile = target
-        ? unit.surface === "deck" ? unit.stats : portAssaultAttackProfileAtDistance(unit.stats, targetDistance)
+        ? unit.surface === "deck" || tactic.mode === "fire" ? unit.stats : portAssaultAttackProfileAtDistance(unit.stats, targetDistance)
         : null;
       if (target && unit.stats.mounted && unit.momentum >= PORT_ASSAULT_CHARGE_MIN_MOMENTUM &&
           targetDistance <= unit.stats.range &&
@@ -996,6 +998,8 @@ function createBattleUnits(combatants, side, modifiers, random, seed, dockKind) 
       spawnAtMs,
       nextPrimaryAttackAtMs: spawnAtMs + Math.floor(random() * stats.cooldownMs),
       lastRangedAttackPosition: null,
+      rangedRecovery: null,
+      meleeAdvanceTargetId: null,
       firearmReload: null,
       retreating: false,
       clearedQuay: side === PORT_ASSAULT_SIDE.DEFENDER,
@@ -1107,15 +1111,24 @@ function resolvePendingAttacks(pending, timeMs, random, events, occupancy, shipH
       // never fire through their back merely because the line was clear earlier.
       const distance = portAssaultGroundDistance(attacker, target);
       if (!target.alive || !target.landed || target.surface === "deck" || distance > attackProfile.range ||
-          (attacker.surface === "deck" ? attacker.stats : portAssaultAttackProfileAtDistance(attacker.stats, distance)) !== attackProfile ||
+          (attackProfile.attackType === "melee" &&
+            portAssaultAttackProfileAtDistance(attacker.stats, distance) !== attackProfile) ||
           (attackProfile.attackType !== "melee" &&
           !portAssaultShotIsClear(attacker, target, occupancy.nearby(attacker, target, attackProfile.range)))) {
-        if (attackProfile.attackType === "firearm") attacker.firearmReload = null;
+        if (attackProfile.attackType !== "melee") {
+          if (attackProfile.attackType === "firearm") attacker.firearmReload = null;
+          // Nothing was discharged: retain the loaded shot and retry once a
+          // target is clear, without charging another full cooldown.
+          attacker.nextPrimaryAttackAtMs = timeMs;
+        }
         attacker.actionUntilMs = timeMs;
         pending.splice(index, 1);
         continue;
       }
       strike.released = true;
+      // Moving into melee reach during the windup does not cancel a loaded
+      // shot. Only an actual released shot ends its reload/fire commitment.
+      if (attackProfile.attackType !== "melee") attacker.rangedRecovery = null;
       strike.event = { timeMs, type: "attack", unitId: attacker.id, targetId: target.id,
         attackType: attackProfile.attackType, surface: attacker.surface, deckSlot: attacker.deckSlot, position: attacker.position, lane: attacker.lane,
         facingRight: target.position === attacker.position ? attacker.facingRight : target.position > attacker.position,

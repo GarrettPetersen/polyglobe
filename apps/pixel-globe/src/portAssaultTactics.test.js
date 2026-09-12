@@ -1,14 +1,14 @@
 import { portAssaultMoveInFormation } from "./portAssaultSteering.js";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { portAssaultShotIsClear, portAssaultTacticalDecision } from "./portAssaultTactics.js";
+import { portAssaultShotIsClear, portAssaultTacticalDecision, recordPortAssaultTacticalAction } from "./portAssaultTactics.js";
 import { PortAssaultOccupancy, portAssaultPositionIsFree, PORT_ASSAULT_LANE_SPACING } from "./portAssaultFormation.js";
 import { portAssaultUnitStats } from "./portAssaultBattle.js";
 const unit = (id, type, position, lane = 1, side = "attacker") => {
   const stats = portAssaultUnitStats({ id, crewTypeId: type, combatProfileId: type,
     appearanceId: type, experienceStars: 1, auxiliary: false });
   return { id, side, position, lane, alive: true, spawned: true, landed: true, landedAtMs: 0,
-    lastRangedAttackPosition: null, firearmReload: null, hitPoints: stats.hitPoints,
+    lastRangedAttackPosition: null, firearmReload: null, rangedRecovery: null, meleeAdvanceTargetId: null, hitPoints: stats.hitPoints,
     stats, nextPrimaryAttackAtMs: 0 };
 };
 
@@ -126,7 +126,7 @@ test("reload cover is a fixed short retreat, not a destination that runs away ev
 });
 
 
-test("both firearm troops reload only after reaching cover, and leave it when threatened", () => {
+test("both firearm troops reach cover and commit to reloading when threatened again", () => {
   for (const type of ["gunner", "teppo-ashigaru"]) {
     const gun = unit("gun", type, .4);
     gun.lastRangedAttackPosition = .4;
@@ -135,9 +135,11 @@ test("both firearm troops reload only after reaching cover, and leave it when th
     assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 10000).mode, "seek-cover",
       "elapsed wall time must not load a moving gun");
     gun.position = .345;
-    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 10000).mode, "reload");
+    const reload = portAssaultTacticalDecision(gun, [gun], [enemy], 10000);
+    assert.equal(reload.mode, "reload");
+    recordPortAssaultTacticalAction(gun, reload, 10000);
     enemy.position = .4;
-    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 10000).mode, "withdraw");
+    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 10200).mode, "reload");
   }
 });
 
@@ -287,4 +289,74 @@ test("infantry filters forward past withdrawing gunners to meet cavalry on both 
     assert.ok((pike.position-.5)*forward > .01,"infantry advances to meet the cavalry");
     assert.ok((gun.position-.5)*forward < -.02,"gunner gets through to safety");
   }
+});
+
+
+test("a bounded retreat commits ranged troops through reload and their next shot under continuing pressure", () => {
+  for (const type of ["gunner", "teppo-ashigaru", "archer"]) for (const side of ["attacker", "defender"]) {
+    const forward = side === "attacker" ? 1 : -1;
+    const gun = unit("gun", type, .5, 1, side);
+    const enemy = unit("enemy", "swordsman", .5 + forward * .04, 1,
+      side === "attacker" ? "defender" : "attacker");
+    gun.lastRangedAttackPosition = .5;
+    gun.nextPrimaryAttackAtMs = 6000;
+    if (type !== "archer") gun.firearmReload = { durationMs: 4000, remainingMs: 4000 };
+    recordPortAssaultTacticalAction(gun, portAssaultTacticalDecision(gun, [gun], [enemy], 1000), 1000);
+    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 1200).mode, "withdraw");
+    // Even when a crowd prevents any progress, the soldier must stop looking for ideal cover.
+    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 3000).mode, "reload");
+    recordPortAssaultTacticalAction(gun, portAssaultTacticalDecision(gun, [gun], [enemy], 3000), 3000);
+    gun.firearmReload = null;
+    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 6500).mode, "fire");
+    const friend = { ...unit("friend", "gunner", .5 + forward * .02, 1, side), retreating: true };
+    assert.notEqual(portAssaultTacticalDecision(gun, [gun, friend], [enemy], 6500).mode, "fire",
+      "commitment does not authorize shooting through comrades");
+  }
+});
+
+test("infantry committed to protecting skirmishers keeps closing when the threat crosses the screening threshold", () => {
+  for (const side of ["attacker", "defender"]) {
+    const forward = side === "attacker" ? 1 : -1;
+    const pike = unit("pike", "spearman", .5, 1, side);
+    const gun = unit("gun", "gunner", .5 + forward * .07, 2, side);
+    const enemy = unit("enemy", "swordsman", .5 + forward * .15, 2,
+      side === "attacker" ? "defender" : "attacker");
+    assert.equal(portAssaultTacticalDecision(pike, [pike, gun], [enemy], 0).mode, "charge");
+    recordPortAssaultTacticalAction(pike, portAssaultTacticalDecision(pike, [pike, gun], [enemy], 0), 0);
+    enemy.position += forward * .04;
+    assert.equal(portAssaultTacticalDecision(pike, [pike, gun], [enemy], 200).mode, "charge");
+    enemy.alive = false;
+    const replacement = { ...enemy, id: "replacement", alive: true };
+    assert.equal(portAssaultTacticalDecision(pike, [pike, gun], [replacement], 400).mode, "support",
+      "a defeated target ends the commitment");
+  }
+});
+
+
+test("both sides finish a fixed retreat before planting their feet, without moving the destination", () => {
+  for (const side of ["attacker", "defender"]) {
+    const forward = side === "attacker" ? 1 : -1;
+    const gun = unit("gun", "gunner", .5, 1, side);
+    const enemy = unit("enemy", "swordsman", .5 + forward * .03, 1,
+      side === "attacker" ? "defender" : "attacker");
+    const first = portAssaultTacticalDecision(gun, [gun], [enemy], 2000);
+    recordPortAssaultTacticalAction(gun, first, 2000);
+    gun.position -= forward * .02;
+    const next = portAssaultTacticalDecision(gun, [gun], [enemy], 2200);
+    assert.equal(next.mode, "withdraw");
+    assert.equal(next.destination.position, first.destination.position);
+    gun.position = first.destination.position;
+    assert.equal(portAssaultTacticalDecision(gun, [gun], [enemy], 2400).mode, "fire");
+  }
+});
+
+
+test("committed infantry attacks an intervening enemy instead of getting stuck pursuing the old target", () => {
+  const sword = unit("sword", "swordsman", .5);
+  const oldTarget = unit("old-target", "gunner", .65, 1, "defender");
+  const blocker = unit("blocker", "swordsman", .52, 1, "defender");
+  sword.meleeAdvanceTargetId = oldTarget.id;
+  const decision = portAssaultTacticalDecision(sword, [sword], [oldTarget, blocker], 1000);
+  assert.equal(decision.mode, "charge");
+  assert.equal(decision.target.id, blocker.id);
 });

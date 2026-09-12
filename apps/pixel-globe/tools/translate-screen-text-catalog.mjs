@@ -124,6 +124,13 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  // Retain or transliterate the regional fish name instead of translating it
+  // as an unrelated word when the translation service lacks this species.
+  "Shabout": Object.freeze({
+    "zh-Hans": "沙布特鱼", "zh-Hant": "沙布特魚", ru: "Шабут",
+    ja: "シャブート", ko: "샤부트", es: "Shabout", "pt-BR": "Shabout",
+    de: "Shabout", fr: "Shabout", pl: "Shabout"
+  }),
   "Norse": Object.freeze({
     "zh-Hans": "北欧人", "zh-Hant": "北歐人", ja: "北欧人", ko: "노르드인"
   }),

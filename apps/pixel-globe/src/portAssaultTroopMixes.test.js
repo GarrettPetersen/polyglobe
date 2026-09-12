@@ -50,7 +50,9 @@ test("troop composition changes the fighting and mixed screens do not stall unti
     // Effective gunfire can decide a battle before melee is necessary.
     if (melee) assert.ok(shot.timeMs < melee.timeMs);
   }
-  assert.ok(firstMeleeMean(cavalry) < firstMeleeMean(mixed) / 2);
+  // Infantry now follows through on protecting its screen rather than repeatedly
+  // stopping. Cavalry must still close sooner, without relying on that old delay.
+  assert.ok(firstMeleeMean(cavalry) < firstMeleeMean(mixed));
   assert.ok(firstMeleeMean(swords) < firstMeleeMean(mixed));
   assert.ok(cavalryLosses(pikes) > cavalryLosses(cavalry), "spear-heavy infantry should resist cavalry better than a gun-heavy screen");
   for (const battle of guns) {

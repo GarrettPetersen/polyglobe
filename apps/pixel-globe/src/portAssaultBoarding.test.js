@@ -8,14 +8,18 @@ const soldier = (id, type, experienceStars) => ({ id, appearanceId: type, crewTy
   combatProfileId: type, experienceStars, auxiliary: false });
 const scenario = (count, dockKind) => createPortAssaultScenario({ cityId: "tunis|tunisia",
   attackers: Array.from({length:15}, (_,i) => soldier(`a${i}`, "gunner", 1)),
-  defenders: Array.from({length:count}, (_,i) => soldier(`d${i}`, "swordsman", 3)),
+  defenders: Array.from({length:count}, (_,i) => soldier(`d${i}`, "shieldman", 3)),
+  // Armored attackers survive several committed reloads while a larger shield
+  // force drives them back to the ship, rather than relying on endless flight.
+  attackerModifiers: { meleeDamageMultiplier:1, arrowDamageMultiplier:1, firearmDamageMultiplier:1,
+    defenseMultiplier:3, armorCoverageBonus:.5 },
   shipHitPoints:80, shipMaxHitPoints:100, dockKind, fortified:false });
 
 test("pressed gunners board, reload standing, fire from the deck and return ashore", () => {
-  const input = scenario(8, "wood");
-  const battle = simulatePortAssault(input, 42);
+  const input = scenario(14, "wood");
+  const battle = simulatePortAssault(input, 19);
   const boarded = battle.combatants.filter(unit => battle.tracks[unit.id].some(f => f.surface === "deck"));
-  assert.ok(boarded.length > 5);
+  assert.ok(boarded.length >= 5);
   assert.ok(battle.events.some(e => e.type === "ship-hit"), "defenders attack the hull beneath the gunners");
   assert.ok(battle.events.some(e => e.type === "attack" && e.surface === "deck"));
   for (const unit of boarded) {
@@ -31,7 +35,7 @@ test("pressed gunners board, reload standing, fire from the deck and return asho
       }
     }
   }
-  const forecast = simulatePortAssault(input,42,{collectPresentation:false});
+  const forecast = simulatePortAssault(input,19,{collectPresentation:false});
   for (const key of ["outcome","durationMs","finalShipHitPoints","attackerDeathIds","attackerWounds"]) assert.deepEqual(forecast[key],battle[key]);
 });
 

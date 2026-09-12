@@ -524,7 +524,10 @@ function assertAttackReach(battle) {
     if (event.type !== "attack") continue;
     attacks += 1;
     const distance = portAssaultGroundDistance(event, { position: event.targetPosition, lane: event.targetLane });
-    const attack = event.surface === "deck" ? statsById.get(event.unitId) : portAssaultAttackProfileAtDistance(statsById.get(event.unitId), distance);
+    const stats = statsById.get(event.unitId);
+    // A planted skirmisher may finish a loaded shot at close range. Melee
+    // fallback still uses its own reach and damage profile.
+    const attack = event.attackType === "melee" ? stats.meleeFallback ?? stats : stats;
     assert.equal(event.attackType, attack.attackType, `seed ${battle.seed}: wrong close-combat attack for ${event.unitId}`);
     assert.ok(distance <= attack.range, `seed ${battle.seed}: ${event.unitId} hit ${event.targetId} outside ${attack.range}`);
     assert.equal(typeof event.facingRight, "boolean");
@@ -670,7 +673,12 @@ test("a full Great Carrack can deploy its mixed crew and meets the garrison inla
   const first = attacks[0];
   assert.ok(Math.min(first.position, first.targetPosition) > .5,
     "the first clash must leave deployment space behind the landing force");
-  assert.ok(new Set(attacks.filter(event => event.unitId.startsWith("a")).map(event => event.unitId)).size > capacity / 2);
+  // A functioning front line can win before every reserve needs to attack.
+  // All troop types must participate, and the deployed army must finish the fight.
+  const fightingProfiles = new Set(attacks.filter(event => event.unitId.startsWith("a"))
+    .map(event => battle.combatants.find(unit => unit.id === event.unitId).combatProfileId));
+  assert.deepEqual([...fightingProfiles].sort(), [...profiles].sort());
+  assert.ok(!battle.events.some(event => event.type === "time-limit"), "the deployed army must not stall");
 });
 
 test("mixed formations skirmish, retreat between volleys, and enter melee sooner against cavalry", () => {
@@ -719,7 +727,7 @@ test("both firearm profiles stand still for a complete reload between shots", ()
         const reloads = frames.filter(frame => frame.animationId === "reload");
         assert.ok(reloads.length * 200 >= portAssaultUnitStats(combatant(id, type)).cooldownMs * .88,
           `${id} fired without completing its stationary reload`);
-        assert.ok(frames.some(frame => frame.animationId === "walk"), "soldiers seek cover before loading");
+
         cycles++;
       }
     }
@@ -727,26 +735,30 @@ test("both firearm profiles stand still for a complete reload between shots", ()
   }
 });
 
-test("threatened gunners pause reload progress while retreating and resume the unfinished animation", () => {
-  const troops = side => Array.from({ length: 6 }, (_, i) => combatant(`${side}${i}`, i % 2 ? "spearman" : "gunner"));
+test("gunners finish stationary reloads under melee pressure instead of returning to movement", () => {
+  const troops = side => Array.from({ length: 12 }, (_, i) => combatant(`${side}${i}`,
+    ["spearman", "gunner", "teppo-ashigaru"][i % 3]));
   const battle = simulatePortAssault(createPortAssaultScenario({ ...scenario(),
     dockKind: "stone", attackers: troops("a"), defenders: troops("d") }), 1);
-  let interruptions = 0;
-  for (const track of Object.values(battle.tracks)) {
-    for (let i = 0; i < track.length - 2; i++) {
+  let reloadFrames = 0;
+  const repeatShooters = new Set();
+  for (const [id, track] of Object.entries(battle.tracks)) {
+    for (let i = 0; i < track.length - 1; i++) {
       const before = track[i];
-      if (before.animationId !== "reload" || track[i + 1].animationId !== "walk") continue;
-      let next = i + 1;
-      while (next < track.length && track[next].animationId === "walk") next++;
-      const resumed = track[next];
-      if (resumed?.animationId !== "reload") continue;
-      assert.equal(resumed.timeMs - resumed.animationStartedAtMs,
-        before.timeMs - before.animationStartedAtMs + 200,
-        "moving time must neither complete the reload nor restart it from scratch");
-      interruptions++;
+      if (before.animationId !== "reload") continue;
+      reloadFrames++;
+      if (before.timeMs - before.animationStartedAtMs + 200 >= before.animationDurationMs) continue;
+      const side = battle.combatants.find(unit => unit.id === id).side;
+      if (!battle.combatants.some(unit => unit.side !== side && battle.tracks[unit.id][i + 1]?.alive)) continue;
+      assert.notEqual(track[i + 1].animationId, "walk", `${id} abandoned an unfinished reload`);
+      assert.equal(track[i + 1].retreating, false, `${id} resumed retreating before loading`);
+    }
+    if (battle.events.filter(e => e.type === "attack" && e.attackType === "firearm" && e.unitId === id).length >= 2) {
+      repeatShooters.add(id[0]);
     }
   }
-  assert.ok(interruptions > 0, "the battle must exercise a reload interrupted by retreat");
+  assert.ok(reloadFrames > 100, "exercise sustained reloads in a contested mixed formation");
+  assert.deepEqual([...repeatShooters].sort(), ["a", "d"], "both sides finish loading and fire again");
 });
 
 test("landing waves send cavalry, then skirmishers, then infantry across varied lanes", () => {
@@ -822,6 +834,24 @@ test("three gunners and five shieldmen counterattack while their firing line is 
   const battle = simulatePortAssault(input, 42);
   const counterattack = battle.events.find(event => ["attack", "ship-hit"].includes(event.type) && event.unitId.startsWith("shield-"));
   assert.ok(counterattack, "reserve shieldmen must join the battle");
-  assert.ok([0, 1, 2].every(index => !battle.tracks[`gun-${index}`].some(frame =>
-    frame.timeMs <= counterattack.timeMs && !frame.alive)), "relief begins before the guns are killed");
+  // Effective volleys can kill one gunner before relief reaches the enemy.
+  // The reserves must counterattack while most of their screen is still alive.
+  assert.ok([0, 1, 2].filter(index => !battle.tracks[`gun-${index}`].some(frame =>
+    frame.timeMs <= counterattack.timeMs && !frame.alive)).length >= 2,
+  "relief must not wait for the firing line to be destroyed");
+});
+
+
+test("a planted firearm completes its next shot even when the enemy reaches melee distance", () => {
+  for (const profile of ["gunner", "teppo-ashigaru"]) {
+    const gun = combatant("gun", profile);
+    const battle = simulatePortAssault(createPortAssaultScenario({ ...scenario(), dockKind: "stone", fortified: false,
+      attackers: [gun], defenders: [combatant("sword", "swordsman")] }), 1);
+    const shots = battle.events.filter(event => event.type === "attack" && event.unitId === gun.id && event.attackType === "firearm");
+    assert.ok(shots.length >= 2, `${profile}: finish loading and shoot again under pressure`);
+    const meleeRange = portAssaultUnitStats(gun).meleeFallback.range;
+    assert.ok(shots.some(event => portAssaultGroundDistance(event,
+      { position: event.targetPosition, lane: event.targetLane }) <= meleeRange),
+    `${profile}: a loaded shot must not be canceled just because its victim has closed in`);
+  }
 });
