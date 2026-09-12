@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadPlaywright, browserExecutablePath, startStaticServer } from "./reachability/browser-runtime.mjs";
+import { ITCH_BUNDLED_CATALOG_FILES } from "./itchPackageEntries.mjs";
 
 const archive = fileURLToPath(new URL("../build/marque-and-reprisal-demo-itch.zip", import.meta.url));
 const rootDirectory = await mkdtemp(join(tmpdir(), "marque-itch-startup-"));
@@ -12,6 +14,10 @@ let server;
 let browser;
 try {
   execFileSync("unzip", ["-q", archive, "-d", rootDirectory]);
+  for (const catalogPath of ITCH_BUNDLED_CATALOG_FILES) {
+    assert.equal(existsSync(join(rootDirectory, catalogPath)), false,
+      `Itch must start from bundled catalog data, not a loose copy: ${catalogPath}`);
+  }
   const mountPath = "/html/test-build/";
   server = await startStaticServer({ rootDirectory, mountPath });
   const origin = `http://127.0.0.1:${server.address().port}`;

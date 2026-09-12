@@ -1,3 +1,12 @@
+// cityCatalogBundlePlugin embeds these immutable release inputs in the runtime
+// modules. Shipping their loose copies wastes itch's limited archive entries.
+export const ITCH_BUNDLED_CATALOG_FILES = Object.freeze([
+  "assets/data/land-roads.json",
+  "assets/data/port-sailing-distances.json",
+  "city-visualizer/data/cities.json",
+  "shared/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"
+]);
+
 // Butler reconstructs ZIP directory entries, and itch counts those against its
 // HTML upload limit even when the original archive listed only regular files.
 export function itchArchiveEntryCount(paths) {

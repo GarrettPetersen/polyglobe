@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { combinedItchCredits, itchArchiveEntryCount } from "./itchPackageEntries.mjs";
+import { ITCH_BUNDLED_CATALOG_FILES, combinedItchCredits, itchArchiveEntryCount } from "./itchPackageEntries.mjs";
 
 const appRoot = process.cwd();
 const distRoot = path.join(appRoot, "dist-demo");
@@ -19,6 +19,7 @@ const ITCH_LIMITS = Object.freeze({
   maxSingleFileBytes: 200 * 1024 * 1024
 });
 const ITCH_EXCLUDED_FILES = new Set([
+  ...ITCH_BUNDLED_CATALOG_FILES,
   "_headers",
   "city-visualizer/bootstrap.js",
   "city-visualizer/index.html",
