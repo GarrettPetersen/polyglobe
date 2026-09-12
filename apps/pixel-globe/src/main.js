@@ -2257,6 +2257,7 @@ import {
   activeTravelMissionQuest,
   markPassengerOfferSeen,
   passengerOfferForCity,
+  envoyOfferForCapital,
   passengerQuestById,
   pendingPassengerOffersForCity,
   travelMissionOffersForCity
@@ -17561,6 +17562,7 @@ async function runBrowserJourneyCommand(command) {
     throw new Error("Browser journey requires an active voyage on the local test host");
   }
   if (!command || typeof command.type !== "string") throw new Error("Journey command requires a type");
+  let boundaryEvidence = null;
   const offered = () => dialogueState ? currentDialogueView().options : [];
   if (command.type === "choose") {
     const options = offered();
@@ -17678,6 +17680,34 @@ async function runBrowserJourneyCommand(command) {
     else if (captainMenu.isOpen) closeCaptainMenu();
     else if (portWaitState) stopWaitingInPort();
     else throw new Error("Journey has no supported menu to close");
+  } else if (command.type === "prepare-delegation") {
+    if (!Number.isInteger(command.count) || command.count < 2 || command.count > 4) {
+      throw new Error("Soak delegation requires two to four people");
+    }
+    let quest = gameState.memory.quests.envoyActive;
+    if (!quest) {
+      const ports = playerAccessiblePortCities();
+      for (const origin of ports.filter(city => city.isFactionCapital)) {
+        const offer = envoyOfferForCapital(gameState, origin, ports, {
+          ...travelMissionOfferContext(createPassengerCharacterForQuest),
+          envoySpawnChance: 1, envoyKind: "friendly-envoy"
+        });
+        if (!offer || !isEnvoyQuest(offer)) continue;
+        // A setup seam for a delegation like the two-person Madrid mission.
+        // Acceptance, roster presentation and persistence remain real gameplay.
+        offer.envoyCount = command.count;
+        acceptQuest(gameState, offer);
+        quest = gameState.memory.quests.envoyActive;
+        break;
+      }
+    }
+    if (!quest) throw new Error("Soak could not obtain an envoy commission");
+    quest.envoyCount = command.count;
+    boundaryEvidence = { questId: quest.id, expectedEnvoys: command.count };
+  } else if (command.type === "audit-npc-boundaries") {
+    boundaryEvidence = auditBrowserNpcLocationBoundaries();
+  } else if (command.type === "audit-collision-boundary") {
+    boundaryEvidence = await auditBrowserNpcCollisionBoundary();
   } else if (command.type === "inspect-crew") {
     window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectCrew();
   } else if (command.type === "politics") {
@@ -17700,6 +17730,13 @@ async function runBrowserJourneyCommand(command) {
       tileId: ship.tileId, approachingPort: browserJourneyRoute.approachingPort === true,
       nearbyTiles: browserJourneyRoute.tiles.slice(Math.max(0, browserJourneyRoute.index - 2), browserJourneyRoute.index + 3),
       lastTile: browserJourneyRoute.tiles.at(-1) } : null,
+    boundaryEvidence,
+    aboard: (() => {
+      const roster = currentAboardRoster();
+      return { count: roster.count, people: [...roster.named, ...roster.generic].map(entry => ({
+        id: entry.id, role: entry.role, name: entry.character?.name || entry.travelerPerson?.name || entry.crewMember?.name
+      })) };
+    })(),
     gameState: structuredClone(gameState), playerShip: snapshotPlayerShip(), minute: weatherClockMinutes,
     nodeId: dialogueState?.nodeId || dialogueState?.kind || null, cityId: dialogueState?.cityId || null,
     menu: aboardMenu.isOpen || politicsMenu.isOpen || captainMenu.isOpen || Boolean(portWaitState),
@@ -17715,6 +17752,81 @@ async function runBrowserJourneyCommand(command) {
       distancePx: vectorArcDistance(ship.position, tileCenterVector(city.tileId)) * PIXELS_PER_RADIAN })),
     serialized: command.type === "save" ? gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) : null
   };
+}
+
+function auditBrowserNpcLocationBoundaries() {
+  const target = npcSeaRoutes.ships.find(npc => {
+    if (npc.hitPoints <= 0 || !npc.plan || npc.hiddenAtHideout) return false;
+    const location = npcShipLocation(npcSeaRoutes, npc.id, weatherClockMinutes);
+    return location?.kind === "sailing" || location?.kind === "visible";
+  });
+  if (!target) throw new Error("Soak has no living routed NPC to inspect");
+  const saved = { plan: target.plan, visualNavigation: target.visualNavigation,
+    hiddenAtHideout: target.hiddenAtHideout, hitPoints: target.hitPoints, currentPort: target.currentPort };
+  const minute = weatherClockMinutes + target.clockOffsetMinutes;
+  const cases = [];
+  try {
+    // These temporary boundary fixtures exercise actual browser consumers without
+    // replacing the continuing voyage or waiting for rare random fleet states.
+    for (const kind of ["sailing", "waiting", "hidden", "sunk"]) {
+      Object.assign(target, saved);
+      if (kind !== "sailing") {
+        target.visualNavigation = null;
+        target.plan = { origin: target.currentPort, destination: target.currentPort,
+          startMinute: minute, endMinute: minute + 1440,
+          segments: [{ kind: "wait", startMinute: minute, endMinute: minute + 1440 }] };
+      }
+      if (kind === "hidden") { target.hiddenAtHideout = true; target.plan = null; }
+      if (kind === "sunk") target.hitPoints = 0;
+      const location = npcShipLocation(npcSeaRoutes, target.id, weatherClockMinutes);
+      const sighting = npcShipSightingPosition(npcSeaRoutes, target.id, weatherClockMinutes);
+      if ((kind === "sunk") !== (location === null) ||
+          (kind === "waiting" && location?.kind !== "waiting") ||
+          (kind === "hidden" && location?.kind !== "hidden") ||
+          (["hidden", "sunk"].includes(kind)) !== (sighting === null)) {
+        throw new Error(`Soak NPC visibility mismatch: ${target.id}/${kind}`);
+      }
+      drawQuestShipArrow({ id: target.id }, { idPrefix: "soak", label: "Target", nowMs: lastFrameMs });
+      cases.push(kind);
+    }
+    if (npcShipLocation(npcSeaRoutes, "soak-absent-target", weatherClockMinutes) !== null) {
+      throw new Error("Missing NPC acquired a fabricated location");
+    }
+    cases.push("absent");
+  } finally { Object.assign(target, saved); }
+  return { targetId: target.id, cases };
+}
+
+async function auditBrowserNpcCollisionBoundary() {
+  let state = [...npcVisualShips.values()].find(npc => npc.hitPoints > 0 && !npc.combatGrace);
+  if (!state) {
+    const snapshot = npcVisualSnapshotCache.refresh(npcSeaRoutes, weatherClockMinutes)
+      .find(entry => !entry.hidden && entry.hitPoints > 0 && !entry.combatGrace);
+    if (!snapshot) throw new Error("Soak requires a living NPC collision participant");
+    await requestShipVisualAssets(snapshot.slug);
+    state = createNpcVisualState(snapshot, { x: localLayout.viewX + 12, y: localLayout.viewY });
+    if (!state) throw new Error("Soak could not stage its collision participant near the ship");
+    setNpcVisualShipState(state.id, state);
+  }
+  const land = chart.tileCalls.find(call => !shipNavigabilityAtLocalPoint(
+    call.drawSurfaceX, call.drawSurfaceY, call.id, tileCenterVector(call.id)).ok);
+  if (!land) throw new Error("Soak requires a shoreline to invalidate drawn navigation");
+  const id = state.id;
+  // Simulate a newly settled chart moving the drawn shoreline under an NPC
+  // whose movement bucket has not yet run. The collision pass runs first.
+  state.x = land.drawSurfaceX;
+  state.y = land.drawSurfaceY;
+  state.tileId = land.id;
+  state.vector = tileCenterVector(land.id);
+  const ready = prepareCombatCollisionParticipants(new Set([id]));
+  if (ready.has(id)) {
+    const body = combatCollisionBody(id);
+    if (!body || !shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector).ok) {
+      throw new Error("Collision admitted an NPC outside drawn navigation");
+    }
+    applyNpcCollisionCorrection(id, 1, 0);
+  } else if (npcVisualShips.has(id)) throw new Error("Unplaceable NPC retained its collision body");
+  return { targetId: id, recovered: ready.has(id), released: !npcVisualShips.has(id) };
 }
 
 async function waitForSaveRestoreSmokePersistence() {

@@ -209,3 +209,40 @@ test("arrival equipment pitches have an explicit enabled decline independent of 
   }), /Checklist exhausted 2 actions/);
   assert.deepEqual(clicks, [{ type: "choose", id: "decline" }, { type: "choose", id: "decline" }]);
 });
+
+
+test("delegation coverage requires named people and preserved identities after reload", async () => {
+  for (const corrupt of [false, true]) {
+    let state = { gameState: { voyageSeed: "retained" }, minute: 1, options: [], locations: [], ports: [] };
+    const commands = [];
+    const exercise = () => runBrowserChecklist({ initialState: state, goals: ["delegation-manifest"], random: () => 0,
+      checkpoint() {}, command: async input => {
+        commands.push(input.type);
+        if (input.type === "prepare-delegation") state = { ...state, boundaryEvidence: { questId: "envoy" },
+          aboard: { people: Array.from({ length: input.count }, (_, index) => ({ id: `envoy-${index}`, name: `Person ${index}`, role: "emissary" })) } };
+        if (input.type === "reload" && corrupt) state.aboard.people.pop();
+        return structuredClone(state);
+      } });
+    if (corrupt) await assert.rejects(exercise, /Delegation disappeared/);
+    else {
+      const report = await exercise();
+      assert.deepEqual(report.completed, ["delegation-manifest"]);
+      assert.ok(commands.includes("reload") && commands.filter(type => type === "inspect-crew").length === 2);
+    }
+  }
+});
+
+test("NPC lifecycle coverage cannot pass without every visibility case and collision admission", async () => {
+  for (const missing of [false, true]) {
+    let state = { gameState: { voyageSeed: "retained" }, minute: 1, options: [], locations: [], ports: [] };
+    const exercise = () => runBrowserChecklist({ initialState: state, goals: ["npc-lifecycle"], random: () => 0,
+      checkpoint() {}, command: async input => {
+        if (input.type === "audit-npc-boundaries") state = { ...state, boundaryEvidence: {
+          cases: missing ? ["sailing"] : ["sailing", "waiting", "hidden", "sunk", "absent"] } };
+        if (input.type === "audit-collision-boundary") state = { ...state, boundaryEvidence: { recovered: true, released: false } };
+        return structuredClone(state);
+      } });
+    if (missing) await assert.rejects(exercise);
+    else assert.deepEqual((await exercise()).completed, ["npc-lifecycle"]);
+  }
+});

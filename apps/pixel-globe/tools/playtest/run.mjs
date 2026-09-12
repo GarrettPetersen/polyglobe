@@ -61,6 +61,17 @@ function main() {
     console.log("Replay completed without the recorded failure.");
   } else {
     do {
+      if (args.get("browser") === "true") {
+        console.log("Running browser NPC lifecycle, collision and delegation boundaries");
+        const boundaryOutput = resolve(output, "browser-boundaries");
+        const boundaryLog = execFileSync(process.execPath,
+          ["tools/playtest/browser.mjs", "--checklist=telemetry", `--seed=${seed}`, `--output=${boundaryOutput}`],
+          { cwd: root, timeout: SOAK_BROWSER_LANE_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024,
+            stdio: ["ignore", "pipe", "pipe"] });
+        writeFileSync(resolve(output, "browser-boundaries.log"), boundaryLog);
+        report.browserBoundaries = JSON.parse(readFileSync(resolve(boundaryOutput, "report.json"), "utf8")).checklist;
+        saveReport();
+      }
       for (const startCityId of portJourneyStarts) {
         console.log(`Journey seed=${seed} start=${startCityId} steps=${steps}`);
         const initial = checkpoints.get(startCityId);

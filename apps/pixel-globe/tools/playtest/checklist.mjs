@@ -3,7 +3,7 @@ import { tradeGoodById } from "../../src/economy.js";
 
 export const CHECKLIST_GOALS = Object.freeze([
   "buy-cargo", "sell-cargo", "recruit", "inspect-crew", "equipment", "shipyard",
-  "inn", "mission", "politics", "reload", "sail-and-dock", "teleport-and-dock", "destroyed-port"
+  "inn", "mission", "politics", "reload", "sail-and-dock", "teleport-and-dock", "destroyed-port", "delegation-manifest", "npc-lifecycle"
 ]);
 export function shuffledChecklist(random, selectedGoals = CHECKLIST_GOALS) {
   assert.ok(selectedGoals.length > 0 && new Set(selectedGoals).size === selectedGoals.length &&
@@ -201,6 +201,32 @@ export async function runBrowserChecklist({ command, initialState, random, check
       evidence.postCaptureScene = state.scene;
       // Keep later randomly ordered service objectives out of this closed port.
       await arrive(returnCityId, true);
+    } else if (goal === "delegation-manifest") {
+      await leave();
+      const count = 2 + Math.floor(random() * 3);
+      await act({ type: "prepare-delegation", count });
+      evidence.questId = state.boundaryEvidence.questId;
+      evidence.envoys = count;
+      const inspect = async () => {
+        await act({ type: "inspect-crew" });
+        const people = state.aboard.people.filter(person => person.role === "emissary");
+        assert.equal(people.length, count, "Delegation disappeared from the individual manifest");
+        assert.ok(people.every(person => person.id && person.name));
+        assert.equal(new Set(people.map(person => person.id)).size, count);
+        return people;
+      };
+      const people = await inspect();
+      await act({ type: "save" }); await act({ type: "reload" });
+      assert.deepEqual(await inspect(), people, "Delegation identities changed on reload");
+      evidence.people = people;
+    } else if (goal === "npc-lifecycle") {
+      await leave();
+      await act({ type: "audit-npc-boundaries" });
+      evidence.locations = state.boundaryEvidence;
+      assert.deepEqual(evidence.locations.cases, ["sailing", "waiting", "hidden", "sunk", "absent"]);
+      await act({ type: "audit-collision-boundary" });
+      evidence.collision = state.boundaryEvidence;
+      assert.ok(evidence.collision.recovered || evidence.collision.released);
     } else if (goal === "reload") {
       await act({ type: "save" }); await act({ type: "reload" });
     } else if (goal === "inspect-crew" || goal === "politics") {

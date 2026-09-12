@@ -307,3 +307,32 @@ messages and save/restore boundaries alongside politics and shipyard activity.
 For a short browser check after building:
 `PIXEL_GLOBE_SMOKE_FOCUS=pirate-havens node tools/run-save-restore-smoke.mjs`.
 All browser tests use disposable storage; they do not overwrite a player's save.
+
+
+## NPC lifecycle and delegation release coverage
+
+Every browser soak cycle first runs a mandatory boundary checklist, then repeats
+those goals among the randomly ordered continuing-voyage objectives. Its report
+must contain all five NPC states (sailing, waiting, hidden, sunk, absent), an NPC
+collision admission after a shoreline invalidates its local position, and a
+2–4-person envoy delegation inspected before and after actual page reload.
+Every browser action also builds the individual aboard manifest. These checks
+use production location resolvers, quest arrows, collision admission, mission
+acceptance, crew presentation and save restoration. Rare states are deliberately
+staged through local diagnostic commands; they are not evidence of autonomous
+quest discovery or naturally occurring shoreline changes. Temporary NPC location
+fixtures are restored after each matrix; the accepted delegation remains in the
+continuing voyage. The full checklist subsequently mixes it with trading,
+docking, politics and ordinary missions.
+
+Run just this browser coverage with:
+
+```sh
+npm run build
+node tools/playtest/browser.mjs --checklist=telemetry --seed=71
+```
+
+The telemetry regression lane also exercises the actual rumor callers for
+hidden/waiting treasure pirates, missing targets, and pirate-hunt sightings; a
+hidden target must not consume its rumor cooldown. All browser profiles and saves
+are disposable and separate from the player's local save.
