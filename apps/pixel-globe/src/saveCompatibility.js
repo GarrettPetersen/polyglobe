@@ -2,6 +2,7 @@ import { factionById, migrateFactionIdTo1522 } from "./factions.js";
 import { migrateGameState } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { CAMPAIGN_GOAL_FAMILY_DEBT } from "./campaignGoals.js";
+import { repairSavedWhaleClock } from "./whaleSystem.js";
 
 export function migrateSavedVoyageCore(payload, {
   legacyCityIdForPortReference = null,
@@ -44,7 +45,11 @@ export function migrateSavedVoyageCore(payload, {
     throw new Error("Saved player navigation vectors are invalid");
   }
 
-  return { savedShip, shipStats, gameState };
+  // One candidate owns both its domain state and calendar. Callers must not
+  // prepare restored systems against the outgoing voyage or a raw stale clock.
+  const worldClock = recoverSavedVoyageWorldClock(payload, gameState);
+  const recoveredWhaleClockMinutes = repairSavedWhaleClock(gameState.memory.whales, worldClock.currentMinute);
+  return Object.freeze({ savedShip, shipStats, gameState, worldClock, recoveredWhaleClockMinutes });
 }
 
 export function savedVoyageWorldTopology(payload, currentSubdivisions) {
@@ -70,7 +75,8 @@ export function savedVoyageWorldTopology(payload, currentSubdivisions) {
 
 export function recoverSavedVoyageWorldClock(payload, gameState) {
   if (!payload?.worldClock || !Number.isFinite(payload.worldClock.currentMinute) ||
-      !Number.isFinite(payload.worldClock.voyageStartMinute)) {
+      !Number.isFinite(payload.worldClock.voyageStartMinute) ||
+      payload.worldClock.currentMinute < 0 || payload.worldClock.voyageStartMinute < 0) {
     throw new Error("Saved voyage world clock is invalid");
   }
   if (payload.worldClock.currentMinute < payload.worldClock.voyageStartMinute) {

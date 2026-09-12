@@ -118,6 +118,24 @@ test("settlement opening, repeated synchronization and closing keep access index
   assert.equal(market, true, "closing access preserves economic history");
 });
 
+test("archiving uses the prepared voyage calendar and hull together", () => {
+  const prepared = { gameState: {}, savedShip: { typeSlug: "galleon" },
+    worldClock: { currentMinute: 20, voyageStartMinute: 5 } };
+  let record;
+  const context = runtimeFunctions(["archiveSavedVoyageBeforeStartingOver"], {
+    localSaveResult: { status: "ready", save: { payload: {
+      playerShip: { typeSlug: "old" }, worldClock: { currentMinute: 10, voyageStartMinute: 0 }
+    } } },
+    migrateSavedVoyageCore: () => prepared, crewGenerationContextForHomePort() {},
+    createPastVoyageRecord: value => { record = value; return value; }, storePastVoyage: () => true
+  });
+  assert.equal(context.archiveSavedVoyageBeforeStartingOver(), true);
+  assert.equal(record.state, prepared.gameState);
+  assert.equal(record.playerShip, prepared.savedShip);
+  assert.equal(record.startMinute, 5);
+  assert.equal(record.endMinute, 20);
+});
+
 test("restore preparation failures leave the active domain state and clock untouched", async () => {
   const statements = declaration("restoreSavedVoyage").body.statements;
   const first = statements.findIndex(n => n.getText(source).startsWith("const candidateCatalog"));
@@ -130,6 +148,7 @@ test("restore preparation failures leave the active domain state and clock untou
     const context = {
       isCurrent: () => phase !== "superseded", gameState: active, weatherClockMinutes: 10, restoredGameState: { voyage: "candidate" },
       restoredWorldClock: { currentMinute: 100 }, savedShip: { typeSlug: "galleon" }, stats: {}, payload: {},
+      preparedVoyage: { gameState: { voyage: "candidate" }, worldClock: { currentMinute: 100 } },
       savedWorldTopology: {}, legacyCityIdForPortReference() {},
       prepareSavedVoyageCityCatalog: () => { failAt("catalog"); return {}; },
       loadShipAssetSet: async () => { failAt("assets"); return {}; }, characterExpression() {},
@@ -147,32 +166,37 @@ test("restore preparation failures leave the active domain state and clock untou
 
 test("restoring fleets does not charge their provisional constructor cargo to saved markets", () => {
   const oldEconomy = { stock: 999 };
+  const constructorMinutes = [];
   const state = { voyageSeed: "restore-test", memory: { shipyardInvestment: { backedPortCityIds: [] }, whales: {} },
     relations: { diplomacy: { suzerainties: {} }, foreignSettlementExpulsions: {}, tradeEmbargoes: {} } };
   const context = runtimeFunctions(["prepareSavedVoyageWorld"], {
     worldEconomy: oldEconomy, structuredClone, landRoadNetwork: {}, portSailingDistances: {},
     portSailingDistanceKm: () => 1, diplomacyBetweenForState: () => 0,
-    createWorldEconomy: () => ({ stock: 100, shipyards: {} }), connectNearbyPortMarkets() {},
+    createWorldEconomy: ({ startMinute }) => { constructorMinutes.push(startMinute); return { stock: 100, shipyards: {} }; }, connectNearbyPortMarkets() {},
     restoreWorldEconomy: (economy, snapshot) => { economy.stock = snapshot.stock; },
     snapshotWorldEconomy: economy => ({ stock: economy.stock }),
     restoreOrRecreateDerivedSaveState: ({ current, restore }) => { restore(current); return { value: current, error: null }; },
     recordDerivedSaveRecovery: (_recovered, _label, error) => { if (error) throw error; },
     reconcilePlayerShipyardInvestmentWorld: () => [], assertPlayerShipyardInvestmentWorldConsistency() {},
     syncJapaneseMatchlockIndustry() {}, syncCaribbeanGingerIndustry() {},
-    createLandTradeSystem: ({ economy }) => { economy.stock -= 7; return { economy, carts: [] }; },
+    createLandTradeSystem: ({ economy, startMinute }) => { constructorMinutes.push(startMinute); economy.stock -= 7; return { economy, carts: [] }; },
     restoreLandTradeSystem() {},
-    createNpcSeaRouteSystem: ({ economy }) => { economy.stock -= 11; return { economy, ships: [], replacementQueue: [] }; },
+    createNpcSeaRouteSystem: ({ economy, startMinute }) => { constructorMinutes.push(startMinute); economy.stock -= 11; return { economy, ships: [], replacementQueue: [] }; },
     restoreNpcSeaRouteSystem() {}, restoreShipyardSupplyShips() {}, npcFishingGroundIsNavigable() {}
   });
   const payload = { economy: { stock: 50, lastMinute: 10 }, worldClock: { currentMinute: 10 }, landTrade: {}, npcRoutes: {} };
-  const result = context.prepareSavedVoyageWorld(payload, state, { changed: false }, () => {}, { cities: new Map(), ports: [] });
+  const candidate = { gameState: state, worldClock: { currentMinute: 20 } };
+  const result = context.prepareSavedVoyageWorld(payload, candidate, { changed: false }, () => {}, { cities: new Map(), ports: [] });
+  assert.deepEqual(constructorMinutes, [10, 10, 10], "retained systems start at their saved checkpoint before catching up");
   assert.equal(result.worldEconomy.stock, 50, "restored fleets already own their cargo");
   assert.equal(result.landTradeSystem.economy, result.worldEconomy);
   assert.equal(result.npcSeaRoutes.economy, result.worldEconomy);
   assert.equal(context.worldEconomy, oldEconomy);
   assert.equal(oldEconomy.stock, 999);
-  const seeded = context.prepareSavedVoyageWorld({ worldClock: { currentMinute: 10 } }, state,
+  constructorMinutes.length = 0;
+  const seeded = context.prepareSavedVoyageWorld({ worldClock: { currentMinute: 10 } }, candidate,
     { changed: false }, () => {}, { cities: new Map(), ports: [] });
+  assert.deepEqual(constructorMinutes, [20, 20, 20], "new systems use the prepared voyage clock, never the raw stale clock");
   assert.equal(seeded.worldEconomy.stock, 82, "new derived fleets buy initial cargo exactly once");
 });
 

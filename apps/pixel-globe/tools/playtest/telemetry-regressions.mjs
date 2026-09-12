@@ -53,6 +53,7 @@ const files = [
   "tools/playtest/tea-race-route.test.mjs",
   "src/colonizationWorldBinding.test.js",
   "src/saveRestoreInterruption.test.js",
+  "src/saveCompatibility.test.js",
   "src/portQuestSceneReturn.test.js",
   "src/runtimeEntryLifecycle.test.js",
   "src/runtimeTransitions.test.js",

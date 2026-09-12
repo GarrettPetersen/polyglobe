@@ -69,6 +69,8 @@ for (const fixtureName of FIXTURE_FILES) {
       }
     });
     assert.deepEqual(payload, originalPayload);
+    assert.ok(Object.isFrozen(restored) && Object.isFrozen(restored.worldClock));
+    assert.deepEqual(restored.worldClock, recoverSavedVoyageWorldClock(payload, restored.gameState));
 
     assert.equal(restored.gameState.version, GAME_STATE_VERSION);
     if (fixtureName.startsWith("dense-local-save-")) {
@@ -95,8 +97,19 @@ for (const fixtureName of FIXTURE_FILES) {
     });
     assert.deepEqual(repeated.gameState, restored.gameState);
     assert.deepEqual(repeated.savedShip, restored.savedShip);
+    assert.deepEqual(repeated.worldClock, restored.worldClock);
   });
 }
+
+test("a saved voyage cannot be prepared without a valid calendar", () => {
+  const serialized = readFileSync(new URL(CURRENT_DENSE_FIXTURE, FIXTURE_DIRECTORY), "utf8");
+  const payload = readLocalSave({ storage: memoryStorage(serialized) }).save.payload;
+  for (const worldClock of [undefined, { currentMinute: -1, voyageStartMinute: 0 },
+    { currentMinute: 10, voyageStartMinute: -1 }, { currentMinute: 10, voyageStartMinute: 20 },
+    { currentMinute: NaN, voyageStartMinute: 0 }]) {
+    assert.throws(() => migrateSavedVoyageCore({ ...payload, worldClock }), /clock/i);
+  }
+});
 
 test("a debt checkpoint ahead of a stale saved clock advances the restored voyage", () => {
   const payload = {

@@ -959,7 +959,6 @@ import {
   killExhaustedWhale,
   livingWhaleCountForSpecies,
   reconcileWhalePresentationIds,
-  repairSavedWhaleClock,
   seedWhalePopulation,
   tetherWhale,
   underwaterWhaleSongPresence,
@@ -2076,7 +2075,6 @@ import {
 import { browserJourneyEnabled, saveRestoreSmokeEnabled } from "./saveRestoreSmoke.js";
 import {
   migrateSavedVoyageCore,
-  recoverSavedVoyageWorldClock,
   savedVoyageWorldTopology
 } from "./saveCompatibility.js";
 import {
@@ -16932,14 +16930,14 @@ function archiveSavedVoyageBeforeStartingOver() {
   const payload = localSaveResult.status === "ready" ? localSaveResult.save?.payload : null;
   if (!payload) return false;
   try {
-    const { gameState: savedState } = migrateSavedVoyageCore(payload, {
+    const { gameState: savedState, savedShip, worldClock } = migrateSavedVoyageCore(payload, {
       crewMigrationContextForHomePort: crewGenerationContextForHomePort
     });
     const record = createPastVoyageRecord({
       state: savedState,
-      playerShip: payload.playerShip,
-      startMinute: payload.worldClock.voyageStartMinute,
-      endMinute: payload.worldClock.currentMinute,
+      playerShip: savedShip,
+      startMinute: worldClock.voyageStartMinute,
+      endMinute: worldClock.currentMinute,
       outcome: "Voyage abandoned for a new expedition.",
       outcomeType: "quit"
     });
@@ -17959,14 +17957,17 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
     }
     return matches[0].cityId;
   };
-  const {
-    savedShip,
-    shipStats: stats,
-    gameState: restoredGameState
-  } = migrateSavedVoyageCore(payload, {
+  const preparedVoyage = migrateSavedVoyageCore(payload, {
     legacyCityIdForPortReference,
     crewMigrationContextForHomePort: crewGenerationContextForHomePort
   });
+  const {
+    savedShip,
+    shipStats: stats,
+    gameState: restoredGameState,
+    worldClock: restoredWorldClock,
+    recoveredWhaleClockMinutes
+  } = preparedVoyage;
   const restoredDemoVoyageScope = demoVoyageScopeForSavedGame({
     buildEditionId: BUILD_EDITION_ID,
     savedScope: payload.demoVoyageScope,
@@ -17975,7 +17976,6 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   const grandfatheredWorldwideDemo = BUILD_EDITION_ID === "demo" &&
     payload.demoVoyageScope === undefined &&
     restoredDemoVoyageScope !== DEMO_VOYAGE_SCOPE_MEDITERRANEAN;
-  const restoredWorldClock = recoverSavedVoyageWorldClock(payload, restoredGameState);
   if (restoredWorldClock.recoveredDebtClockMinutes > 0) {
     console.warn(
       "[pixel-globe] repaired saved world clock behind family debt ledger:",
@@ -17997,8 +17997,6 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
     currentMinute: restoredWorldClock.currentMinute,
     playerPosition: savedShip.position
   });
-  const recoveredWhaleClockMinutes = repairSavedWhaleClock(restoredGameState.memory.whales,
-    restoredWorldClock.currentMinute);
   if (recoveredWhaleClockMinutes > 0) {
     console.warn("[pixel-globe] repaired saved whale calendar ahead of voyage clock:", recoveredWhaleClockMinutes);
   }
@@ -18028,7 +18026,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   const assets = await loadShipAssetSet(savedShip.typeSlug);
   await ensureCharacterPortraitLoaded(restoredGameState.playerCharacter, characterExpression(restoredGameState.playerCharacter));
   if (!isCurrent()) throw new Error("Saved voyage preparation was superseded before activation");
-  const candidateWorld = prepareSavedVoyageWorld(payload, restoredGameState, savedWorldTopology,
+  const candidateWorld = prepareSavedVoyageWorld(payload, preparedVoyage, savedWorldTopology,
     legacyCityIdForPortReference, candidateCatalog);
   restoreNpcSurrenderContinuity(candidateWorld.npcSeaRoutes, payload.npcSurrenders);
   advanceShipyardTradeInSerialsPastFleet(candidateWorld.worldEconomy.shipyards, [
@@ -18298,7 +18296,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   return { recoveredDerivedSystems, grandfatheredWorldwideDemo };
 }
 
-function prepareSavedVoyageWorld(payload, state, topology, legacyCityIdForPortReference, cityCatalog) {
+function prepareSavedVoyageWorld(payload, { gameState: state, worldClock }, topology, legacyCityIdForPortReference, cityCatalog) {
   // These bindings belong exclusively to the candidate. Constructors and restore
   // functions may mutate them without touching the active voyage.
   const { cities: cityByTileId, ports: portCities } = cityCatalog;
@@ -18316,7 +18314,7 @@ function prepareSavedVoyageWorld(payload, state, topology, legacyCityIdForPortRe
     }
     const simulationMinute = Number.isFinite(payload.economy?.lastMinute)
       ? payload.economy.lastMinute
-      : payload.worldClock.currentMinute;
+      : worldClock.currentMinute;
     const seedKey = restoredGameState.voyageSeed;
     worldEconomy = createSavedVoyageEconomy(simulationMinute, seedKey);
 
