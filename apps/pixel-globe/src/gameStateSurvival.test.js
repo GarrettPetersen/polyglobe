@@ -1557,6 +1557,35 @@ test("shore scavenging fills available cask space and stows edible food", () => 
   assert.ok(cargoUsed(state) <= state.cargoCapacity);
 });
 
+test("shore water uses empty hold space after fishing replaces planned food", () => {
+  const stats = shipStatsForSlug("galleon");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.inventory.items["sturdy-barrels"] = 1;
+  state.cargoCapacity = stats.cargoCapacity + 3;
+
+  const combatPlan = shipLoadoutPlan(stats, "combat");
+  setTestCrewCount(state, combatPlan.crew);
+  state.ship.loadoutId = combatPlan.id;
+  state.ship.loadoutTargets = combatPlan;
+  state.ship.cannons = combatPlan.cannons;
+  state.survival.freshWaterCapacity = combatPlan.waterUnits;
+  state.survival.freshWater = 47.25;
+  state.cargo = { fish: 50 / 12, gold: 300 };
+  state.accounts.cargoCostBasis = { fish: 0, gold: 0 };
+  validateGameState(state);
+
+  assert.equal(Math.round(cargoHoldStatus(state).physicalUsed), 398);
+  assert.equal(Math.round(state.cargoCapacity), 423);
+  assert.equal(survivalStatus(state).freshWaterDays, 7);
+
+  assert.equal(refillFreshWaterFromShore(state), 20.75);
+  assert.equal(state.survival.freshWater, combatPlan.waterUnits);
+  assert.equal(Math.round(cargoHoldStatus(state).physicalUsed), 418);
+  assert.ok(cargoHoldStatus(state).physicalUsed < state.cargoCapacity);
+  validateGameState(state);
+});
+
 test("scavenged food uses physically empty hold space reserved for depleted water", () => {
   const stats = shipStatsForSlug("xebec");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });

@@ -3266,7 +3266,10 @@ export function fishCatchCargoCapacity(state) {
 export function refillFreshWaterFromShore(state) {
   assertGameState(state);
   const missing = Math.max(0, state.survival.freshWaterCapacity - state.survival.freshWater);
-  const filled = stowFreshWater(state, missing);
+  // Shore water is a found resource, so it can occupy any genuinely empty
+  // hold space. Loadout reservations protect future paid provisioning, but
+  // must not make a scavenged refill claim success while leaving the casks dry.
+  const filled = stowFreshWater(state, missing, { cargoSpacePolicy: "physical" });
   if (filled <= 0) return 0;
   recordDecision(state, "scavenge.water", Math.ceil(filled));
   return filled;
@@ -9827,19 +9830,25 @@ function provisionCargoFree(state, kind) {
   return Math.max(0, cargoFree(state) + reserved);
 }
 
-function stowFreshWater(state, requested) {
+function stowFreshWater(state, requested, { cargoSpacePolicy = "loadout-reserved" } = {}) {
   if (!Number.isFinite(requested) || requested < 0) {
     throw new Error(`Invalid fresh water storage request: ${requested}`);
+  }
+  if (cargoSpacePolicy !== "loadout-reserved" && cargoSpacePolicy !== "physical") {
+    throw new Error(`Unknown fresh water cargo space policy: ${cargoSpacePolicy}`);
   }
   if (requested <= 0) return 0;
   const current = state.survival.freshWater;
   const missing = Math.max(0, state.survival.freshWaterCapacity - current);
   if (missing <= 0) return 0;
+  const cargoSpace = cargoSpacePolicy === "physical"
+    ? cargoUnitsFromTicks(physicalCargoFreeTicks(state))
+    : provisionCargoFree(state, "water");
   const available = state.ship
     ? Math.max(
       0,
       freshWaterHoldUnits(current) - current +
-        wholeCargoUnitsAvailable(provisionCargoFree(state, "water"))
+        wholeCargoUnitsAvailable(cargoSpace)
     )
     : missing;
   const filled = Math.min(requested, missing, available);
