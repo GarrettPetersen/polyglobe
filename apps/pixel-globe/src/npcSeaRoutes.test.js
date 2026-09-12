@@ -55,6 +55,8 @@ import {
   npcShipHasCombatGrace,
   npcShipIdsAddedSinceSimulationSnapshot,
   npcShipSnapshotForId,
+  npcShipSightingPosition,
+  npcShipLocation,
   npcShipSnapshots,
   releaseNpcShipVisualNavigation,
   returnNpcWarLoanOffensiveShips,
@@ -4090,4 +4092,50 @@ test("shipyard supply offers do not take a workshop's already commissioned merch
   yard.upgrades.opportunities["supply-ship"].availableMinute = 0;
   assert.equal(updateShipyardSupplyOffers(routes,0),false);
   assert.equal(yard.upgrades.supplyCandidateShipId,null);
+});
+
+
+test("ship sightings cover waiting, sailing, visual, hidden, and sunk targets", () => {
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy: createWorldEconomy({ ports: PORTS, startMinute: 0 }), seedKey: "sighting-states" });
+  const ship = routes.ships[0];
+  ship.hiddenAtHideout = false;
+  ship.clockOffsetMinutes = 0;
+  ship.visualNavigation = null;
+  const origin = ship.currentPort;
+  ship.plan = { origin, destination: origin, startMinute: 0, endMinute: 100,
+    segments: [{ kind: "wait", from: origin, to: origin, startMinute: 0, endMinute: 100 }] };
+  assert.equal(npcShipSnapshotForId(routes, ship.id, 50), null);
+  const waiting = npcShipSightingPosition(routes, ship.id, 50);
+  assert.equal(waiting.length, 3);
+  assert.deepEqual(npcShipSightingPosition(routes, ship.id, 100), waiting);
+  ship.plan.segments[0].kind = "sail";
+  ship.plan.segments[0].to = PORTS.find(port => port.cityId !== origin.cityId);
+  assert.deepEqual(npcShipSightingPosition(routes, ship.id, 50), npcShipSnapshotForId(routes, ship.id, 50).routeVector);
+  ship.visualNavigation = { vector: [1, 0, 0], heading: [0, 1, 0] };
+  assert.deepEqual(npcShipSightingPosition(routes, ship.id, 50), [1, 0, 0]);
+  ship.hiddenAtHideout = true;
+  assert.equal(npcShipSightingPosition(routes, ship.id, 50), null);
+  assert.equal(npcShipLocation(routes, ship.id, 50).kind, "hidden");
+  assert.deepEqual(npcShipLocation(routes, ship.id, 50).position, waiting,
+    "a hidden pirate's port takes precedence over its stale visual navigation");
+  ship.plan = null;
+  assert.deepEqual(npcShipLocation(routes, ship.id, 50).position, waiting);
+  ship.plan = { origin, destination: origin, startMinute: 0, endMinute: 100,
+    segments: [{ kind: "wait", startMinute: 0, endMinute: 100 }] };
+  ship.hiddenAtHideout = false;
+  ship.visualNavigation = null;
+  ship.clockOffsetMinutes = 100;
+  const destination = PORTS.find(port => port.cityId !== origin.cityId);
+  ship.plan.destination = destination;
+  const arrived = npcShipLocation(routes, ship.id, 50);
+  assert.equal(arrived.kind, "waiting");
+  assert.notDeepEqual(arrived.position, waiting, "expired routes use their destination and the ship's clock offset");
+  ship.plan = null;
+  assert.throws(() => npcShipLocation(routes, ship.id, 50), /lacks a sailing or waiting plan/);
+  ship.hiddenAtHideout = true;
+  ship.currentPort = null;
+  assert.throws(() => npcShipLocation(routes, ship.id, 50), /lacks its waiting port/);
+  ship.hitPoints = 0;
+  assert.equal(npcShipSightingPosition(routes, ship.id, 50), null);
+  assert.equal(npcShipSightingPosition(routes, "absent", 50), null);
 });

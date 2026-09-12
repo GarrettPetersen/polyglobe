@@ -51,6 +51,7 @@ const LUTHERAN_RECEPTIVE_FACTIONS = new Set([
 const SOVEREIGN_FACTIONS = Object.freeze(FACTIONS.filter(({ id }) => (
   id !== NEUTRAL_FACTION_ID && id !== PIRATE_FACTION_ID
 )));
+const SOVEREIGN_FACTION_IDS = new Set(SOVEREIGN_FACTIONS.map(({ id }) => id));
 
 export function createSovereignAuthority({ startMinute = 0, seedKey = "authority" } = {}) {
   assertMinute(startMinute, "authority start");
@@ -619,7 +620,7 @@ function weightedChoice(candidates, roll) {
 
 function isSovereignFaction(factionId) {
   return typeof factionId === "string" && factionId !== NEUTRAL_FACTION_ID &&
-    factionId !== PIRATE_FACTION_ID && SOVEREIGN_FACTIONS.some(({ id }) => id === factionId);
+    factionId !== PIRATE_FACTION_ID && SOVEREIGN_FACTION_IDS.has(factionId);
 }
 
 function assertSovereignFaction(factionId) {

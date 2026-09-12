@@ -1,5 +1,6 @@
 import { captureCommissionTroopsAboard } from "./captureCommissionTroops.js";
 import {
+  TRAVELER_KIND_ENVOY,
   TRAVELER_KIND_SETTLER,
   TRAVELER_KIND_SOLDIER
 } from "./travelerKinds.js";
@@ -30,6 +31,21 @@ export function createColonistTravelerPeople({
     originCityId,
     appearances: appearanceIds,
     sexes,
+    identityForPerson,
+    combatRoles: null
+  });
+}
+
+export function createEnvoyCompanionPeople({ quest, appearanceIds, identityForPerson }) {
+  const count = (quest.envoyCount ?? 1) - 1;
+  requireCount(count, "envoy companion");
+  if (!quest.passenger?.id) throw new Error(`Envoy delegation lacks its lead envoy: ${quest.id}`);
+  return createTravelerPeople({
+    kind: TRAVELER_KIND_ENVOY,
+    expeditionId: quest.id,
+    originCityId: quest.originCityId,
+    appearances: appearanceIds,
+    sexes: Array(count).fill("male"),
     identityForPerson,
     combatRoles: null
   });

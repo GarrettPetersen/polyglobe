@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const files = [
+  "src/telemetryArrivalNavigation.test.js",
   "src/performanceBenchmark.test.js",
   "tools/playtest/performance-oracles.test.mjs",
   "src/landCollisionSound.test.js",

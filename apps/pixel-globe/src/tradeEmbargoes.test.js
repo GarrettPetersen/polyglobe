@@ -574,3 +574,20 @@ test("version two embargo history migrates without inventing membership changes"
   assert.deepEqual(migrateTradeEmbargoMemory(migrated), migrated);
   assert.deepEqual(migrated.orders, previous.orders);
 });
+
+
+test("embargo validation rejects corrupt follower lists without normalizing or mutating them", () => {
+  const memory = createTradeEmbargoMemory();
+  const order = memory.orders[0];
+  for (const followers of [["spain", "france"], ["france", "france"], ["not-a-faction"], ["neutral"], ["pirate"]]) {
+    const invalid = structuredClone(memory);
+    invalid.orders[0].followerFactionIds = followers;
+    const before = JSON.stringify(invalid);
+    assert.throws(() => validateTradeEmbargoMemory(invalid));
+    assert.equal(JSON.stringify(invalid), before);
+  }
+  const before = JSON.stringify(memory);
+  validateTradeEmbargoMemory(memory);
+  assert.equal(JSON.stringify(memory), before);
+  assert.ok(order);
+});

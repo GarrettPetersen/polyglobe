@@ -81,7 +81,7 @@ test("NPC hints use the current target hull position and never report a lost rep
   const context = { gameState: { memory }, weatherClockMinutes: 100, activeWokouHuntQuest: () => null,
     pirateRevengeTargetPresent, shipTargetRumorEligible, recordShipTargetRumor, shipTargetRumorText,
     spriteKeyHash: () => 0, npcSeaRoutes: { shipById: new Map([[merchant.id, merchant]]) },
-    npcShipSnapshotForId: () => ({ routeVector: [4, 0] }),
+    npcShipSightingPosition: () => merchant.hiddenAtHideout ? null : merchant.visualNavigation.vector,
     vectorLatLon: vector => ({ latitudeDeg: vector[0], longitudeDeg: vector[1] }),
     nearestCityToPosition: () => ({ city: "Ningbo", lat: 0, lon: 0 }), saveVoyageNow: () => {} };
   const rumor = compiled("maybeShipTargetRumor", context);
@@ -90,6 +90,11 @@ test("NPC hints use the current target hull position and never report a lost rep
   context.weatherClockMinutes += 7 * 1440;
   merchant.visualNavigation.vector = [-2, 0];
   assert.match(rumor("speaker-3").text, /south of Ningbo/);
+  context.weatherClockMinutes += 7 * 1440;
+  merchant.hiddenAtHideout = true;
+  assert.equal(rumor("speaker-hidden"), null);
+  merchant.hiddenAtHideout = false;
+  assert.match(rumor("speaker-returned").text, /south of Ningbo/);
   context.weatherClockMinutes += 7 * 1440;
   merchant.seed++;
   assert.equal(rumor("speaker-4"), null);

@@ -3204,6 +3204,37 @@ export function npcShipSnapshotForId(system, shipId, clockMinutes) {
   return ship ? npcShipSnapshot(ship, npcEffectiveClock(ship, clockMinutes)) : null;
 }
 
+// Render snapshots omit port waits and conceal haven residents. Quest consumers
+// need the actual location and its visibility, without inventing a fallback port.
+// Missing or sunk ships have no current location.
+export function npcShipLocation(system, shipId, clockMinutes) {
+  const snapshot = npcShipSnapshotForId(system, shipId, clockMinutes);
+  const ship = system.shipById.get(shipId);
+  if (!ship || ship.hitPoints <= 0) return null;
+  if (!ship.hiddenAtHideout) {
+    if (ship.visualNavigation) return { kind: "visible", position: ship.visualNavigation.vector.slice() };
+    if (snapshot?.routeVector) return { kind: "sailing", position: snapshot.routeVector.slice() };
+  }
+  const minute = npcEffectiveClock(ship, clockMinutes);
+  const plan = ship.plan;
+  if (!plan && !ship.hiddenAtHideout) throw new Error(`NPC location lacks a sailing or waiting plan: ${shipId}`);
+  const segment = plan?.segments.find(part => minute >= part.startMinute && minute < part.endMinute);
+  if (!ship.hiddenAtHideout && segment && segment.kind !== "wait") {
+    throw new Error(`NPC location has no position on sailing segment: ${shipId}`);
+  }
+  const port = ship.hiddenAtHideout ? ship.currentPort
+    : segment?.from || (plan && minute >= plan.endMinute ? plan.destination : ship.currentPort);
+  if (!Number.isFinite(port?.lat) || !Number.isFinite(port?.lon)) {
+    throw new Error(`NPC location lacks its waiting port: ${shipId}`);
+  }
+  return { kind: ship.hiddenAtHideout ? "hidden" : "waiting", position: latLonToVector(port.lat, port.lon) };
+}
+
+export function npcShipSightingPosition(system, shipId, clockMinutes) {
+  const location = npcShipLocation(system, shipId, clockMinutes);
+  return location && location.kind !== "hidden" ? location.position : null;
+}
+
 export function npcShipIdsAddedSinceSimulationSnapshot(system, snapshot) {
   assertSaveableNpcRouteSystem(system);
   if (!snapshot || snapshot.version !== NPC_SEA_ROUTE_SNAPSHOT_VERSION ||

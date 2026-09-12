@@ -212,6 +212,7 @@ import {
 import {
   colonistSexes,
   createColonistTravelerPeople,
+  createEnvoyCompanionPeople,
   createConquistadorTravelerPeople,
   createCommissionTravelerPeople
 } from "./expeditionTravelers.js";
@@ -1181,8 +1182,8 @@ import {
   npcSeaRoutePortSettlementType,
   npcShipHasCombatGrace,
   npcShipIdsAddedSinceSimulationSnapshot,
-  npcShipSnapshotForId,
-  npcShipSnapshots,
+  npcShipSightingPosition,
+  npcShipLocation,
   reconcileNpcRouteEncounterIdentity,
   replaceNpcSeaRoutePort,
   releaseNpcShipVisualNavigation,
@@ -26392,9 +26393,8 @@ function maybeShipTargetRumor(interactionKey) {
     if (!shipTargetRumorEligible(gameState.memory.decisions, target.kind, simMinute, roll)) continue;
     const strategic = npcSeaRoutes.shipById.get(target.id);
     if (!strategic || strategic.hitPoints <= 0) continue;
-    const snapshot = npcShipSnapshotForId(npcSeaRoutes, target.id, simMinute);
-    const position = strategic.visualNavigation?.vector || snapshot?.routeVector;
-    if (!position) throw new Error(`Live ship target lacks a sighting position: ${target.id}`);
+    const position = npcShipSightingPosition(npcSeaRoutes, target.id, simMinute);
+    if (!position) continue;
     const coordinates = vectorLatLon(position);
     const reference = nearestCityToPosition(position);
     const text = shipTargetRumorText(target.label, { lat: coordinates.latitudeDeg, lon: coordinates.longitudeDeg }, reference);
@@ -26427,11 +26427,9 @@ function maybeTreasurePirateRumor(interactionKey, { force = false, preferredPira
     ? candidates.find((entry) => entry.id === preferredPirateId)
     : candidates[spriteKeyHash(`${interactionKey}|treasure-pirate-choice`) % candidates.length];
   if (!pirate) return null;
-  const snapshot = npcShipSnapshots(npcSeaRoutes, weatherClockMinutes)
-    .find((entry) => entry.id === pirate.shipId);
-  const strategic = npcSeaRoutes.shipById.get(pirate.shipId);
-  if (!strategic) throw new Error(`Treasure pirate is absent from world traffic: ${pirate.shipId}`);
-  const piratePosition = snapshot?.routeVector || tileCenterVector(pirate.hideoutTileId);
+  const location = npcShipLocation(npcSeaRoutes, pirate.shipId, weatherClockMinutes);
+  if (!location) return null; // A defeated target cannot provide a fresh sighting before respawning.
+  const piratePosition = location.position;
   const pirateLocation = vectorLatLon(piratePosition);
   const referenceCity = nearestCityToPosition(piratePosition);
   const reportedLocation = approximateOceanRumorLocation(
@@ -38194,49 +38192,16 @@ function updateNpcVisualShips(dt) {
     state.visualMovementDebtSeconds = 0;
     let presentationStart = visualPresentationPoint(state, lastFrameMs);
     let visualNavigationChanged = false;
-    let currentNavigation = measurePerformanceBenchmarkStage(
-      "npcShips.visual.movement.navigation",
-      () => shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector)
-    );
-    if (
-      currentNavigation.ok &&
-      !npcHullFitsDrawnNavigation(
-        state.x,
-        state.y,
-        state.heading,
-        state.slug,
-        currentNavigation
-      )
-    ) {
-      currentNavigation = { ok: false, blockedTileId: currentNavigation.tileId };
+    const admission = prepareNpcVisualNavigation(state, routePoint, snapshot.routeHeading);
+    if (!admission) {
+      changed = true;
+      continue;
     }
-    if (!currentNavigation.ok) {
-      const placement = measurePerformanceBenchmarkStage(
-        "npcShips.visual.movement.recovery",
-        () => nearestNpcNavigableVisualPoint(
-          { x: state.x, y: state.y },
-          state.heading,
-          NPC_VISUAL_RECOVERY_SEARCH_PX,
-          state.slug
-        ) || nearestNpcNavigableVisualPoint(
-          routePoint,
-          snapshot.routeHeading,
-          NPC_VISUAL_RECOVERY_SEARCH_PX,
-          state.slug
-        )
-      );
-      if (!placement) {
-        releaseNpcVisualState(state);
-        changed = true;
-        continue;
-      }
-      if (applyNpcVisualPlacement(state, placement)) {
-        resetVisualPresentation(state, { x: state.x, y: state.y }, lastFrameMs);
-        presentationStart = { x: state.x, y: state.y };
-        visualNavigationChanged = true;
-        changed = true;
-      }
-      currentNavigation = { ok: true, kind: placement.navKind };
+    const currentNavigation = admission.navigation;
+    if (admission.repositioned) {
+      presentationStart = { x: state.x, y: state.y };
+      visualNavigationChanged = true;
+      changed = true;
     }
     const movementStartX = state.x;
     const movementStartY = state.y;
@@ -38282,6 +38247,32 @@ function updateNpcVisualShips(dt) {
   npcVisualMovementBucket =
     (npcVisualMovementBucket + 1) % NPC_VISUAL_MOVEMENT_BUCKET_COUNT;
   return inspectColonizationDefenseVisibility(lastFrameMs) || changed;
+}
+
+// Chart geometry and ice can change before a ship's movement bucket runs.
+// Both movement and collisions must admit the ship against the current chart.
+function prepareNpcVisualNavigation(state, routePoint = null, routeHeading = state.heading) {
+  let navigation = measurePerformanceBenchmarkStage("npcShips.visual.movement.navigation", () =>
+    shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector));
+  if (navigation.ok && npcHullFitsDrawnNavigation(state.x, state.y, state.heading, state.slug, navigation)) {
+    return { navigation, repositioned: false };
+  }
+  const placement = measurePerformanceBenchmarkStage("npcShips.visual.movement.recovery", () =>
+    nearestNpcNavigableVisualPoint(
+      { x: state.x, y: state.y }, state.heading, NPC_VISUAL_RECOVERY_SEARCH_PX, state.slug
+    ) || (routePoint && nearestNpcNavigableVisualPoint(
+      routePoint, routeHeading, NPC_VISUAL_RECOVERY_SEARCH_PX, state.slug
+    )));
+  if (!placement) {
+    releaseNpcVisualState(state);
+    return null;
+  }
+  applyNpcVisualPlacement(state, placement);
+  resetVisualPresentation(state, { x: state.x, y: state.y }, lastFrameMs);
+  setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
+  navigation = shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
+  if (!navigation.ok) throw new Error(`NPC recovery produced invalid navigation: ${state.id}`);
+  return { navigation, repositioned: true };
 }
 
 function createNpcVisualState(snapshot, routePoint) {
@@ -41173,7 +41164,7 @@ function updateCombatShipCollisions(dt) {
   updateShipCollisionCooldowns(dt);
   updateShipCombatEntryCollisionGrace(dt);
   if (!ship || gameOverReason || shipCombatState.engagements.size === 0) return false;
-  const ids = combatParticipantIds();
+  const ids = prepareCombatCollisionParticipants(combatParticipantIds());
   const bodies = new Map();
   const bodyForId = (id) => {
     if (!bodies.has(id)) bodies.set(id, combatCollisionBody(id));
@@ -41361,6 +41352,19 @@ function updateShipCollisionCooldowns(dt) {
     if (next <= 0) shipCollisionCooldowns.delete(key);
     else shipCollisionCooldowns.set(key, next);
   }
+}
+
+function prepareCombatCollisionParticipants(ids) {
+  const ready = new Set();
+  for (const id of ids) {
+    if (id === PLAYER_COMBAT_ID) {
+      ready.add(id);
+      continue;
+    }
+    const state = npcVisualShips.get(id);
+    if (state && !state.combatGrace && prepareNpcVisualNavigation(state)) ready.add(id);
+  }
+  return ready;
 }
 
 function combatCollisionBody(id) {
@@ -51083,6 +51087,15 @@ function currentExpeditionTravelerPeople({ travelerGroups, colonyLeader }) {
   const conquistador = gameState.memory.quests.conquistador;
   if (conquistador.stage === CONQUISTADOR_STAGE_CAPTURE && conquistador.companyStrength > 0) {
     people.push(...currentConquistadorTravelerPeople(conquistador.companyStrength));
+  }
+  for (const { quest, kind } of activeNamedTravelMissions(gameState)) {
+    if (kind !== TRAVELER_KIND_ENVOY || (quest.envoyCount ?? 1) <= 1) continue;
+    const origin = requireEntityById(cityById, quest.originCityId, "Envoy delegation origin");
+    people.push(...createEnvoyCompanionPeople({
+      quest,
+      appearanceIds: cityCivilianAppearanceIds(origin, Array(quest.envoyCount - 1).fill("male"), quest.id),
+      identityForPerson: expeditionIdentityFactory(origin, [quest.passenger])
+    }));
   }
   people.push(...currentCaptureCommissionTravelerPeople());
   return Object.freeze(people);
@@ -62322,18 +62335,18 @@ function ningboDelegationWaypointLabel(spec) {
 }
 
 function drawQuestShipArrow(spec, { idPrefix, label, nowMs }) {
-  const snapshot = npcShipSnapshotForId(npcSeaRoutes, spec.id, weatherClockMinutes);
-  if (!snapshot || snapshot.hidden || !snapshot.routeVector) return;
+  const targetPosition = npcShipSightingPosition(npcSeaRoutes, spec.id, weatherClockMinutes);
+  if (!targetPosition) return;
   const visualState = npcVisualShips.get(spec.id);
   const drawCall = visualState ? currentNpcShipDrawCall(visualState, nowMs) : null;
   drawWorldTargetArrow({
     id: `${idPrefix}:${spec.id}`,
     screenTargetBounds: drawCall ? { x: drawCall.x, y: drawCall.y, w: SHIP_SHEET_FRAME_SIZE, h: SHIP_SHEET_FRAME_SIZE } : null,
     label: renderedUiText(label),
-    targetVector: snapshot.routeVector,
+    targetVector: targetPosition,
     localPoint: visualState
       ? visualPresentationPoint(visualState, nowMs)
-      : localPointForGlobeVector(snapshot.routeVector),
+      : localPointForGlobeVector(targetPosition),
     localYOffset: -10,
     nowMs,
     style: QUEST_NAVIGATION_STYLE
@@ -68866,13 +68879,13 @@ function pirateHavenNavigationEntries() {
   return [gameState.memory.pirateHavens.revenge, gameState.memory.pirateHavens.suppression, gameState.memory.pirateHavens.smuggling].filter(Boolean).map(quest => {
     const lostTarget = quest.kind === "revenge" && !quest.ready && !pirateRevengeTargetPresent(gameState.memory.pirateHavens, npcSeaRoutes.shipById);
     const target = quest.kind === "revenge" && !quest.ready && !lostTarget ? npcSeaRoutes.shipById.get(quest.targetShipId) : null;
-    const targetRouteVector = target ? npcShipSnapshotForId(npcSeaRoutes, target.id, weatherClockMinutes)?.routeVector : null;
+    const targetLocation = target ? npcShipLocation(npcSeaRoutes, target.id, weatherClockMinutes) : null;
     const destinationId = quest.ready ? quest.originCityId : quest.kind === "smuggling" ? quest.pickupCityId : quest.havenCityId;
     const destination = target?.currentPort || requireEntityById(cityById, destinationId, "Pirate quest destination");
     return { id: quest.id, destinationName: quest.kind === "revenge" && !quest.ready && !lostTarget
       ? `${quest.targetCaptainName}: ${quest.targetShipName}` : cityLabelText(destination),
       reason: pirateHavenNavigationReasonText(quest, lostTarget),
-      style: QUEST_NAVIGATION_STYLE, targetVector: target?.visualNavigation?.vector || targetRouteVector || placedCityTargetVector(destination),
+      style: QUEST_NAVIGATION_STYLE, targetVector: targetLocation ? targetLocation.position : placedCityTargetVector(destination),
       optionalWaypointId: null, destination };
   });
 }

@@ -1205,10 +1205,8 @@ function validateEmbargoOrder(order) {
   if (order.issuerFactionId === order.targetFactionId) {
     throw new Error(`Trade embargo order targets its issuer: ${order.id}`);
   }
-  const followers = normalizedFactionIds(order.followerFactionIds);
-  if (!arrayEqual(followers, order.followerFactionIds)) {
-    throw new Error(`Trade embargo followers are not canonical: ${order.id}`);
-  }
+  const followers = order.followerFactionIds;
+  validateFollowerFactionIds(followers, order.id);
   if (order.authorityKind === TRADE_EMBARGO_AUTHORITY_NATIONAL &&
       (followers.length !== 1 || followers[0] !== order.issuerFactionId)) {
     throw new Error(`National embargo has invalid enforcers: ${order.id}`);
@@ -1237,8 +1235,8 @@ function validateEmbargoEvent(event) {
   }
   assertFactionId(event.issuerFactionId);
   assertFactionId(event.targetFactionId);
-  normalizedFactionIds(event.followerFactionIds);
-  if (event.previousFollowerFactionIds !== null) normalizedFactionIds(event.previousFollowerFactionIds);
+  validateFollowerFactionIds(event.followerFactionIds);
+  if (event.previousFollowerFactionIds !== null) validateFollowerFactionIds(event.previousFollowerFactionIds);
   assertMinute(event.simMinute, "trade embargo event");
   if (typeof event.source !== "string" || event.source === "") {
     throw new Error(`Trade embargo event has no source: ${event.id}`);
@@ -1354,6 +1352,20 @@ function copyIncident(incident) {
 
 function historicalOrder(issuerFactionId, targetFactionId, scope) {
   return Object.freeze({ issuerFactionId, targetFactionId, scope });
+}
+
+// Validation must not allocate and sort a new follower list for every policy lookup.
+function validateFollowerFactionIds(factionIds, canonicalOrderId = null) {
+  if (!Array.isArray(factionIds)) throw new Error("Trade embargo followers must be an array");
+  for (let index = 0; index < factionIds.length; index++) {
+    const id = assertFactionId(factionIds[index]);
+    if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) {
+      throw new Error("Neutral and pirate factions cannot enforce a trade embargo");
+    }
+    if (canonicalOrderId !== null && index > 0 && factionIds[index - 1] >= id) {
+      throw new Error(`Trade embargo followers are not canonical: ${canonicalOrderId}`);
+    }
+  }
 }
 
 function normalizedFactionIds(factionIds) {
