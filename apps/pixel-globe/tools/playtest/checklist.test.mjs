@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CHECKLIST_GOALS, checklistNeedsProvisions, checklistTravelDestination, shuffledChecklist, checklistMenuCommand, singleDialogueOptionCommand, runBrowserChecklist } from "./checklist.mjs";
+import { arrivalOfferCommand, CHECKLIST_GOALS, checklistNeedsProvisions, checklistTravelDestination, shuffledChecklist, checklistMenuCommand, singleDialogueOptionCommand, runBrowserChecklist } from "./checklist.mjs";
 import { randomForSeed } from "./journey.mjs";
 
 test("every seeded checklist includes every objective once, in reproducible varied orders", () => {
@@ -190,4 +190,22 @@ test("teleport then reload cannot satisfy the real sailing goal by redocking", a
   assert.notEqual(report.travel[1].cityId, "coimbra|portugal");
   assert.equal(report.travel[1].sailingCommands, 1);
   assert.equal(trace.filter(input => input.type === "sail").length, 1);
+});
+
+
+test("arrival equipment pitches have an explicit enabled decline independent of the current objective", async () => {
+  const state = { nodeId: "equipment-factor-offer", locations: [], options: [
+    { id: "buy", disabled: false, action: { type: "buy-equipment-factor-pitch" } },
+    { id: "decline", disabled: false, action: { type: "decline-equipment-factor-pitch" } }
+  ] };
+  assert.deepEqual(arrivalOfferCommand(state), { type: "choose", id: "decline" });
+  assert.equal(arrivalOfferCommand({ ...state, nodeId: "other" }), null);
+  assert.equal(arrivalOfferCommand({ ...state, options: [state.options[0]] }), null);
+  assert.equal(arrivalOfferCommand({ ...state, options: [state.options[0], { ...state.options[1], disabled: true }] }), null);
+  const clicks = [];
+  await assert.rejects(runBrowserChecklist({ initialState: state, random: randomForSeed(17),
+    goals: ["recruit"], maxActions: 2, checkpoint() {},
+    command: async input => { clicks.push(input); return state; }
+  }), /Checklist exhausted 2 actions/);
+  assert.deepEqual(clicks, [{ type: "choose", id: "decline" }, { type: "choose", id: "decline" }]);
 });

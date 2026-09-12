@@ -1127,3 +1127,27 @@ function awaitingResupplyMemory() {
   advanceColonizationQuest(memory, 1100, { awayFromColony: true });
   return memory;
 }
+
+
+test("an archived and restored Roanoke still disappears when its two-year deadline passes", () => {
+  const colony = createColonizationQuestMemory();
+  assignColonizationQuest(colony, { target: ROANOKE, origin: LONDON });
+  for (const stage of colonizationQuestView(questViewState(colony)).history.fetchStages) {
+    completeColonizationFetchStage(colony, stage.id);
+  }
+  beginColonizationExpedition(colony);
+  landColonists(colony, 1000);
+  advanceColonizationQuest(colony, 1100, { awayFromColony: true });
+  establishColony(colony, 1200);
+  const memory = migrateColonizationQuestMemory(JSON.parse(JSON.stringify({
+    ...createColonizationQuestMemory(), pastSettlements: [colony]
+  })));
+  const deadline = 1200 + 2 * 365 * DAY;
+  assert.equal(memory.pastSettlements[0].aftermath.dueMinute, deadline);
+  assert.deepEqual(advanceColonizationAftermaths(memory, deadline - 1), []);
+  assert.equal(advanceColonizationAftermaths(memory, deadline + 18 * 365 * DAY).length, 1);
+  assert.equal(colonizationWorldRecords(memory)[0].hiddenSettlement, true);
+  const restored = migrateColonizationQuestMemory(JSON.parse(JSON.stringify(memory)));
+  assert.deepEqual(advanceColonizationAftermaths(restored, deadline + 19 * 365 * DAY), []);
+  assert.equal(colonizationWorldRecords(restored)[0].hiddenSettlement, true);
+});

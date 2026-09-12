@@ -29,6 +29,15 @@ export function singleDialogueOptionCommand(state) {
   return { type: "choose", id: state.options[0].id };
 }
 
+// Arrival sales pitches can interrupt any objective, including travel. Decline
+// through their real offered action so queued greetings and objectives continue.
+export function arrivalOfferCommand(state) {
+  if (state.nodeId !== "equipment-factor-offer") return null;
+  const option = state.options.find(option => !option.disabled &&
+    option.action.type === "decline-equipment-factor-pitch");
+  return option ? { type: "choose", id: option.id } : null;
+}
+
 // The planner reads actual offered actions. It never manufactures a dialogue
 // action or declares success merely because a menu was requested.
 export function checklistMenuCommand(state, goal) {
@@ -85,7 +94,7 @@ export async function runBrowserChecklist({ command, initialState, random, check
     return state;
   };
   const clearOverlay = async () => {
-    const continuation = singleDialogueOptionCommand(state);
+    const continuation = arrivalOfferCommand(state) || singleDialogueOptionCommand(state);
     if (continuation) { await act(continuation); return true; }
     if (state.nodeId === "loadout" && !state.options.some(option => option.action.nodeId === "root")) {
       const loadout = state.options.find(option => !option.disabled && option.action.type === "select-loadout" && option.action.loadoutId === "short-haul");
