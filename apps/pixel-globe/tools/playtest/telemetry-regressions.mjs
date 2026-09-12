@@ -8,6 +8,8 @@ const files = [
   "src/performanceBenchmark.test.js",
   "tools/playtest/performance-oracles.test.mjs",
   "src/landCollisionSound.test.js",
+  "src/fetchQuestObjectives.test.js",
+  "src/workshopSupplyQuest.test.js",
   "src/questJourneyDialogue.test.js",
   "src/worldAssetRetry.test.js",
   "src/staticAssetFetch.test.js",

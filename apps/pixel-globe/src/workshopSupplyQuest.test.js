@@ -1,3 +1,5 @@
+import { workshopSupplyFetchObjectives } from "./workshopSupplyQuest.js";
+import { fetchQuestRequirements, advanceFetchQuestReadiness, readyFetchQuestDestinations } from "./fetchQuestObjectives.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {createWorldEconomy, portIndustrialInputNeeds, tradeGoodById} from "./economy.js";
@@ -90,8 +92,84 @@ test("ordinary port work rolls can surface workshop orders and record their glob
     if (!offer?.procurement) continue;
     assert.equal(state.memory.decisions["quest-offer.workshop-supply.last-minute"],simMinute);
     assert.equal(deliveryOfferForCity(state,ports[0],ports,{economy,simMinute,sailingDistanceKm:()=>700}).id,offer.id);
+    const session = createPortDialogueSession(ports[0]);
+    session.nodeId = "quest";
+    const view = portDialogueView(session, ports[0], state, economy, ports, {simMinute, sailingDistanceKm:()=>700});
+    assert.ok(view.options.some(option => option.label === `Bring ${offer.cargoLabel} here, to ${offer.destinationName}`));
     offered = true;
     break;
   }
   assert.equal(offered,true);
+});
+
+
+test("supply cargo triggers the shared ready alert once without duplicating its mission waypoint, including after restore", () => {
+  const { economy, offer, state } = fixture();
+  const cityById = new Map(ports.map(port => [port.cityId, port]));
+  acceptQuest(state, offer);
+  const requirements = current => fetchQuestRequirements({ workshopSupplies: workshopSupplyFetchObjectives(current, cityById) });
+  let transition = advanceFetchQuestReadiness(new Map(), requirements(state));
+  assert.equal(transition.newlyReady.length, 0);
+  state.cargo[offer.procurement.goodId] = offer.procurement.quantity - 1;
+  transition = advanceFetchQuestReadiness(transition.next, requirements(state));
+  assert.equal(transition.newlyReady.length, 0);
+  state.cargo[offer.procurement.goodId]++;
+  const restored = migrateGameState(structuredClone(state));
+  transition = advanceFetchQuestReadiness(transition.next, requirements(restored));
+  assert.equal(transition.newlyReady.length, 1);
+  assert.equal(transition.newlyReady[0].questId, offer.id);
+  assert.equal(transition.newlyReady[0].destination.cityId, ports[0].cityId);
+  assert.equal(readyFetchQuestDestinations(requirements(restored)).length, 0);
+  transition = advanceFetchQuestReadiness(transition.next, requirements(restored));
+  assert.equal(transition.newlyReady.length, 0);
+  restored.cargo[offer.procurement.goodId]--;
+  transition = advanceFetchQuestReadiness(transition.next, requirements(restored));
+  assert.equal(readyFetchQuestDestinations(requirements(restored)).length, 0);
+  restored.cargo[offer.procurement.goodId]++;
+  assert.equal(advanceFetchQuestReadiness(transition.next, requirements(restored)).newlyReady.length, 1);
+  completeQuest(restored, ports[0], {economy});
+  assert.deepEqual(requirements(restored), []);
+  assert.throws(() => workshopSupplyFetchObjectives(state, new Map()), /destination is missing/);
+});
+
+test("the live purchase alert pipeline includes workshop orders and persists its acknowledgement", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { default: vm } = await import("node:vm");
+  const { default: ts } = await import("typescript");
+  const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  const ast = ts.createSourceFile("main.js", source, ts.ScriptTarget.Latest, true);
+  const names = new Set(["currentFetchQuestRequirements", "initializeFetchQuestReadiness",
+    "updateFetchQuestReadinessAlerts", "presentPendingFetchQuestCaptainDialogue", "fetchQuestReadyFlag"]);
+  const code = ast.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name.text))
+    .map(node => node.getText(ast)).join("\n");
+  const { state, offer } = fixture();
+  acceptQuest(state, offer);
+  const notices = [];
+  const context = vm.createContext({ gameState: state, gameOverReason: null, weatherClockMinutes: 0,
+    cityById: new Map(ports.map(port => [port.cityId, port])), portCities: ports,
+    CONQUISTADOR_STAGE_FETCH: "fetch", TOPSHAM_CITY_ID: "topsham|united kingdom",
+    vikingLongshipQuestPort: () => null, japaneseMatchlockWorkshopPort: () => null,
+    currentCaribbeanGingerPort: () => null, chefQuestJournalPort: () => null,
+    exeterCanalQuestView: () => null, colonizationQuestView: () => null,
+    workshopSupplyFetchObjectives, fetchQuestRequirements, advanceFetchQuestReadiness,
+    readyFetchQuestDestinations, tradeGoodById, Map,
+    pendingFetchQuestCaptainDialogues: [], fetchQuestReadiness: new Map(), readyFetchQuestNavigation: [],
+    FETCH_QUEST_READY_FLAG_PREFIX: "fetch-ready:", uiText: (_key, {good, city}) => `${good} ready for ${city}`,
+    renderedUiText: value => value, startMenu: false, menusAreOpen: () => false,
+    playerIntroModal: null, captainAlertModal: null, portWaitState: null,
+    dialogueState: {kind:"port", nodeId:"market", marketMode:"buy"},
+    openCrewAlertModal: message => { notices.push(message); return true; }, saveVoyageNow() {}
+  });
+  // Use the same paused market state in which a player buys the final measure.
+  state.playerCharacter ||= { id:"captain:fetch-test" };
+  vm.runInContext(code, context);
+  context.initializeFetchQuestReadiness();
+  state.cargo[offer.procurement.goodId] = offer.procurement.quantity;
+  assert.equal(context.updateFetchQuestReadinessAlerts(), true);
+  assert.equal(context.presentPendingFetchQuestCaptainDialogue({allowPortMarket:true}), true);
+  assert.equal(notices.length, 1);
+  assert.match(notices[0], /ready for Lisbon/);
+  context.initializeFetchQuestReadiness();
+  assert.equal(context.updateFetchQuestReadinessAlerts(), false);
+  assert.equal(context.pendingFetchQuestCaptainDialogues.length, 0);
 });

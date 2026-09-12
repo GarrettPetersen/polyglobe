@@ -941,6 +941,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Brigandine",
   "Brigantine",
   "Brigantine on a Beam Reach",
+  "Bring {0} here, to {1}",
   "Bring a rescued castaway back to their home port.",
   "Bring a rescued pirate captive back to their home port.",
   "Bring all ingredients to {0}.",

@@ -941,6 +941,7 @@ export default Object.freeze({
   "Brigandine": "브리간딘",
   "Brigantine": "브리간틴",
   "Brigantine on a Beam Reach": "빔 리치의 브리간틴",
+  "Bring {0} here, to {1}": "{0}을 여기 {1}(으)로 가져오기",
   "Bring a rescued castaway back to their home port.": "구조된 조난자를 고향 항구로 데려오세요.",
   "Bring a rescued pirate captive back to their home port.": "구출된 해적 포로를 고향 항구로 데려오세요.",
   "Bring all ingredients to {0}.": "{0}에 모든 재료를 가져오세요.",

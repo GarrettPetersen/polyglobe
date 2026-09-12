@@ -40,5 +40,34 @@ test('actual terrain collision path plays before losing speed, excluding open wa
     assert.equal(calls.length,kind==='land'?1:0);
     if(kind==='land') {assert.equal(calls[0].speed,.02);assert.equal(context.ship.velocity[0],.002);}
   }
-  assert.match(source,/if \(volume > 0\) playSoundEffect\(soundEffects\?\.armorGlance, volume, 0\.94\)/);
+
+});
+
+test('river and canal bumps are much quieter and require a long break between contacts', () => {
+  const atSea = landCollisionSoundVolume(sample);
+  const inRiver = landCollisionSoundVolume({...sample, isRiver:true});
+  assert.ok(inRiver > 0 && inRiver <= atSea * 0.1);
+  assert.ok(landCollisionSoundVolume({...sample, velocityRad:[.04,0,0], isRiver:true}) < .06);
+  for (const gap of [300, 500, 1500, 2499]) {
+    assert.equal(landCollisionSoundVolume({...sample, nowMs:3000, lastContactAtMs:3000-gap, isRiver:true}), 0);
+  }
+  assert.ok(landCollisionSoundVolume({...sample, nowMs:3000, lastContactAtMs:500, isRiver:true}) > 0);
+});
+
+test('runtime uses a soft pitched-down wooden thump on waterways and the normal impact at sea', () => {
+  const source=readFileSync(new URL('./main.js',import.meta.url),'utf8');
+  const code=source.slice(source.indexOf('function playLandCollisionSound('),source.indexOf('\nfunction playArmorGlanceSound('));
+  for (const isRiver of [false,true]) {
+    const calls=[];
+    const context=vm.createContext({ship:{velocity:sample.velocityRad},performance:{now:()=>1000},
+      shipIsInRiverWater:()=>isRiver,currentPlayerEffectiveShipStats:()=>({topSpeedRad:sample.topSpeedRad}),
+      lastLandCollisionAtMs:null,landCollisionSoundVolume,
+      soundEffects:{woodThumpClose:'thump',armorGlance:'crash'},playSoundEffect:(...args)=>calls.push(args)});
+    vm.runInContext(code,context);
+    context.playLandCollisionSound(sample.normal);
+    assert.equal(calls[0][0],isRiver?'thump':'crash');
+    assert.equal(calls[0][2],isRiver?.8:.94);
+    context.playLandCollisionSound(sample.normal);
+    assert.equal(calls.length,1);
+  }
 });

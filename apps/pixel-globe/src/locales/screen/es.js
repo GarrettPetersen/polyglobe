@@ -941,6 +941,7 @@ export default Object.freeze({
   "Brigandine": "Brigandina",
   "Brigantine": "Brigantine",
   "Brigantine on a Beam Reach": "Bergantín en un alcance de viga",
+  "Bring {0} here, to {1}": "Trae {0} aquí, a {1}",
   "Bring a rescued castaway back to their home port.": "Llevar a un náufrago rescatado de regreso a su puerto de origen.",
   "Bring a rescued pirate captive back to their home port.": "Lleva a un pirata cautivo rescatado de regreso a su puerto de origen.",
   "Bring all ingredients to {0}.": "Lleva todos los ingredientes a {0}.",

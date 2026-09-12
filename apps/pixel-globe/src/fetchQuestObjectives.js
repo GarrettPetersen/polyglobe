@@ -24,7 +24,8 @@ export function fetchQuestRequirements({
   chef = null,
   chefPort = null,
   conquistador = null,
-  shipyard = null
+  shipyard = null,
+  workshopSupplies = []
 } = {}) {
   const requirements = [];
 
@@ -161,6 +162,15 @@ export function fetchQuestRequirements({
         destination: shipyard.destination
       }));
     }
+  }
+
+  for (const order of workshopSupplies) {
+    requirements.push(requirement({
+      id: `${order.questId}:${order.goodId}`, questId: order.questId, stageId: "supply",
+      good: order, held: order.held, destination: order.destination,
+      // The ordinary mission already owns its return waypoint.
+      routeReady: false
+    }));
   }
 
   return Object.freeze(requirements);

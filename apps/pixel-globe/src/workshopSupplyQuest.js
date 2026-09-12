@@ -1,3 +1,4 @@
+import { activeQuests } from "./activeQuests.js";
 import { portIndustrialInputNeeds, portMarket, tradeGoodById } from "./economy.js";
 
 export function createWorkshopSupplyOffer(economy, city, portCities, {offerPeriod, sailingDistanceKm}) {
@@ -53,4 +54,17 @@ export function validateWorkshopSupplyQuest(quest) {
 export function workshopSupplyReady(state, quest) {
   validateWorkshopSupplyQuest(quest);
   return (state.cargo[quest.procurement.goodId] || 0) >= quest.procurement.quantity;
+}
+
+export function workshopSupplyFetchObjectives(state, cityById) {
+  return activeQuests(state.memory.quests).filter(quest => quest.procurement).map(quest => {
+    validateWorkshopSupplyQuest(quest);
+    const destination = cityById.get(quest.destinationCityId);
+    if (!destination) throw new Error(`Workshop supply destination is missing: ${quest.destinationCityId}`);
+    const { goodId, quantity } = quest.procurement;
+    return {
+      questId: quest.id, goodId, goodLabel: tradeGoodById(goodId).label, quantity,
+      held: state.cargo[goodId] || 0, destination
+    };
+  });
 }

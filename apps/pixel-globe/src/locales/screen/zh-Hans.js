@@ -941,6 +941,7 @@ export default Object.freeze({
   "Brigandine": "镶甲",
   "Brigantine": "Brigantine",
   "Brigantine on a Beam Reach": "横梁上的双桅帆船",
+  "Bring {0} here, to {1}": "把{0}带到这里，{1}",
   "Bring a rescued castaway back to their home port.": "将获救的漂流者带回母港。",
   "Bring a rescued pirate captive back to their home port.": "将获救的海盗俘虏带回他们的母港。",
   "Bring all ingredients to {0}.": "将所有原料带到{0}。",

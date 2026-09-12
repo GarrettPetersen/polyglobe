@@ -8553,7 +8553,9 @@ function questView(session, city, gameState, portCities, context) {
       feedback: session.feedback,
       options: [
         ...workOptions.map((quest) => questAcceptanceOption(
-          `Take ${quest.cargoLabel || "packet"} to ${quest.destinationName}`,
+          quest.procurement
+            ? `Bring ${quest.cargoLabel} here, to ${quest.destinationName}`
+            : `Take ${quest.cargoLabel || "packet"} to ${quest.destinationName}`,
           quest,
           gameState,
           { detail: `${formatDistanceKm(quest.distanceKm)} / ${quest.reward} DB` }

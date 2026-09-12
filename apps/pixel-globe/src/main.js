@@ -1,3 +1,4 @@
+import { workshopSupplyFetchObjectives } from "./workshopSupplyQuest.js";
 import { commissionGarrisonTroops, recordCommissionGarrisonLosses, captureCommissionTroopsAboard, captureCommissionTroopsForAssault, recordCaptureCommissionTroopLosses } from "./captureCommissionTroops.js";
 import { landCollisionSoundVolume } from "./landCollisionSound.js";
 import { MINIMAP_BAKE_MAX_LATITUDE, decodeMinimapBake, createMinimapPixelCache } from "./minimapBake.js";
@@ -10606,14 +10607,18 @@ function playCannonImpactSound(distancePx = 0) {
 }
 
 function playLandCollisionSound(normal) {
+  const isRiver = shipIsInRiverWater();
   const nowMs = performance.now();
   const volume = landCollisionSoundVolume({
     velocityRad: ship.velocity, normal,
     topSpeedRad: currentPlayerEffectiveShipStats().topSpeedRad,
-    nowMs, lastContactAtMs: lastLandCollisionAtMs
+    nowMs, lastContactAtMs: lastLandCollisionAtMs, isRiver
   });
   lastLandCollisionAtMs = nowMs;
-  if (volume > 0) playSoundEffect(soundEffects?.armorGlance, volume, 0.94);
+  if (volume > 0) {
+    playSoundEffect(isRiver ? soundEffects?.woodThumpClose : soundEffects?.armorGlance,
+      volume, isRiver ? 0.8 : 0.94);
+  }
 }
 
 function playArmorGlanceSound(distancePx = 0) {
@@ -48054,6 +48059,7 @@ function currentFetchQuestRequirements() {
   const canalPort = cityById.get(TOPSHAM_CITY_ID);
   const canal = exeterCanalQuestView(gameState, canalPort, Math.max(0, weatherClockMinutes));
   return fetchQuestRequirements({
+    workshopSupplies: workshopSupplyFetchObjectives(gameState, cityById),
     exeterCanal: canal ? { ...canal, materials: canal.materials.map((material) => ({
       ...material, goodLabel: tradeGoodById(material.goodId).label
     })) } : null,
