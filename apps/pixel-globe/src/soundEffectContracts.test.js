@@ -122,6 +122,15 @@ test("every assault event declared by the simulator has an explicit audio policy
   for (const type of emitted) assert.ok(handled.has(type), `Assault event has no audio policy: ${type}`);
 });
 
+function soundEffectFilenames(filenames) {
+  return filenames.filter(filename => /\.(ogg|mp3|wav)$/i.test(filename));
+}
+
+test("sound credit discovery ignores filesystem metadata rather than treating it as audio", () => {
+  assert.deepEqual(soundEffectFilenames([".DS_Store", "notes.txt", "hit.ogg", "theme.mp3", "splash.wav"]),
+    ["hit.ogg", "theme.mp3", "splash.wav"]);
+});
+
 test("every bundled sound effect has an individual in-game credit",()=>{
   const credits=readFileSync(new URL('public/assets/CREDITS.md',root),'utf8').split('## Sound Effects\n')[1].split('\n## ')[0];
   const normalize=text=>text.toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -132,8 +141,8 @@ test("every bundled sound effect has an individual in-game credit",()=>{
     'dominik-braun-failure-sound.mp3':'Dominik Braun - Failure Sound',
     'nps-humpback-whale-surface-blow.ogg':'H. Lentfer / National Park Service - Humpbacks and Murrelets'
   };
-  for(const filename of readdirSync(new URL('public/assets/sfx/',root))) {
-    const stem=filename.replace(/\.(ogg|mp3|wav)$/,'');
+  for(const filename of soundEffectFilenames(readdirSync(new URL('public/assets/sfx/',root)))) {
+    const stem=filename.replace(/\.(ogg|mp3|wav)$/i,'');
     const id=stem.match(/-(\d+)$/)?.[1];
     if(id) assert.ok(lines.some(line=>line.includes(`pixabay${id}`)),`Missing individual SFX credit: ${filename}`);
     else assert.ok(lines.some(line=>line.includes(normalize(special[filename] ?? stem))),`Missing SFX credit: ${filename}`);
