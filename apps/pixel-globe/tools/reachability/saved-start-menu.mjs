@@ -2,9 +2,14 @@ import ts from "typescript";
 import assert from "node:assert/strict";
 
 // Instrument the built module while retaining production startup and handlers.
-// The duel fixture accelerates only victory; navigation and restoration are real.
+// The duel fixture places a harbor checkpoint and accelerates victory;
+// menu navigation and restoration still use the production handlers.
 export async function exerciseSavedStartMenu(context, baseUrl) {
   const page = await context.newPage();
+  // Slow rendering exposed a live-sailing race in this fixture. Keep exercising
+  // the actual asynchronous menu and restore transitions at that CPU budget.
+  const browserSession = await context.newCDPSession(page);
+  await browserSession.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   let restoreCalls = 0;
@@ -29,6 +34,17 @@ window.inspectSavedStartup = () => !regularGameLoopStarted ? { ready: false } : 
   serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY)
 });
 window.exerciseCityDuelReturn = async ({ whaleClockCase = "current" } = {}) => {
+  // New Game is live while its asynchronous save finishes. On slower machines
+  // wind can carry the ship away from home (or onto a coastal sprite boundary).
+  // Materialize a stationary, navigable harbor checkpoint for this mode test.
+  // Sailing and coastal recovery have their own scenarios; Continue must still
+  // restore this checkpoint's exact position, without any duel contamination.
+  const homeCity = cityById.get(gameState.playerCharacter.homePortCityId);
+  if (!homeCity) throw new Error("Duel return fixture requires a canonical home port");
+  anchored = true;
+  placeCapturePlayerNearTile(homeCity.tileId, { headingDeg: 0 });
+  reconcileRestoredShipDrawnNavigation();
+  reframeWorldNorthUp("duel return fixture");
   const call = chart.cityCalls.find(entry => entry.cityId === gameState.playerCharacter.homePortCityId && entry.character);
   if (!call) throw new Error("Duel return fixture requires a nearby port");
   openPortDialogue(call);
@@ -76,6 +92,7 @@ window.exerciseCityDuelReturn = async ({ whaleClockCase = "current" } = {}) => {
     seed: gameState.voyageSeed, savedSeed: saved.gameState.voyageSeed,
     shipType: ship.typeSlug, savedShipType: saved.playerShip.typeSlug,
     position: ship.position, savedPosition: saved.playerShip.position,
+    tileId: ship.tileId, savedTileId: saved.playerShip.tileId,
     minute: weatherClockMinutes, savedMinute: saved.worldClock.currentMinute,
     ecologyMinute: gameState.memory.whales.lastEcologyMinute };
 };` });
@@ -141,7 +158,8 @@ window.exerciseCityDuelReturn = async ({ whaleClockCase = "current" } = {}) => {
       assert.ok(resumed.minute >= resumed.savedMinute && resumed.minute < resumed.savedMinute + 60);
       assert.ok(resumed.ecologyMinute <= resumed.minute, "whale ecology belongs to the restored clock");
       for (let index = 0; index < 3; index++) {
-        assert.ok(Math.abs(resumed.position[index] - resumed.savedPosition[index] / Math.hypot(...resumed.savedPosition)) < 1e-8);
+        assert.ok(Math.abs(resumed.position[index] - resumed.savedPosition[index] / Math.hypot(...resumed.savedPosition)) < 1e-8,
+          JSON.stringify({ whaleClockCase, ...resumed }));
       }
       assert.deepEqual(errors, []);
     }
