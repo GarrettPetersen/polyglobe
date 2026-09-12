@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **September 11, 2026**.
+Last updated: **September 12, 2026**.
 
 ## Dated marketing calendar
 
@@ -24,7 +24,9 @@ Last updated: **September 11, 2026**.
   Distribute the available QA keys across Windows, macOS and Linux, confirm the
   separate demo QA-key batch is available, and collect clean-machine results
   before locking the public demo launch.
-- **September 13:** IGF 2027 application and build deadline.
+- **September 12:** IGF 2027 entry submitted ahead of the September 13
+  application and build deadline. Entry fee covered by a redeemed code;
+  monitor email and the entry portal for judging questions or build-access issues.
 - **September 14:** Optional Next Fest press-preview review target. This is
   only the date by which a demo build and demo store presence should be
   submitted for Valve review if the developer wants the demo playable when
@@ -541,13 +543,14 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
     do not treat the award registration as an exhibition booking.
   - Schedule: https://tgs.tca.org.tw/indie_award_e.php
 
-- [ ] **Independent Games Festival 2027 — apply by September 13**
-  - Status: Submissions opened August 10. Start the application now and prepare
-    the strongest stable full build for the final entry.
+- [x] **Independent Games Festival 2027 — submitted September 12**
+  - Status: Garrett confirmed submission. The entry includes a browser build,
+    seven screenshots and one video. Monitor email and the entry portal for
+    judging questions or build-access issues.
   - Why: The most prestigious general indie competition in this application
     cycle and a strong venue for the game's distinctive world simulation,
     historical scope and interconnected systems.
-  - Cost: US$75. A full fee waiver can be requested by September 7.
+  - Cost: US$75 entry fee covered by a redeemed code on September 12.
   - Eligibility: Early and demo builds are accepted only if substantially
     feature-complete. Submit the strongest stable full build available by the
     deadline; later uploads are allowed, but judges are only guaranteed to see
@@ -676,7 +679,7 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
 ## Current critical path
 
 In deadline order now: distribute the beta-testing keys across Windows, macOS
-and Linux and get results; submit IGF by September 13; verify the Next Fest
+and Linux and get results; verify the Next Fest
 participation checklist and optional press-preview opt-in by September 14;
 launch the demo on September 17 only if platform QA is green; and submit every
 remaining required Next Fest item plus INDIE Live Expo by September 28. In

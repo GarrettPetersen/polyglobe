@@ -1,6 +1,6 @@
 # 2026 Festival Application Workbench
 
-Last updated: **September 7, 2026**
+Last updated: **September 12, 2026**
 
 ## Reusable game details
 
@@ -67,21 +67,17 @@ recorded.**
 
 ## Independent Games Festival 2027
 
-Status: **Application preparation started August 2. The official portal was
-rechecked at 7:37 a.m. PDT on August 3 and still reports that entries are
-closed.** The official schedule says only "early August" for game submissions;
-August 3 is the opening date for judge and juror applications. Submissions close
-September 13. Fee-waiver requests close September 7.
+Status: **Submitted September 12, confirmed by Garrett**, ahead of the
+September 13 deadline.
 
-- Entry: Regular independent developer, US$75 or full fee waiver
-- Build: Submit the strongest stable, substantially feature-complete full build
-  available by September 13
-- Suggested category emphasis: Excellence in Design, Nuovo Award and Seumas
-  McNally Grand Prize
-- Supporting material: Include the public trailer plus a short private judge
-  orientation video explaining wind, economy, one-life voyages and the simulated
-  1522 world
-- Platform: Windows first, with macOS and Linux noted as available
+- Entry: Independent developer; US$75 entry fee covered by a redeemed code
+- Build: Web Build, playable in a browser at
+  http://pirates-of-the-pixel-globe.pages.dev/
+- Supporting material: Seven screenshots and one video
+- Platforms selected: Windows (Download/Browser) and Mac (Download/Browser)
+- Judge instructions: Recommend enabling full screen in the options menu
+- Follow-up: Monitor email and the entry portal for judging questions or
+  build-access issues
 - Build updates: Allowed after entry, but do not rely on judges seeing anything
   other than the first deadline build
 
