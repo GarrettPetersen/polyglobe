@@ -1,4 +1,4 @@
-import { cityAssaultWaterDepthPx } from "./cityAssaultGround.js";
+import { cityAssaultWaterDepthPx, cityGateGroundFeetY } from "./cityAssaultGround.js";
 import { PORT_ASSAULT_TRACK_START_X } from "../src/portAssaultGround.js";
 import { PORT_ASSAULT_LANE_SPACING } from "../src/portAssaultFormation.js";
 import { spriteSplinterColors } from "../src/hullSplinters.js";
@@ -3801,7 +3801,9 @@ function drawNpc(agent, timeMs) {
   const x = scripted
     ? agent.startX + (agent.endX - agent.startX) * caughtElapsed
     : stationary ? agent.startX : pathPoint.x;
-  const feetY = scripted || stationary ? agent.feetY : pathPoint.feetY;
+  // Interactive staff have authored standing spots and matching hit targets.
+  const feetY = stationary && agent.interactive ? agent.feetY : cityGateGroundFeetY(x,
+    scripted || stationary ? agent.feetY : pathPoint.feetY, state.features.fortified);
   const animationId = agent.animationId || "walk";
   const animation = appearance.animations[animationId];
   if (!Array.isArray(animation) || animation.length === 0) {
@@ -3871,7 +3873,6 @@ function drawPortAssaultPresentation(lane) {
   });
   const placements = [];
   for (const unit of presentation.units) {
-    const feetY = cityPortAssaultLaneFeetY(unit.lane);
     const baselineX = CITY_PORT_ASSAULT_TRACK_START_X +
       unit.position * CITY_ASSAULT_TRACK_SPAN_PX - window.x;
     const laneX = cityAssaultLaneX({
@@ -3880,6 +3881,8 @@ function drawPortAssaultPresentation(lane) {
       entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
       entryShiftX
     });
+    const feetY = cityGateGroundFeetY(laneX + window.x,
+      cityPortAssaultLaneFeetY(unit.lane), state.features.fortified);
     const landingPoint = Object.freeze({ x: laneX, y: feetY - window.y });
     const deckFrame = unit.surface === "deck" || unit.animationId === "jump"
       ? assaultDeckPersonPoint(unit.deckSlot, battleTimeMs) : shipboardStart;
@@ -3908,9 +3911,7 @@ function drawPortAssaultPresentation(lane) {
   for (const event of presentation.events) {
     const unit = presentation.units.find(({ id }) => id === event.unitId);
     if (!unit) continue;
-    if (event.surface === "deck" ? lane !== "deck" :
-      Math.round(["attack", "hit", "death"].includes(event.type) ? event.lane : unit.lane) !== lane) continue;
-    drawAssaultEvent(event, unit, window, battleTimeMs, entryShiftX);
+    drawAssaultEvent(event, unit, window, battleTimeMs, entryShiftX, lane);
   }
 }
 
@@ -4088,7 +4089,7 @@ function drawLandingSplash(x, y, ageMs) {
   if (ageMs < 260) context.fillRect(Math.round(x) - 1, Math.round(y) - 6 - rise, 2, 2);
 }
 
-function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
+function drawAssaultEvent(event, unit, window, timeMs, entryShiftX, painterBand) {
   const eventTracksShot = ["attack", "hit", "death"].includes(event.type);
   const position = eventTracksShot ? event.position : unit.position;
   const lane = eventTracksShot ? event.lane : unit.lane;
@@ -4103,7 +4104,9 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
     entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
     entryShiftX
   }));
-  const feetY = cityPortAssaultLaneFeetY(lane);
+  const feetY = cityGateGroundFeetY(x + window.x,
+    cityPortAssaultLaneFeetY(lane), state.features.fortified);
+  if ((event.surface === "deck" ? "deck" : cityAssaultDepthBand(feetY)) !== painterBand) return;
   const depthPx = state.features.dock === "none" && ["attack", "hit", "death"].includes(event.type)
     ? assaultWaterDepthPx(x + window.x, feetY) : 0;
   let y = Math.round(feetY - window.y + depthPx);
@@ -4144,7 +4147,8 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
       entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
       entryShiftX
     });
-    const targetFeetY = cityPortAssaultLaneFeetY(event.targetLane);
+    const targetFeetY = cityGateGroundFeetY(targetX + window.x,
+      cityPortAssaultLaneFeetY(event.targetLane), state.features.fortified);
     const targetDepthPx = state.features.dock === "none"
       ? assaultWaterDepthPx(targetX + window.x, targetFeetY) : 0;
     drawCityAssaultProjectile(context, event.attackType,

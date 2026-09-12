@@ -4,9 +4,52 @@ import { readFileSync } from "node:fs";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { portAssaultGroundLaneBounds, PORT_ASSAULT_TRACK_START_X, PORT_ASSAULT_TRACK_SPAN_PX, PORT_ASSAULT_REAR_FEET_Y, PORT_ASSAULT_LANE_SPACING, PORT_ASSAULT_GROUND_DEPTH_SCALE } from "./portAssaultGround.js";
 import { portAssaultFormationStep } from "./portAssaultFormation.js";
-import { cityAssaultWaterDepthPx } from "../city-visualizer/cityAssaultGround.js";
+import { cityAssaultWaterDepthPx, cityGateGroundFeetY, CITY_GATE_GROUND } from "../city-visualizer/cityAssaultGround.js";
+import { CITY_GATE_TRAVERSAL_PATHS, cityNpcPathPoint, cityPortAssaultLaneFeetY } from "../city-visualizer/cityPainterOrder.js";
 const manifest=JSON.parse(readFileSync(new URL("../city-visualizer/assets/port-parallax/manifest.json",import.meta.url)));
 const atlas=await loadImage(new URL("../city-visualizer/assets/port-parallax/static.png",import.meta.url).pathname);
+
+test("every regional gate keeps all street depths below its rear jamb and behind its near jamb", () => {
+  for (const gate of manifest.staticFrames.filter(f => f.layer === "Gate" || f.regionalOf === "Gate")) {
+    const canvas = createCanvas(1365, 910), context = canvas.getContext("2d");
+    const r = gate.frame, s = gate.spriteSourceSize;
+    context.drawImage(atlas, r.x, r.y, r.w, r.h, s.x, s.y, r.w, r.h);
+    const pixels = context.getImageData(0, 0, 1365, 910).data;
+    for (let x = CITY_GATE_GROUND.entranceX; x <= 1289; x++) {
+      for (let lane = 0; lane <= 3; lane += .125) {
+        const y = Math.round(cityGateGroundFeetY(x, cityPortAssaultLaneFeetY(lane), true));
+        assert.equal(pixels[(y * 1365 + x) * 4 + 3], 0,
+          `${gate.layer}: feet intersect the gate masonry at ${x},${y}`);
+      }
+    }
+    for (const path of CITY_GATE_TRAVERSAL_PATHS) {
+      const y = Math.round(cityGateGroundFeetY(path.endX, path.endFeetY, true));
+      assert.ok(pixels[(y * 1365 + path.endX) * 4 + 3] > 0,
+        `${gate.layer}: the path must end inside the opaque gate front`);
+    }
+  }
+});
+
+test("gate approaches are continuous in both directions for civilians and all assault rows", () => {
+  for (const feetY of [490, 500, 518, 530, 544, 547.6, 565, 578]) {
+    const path = Array.from({length: 141}, (_, index) =>
+      cityGateGroundFeetY(1190 + index, feetY, true));
+    for (let i = 1; i < path.length; i++) assert.ok(Math.abs(path[i] - path[i - 1]) < 1.5);
+    assert.equal(path[0], feetY);
+    assert.ok(path.at(-1) >= CITY_GATE_GROUND.rearFeetY && path.at(-1) <= CITY_GATE_GROUND.frontFeetY);
+    assert.deepEqual([...path].reverse(), Array.from({length: 141}, (_, i) =>
+      cityGateGroundFeetY(1330 - i, feetY, true)));
+    assert.equal(cityGateGroundFeetY(1320, feetY, false), feetY, "open towns retain full street depth");
+  }
+  for (const path of CITY_GATE_TRAVERSAL_PATHS) for (let step = 0; step <= 100; step++) {
+    const point = cityNpcPathPoint(path, step / 100);
+    if (point.x < CITY_GATE_GROUND.entranceX) continue;
+    const y = cityGateGroundFeetY(point.x, point.feetY, true);
+    assert.ok(y >= CITY_GATE_GROUND.rearFeetY && y <= CITY_GATE_GROUND.frontFeetY);
+  }
+  assert.throws(() => cityGateGroundFeetY(NaN, 522, true), /Invalid city gate/);
+  assert.throws(() => cityGateGroundFeetY(1254, 522, undefined), /Invalid city gate/);
+});
 
 test("every allowed quay position lies on authored ground, not the ocean or dock pilings",()=>{
   for (const dockKind of ["wood","stone"]) {

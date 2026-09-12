@@ -26,12 +26,10 @@ export const CITY_NPC_PATHS = Object.freeze([
 ]);
 
 export const CITY_GATE_TRAVERSAL_PATHS = Object.freeze([
-  npcPath(1212, 1292, 578, {
-    endFeetY: 520,
+  npcPath(1212, 1320, 518, {
     painterZ: CITY_GATE_TRAVERSAL_PAINTER_Z
   }),
-  npcPath(1198, 1287, 568, {
-    endFeetY: 512,
+  npcPath(1198, 1314, 544, {
     painterZ: CITY_GATE_TRAVERSAL_PAINTER_Z
   })
 ]);
