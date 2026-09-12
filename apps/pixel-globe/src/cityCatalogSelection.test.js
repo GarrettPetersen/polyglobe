@@ -302,6 +302,13 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.equal(baghdad.factionId, "safavid");
   assert.equal(baghdad.settlementType, "city");
   assert.equal(baghdad.marketGoods, null, "Baghdad should offer a full city market");
+  const birah = ports.find((city) => city.cityId === "birecik|turkey");
+  assert.ok(birah, "Birah must be a dockable Euphrates town");
+  assert.equal(birah.displayCity, "Birah");
+  assert.equal(birah.population, 3932);
+  assert.equal(birah.factionId, "ottoman");
+  assert.equal(birah.settlementType, "city", "a trading town uses city services, not tribal village services");
+  assert.ok(masks[birah.tileId], "Birah's own hex must be on the river");
   assert.equal(agra.declaredCapitalFactionId, "delhi");
   assert.ok(delhi, "Delhi should remain a separate Yamuna city");
   assert.equal(delhi.declaredCapitalFactionId, null);

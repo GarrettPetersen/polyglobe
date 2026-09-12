@@ -233,7 +233,25 @@ const coimbraMondegoRoute = routeThroughCoordinates([
 // centerlines. These replace straight legacy spurs that crossed watersheds.
 const sourceRivers = JSON.parse(await readFile(resolve(sharedRoot,
   "ne_10m_rivers_lake_centerlines.json"), "utf8")).features;
+// The old coarse Tigris spur joined the Euphrates west of Baghdad. Restore
+// the eastern course through Baghdad, Kut and Amara to Qurna, near Basra.
+// Eldred's 1583 voyage describes the junction at Curna; these modern source
+// centerlines approximate the main branches, not every sixteenth-century bend
+// or irrigation canal. See docs/geography-audits.md for the historical limits.
+const tigrisRiverRoutes = sourceRiverRoutes("135River");
+const euphratesRiverRoutes = sourceRiverRoutes("62River");
+const shattAlArabRiverRoutes = sourceRiverRoutes("94River");
+// The source line ends on the coastal raster's last land hex. Carry its mouth
+// into Gulf water and retain the Karun/Susa approach's downstream connection.
+const shattAlArabMouthRoute = routeThroughCoordinates([
+  { lat: 29.96, lon: 48.53 }, { lat: 29.76, lon: 48.99 }
+]);
 const sourceRiverRepairs = [
+  ...tigrisRiverRoutes,
+  ...euphratesRiverRoutes,
+  ...shattAlArabRiverRoutes,
+  shattAlArabMouthRoute,
+  refineChain([102230, 102232]),
   // Natural Earth splits the upper Mississippi from the larger lower river.
   // Keep both its channel and lake-centerline links through Minnesota.
   // https://www.nps.gov/miss/riverfacts.htm
@@ -348,7 +366,8 @@ const riverChains = [
   norwichYareRoute,
   topshamExeRoute,
   ...MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7]
-    .filter((chain) => ![74294, 73682, 18467, 62166, 62627, 62610, 62346, 160887, 161095].includes(chain[0]))
+    .filter((chain) => ![74294, 73682, 18467, 62166, 62627, 62610, 62346, 160887, 161095,
+      25744, 25747, 102672].includes(chain[0]))
     .map(refineChain),
   jamesRiverRoute,
   potomacRiverRoute,
@@ -376,6 +395,12 @@ const riverChains = [
 const cityRiverChains = Object.fromEntries(Object.entries(
   MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7]
 ).map(([cityId, chain]) => [cityId, refineChain(chain)]));
+const baghdad = MANUAL_CITY_RECORDS_1522.find(({ cityId }) => cityId === "baghdad|iraq");
+if (!baghdad) throw new Error("Baghdad is missing from the manual city catalog");
+const baghdadTileId = findNearestTileId(fineGraph, fineDirectionIndex, cityPlacementDirection(baghdad));
+const baghdadRoutes = tigrisRiverRoutes.filter((route) => route.includes(baghdadTileId));
+if (baghdadRoutes.length !== 1) throw new Error("Baghdad must lie on exactly one source Tigris segment");
+cityRiverChains[baghdad.cityId] = baghdadRoutes[0];
 cityRiverChains["norwich|united kingdom"] = norwichYareRoute;
 cityRiverChains["topsham|united kingdom"] = topshamExeRoute;
 cityRiverChains["delhi|india"] = delhiYamunaApproach;

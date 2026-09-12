@@ -266,6 +266,14 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "islamic-desert",
     manualRegion: "mesopotamia"
   }),
+  // Bir/Birah (modern Birecik), an Ottoman Euphrates trading port since 1516.
+  // The 1520 register records 3,932 inhabitants; use a town's city services.
+  // https://avesis.marmara.edu.tr/yayin/bf8d426c-72b8-4cc2-8eb8-86d2f2ba3d66/xvi-yuzyilda-birecik-sancagi
+  manualCity1522("birecik|turkey", "Birecik", "Turkey", 37.025, 37.978, 3932, {
+    displayCity: "Birah",
+    cityType: "islamic-desert",
+    manualRegion: "mesopotamia"
+  }),
   manualCity1522("rhodes|greece", "Rhodes", "Greece", 36.434, 28.217, 12000, {
     cityType: "mediterranean",
     manualRegion: "eastern-mediterranean",

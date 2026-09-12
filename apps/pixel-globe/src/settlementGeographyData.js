@@ -34,6 +34,7 @@ export const SETTLEMENT_LANDMASSES = Object.freeze([
     "berlin|germany",
     "bhimavaram|india",
     "binh dinh|vietnam",
+    "birecik|turkey",
     "bologna|italy",
     "bonn|germany",
     "bordeaux|france",

@@ -15,7 +15,8 @@ export const RIVER_BASIN_ID = Object.freeze({
   PARANA: 13,
   INDUS: 14,
   GANGES_BRAHMAPUTRA: 15,
-  IRRAWADDY: 16
+  IRRAWADDY: 16,
+  TIGRIS_EUPHRATES: 17
 });
 
 const NAMED_RIVER_BASINS = Object.freeze([
@@ -41,7 +42,8 @@ const NAMED_RIVER_BASINS = Object.freeze([
   basin(RIVER_BASIN_ID.PARANA, "Parana", 106954),
   basin(RIVER_BASIN_ID.INDUS, "Indus", 97492),
   basin(RIVER_BASIN_ID.GANGES_BRAHMAPUTRA, "Ganges-Brahmaputra", 155083),
-  basin(RIVER_BASIN_ID.IRRAWADDY, "Irrawaddy", 93194)
+  basin(RIVER_BASIN_ID.IRRAWADDY, "Irrawaddy", 93194),
+  basin(RIVER_BASIN_ID.TIGRIS_EUPHRATES, "Tigris-Euphrates", 25747)
 ]);
 
 function basin(id, name, subdivisionSevenAnchorTileId, subdivisionEightAnchorTileId = subdivisionSevenAnchorTileId) {

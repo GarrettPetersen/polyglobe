@@ -244,6 +244,14 @@ const RESIDENT_RIVER_SPECIES_BASINS = Object.freeze({
   "murray-cod": basinRoster(RIVER_BASIN_ID.MURRAY_DARLING)
 });
 
+// Clarias gariepinus is native in Africa and parts of the Levant, but its
+// occurrence in Iraq is a modern introduction. Bounding boxes alone cross
+// the watershed divide. Preserve its native range without stocking Mesopotamia.
+// https://jnhm.uobaghdad.edu.iq/index.php/BINHM/article/download/1054/436
+const RESIDENT_RIVER_SPECIES_EXCLUDED_BASINS = Object.freeze({
+  "african-catfish": basinRoster(RIVER_BASIN_ID.TIGRIS_EUPHRATES)
+});
+
 const FISH_SPECIES_BY_ID = new Map(FISH_SPECIES.map((item) => [item.id, item]));
 const FISH_SPECIES_CANDIDATES = Object.freeze({
   "open-ocean": speciesCandidates(["salmon", "herring", "cod", "sardine", "tuna", "reef"]),
@@ -843,6 +851,7 @@ function residentRiverSpeciesHabitatScore(speciesId, habitat) {
   if (!ranges) return 0;
   const allowedBasinIds = RESIDENT_RIVER_SPECIES_BASINS[speciesId];
   if (allowedBasinIds && !allowedBasinIds.includes(habitat.riverBasinId)) return 0;
+  if (RESIDENT_RIVER_SPECIES_EXCLUDED_BASINS[speciesId]?.includes(habitat.riverBasinId)) return 0;
   let score = 0;
   for (const range of ranges) {
     if (

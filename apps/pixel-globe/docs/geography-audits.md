@@ -58,6 +58,36 @@ bootstrap so returning players do not reuse an earlier startup bundle.
 
 ## Completed September review
 
+### Mesopotamian river review
+
+The old subdivision-seven Tigris repair ran southwest from Mosul into the
+Euphrates upstream of Baghdad. Refining that chain preserved the wrong
+confluence. Subdivision eight now follows the checked-in Natural Earth Tigris
+centerline through Baghdad, Kut and Amara, meeting the Euphrates at Qurna before
+the Shatt al Arab runs past Basra into the Gulf. Baghdad's coordinates and
+canonical port tile stay unchanged. The Gulf mouth still needs an explicit
+connection because the river source ends on the land side of the coast raster.
+
+This is an approximation of the main branches, not a reconstruction of every
+1522 channel or irrigation canal. [Le Strange's discussion of sixteenth-century
+travellers](https://www.qdl.qa/en/archive/81055/vdc_100023695620.0x00003d)
+places the junction at Qurna, including Eldred's 1583 account; the discussion
+also notes earlier changes in the lower Tigris course. Modern source centerlines
+provide the bends where period evidence does not establish an exact course.
+
+Birah (Bir/Birecik, canonical ID `birecik|turkey`) is added as an Ottoman
+Euphrates trading town, with city services. Its [1520 population register](https://avesis.marmara.edu.tr/yayin/bf8d426c-72b8-4cc2-8eb8-86d2f2ba3d66/xvi-yuzyilda-birecik-sancagi)
+records 3,932 inhabitants. The [TDV historical account](https://islamansiklopedisi.org.tr/birecik)
+describes its river port and Ottoman acquisition in 1516. Catalog version 13
+adds this endpoint; the frozen-history checks protect existing destinations.
+
+The named Tigris-Euphrates watershed excludes African catfish without removing
+them from their native African and Levantine waters. Their Iraqi occurrence is
+documented as an [introduced species](https://jnhm.uobaghdad.edu.iq/index.php/BINHM/article/download/1054/436).
+Navigation tests exercise each river leg and reject an upstream mainstem
+shortcut; a test deliberately reintroduces the original spur to prove detection.
+Ecology tests cover both river and river-mouth habitats and native-range controls.
+
 The review covers every catalog settlement and colonization site. Each canonical
 city ID must be assigned to a reviewed landmass in `settlementGeographyData.js`.
 Placement checks that identity and searches only within 45 km of the authored

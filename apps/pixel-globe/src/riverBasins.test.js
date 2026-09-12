@@ -38,7 +38,8 @@ test("narrowly distributed river fish have stable watershed anchors", async () =
     [106954, RIVER_BASIN_ID.PARANA],
     [97492, RIVER_BASIN_ID.INDUS],
     [155083, RIVER_BASIN_ID.GANGES_BRAHMAPUTRA],
-    [93194, RIVER_BASIN_ID.IRRAWADDY]
+    [93194, RIVER_BASIN_ID.IRRAWADDY],
+    [25747, RIVER_BASIN_ID.TIGRIS_EUPHRATES]
   ];
 
   for (const [tileId, basinId] of anchors) {

@@ -1,4 +1,5 @@
 import { soundDuesStraitAt } from "./soundDues.js";
+import { RIVER_BASIN_ID } from "./riverBasins.js";
 import { landmassChannelNavigationAnchor } from "./landmassChannels.js";
 import { REVIEWED_LANDMASS_CONTACTS } from "./reviewedLandmassContacts.js";
 import { FACTION_SEA_CAPITALS_1522, markFactionSeaCapitalsOnPorts } from "./factions.js";
@@ -121,6 +122,30 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
       invariant.name
     );
   }
+
+  for (const [lat, lon] of [[37.025, 37.978], [36.35, 43.15], [33.34, 44.4], [31.0, 47.43]]) {
+    const tileId = findNearestTileId(graph, directionIndex, latLonToDirection(lat, lon));
+    assert.equal(navigation.riverBasinIds[tileId], RIVER_BASIN_ID.TIGRIS_EUPHRATES,
+      `Mesopotamian fisheries must use the actual watershed at ${lat}, ${lon}`);
+  }
+  // Reintroduce the old Mosul-to-Euphrates spur into a copy of the navigation
+  // graph: the separation contract must detect a shortcut even with a working
+  // Gulf outlet and otherwise correct new river branches.
+  const shortcutMasks = navigation.riverMasks.slice();
+  const oldShortcut = [25747, 409948, 102654, 409944, 6479, 409912,
+    102646, 409919, 102647, 409927, 102644];
+  for (let index = 1; index < oldShortcut.length; index++) {
+    const a = oldShortcut[index - 1], b = oldShortcut[index];
+    const edgeA = graph.edgeNeighbors[a].indexOf(b), edgeB = graph.edgeNeighbors[b].indexOf(a);
+    assert.ok(edgeA >= 0 && edgeB >= 0);
+    shortcutMasks[a] |= 1 << edgeA;
+    shortcutMasks[b] |= 1 << edgeB;
+  }
+  const separationContract = WORLD_WATERWAY_INVARIANTS.find(({ name }) =>
+    name === "Tigris and Euphrates have no upstream mainstem shortcut");
+  assert.equal(boundedNavigablePathExists({ graph, earthRows, directionIndex,
+    navigation: { ...navigation, riverMasks: shortcutMasks }, ...separationContract }), true,
+  "the original premature confluence must violate the separation contract");
 
   const danishPassage = { from: [56.5, 12], to: [54.5, 12], bounds: [54.3, 57, 8.8, 14], surfaceWaterOnly: true };
   assert.equal(boundedNavigablePathExists({ graph, earthRows, navigation, directionIndex, ...danishPassage }), true);

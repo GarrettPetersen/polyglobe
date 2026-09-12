@@ -81,6 +81,21 @@ test("salmon runs remain available in native named watersheds", () => {
   assert.equal(fishery.speciesId, "salmon");
 });
 
+test("African catfish remain native to Africa and the Levant, excluding the Tigris-Euphrates", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  for (const kind of ["river", "river-mouth"]) {
+    for (const [lat, lon] of [[37.0, 38.0], [34.4, 41.0], [31.9, 44.5], [33.34, 44.4]]) {
+      assertNoSpecies(state, kind, lat, lon, 140 * MINUTE, "african-catfish", {
+        riverBasinId: RIVER_BASIN_ID.TIGRIS_EUPHRATES
+      });
+    }
+  }
+  for (const [lat, lon] of [[8, 30], [30, 31], [32, 35]]) {
+    assert.equal(findFishery(state, "river", lat, lon, 140 * MINUTE,
+      "african-catfish").speciesId, "african-catfish");
+  }
+});
+
 test("resident freshwater fish give rivers distinct regional fisheries", () => {
   const minute = 140 * MINUTE;
   const regions = [

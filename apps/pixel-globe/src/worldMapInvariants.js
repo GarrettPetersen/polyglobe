@@ -3,6 +3,12 @@ import { canTraverseWorldNavigationEdge } from "./worldNavigationTopology.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 
 export const WORLD_WATERWAY_INVARIANTS = Object.freeze([
+  passage("Birah down the Euphrates to Qurna", [37.025, 37.978], [31.0, 47.43], [30.6, 37.3, 37.5, 47.8]),
+  passage("Mosul via Tigris to Baghdad", [36.35, 43.15], [33.34, 44.4], [33.2, 36.7, 42.8, 44.8]),
+  passage("Baghdad down the Tigris through Kut to Amara", [33.34, 44.4], [31.84, 47.14], [31.6, 33.6, 44.1, 47.5]),
+  passage("Amara to Qurna on the lower Tigris", [31.84, 47.14], [31.0, 47.43], [30.7, 32.1, 46.8, 47.9]),
+  passage("Qurna via Basra and Shatt al Arab to the Gulf", [31.0, 47.43], [29.76, 48.99], [29.4, 31.3, 47.1, 49.3]),
+  barrier("Tigris and Euphrates have no upstream mainstem shortcut", [36.35, 43.15], [34.43, 41.0], [31.5, 37.3, 37.5, 48.0]),
   passage("Hartford through Connecticut River to Long Island Sound", [41.7658, -72.6734], [41.24, -72.34], [41.1, 41.9, -72.9, -72.1]),
   passage("Upper Mississippi from Minnesota to Missouri confluence", [44.94, -93.09], [38.8, -90.12], [38.5, 45.2, -93.5, -89.0]),
   passage("Chillicothe via Scioto to Ohio", [39.3364, -82.9839], [38.73, -83.02], [38.5, 39.5, -83.3, -82.7]),
