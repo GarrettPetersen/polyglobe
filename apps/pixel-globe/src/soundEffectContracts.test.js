@@ -79,7 +79,11 @@ test("actual assault timelines including boarding play through the production so
   for (const dockKind of ["wood","stone","none"]) {
     const battle = simulatePortAssault(createPortAssaultScenario({cityId:"tunis|tunisia",dockKind,fortified:false,
       attackers:Array.from({length:15},(_,i)=>soldier(`a${i}`,"gunner")),
-      defenders:Array.from({length:8},(_,i)=>({...soldier(`d${i}`,"swordsman"),experienceStars:3})),
+      defenders:Array.from({length:20},(_,i)=>({...soldier(`d${i}`,"shieldman"),experienceStars:3})),
+      // Survive several committed reloads so the battle reaches boarding;
+      // sound coverage must not depend on skirmishers fleeing indefinitely.
+      attackerModifiers:{meleeDamageMultiplier:1,arrowDamageMultiplier:1,firearmDamageMultiplier:1,
+        defenseMultiplier:3,armorCoverageBonus:.5},
       shipHitPoints:80,shipMaxHitPoints:100}),42);
     for (const event of battle.events) {
       observed.add(event.type);
