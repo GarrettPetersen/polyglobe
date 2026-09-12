@@ -84,6 +84,13 @@ adds this endpoint; the frozen-history checks protect existing destinations.
 The named Tigris-Euphrates watershed excludes African catfish without removing
 them from their native African and Levantine waters. Their Iraqi occurrence is
 documented as an [introduced species](https://jnhm.uobaghdad.edu.iq/index.php/BINHM/article/download/1054/436).
+Shabout (*Arabibarbus grypus*) supplies the watershed's native river fisheries;
+it is listed in the [native basin checklist](https://zenodo.org/records/15112094)
+and the [FAO survey of commercially important Iraqi fish](https://www.fao.org/4/50319e/50319E01.htm).
+The game's watershed restriction includes the main rivers and river-mouth
+habitat, without placing this freshwater fish in open Gulf water. Tests also
+require catchable native schools on the actual upper Euphrates, Tigris and
+lower-river map tiles, so an exclusion cannot silently leave the system barren.
 Navigation tests exercise each river leg and reject an upstream mainstem
 shortcut; a test deliberately reintroduces the original spur to prove detection.
 Ecology tests cover both river and river-mouth habitats and native-range controls.

@@ -1,5 +1,7 @@
 import { soundDuesStraitAt } from "./soundDues.js";
 import { RIVER_BASIN_ID } from "./riverBasins.js";
+import { fisheryForHabitat } from "./fishEcology.js";
+import { createGameState } from "./gameState.js";
 import { landmassChannelNavigationAnchor } from "./landmassChannels.js";
 import { REVIEWED_LANDMASS_CONTACTS } from "./reviewedLandmassContacts.js";
 import { FACTION_SEA_CAPITALS_1522, markFactionSeaCapitalsOnPorts } from "./factions.js";
@@ -128,6 +130,24 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     assert.equal(navigation.riverBasinIds[tileId], RIVER_BASIN_ID.TIGRIS_EUPHRATES,
       `Mesopotamian fisheries must use the actual watershed at ${lat}, ${lon}`);
   }
+  // Check ecology against real river tiles, not only synthetic habitat records:
+  // removing an invalid species must not leave both major rivers barren.
+  const fishState = createGameState({ cargoCapacity: 20, voyageSeed: "mesopotamian-fisheries" });
+  let upperEuphratesSchools = 0, tigrisSchools = 0, lowerRiverSchools = 0;
+  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+    if (navigation.riverBasinIds[tileId] !== RIVER_BASIN_ID.TIGRIS_EUPHRATES || isWaterSurfaceRow(earthRows[tileId])) continue;
+    const lat = graph.latDeg[tileId], lon = graph.lonDeg[tileId];
+    const fishery = fisheryForHabitat(fishState, { tileId, lat, lon, kind: "river",
+      riverBasinId: navigation.riverBasinIds[tileId] }, 140 * 1440);
+    if (!fishery) continue;
+    assert.equal(fishery.speciesId, "shabout");
+    if (lon < 42) upperEuphratesSchools++;
+    if (lon > 43 && lat > 32) tigrisSchools++;
+    if (lat < 32) lowerRiverSchools++;
+  }
+  assert.ok(upperEuphratesSchools > 0, "upper Euphrates must have catchable native fish");
+  assert.ok(tigrisSchools > 0, "Tigris must have catchable native fish");
+  assert.ok(lowerRiverSchools > 0, "lower Mesopotamian rivers must have catchable native fish");
   // Reintroduce the old Mosul-to-Euphrates spur into a copy of the navigation
   // graph: the separation contract must detect a shortcut even with a working
   // Gulf outlet and otherwise correct new river branches.

@@ -103,6 +103,7 @@ test("resident freshwater fish give rivers distinct regional fisheries", () => {
     ["wels-catfish", 48, 20, RIVER_BASIN_ID.DANUBE_BLACK_SEA_NETWORK],
     ["channel-catfish", 36, -90],
     ["african-catfish", 8, 30],
+    ["shabout", 33.34, 44.4, RIVER_BASIN_ID.TIGRIS_EUPHRATES],
     ["tigerfish", -12, 25],
     ["mahseer", 25, 82, RIVER_BASIN_ID.GANGES_BRAHMAPUTRA],
     ["mekong-giant-catfish", 16, 103, RIVER_BASIN_ID.MEKONG],
@@ -124,6 +125,7 @@ test("narrow resident freshwater fish require their native watershed", () => {
   const minute = 140 * MINUTE;
   const cases = [
     ["wels-catfish", 48, 20],
+    ["shabout", 33.34, 44.4],
     ["mahseer", 25, 82],
     ["mekong-giant-catfish", 16, 103],
     ["grass-carp", 30, 115],
@@ -143,6 +145,44 @@ test("narrow resident freshwater fish require their native watershed", () => {
       speciesId,
       { riverBasinId: RIVER_BASIN_ID.NONE }
     );
+  }
+});
+
+test("shabout support year-round river fishing and preserve catches across saved fish memory", () => {
+  for (const day of [20, 140, 280, 350]) {
+    const minute = day * MINUTE;
+    const state = createGameState({ cargoCapacity: 20 });
+    const habitat = findHabitatWithFishery(state, "river", 33.34, 44.4, minute, "shabout", {
+      riverBasinId: RIVER_BASIN_ID.TIGRIS_EUPHRATES
+    });
+    const fishery = fisheryForHabitat(state, habitat, minute);
+    assert.equal(fishery.speciesLabel, "Shabout");
+    assert.ok(fishery.visibleIndividualCount > 0);
+    const caught = harvestFishery(state, fishery, 3, minute);
+    assert.equal(caught.quantity, 3);
+    assert.equal(caught.reason, "caught");
+    const restored = createGameState({ cargoCapacity: 20 });
+    restored.memory = JSON.parse(JSON.stringify(state.memory));
+    assert.deepEqual(fisheryForHabitat(restored, habitat, minute), fisheryForHabitat(state, habitat, minute));
+    assert.equal(restored.memory.fish.fisheries[fishery.stockKey].harvested, 3);
+    assert.equal(fisheryForHabitat(restored, habitat, minute).population, fishery.population - 3);
+  }
+});
+
+test("shabout occupy their river mouths but not neighboring watersheds or the open Gulf", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const minute = 140 * MINUTE;
+  assert.equal(findFishery(state, "river-mouth", 30.5, 47.8, minute, "shabout", {
+    riverBasinId: RIVER_BASIN_ID.TIGRIS_EUPHRATES
+  }).speciesId, "shabout");
+  for (const riverBasinId of Object.values(RIVER_BASIN_ID)) {
+    if (riverBasinId === RIVER_BASIN_ID.TIGRIS_EUPHRATES) continue;
+    assertNoSpecies(state, "river", 33.34, 44.4, minute, "shabout", { riverBasinId });
+  }
+  for (const kind of ["coastal", "open-ocean", "lake"]) {
+    assertNoSpecies(state, kind, 30.5, 47.8, minute, "shabout", {
+      riverBasinId: RIVER_BASIN_ID.TIGRIS_EUPHRATES
+    });
   }
 });
 

@@ -117,6 +117,12 @@ export const FISH_SPECIES = Object.freeze([
     minVisibleDensity: 0.13,
     schoolScale: 1.16
   }),
+  species("shabout", "Shabout", "#9babb2", "#c7dcd0", "#547e64", {
+    baseCapacity: 40,
+    growthPerDay: 0.024,
+    minVisibleDensity: 0.13,
+    schoolScale: 1.16
+  }),
   species("tigerfish", "Tigerfish", "#9e4539", "#fbb954", "#4c3e24", {
     baseCapacity: 31,
     growthPerDay: 0.019,
@@ -190,6 +196,12 @@ const RESIDENT_RIVER_SPECIES_RANGES = Object.freeze({
     riverRange(-35, 32, -18, 45, 0.92),
     riverRange(30, 38, 32, 42, 0.48)
   ]),
+  // Arabibarbus grypus: native mainstem food fish, including the Shatt al Arab.
+  // https://zenodo.org/records/15112094
+  // https://www.fao.org/4/50319e/50319E01.htm
+  shabout: Object.freeze([
+    riverRange(29, 41, 37, 49, 0.9)
+  ]),
   tigerfish: Object.freeze([
     riverRange(-35, 15, 10, 42, 0.76)
   ]),
@@ -216,6 +228,7 @@ const RESIDENT_RIVER_SPECIES_RANGES = Object.freeze({
 
 // Exact taxa use connected watersheds; broad regional groups remain range-based.
 const RESIDENT_RIVER_SPECIES_BASINS = Object.freeze({
+  shabout: basinRoster(RIVER_BASIN_ID.TIGRIS_EUPHRATES),
   "wels-catfish": basinRoster(
     RIVER_BASIN_ID.RHINE,
     RIVER_BASIN_ID.DANUBE_BLACK_SEA_NETWORK,
