@@ -1053,6 +1053,7 @@ export default Object.freeze({
   "Captain, your courier reached my office first; the {0} db purse is yours.": "船長、そなたの使者が先に市舶司へ着いた。{0} DBの褒賞はそなたのものだ。",
   "Captain! My family marks the day you found me on that lonely shore every year. Come to supper.": "船長！私の家族は、あなたがあの寂しい海岸で私を見つけた日を毎年記念しています。夕食に来てください。",
   "Captain! My family still drinks to the ship that carried me out of pirate hands. Tonight, the rescued traveler is buying supper.": "船長！私の家族は今でも私を海賊の手から救った船で酒を飲みます。今夜、救出された旅行者は夕食を買っています。",
+  "Captain’s house": "船長の家",
   "Captain's log: the crew is quiet because the crew is me. An efficient meeting.": "船長の日誌: 乗組員は私なので静かです。効率的な会議。",
   "Captain's Treasure": "船長の宝物",
   "CAPTAIN'S TREASURE": "キャプテンの宝物",

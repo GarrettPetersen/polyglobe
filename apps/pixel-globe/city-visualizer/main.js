@@ -4793,9 +4793,10 @@ function moveDestinationFocus(direction) {
 // Navigation must use the same geometry and damage mask as those visible buildings.
 function streetDestinationPresentation(destination) {
   const activeLayers = activePortSceneLayers(state.features);
-  if (destination.layers.some(layer => activeLayers.has(layer) &&
+  if (!destination.streetSlotId && destination.layers.some(layer => activeLayers.has(layer) &&
     state.portManifest.staticFrames.some(frame => frame.layer === layer))) return null;
-  const placement = state.streetBuildings.find(building => destination.layers.includes(building.layerName));
+  const placement = state.streetBuildings.find(building => destination.streetSlotId
+    ? building.slotId === destination.streetSlotId : destination.layers.includes(building.layerName));
   if (!placement) return null;
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
   const source = regionalStaticFrame(placement.frame, placement.layerName) ||

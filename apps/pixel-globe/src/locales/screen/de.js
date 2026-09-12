@@ -1053,6 +1053,7 @@ export default Object.freeze({
   "Captain, your courier reached my office first; the {0} db purse is yours.": "Kapitän, Ihr Kurier erreichte zuerst mein Büro; Die {0} DB-Geldbörse gehört Ihnen.",
   "Captain! My family marks the day you found me on that lonely shore every year. Come to supper.": "Kapitän! Meine Familie feiert jedes Jahr den Tag, an dem du mich an diesem einsamen Ufer gefunden hast. Kommen Sie zum Abendessen.",
   "Captain! My family still drinks to the ship that carried me out of pirate hands. Tonight, the rescued traveler is buying supper.": "Kapitän! Meine Familie trinkt immer noch auf das Schiff, das mich aus den Händen der Piraten befreit hat. Heute Abend kauft der gerettete Reisende das Abendessen.",
+  "Captain’s house": "Haus des Kapitäns",
   "Captain's log: the crew is quiet because the crew is me. An efficient meeting.": "Logbuch des Kapitäns: Die Besatzung ist ruhig, weil ich die Besatzung bin. Ein effizientes Treffen.",
   "Captain's Treasure": "Schatz des Kapitäns",
   "CAPTAIN'S TREASURE": "DER SCHATZ DES KAPITÄNS",

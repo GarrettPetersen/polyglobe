@@ -1,0 +1,551 @@
+{
+  "version": 10,
+  "clockMinute": 151200,
+  "ship": {
+    "id": "tea-race-1522-competitor-3",
+    "captainHomeCityId": "guangzhou|china",
+    "industrialSupply": null,
+    "factionId": "england",
+    "role": "merchant",
+    "profileId": "wide-world",
+    "mode": "interregional",
+    "cultureType": "east-asian",
+    "slugs": [
+      "galleon"
+    ],
+    "slug": "galleon",
+    "seed": 2048339878,
+    "hitPoints": 36,
+    "maxHitPoints": 36,
+    "cargoCapacity": 420,
+    "fishingNetId": null,
+    "lastWhaleHuntMinute": null,
+    "cargo": {},
+    "cargoCost": {},
+    "cargoOrigins": {},
+    "tradeEmbargoConvictions": 0,
+    "lastTradeEmbargoEnforcement": null,
+    "specie": 8460,
+    "lifetimeProfit": 0,
+    "cartazUntilMinute": 0,
+    "portVisits": 0,
+    "graceUntilPortVisit": 0,
+    "seekingHideout": false,
+    "hideoutDestinationTileId": null,
+    "hiddenAtHideout": false,
+    "hiddenUntilMinute": 0,
+    "hideoutCooldownUntilPortVisit": 0,
+    "nationalCircuitId": null,
+    "nationalCircuitFactionId": null,
+    "nationalCircuitCityIds": [],
+    "capitalNavalReserveSlotId": null,
+    "capitalNavalReserveDestinationCityId": null,
+    "capitalNavalReserveDocked": false,
+    "portResponse": null,
+    "currentPort": {
+      "cityId": "guangzhou|china",
+      "city": "Guangzhou",
+      "country": "China",
+      "lat": 23.11667,
+      "lon": 113.25,
+      "year": 1522,
+      "population": 154400,
+      "coastalIntent": false,
+      "lakeIntent": false,
+      "sourceYear": 1500,
+      "nextSourceYear": 1550,
+      "displayCity": "Guangzhou",
+      "cityType": "east-asian",
+      "economyRegion": "east-asian",
+      "factionId": "ming",
+      "declaredCapitalFactionId": null,
+      "portId": "guangzhou|china",
+      "tileId": 246568,
+      "landmassId": 57,
+      "services": {
+        "inn": true,
+        "smith": true,
+        "market": true,
+        "shipyard": true
+      },
+      "foundingFactionId": "ming",
+      "foundingDisplayCity": "Guangzhou",
+      "foundingCapitalOfFactionId": null,
+      "capitalOfFactionId": null,
+      "isFactionCapital": false,
+      "routeRegion": "east-asia",
+      "routeAnchors": [
+        "canton",
+        "manila"
+      ]
+    },
+    "finalDestination": {
+      "cityId": "london|united kingdom",
+      "city": "London",
+      "country": "United Kingdom",
+      "lat": 51.511214,
+      "lon": -0.119825,
+      "year": 1522,
+      "population": 58250,
+      "coastalIntent": false,
+      "lakeIntent": false,
+      "sourceYear": 1500,
+      "nextSourceYear": 1532,
+      "displayCity": "London",
+      "cityType": "northern-european",
+      "economyRegion": "northern-european",
+      "factionId": "england",
+      "declaredCapitalFactionId": "england",
+      "portId": "london|united kingdom",
+      "tileId": 644682,
+      "landmassId": 245,
+      "services": {
+        "inn": true,
+        "smith": true,
+        "market": true,
+        "shipyard": true
+      },
+      "isFactionCapital": true,
+      "capitalOfFactionId": "england",
+      "foundingFactionId": "england",
+      "foundingDisplayCity": "London",
+      "foundingCapitalOfFactionId": "england",
+      "routeRegion": "europe",
+      "routeAnchors": [
+        "north-sea",
+        "biscay"
+      ]
+    },
+    "plan": {
+      "origin": {
+        "cityId": "guangzhou|china",
+        "city": "Guangzhou",
+        "country": "China",
+        "lat": 23.11667,
+        "lon": 113.25,
+        "year": 1522,
+        "population": 154400,
+        "coastalIntent": false,
+        "lakeIntent": false,
+        "sourceYear": 1500,
+        "nextSourceYear": 1550,
+        "displayCity": "Guangzhou",
+        "cityType": "east-asian",
+        "economyRegion": "east-asian",
+        "factionId": "ming",
+        "declaredCapitalFactionId": null,
+        "portId": "guangzhou|china",
+        "tileId": 246568,
+        "landmassId": 57,
+        "services": {
+          "inn": true,
+          "smith": true,
+          "market": true,
+          "shipyard": true
+        },
+        "foundingFactionId": "ming",
+        "foundingDisplayCity": "Guangzhou",
+        "foundingCapitalOfFactionId": null,
+        "capitalOfFactionId": null,
+        "isFactionCapital": false,
+        "routeRegion": "east-asia",
+        "routeAnchors": [
+          "canton",
+          "manila"
+        ]
+      },
+      "destination": {
+        "cityId": "london|united kingdom",
+        "city": "London",
+        "country": "United Kingdom",
+        "lat": 51.511214,
+        "lon": -0.119825,
+        "year": 1522,
+        "population": 58250,
+        "coastalIntent": false,
+        "lakeIntent": false,
+        "sourceYear": 1500,
+        "nextSourceYear": 1532,
+        "displayCity": "London",
+        "cityType": "northern-european",
+        "economyRegion": "northern-european",
+        "factionId": "england",
+        "declaredCapitalFactionId": "england",
+        "portId": "london|united kingdom",
+        "tileId": 644682,
+        "landmassId": 245,
+        "services": {
+          "inn": true,
+          "smith": true,
+          "market": true,
+          "shipyard": true
+        },
+        "isFactionCapital": true,
+        "capitalOfFactionId": "england",
+        "foundingFactionId": "england",
+        "foundingDisplayCity": "London",
+        "foundingCapitalOfFactionId": "england",
+        "routeRegion": "europe",
+        "routeAnchors": [
+          "north-sea",
+          "biscay"
+        ]
+      },
+      "segments": [
+        {
+          "kind": "sail",
+          "from": {
+            "id": "origin:guangzhou|china",
+            "label": "Guangzhou",
+            "lat": 23.11667,
+            "lon": 113.25,
+            "port": {
+              "cityId": "guangzhou|china",
+              "city": "Guangzhou",
+              "country": "China",
+              "lat": 23.11667,
+              "lon": 113.25,
+              "year": 1522,
+              "population": 154400,
+              "coastalIntent": false,
+              "lakeIntent": false,
+              "sourceYear": 1500,
+              "nextSourceYear": 1550,
+              "displayCity": "Guangzhou",
+              "cityType": "east-asian",
+              "economyRegion": "east-asian",
+              "factionId": "ming",
+              "declaredCapitalFactionId": null,
+              "portId": "guangzhou|china",
+              "tileId": 246568,
+              "landmassId": 57,
+              "services": {
+                "inn": true,
+                "smith": true,
+                "market": true,
+                "shipyard": true
+              },
+              "foundingFactionId": "ming",
+              "foundingDisplayCity": "Guangzhou",
+              "foundingCapitalOfFactionId": null,
+              "capitalOfFactionId": null,
+              "isFactionCapital": false,
+              "routeRegion": "east-asia",
+              "routeAnchors": [
+                "canton",
+                "manila"
+              ]
+            }
+          },
+          "to": {
+            "id": "canton",
+            "label": "Pearl River",
+            "lat": 22.4,
+            "lon": 113.8
+          },
+          "startMinute": 106620,
+          "endMinute": 110744.16383439032
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "canton",
+            "label": "Pearl River",
+            "lat": 22.4,
+            "lon": 113.8
+          },
+          "to": {
+            "id": "singapore",
+            "label": "Singapore Strait",
+            "lat": 1.1,
+            "lon": 104.1
+          },
+          "startMinute": 110744.16383439032,
+          "endMinute": 173787.54196944347
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "singapore",
+            "label": "Singapore Strait",
+            "lat": 1.1,
+            "lon": 104.1
+          },
+          "to": {
+            "id": "malacca",
+            "label": "Strait of Malacca",
+            "lat": 2.2,
+            "lon": 101
+          },
+          "startMinute": 173787.54196944347,
+          "endMinute": 185585.75976396253
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "malacca",
+            "label": "Strait of Malacca",
+            "lat": 2.2,
+            "lon": 101
+          },
+          "to": {
+            "id": "ceylon",
+            "label": "Ceylon",
+            "lat": 6.5,
+            "lon": 80
+          },
+          "startMinute": 185585.75976396253,
+          "endMinute": 238095.15456440873
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "ceylon",
+            "label": "Ceylon",
+            "lat": 6.5,
+            "lon": 80
+          },
+          "to": {
+            "id": "goa",
+            "label": "Goa Coast",
+            "lat": 15.1,
+            "lon": 73.6
+          },
+          "startMinute": 238095.15456440873,
+          "endMinute": 258909.67929925784
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "goa",
+            "label": "Goa Coast",
+            "lat": 15.1,
+            "lon": 73.6
+          },
+          "to": {
+            "id": "arabian-sea",
+            "label": "Arabian Sea",
+            "lat": 14,
+            "lon": 62
+          },
+          "startMinute": 258909.67929925784,
+          "endMinute": 284549.98291951406
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "arabian-sea",
+            "label": "Arabian Sea",
+            "lat": 14,
+            "lon": 62
+          },
+          "to": {
+            "id": "aden",
+            "label": "Aden",
+            "lat": 12.3,
+            "lon": 44.7
+          },
+          "startMinute": 284549.98291951406,
+          "endMinute": 320476.4112763192
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "aden",
+            "label": "Aden",
+            "lat": 12.3,
+            "lon": 44.7
+          },
+          "to": {
+            "id": "zanzibar",
+            "label": "Zanzibar",
+            "lat": -6.2,
+            "lon": 39.3
+          },
+          "startMinute": 320476.4112763192,
+          "endMinute": 361916.94148735283
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "zanzibar",
+            "label": "Zanzibar",
+            "lat": -6.2,
+            "lon": 39.3
+          },
+          "to": {
+            "id": "goodhope",
+            "label": "Cape of Good Hope",
+            "lat": -34.4,
+            "lon": 18.5
+          },
+          "startMinute": 361916.94148735283,
+          "endMinute": 442107.92229248065
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "goodhope",
+            "label": "Cape of Good Hope",
+            "lat": -34.4,
+            "lon": 18.5
+          },
+          "to": {
+            "id": "guinea",
+            "label": "Guinea Coast",
+            "lat": 5.1,
+            "lon": -2.2
+          },
+          "startMinute": 442107.92229248065,
+          "endMinute": 577493.5707791689
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "guinea",
+            "label": "Guinea Coast",
+            "lat": 5.1,
+            "lon": -2.2
+          },
+          "to": {
+            "id": "cape-verde",
+            "label": "Cape Verde",
+            "lat": 15.4,
+            "lon": -23.8
+          },
+          "startMinute": 577493.5707791689,
+          "endMinute": 635990.9482445269
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "cape-verde",
+            "label": "Cape Verde",
+            "lat": 15.4,
+            "lon": -23.8
+          },
+          "to": {
+            "id": "canaries",
+            "label": "Canaries",
+            "lat": 28.1,
+            "lon": -16.1
+          },
+          "startMinute": 635990.9482445269,
+          "endMinute": 708160.1613926324
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "canaries",
+            "label": "Canaries",
+            "lat": 28.1,
+            "lon": -16.1
+          },
+          "to": {
+            "id": "gibraltar",
+            "label": "Gibraltar",
+            "lat": 35.9,
+            "lon": -5.5
+          },
+          "startMinute": 708160.1613926324,
+          "endMinute": 769668.6636785826
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "gibraltar",
+            "label": "Gibraltar",
+            "lat": 35.9,
+            "lon": -5.5
+          },
+          "to": {
+            "id": "biscay",
+            "label": "Bay of Biscay",
+            "lat": 45.2,
+            "lon": -8.2
+          },
+          "startMinute": 769668.6636785826,
+          "endMinute": 792832.0992056046
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "biscay",
+            "label": "Bay of Biscay",
+            "lat": 45.2,
+            "lon": -8.2
+          },
+          "to": {
+            "id": "destination:london|united kingdom",
+            "label": "London",
+            "lat": 51.511214,
+            "lon": -0.119825,
+            "port": {
+              "cityId": "london|united kingdom",
+              "city": "London",
+              "country": "United Kingdom",
+              "lat": 51.511214,
+              "lon": -0.119825,
+              "year": 1522,
+              "population": 58250,
+              "coastalIntent": false,
+              "lakeIntent": false,
+              "sourceYear": 1500,
+              "nextSourceYear": 1532,
+              "displayCity": "London",
+              "cityType": "northern-european",
+              "economyRegion": "northern-european",
+              "factionId": "england",
+              "declaredCapitalFactionId": "england",
+              "portId": "london|united kingdom",
+              "tileId": 644682,
+              "landmassId": 245,
+              "services": {
+                "inn": true,
+                "smith": true,
+                "market": true,
+                "shipyard": true
+              },
+              "isFactionCapital": true,
+              "capitalOfFactionId": "england",
+              "foundingFactionId": "england",
+              "foundingDisplayCity": "London",
+              "foundingCapitalOfFactionId": "england",
+              "routeRegion": "europe",
+              "routeAnchors": [
+                "north-sea",
+                "biscay"
+              ]
+            }
+          },
+          "startMinute": 792832.0992056046,
+          "endMinute": 818115.8460302522
+        }
+      ],
+      "startMinute": 106620,
+      "endMinute": 818115.8460302522
+    },
+    "clockOffsetMinutes": 0,
+    "visualNavigation": {
+      "vector": [
+        -0.36304881002802714,
+        0.3926047187348504,
+        -0.8450189917181521
+      ],
+      "heading": [
+        0.6536055071586584,
+        0.7536519833422003,
+        0.06934355785680964
+      ]
+    },
+    "encounter": {
+      "kind": "tea-race",
+      "questId": "tea-race-1522",
+      "destinationCityId": "london|united kingdom",
+      "holdAtDestination": true,
+      "holdProgress": 0.9,
+      "originCityId": "guangzhou|china"
+    },
+    "replaceOnSink": true
+  }
+}

@@ -1053,6 +1053,7 @@ export default Object.freeze({
   "Captain, your courier reached my office first; the {0} db purse is yours.": "隊長，你的快遞先到了我的辦公室， {0} DB 錢包是你的了。",
   "Captain! My family marks the day you found me on that lonely shore every year. Come to supper.": "隊長！每年，我的家人都會紀念你在那片孤獨的海岸上找到我的那一天。來吃晚餐吧。",
   "Captain! My family still drinks to the ship that carried me out of pirate hands. Tonight, the rescued traveler is buying supper.": "隊長！我的家人仍然為那艘把我從海盜手中救出來的船乾杯。今晚，獲救的旅行者正在買晚餐。",
+  "Captain’s house": "船長的房屋",
   "Captain's log: the crew is quiet because the crew is me. An efficient meeting.": "船長日誌：船員們很安靜，因為船員是我。一次高效率的會議。",
   "Captain's Treasure": "船長的寶藏",
   "CAPTAIN'S TREASURE": "船長的寶藏",

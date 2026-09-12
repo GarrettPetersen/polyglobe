@@ -54,7 +54,8 @@ const CITY_DESTINATION_BY_ID = new Map(
 
 const VILLAGE_AUTHORITY_DESTINATION = Object.freeze({
   ...CITY_DESTINATION_BY_ID.get(PORT_CITY_LOCATION.AUTHORITY),
-  label: portCityAuthorityLabel("village")
+  label: portCityAuthorityLabel("village"),
+  streetSlotId: "business-east"
 });
 
 export function activeCityDestinations({
@@ -82,9 +83,12 @@ export function activeCityDestinations({
       return false;
     }
     return !destination.requiredFeature || features[destination.requiredFeature] === true;
-  }).map((destination) => features.primitiveSettlement && destination.id === PORT_CITY_LOCATION.AUTHORITY
-    ? VILLAGE_AUTHORITY_DESTINATION
-    : destination));
+  }).map((destination) => {
+    if (destination.id !== PORT_CITY_LOCATION.AUTHORITY) return destination;
+    const authority = features.primitiveSettlement ? VILLAGE_AUTHORITY_DESTINATION : destination;
+    return features.isPirateHideout ? Object.freeze({ ...authority,
+      label: portCityAuthorityLabel("village", { isPirateHideout: true }) }) : authority;
+  }));
 }
 
 // Normal arrivals focus the moored ship. Closed quays and active assaults expose

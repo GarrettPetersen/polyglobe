@@ -674,6 +674,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     church: !primitiveSettlement && Boolean(city.religiousLandmarks?.includes("church")),
     mosque: !primitiveSettlement && Boolean(city.religiousLandmarks?.includes("mosque")),
     primitiveSettlement,
+    isPirateHideout: city.isPirateHideout === true,
     inn: services.inn,
     store: services.smith,
     market: services.market,

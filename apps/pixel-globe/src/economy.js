@@ -1419,7 +1419,7 @@ export function plunderPortSpecie(economy, city, amount) {
     );
   }
   port.specie -= amount;
-  invalidateWorldMarketMedianCache(economy);
+  invalidateWorldMarketMedianCache(economy, port.id);
   return Object.freeze({
     amount,
     availableSpecie,
@@ -1449,7 +1449,7 @@ export function restorePortTradeState(economy, city, snapshot) {
     state.stock = normalizedEconomyStock(stock, `market undo stock for ${port.name}: ${goodId}`);
   }
   port.specie = snapshot.specie;
-  invalidateWorldMarketMedianCache(economy);
+  invalidateWorldMarketMedianCache(economy, port.id);
   return portMarket(economy, city);
 }
 
@@ -1468,7 +1468,7 @@ export function addPortGoodStock(economy, city, goodId, quantity) {
   const state = port.goods.get(tradeGoodById(goodId).id);
   if (!state) throw new Error(`${port.name} has no stock record for ${goodId}`);
   state.stock += quantity;
-  invalidateWorldMarketMedianCache(economy);
+  invalidateWorldMarketMedianCache(economy, port.id);
   return Object.freeze({
     goodId,
     quantity,
@@ -1517,7 +1517,7 @@ export function executePortSale(economy, city, goodId, quantity, priceMultiplier
   );
   if (!good.alwaysAvailable) state.stock -= quantity;
   port.specie += total;
-  invalidateWorldMarketMedianCache(economy);
+  invalidateWorldMarketMedianCache(economy, port.id);
   return { good, quantity, total, unitPrice: Math.max(1, Math.round(total / quantity)) };
 }
 
@@ -1577,7 +1577,7 @@ export function executePortPurchase(economy, city, goodId, quantity, priceMultip
   const mintingFee = minted ? Math.max(1, Math.round(total * MINT_FEE_RATE)) : 0;
   const retainedDuty = minted ? grossTotal - total : 0;
   port.specie += mintingFee;
-  invalidateWorldMarketMedianCache(economy);
+  invalidateWorldMarketMedianCache(economy, port.id);
   return {
     good,
     quantity,
@@ -2398,7 +2398,7 @@ function removePortGoodStock(economy, city, goodId, requestedQuantity) {
     ? state.stock
     : Math.min(state.stock, requestedQuantity);
   state.stock = Math.max(0, state.stock - consumedQuantity);
-  invalidateWorldMarketMedianCache(economy);
+  invalidateWorldMarketMedianCache(economy, port.id);
   return Object.freeze({
     good,
     requestedQuantity,
@@ -2414,22 +2414,44 @@ function cachedWorldMarketMedian(economy, good, priceKey) {
     WORLD_MARKET_MEDIAN_CACHE.set(economy, cache);
   }
   const cacheKey = `${good.id}:${priceKey}`;
-  const cached = cache.get(cacheKey);
-  if (cached !== undefined) return cached;
-  const worldPrices = [...economy.portStates.values()]
-    .map((worldPort) => marketPrice(
-      worldPort,
-      good,
-      worldPort.goods.get(good.id).stock
-    )[priceKey])
-    .sort((a, b) => a - b);
-  const value = median(worldPrices);
-  cache.set(cacheKey, value);
-  return value;
+  let entry = cache.get(cacheKey);
+  const priceAt = port => marketPrice(port, good, port.goods.get(good.id).stock)[priceKey];
+  if (!entry) {
+    const prices = new Map([...economy.portStates].map(([id, port]) => [id, priceAt(port)]));
+    entry = { prices, sorted: [...prices.values()].sort((a, b) => a - b), dirtyPorts: new Set() };
+    cache.set(cacheKey, entry);
+  }
+  for (const portId of entry.dirtyPorts) {
+    const price = priceAt(economy.portStates.get(portId));
+    const previous = entry.prices.get(portId);
+    if (price === previous) continue;
+    const index = entry.sorted.indexOf(previous);
+    if (index < 0) throw new Error(`World price cache lost port ${portId} for ${cacheKey}`);
+    entry.sorted.splice(index, 1);
+    let low = 0;
+    let high = entry.sorted.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (entry.sorted[middle] < price) low = middle + 1;
+      else high = middle;
+    }
+    entry.sorted.splice(low, 0, price);
+    entry.prices.set(portId, price);
+  }
+  entry.dirtyPorts.clear();
+  return median(entry.sorted);
 }
 
-function invalidateWorldMarketMedianCache(economy) {
-  WORLD_MARKET_MEDIAN_CACHE.delete(economy);
+function invalidateWorldMarketMedianCache(economy, portId = null) {
+  if (portId === null) {
+    WORLD_MARKET_MEDIAN_CACHE.delete(economy);
+    return;
+  }
+  // A trade changes stock and specie at one port. Specie influences all its
+  // goods, but no other port needs repricing. Repeated clicks coalesce here.
+  for (const entry of WORLD_MARKET_MEDIAN_CACHE.get(economy)?.values() || []) {
+    entry.dirtyPorts.add(portId);
+  }
 }
 
 function median(sortedValues) {

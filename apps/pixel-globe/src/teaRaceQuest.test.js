@@ -29,7 +29,8 @@ import {
   TEA_RACE_FIRST_PRIZE,
   TEA_RACE_FINISHER_PRIZE,
   isTeaRaceQuest,
-  teaRaceWaypointShips
+  teaRaceWaypointShips,
+  teaRaceRivalArrivals
 } from "./teaRaceQuest.js";
 
 const PLAYER = Object.freeze({
@@ -259,3 +260,20 @@ function port(tileId, city, country, factionId, lat, lon) {
     lon
   });
 }
+
+
+test("tea race scoring converts delayed strategic clocks to world arrival times", () => {
+  const quest = { destinationCityId: "london|united kingdom", teaRaceCompetitors: [
+    { id: "delayed", shipSlug: "galleon" }, { id: "arrived", shipSlug: "carrack" }
+  ] };
+  const ships = new Map([
+    ["delayed", { clockOffsetMinutes: -500, plan: { destination: { cityId: quest.destinationCityId }, endMinute: 1000 } }],
+    ["arrived", { clockOffsetMinutes: -100, encounter: { arrivedAtMinute: 1100 } }]
+  ]);
+  assert.deepEqual(teaRaceRivalArrivals(quest, ships).map(r => [r.shipId, r.arrivalMinute]),
+    [["arrived", 1200], ["delayed", 1500]]);
+  quest.teaRaceRetiredShipIds = ["arrived"];
+  assert.equal(teaRaceRivalArrivals(quest, ships)[0].shipId, "delayed");
+  ships.get("delayed").clockOffsetMinutes = NaN;
+  assert.throws(() => teaRaceRivalArrivals(quest, ships), /invalid route clock/);
+});

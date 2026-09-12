@@ -12,7 +12,7 @@ import {
   resolvedPixelTextColor,
   snapPointToTransformedPixelGrid
 } from "./pixelText.js";
-import { auditPixelPirateKerning } from "../tools/fix-pixel-pirate-font-kerning.mjs";
+import { auditPixelPirateKerning, fontGlyphIndex } from "../tools/fix-pixel-pirate-font-kerning.mjs";
 
 test("pixel text origins always land on whole logical canvas pixels", () => {
   for (const align of ["left", "center", "right"]) {
@@ -217,4 +217,22 @@ test("Pixel Pirate lets the ornate R overlap the following letter by three desig
   assert.equal(audit.rAdvancePixels, 11);
   assert.deepEqual(new Set(Object.values(audit.kerningPixels)), new Set([-3]));
   assert.equal(audit.checksum, 0xb1b0afba);
+});
+
+
+test("ownership arrows remain directional in every bundled pixel font", () => {
+  for (const font of ["Silkscreen", "Dogica", "Pixel Pirate"]) {
+    assert.equal(pixelFontCompatibleText("MALACCA: PORTUGAL → TIDORE", `8px "${font}"`),
+      "MALACCA: PORTUGAL → TIDORE");
+  }
+  assert.equal(pixelFontCompatibleText("PORTUGAL → TIDORE", '12px "zpix"'), "PORTUGAL → TIDORE");
+});
+
+
+test("every Latin pixel font contains the ownership arrow glyph", async () => {
+  for (const file of ["Silkscreen-Regular.ttf", "dogicapixel.ttf", "pixel_pirate.ttf"]) {
+    const buffer = await readFile(new URL(`../public/assets/fonts/${file}`, import.meta.url));
+    assert.ok(fontGlyphIndex(buffer, 0x2192) > 0, `${file} is missing its arrow`);
+    assert.notEqual(fontGlyphIndex(buffer, 0x2192), fontGlyphIndex(buffer, 45));
+  }
 });

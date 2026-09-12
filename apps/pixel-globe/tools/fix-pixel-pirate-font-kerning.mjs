@@ -117,6 +117,10 @@ function requiredTable(sfnt, tag) {
   return table;
 }
 
+export function fontGlyphIndex(buffer, codePoint) {
+  return glyphForCodePoint(buffer, parseSfnt(buffer), codePoint);
+}
+
 function glyphForCodePoint(buffer, sfnt, codePoint) {
   const cmap = requiredTable(sfnt, "cmap");
   const tableCount = readU16(buffer, cmap.offset + 2);

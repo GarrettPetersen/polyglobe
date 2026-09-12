@@ -64,11 +64,12 @@ const INN_NODE_IDS = new Set([
   "viking-longship"
 ]);
 
-export function portCityAuthorityLabel(settlementType = "city") {
+export function portCityAuthorityLabel(settlementType = "city", { isPirateHideout = false } = {}) {
+  if (isPirateHideout) return "Captain’s house";
   return settlementTypeForCity({ settlementType }) === "village" ? "Chief’s hut" : "Port authority";
 }
 
-export function portCityNavigationModel(rootView, services, settlementType = "city") {
+export function portCityNavigationModel(rootView, services, settlementType = "city", city = {}) {
   if (!rootView || !Array.isArray(rootView.options)) {
     throw new Error("Port city navigation requires the current root options");
   }
@@ -89,7 +90,7 @@ export function portCityNavigationModel(rootView, services, settlementType = "ci
   }
   const locations = LOCATION_ORDER.map((id) => Object.freeze({
     id,
-    label: id === PORT_CITY_LOCATION.AUTHORITY ? portCityAuthorityLabel(settlementType) : LOCATION_LABELS[id],
+    label: id === PORT_CITY_LOCATION.AUTHORITY ? portCityAuthorityLabel(settlementType, city) : LOCATION_LABELS[id],
     actions: Object.freeze(actionsByLocation.get(id))
   })).filter(({ actions }) => actions.length > 0);
   return Object.freeze({

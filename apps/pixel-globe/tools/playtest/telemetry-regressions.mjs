@@ -45,6 +45,8 @@ const files = [
   "src/shipyardUpgrades.test.js",
   "src/stormWave.test.js",
   "src/npcSeaRoutes.test.js",
+  "src/npcRoutePacing.test.js",
+  "tools/playtest/tea-race-route.test.mjs",
   "src/colonizationWorldBinding.test.js",
   "src/saveRestoreInterruption.test.js",
   "src/portQuestSceneReturn.test.js",

@@ -1053,6 +1053,7 @@ export default Object.freeze({
   "Captain, your courier reached my office first; the {0} db purse is yours.": "선장님, 당신의 택배가 내 사무실에 먼저 도착했습니다. {0} DB 지갑은 당신의 것입니다.",
   "Captain! My family marks the day you found me on that lonely shore every year. Come to supper.": "선장님! 우리 가족은 매년 당신이 그 외로운 해안에서 나를 발견한 날을 기념합니다. 저녁 먹으러 오세요.",
   "Captain! My family still drinks to the ship that carried me out of pirate hands. Tonight, the rescued traveler is buying supper.": "선장님! 우리 가족은 나를 해적의 손에서 구출해 준 배에서 아직도 술을 마시고 있습니다. 오늘 밤, 구조된 여행자는 저녁을 사려고 합니다.",
+  "Captain’s house": "선장의 집",
   "Captain's log: the crew is quiet because the crew is me. An efficient meeting.": "선장일지: 승무원은 나이기 때문에 승무원은 조용하다. 효율적인 회의.",
   "Captain's Treasure": "선장의 보물",
   "CAPTAIN'S TREASURE": "선장의 보물",

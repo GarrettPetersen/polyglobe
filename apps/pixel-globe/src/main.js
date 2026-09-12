@@ -656,7 +656,8 @@ import {
 import {
   TEA_RACE_CARGO_QUANTITY,
   isTeaRaceQuest,
-  teaRaceWaypointShips
+  teaRaceWaypointShips,
+  teaRaceRivalArrivals
 } from "./teaRaceQuest.js";
 import {
   EAST_ASIAN_MISSION_NINGBO,
@@ -8739,28 +8740,12 @@ function ensureTeaRaceEncounters({ assignCaptains = true } = {}) {
   return active;
 }
 
-function teaRaceRivalArrivals(quest) {
-  const retired = new Set(quest.teaRaceRetiredShipIds || []);
-  return quest.teaRaceCompetitors.flatMap((spec) => {
-    if (retired.has(spec.id)) return [];
-    const strategic = npcSeaRoutes?.shipById.get(spec.id);
-    if (!strategic) return [];
-    const arrivedAtMinute = strategic.encounter?.arrivedAtMinute ??
-      (strategic.plan?.destination?.cityId === quest.destinationCityId
-        ? strategic.plan.endMinute
-        : null);
-    return Number.isFinite(arrivedAtMinute)
-      ? [{ shipId: spec.id, arrivalMinute: arrivedAtMinute, shipSlug: spec.shipSlug }]
-      : [];
-  }).sort((a, b) => a.arrivalMinute - b.arrivalMinute || a.shipId.localeCompare(b.shipId));
-}
-
 function maybeRecordTeaRaceRivalArrival() {
   const quest = activeTeaRaceQuest();
   if (!quest || quest.stage !== "race" || quest.teaRaceFirstRivalArrivalMinute !== undefined) {
     return false;
   }
-  const first = teaRaceRivalArrivals(quest)[0];
+  const first = teaRaceRivalArrivals(quest, npcSeaRoutes?.shipById)[0];
   if (!first || first.arrivalMinute > weatherClockMinutes) return false;
   recordTeaRaceRivalArrival(gameState, quest.id, first.shipId, first.arrivalMinute);
   showSurvivalNotice(
@@ -8775,7 +8760,7 @@ function recordTeaRaceArrivalAtPort(city) {
   const quest = activeTeaRaceQuest();
   if (!quest || city.cityId !== quest.destinationCityId || quest.stage !== "race") return null;
   ensureTeaRaceEncounters();
-  const first = teaRaceRivalArrivals(quest)[0] || null;
+  const first = teaRaceRivalArrivals(quest, npcSeaRoutes?.shipById)[0] || null;
   if (first && first.arrivalMinute <= weatherClockMinutes) {
     recordTeaRaceRivalArrival(gameState, quest.id, first.shipId, first.arrivalMinute);
   }

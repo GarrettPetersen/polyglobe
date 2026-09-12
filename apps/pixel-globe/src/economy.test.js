@@ -60,6 +60,7 @@ import {
   quotePortSale,
   replaceWorldEconomyPort,
   restoreWorldEconomy,
+  restorePortTradeState,
   snapshotPortTradeState,
   snapshotWorldEconomy,
   tradeGoodById,
@@ -1943,4 +1944,55 @@ test("NPC cargo planning considers affordable supplies after unaffordable luxuri
   }
   const plan = planNpcTrade(economy, LONDON, GOA, {cargoCapacity: 20, specie: 50});
   assert.ok(plan.lines.some(line => line.goodId === "timber"));
+});
+
+test("repeated local sales reprice only that port while preserving exact world medians", () => {
+  const cities = [LONDON, GOA, TERNATE];
+  const economy = createWorldEconomy({ ports: cities, startMinute: 0 });
+  const reference = createWorldEconomy({ ports: cities, startMinute: 0 });
+  const goods = ["grain", "timber", "iron"];
+  for (const good of goods) for (const side of ["buy", "sell"]) worldMarketPriceComparison(economy, LONDON, good, side);
+  let distantReads = 0;
+  const remote = economy.portStates.get(GOA.cityId);
+  const originalGet = remote.goods.get;
+  remote.goods.get = function(id) { distantReads++; return originalGet.call(this, id); };
+  for (let i = 0; i < 10; i++) {
+    executePortPurchase(economy, LONDON, "timber", 1);
+    executePortPurchase(reference, LONDON, "timber", 1);
+    // A fresh snapshot restore exercises the full rebuild path.
+    const fresh = createWorldEconomy({ ports: cities, startMinute: 0 });
+    restoreWorldEconomy(fresh, snapshotWorldEconomy(reference));
+    for (const good of goods) for (const side of ["buy", "sell"]) {
+      assert.deepEqual(worldMarketPriceComparison(economy, LONDON, good, side),
+        worldMarketPriceComparison(fresh, LONDON, good, side));
+    }
+  }
+  assert.equal(distantReads, 0, "a local sale must not reprice unchanged ports");
+});
+
+
+test("incremental world prices handle coalesced ports, undo, and whole-world updates", () => {
+  const cities = [LONDON, GOA, TERNATE, GUANGZHOU];
+  const economy = createWorldEconomy({ ports: cities, startMinute: 0 });
+  const goods = ["grain", "timber", "iron"];
+  const check = () => {
+    const fresh = createWorldEconomy({ ports: cities, startMinute: 0 });
+    restoreWorldEconomy(fresh, snapshotWorldEconomy(economy));
+    for (const good of goods) for (const side of ["buy", "sell"]) {
+      assert.deepEqual(worldMarketPriceComparison(economy, LONDON, good, side),
+        worldMarketPriceComparison(fresh, LONDON, good, side));
+    }
+  };
+  check();
+  const before = snapshotPortTradeState(economy, LONDON);
+  for (let i = 0; i < 5; i++) {
+    executePortPurchase(economy, LONDON, "timber", 1);
+    addPortGoodStock(economy, GOA, "iron", 3);
+  }
+  plunderPortSpecie(economy, TERNATE, 100);
+  check();
+  restorePortTradeState(economy, LONDON, before);
+  check();
+  advanceWorldEconomy(economy, 1440);
+  check();
 });

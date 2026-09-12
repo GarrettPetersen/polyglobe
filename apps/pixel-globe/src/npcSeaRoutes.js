@@ -1,3 +1,4 @@
+import { npcCruisingKmPerGameDay, migrateNpcRoutePacing } from "./npcRoutePacing.js";
 import { createPirateHavenMemory, validatePirateHavenMemory, pirateHavenIsRuined, PIRATE_HAVEN_REBUILD_MINUTES } from "./pirateHavens.js";
 import { portSailingDistanceKm } from "./portSailingDistances.js";
 import { commissionedShipyard, reservedSupplyShipyard, invalidateSupplyCommissionIndex } from "./shipyardUpgrades.js";
@@ -117,7 +118,7 @@ const ROUTE_MONTH_DAYS = WEATHER_DAYS / ROUTE_MONTHS;
 const ROUTE_MONTH_MINUTES = ROUTE_MONTH_DAYS * WEATHER_MINUTES_PER_DAY;
 const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
-export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 10;
+export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 11;
 const ROUTE_WIND_SEED = 90210;
 const NPC_FLEET_TARGET = 212;
 export const NPC_PACIFIC_FLEET_TARGET = 32;
@@ -1610,7 +1611,7 @@ export function restoreNpcSeaRouteSystem(
 ) {
   assertSaveableNpcRouteSystem(system);
   validateOptionalSeedKey(seedKey, "restored NPC routes");
-  if (!snapshot || ![1, 2, 3, 4, 5, 6, 7, 8, 9, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
+  if (!snapshot || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil) ||
       (snapshot.version >= 3 && !Array.isArray(snapshot.capitalNavalReserveSlots))) {
     throw new Error("Unsupported NPC route save data");
@@ -1686,6 +1687,9 @@ export function restoreNpcSeaRouteSystem(
   const repairedRegionalRoutes = repairInvalidRegionalFishermanRoutes(system, ships);
   if (repairedRegionalRoutes > 0) {
     console.info(`Repaired ${repairedRegionalRoutes} saved regional fishing routes`);
+  }
+  if (snapshot.version < 11) {
+    for (const ship of ships) migrateNpcRoutePacing(ship, system.economy.lastMinute);
   }
   const replannedRoutes = replanNpcRoutesForCurrentTopology(system, ships);
   if (replannedRoutes > 0) {
@@ -6226,11 +6230,9 @@ function seasonalEdgeCostDays(system, nodes, edge, shipSlug, month) {
   }
 
   const factor = factorTotal / samples.length;
-  const baseKmPerDay = clamp(
-    stats.topSpeedRad * 7200,
-    stats.propulsion === SHIP_PROPULSION_OAR ? 60 : 115,
-    360
-  );
+  // Ship speed is radians per real second; convert using the live game clock.
+  // Cruising allows time for maneuvering instead of assuming continuous top speed.
+  const baseKmPerDay = npcCruisingKmPerGameDay(stats);
   const kindMul = edge.kind === "strait" ? 0.78 : edge.kind === "coastal" || edge.kind === "port" ? 0.88 : 1;
   const days = distance / Math.max(25, baseKmPerDay * factor * kindMul);
   const result = Math.max(0.12, days);
@@ -7159,7 +7161,7 @@ export function snapshotShipyardSupplyShips(system) {
   }
   const expectedIds = shipyardSupplyShipIds(system.economy.shipyards);
   if (ships.length !== expectedIds.size) throw new Error("Shipyard supply contract refers to a missing ship");
-  return { version: 1, ships };
+  return { version: 2, ships };
 }
 
 function shipyardSupplyShipIds(shipyards) {
@@ -7177,7 +7179,7 @@ function shipyardSupplyShipIds(shipyards) {
 export function restoreShipyardSupplyShips(system, snapshot) {
   const expectedIds = shipyardSupplyShipIds(system.economy.shipyards);
   if (snapshot === undefined && expectedIds.size === 0) return;
-  if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ships)) {
+  if (!snapshot || ![1, 2].includes(snapshot.version) || !Array.isArray(snapshot.ships)) {
     throw new Error("Missing or invalid durable shipyard supply fleet");
   }
   const ships = cloneJsonData(snapshot.ships);
@@ -7188,6 +7190,7 @@ export function restoreShipyardSupplyShips(system, snapshot) {
     }
     seen.add(ship.id);
     reconcileRestoredNpcShip(ship, "shipyard supply restore");
+    if (snapshot.version < 2) migrateNpcRoutePacing(ship, system.economy.lastMinute);
   }
   if (seen.size !== expectedIds.size) throw new Error("Durable shipyard supply fleet is incomplete");
   canonicalizeSavedNpcRoutePorts(system, ships);

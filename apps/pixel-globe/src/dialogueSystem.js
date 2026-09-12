@@ -1758,7 +1758,8 @@ export function portCityNavigationView(session, city, gameState, economy, portCi
   return portCityNavigationModel(
     rootNavigationView(session, city, gameState, economy, portCities, context),
     portCityServiceProfile(city),
-    city.settlementType
+    city.settlementType,
+    city
   );
 }
 
@@ -4960,7 +4961,7 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
         }, { disabled: !capturePetition.eligible, disabledReason: capturePetitionDisabledReasonText(capturePetition, city, portCities) })]
       : []),
     ...(session.disguisedEntry && !pirateHideout
-      ? [option(portCityAuthorityLabel(city.settlementType), { type: "node", nodeId: "covert-authority" })]
+      ? [option(portCityAuthorityLabel(city.settlementType, city), { type: "node", nodeId: "covert-authority" })]
       : []),
     ...(!pirateHideout && !session.disguisedEntry
       ? [option("Ask about the garrison", { type: "node", nodeId: "garrison" })]

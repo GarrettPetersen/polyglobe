@@ -106,3 +106,11 @@ test("village authority uses the chief's hut without changing its actions or ide
   assert.equal(authority(city).label, "Port authority");
   assert.deepEqual(authority(village).actions, authority(city).actions);
 });
+
+
+test("pirate haven authority keeps its actions but uses the captain's house label", () => {
+  const model = portCityNavigationModel(ROOT_VIEW, serviceProfile(true), "village", { isPirateHideout: true });
+  const authority = model.locations.find(location => location.id === PORT_CITY_LOCATION.AUTHORITY);
+  assert.equal(authority.label, "Captain’s house");
+  assert.ok(authority.actions.length > 0);
+});

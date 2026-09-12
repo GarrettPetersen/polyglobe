@@ -1053,6 +1053,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Captain, your courier reached my office first; the {0} db purse is yours.",
   "Captain! My family marks the day you found me on that lonely shore every year. Come to supper.",
   "Captain! My family still drinks to the ship that carried me out of pirate hands. Tonight, the rescued traveler is buying supper.",
+  "Captain’s house",
   "Captain's log: the crew is quiet because the crew is me. An efficient meeting.",
   "Captain's Treasure",
   "CAPTAIN'S TREASURE",

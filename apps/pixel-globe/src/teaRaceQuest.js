@@ -193,3 +193,24 @@ function competitor(factionId, shipSlug, departureDelayMinutes, holdProgress) {
 function portName(city) {
   return canonicalPortDisplayName(city);
 }
+
+export function teaRaceRivalArrivals(quest, shipById) {
+  const retired = new Set(quest.teaRaceRetiredShipIds || []);
+  return quest.teaRaceCompetitors.flatMap((spec) => {
+    if (retired.has(spec.id)) return [];
+    const strategic = shipById?.get(spec.id);
+    if (!strategic) return [];
+    const arrivedAtMinute = strategic.encounter?.arrivedAtMinute ??
+      (strategic.plan?.destination?.cityId === quest.destinationCityId
+        ? strategic.plan.endMinute
+        : null);
+    if (!Number.isFinite(strategic.clockOffsetMinutes)) {
+      throw new Error(`Tea race rival has an invalid route clock: ${spec.id}`);
+    }
+    // Local sailing and combat can delay a rival's strategic clock. Scoring
+    // must use world minutes, just like the player's recorded arrival.
+    return Number.isFinite(arrivedAtMinute)
+      ? [{ shipId: spec.id, arrivalMinute: arrivedAtMinute - strategic.clockOffsetMinutes, shipSlug: spec.shipSlug }]
+      : [];
+  }).sort((a, b) => a.arrivalMinute - b.arrivalMinute || a.shipId.localeCompare(b.shipId));
+}

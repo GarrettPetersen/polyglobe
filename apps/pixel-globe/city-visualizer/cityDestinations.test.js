@@ -150,3 +150,12 @@ test("initial focus handles normal, recovering, assault, ruins and story-only ar
     features: ALL_SERVICES, assaultActive: false })), "ship");
   assert.throws(() => initialCityDestinationId([cityDestinationById("market")]), /no ship access or departure/);
 });
+
+
+test("pirate village authority points to a house and uses its captain's title", () => {
+  const authority = activeCityDestinations({ availableDestinationIds: null, assaultActive: false,
+    features: { ...ALL_SERVICES, primitiveSettlement: true, isPirateHideout: true }
+  }).find(destination => destination.id === PORT_CITY_LOCATION.AUTHORITY);
+  assert.equal(authority.label, "Captain’s house");
+  assert.equal(authority.streetSlotId, "business-east");
+});
