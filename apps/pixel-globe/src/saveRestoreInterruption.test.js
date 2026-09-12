@@ -7,6 +7,7 @@ import { canonicalGameStateFixtures } from "./gameStateSchema.js";
 import { migrateGameState } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { savedVoyageCrashContext } from "./gameTelemetry.js";
+import { createWhaleMemory, seedWhalePopulation, beginWhaleAdvance } from "./whaleSystem.js";
 import {
   createSovereignWarLoanMemory, createSovereignWarLoanOffer,
   deferSovereignWarLoanOffer, migrateSovereignWarLoanMemory,
@@ -18,6 +19,45 @@ function liveFunctions(names, context) {
   const code = names.map(name => source.statements.find(node => ts.isFunctionDeclaration(node) && node.name.text === name).getText(source)).join("\n");
   return runInNewContext(`${code}\n({ ${names.join(", ")} })`, context);
 }
+
+test("restored whale initialization uses the saved clock and position, independent of the previous mode", () => {
+  const restore = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name.text === "restoreSavedVoyage");
+  const initialize = restore.body.statements.find(node => node.getText(source).startsWith("ensureWhalePopulation(restoredGameState"));
+  assert.ok(initialize, "exercise the production restore call as well as its initializer");
+  const waters = Array.from({ length: 20 }, (_, tileId) => {
+    const lat = tileId % 2 ? 42 : -44;
+    const lon = tileId * 18 - 180;
+    const a = lat * Math.PI / 180, b = lon * Math.PI / 180;
+    return { tileId, lat, lon, position: [Math.cos(a) * Math.cos(b), Math.sin(a), -Math.cos(a) * Math.sin(b)] };
+  });
+  for (const previousMinute of [100, 630829.1815998117]) {
+    const minute = 114245.035868;
+    const state = { voyageSeed: "whale-restore", memory: { whales: createWhaleMemory() } };
+    const playerPosition = [0, 0, 1];
+    const context = {
+      restoredGameState: state, restoredWorldClock: { currentMinute: minute },
+      savedShip: { position: playerPosition }, weatherClockMinutes: previousMinute, ship: { position: [1, 0, 0] },
+      geodesicTileCount: () => waters.length, WORLD_DISCRETE_WEATHER_SUBDIVISIONS: 1,
+      weatherBake: { tileCount: waters.length }, graph: { tileCount: waters.length, neighbors: [],
+        latDeg: waters.map(w => w.lat), lonDeg: waters.map(w => w.lon) },
+      earthById: waters.map(() => ({ t: "water" })), oceanReachableNavigationMask: waters.map(() => 1),
+      whaleTileHasCoastClearance: () => true, tileCenterVector: id => waters[id].position,
+      reconcileWhaleCoastClearance() {}, console: { info() {} },
+      seedWhalePopulation: (memory, candidates, _count, options) => {
+        assert.equal(options.startMinute, minute);
+        assert.equal(options.avoidPosition, playerPosition);
+        return seedWhalePopulation(memory, candidates, 20, options);
+      }
+    };
+    const initializer = liveFunctions(["ensureWhalePopulation"], context).ensureWhalePopulation;
+    runInNewContext(initialize.getText(source), { ...context, ensureWhalePopulation: initializer });
+    assert.equal(state.memory.whales.lastEcologyMinute, minute);
+    assert.doesNotThrow(() => beginWhaleAdvance(state.memory.whales, 0, () => ({ ok: true, tileId: 0 }), minute));
+    const populated = structuredClone(state.memory.whales);
+    runInNewContext(initialize.getText(source), { ...context, ensureWhalePopulation: initializer });
+    assert.deepEqual(state.memory.whales, populated, "existing whale history must not be reset on restore");
+  }
+});
 
 test("a failed restore reports the attempted ship and quest without overwriting the saved voyage", async () => {
   const payload = { playerShip: { typeSlug: "galleon" }, gameState: {
@@ -147,6 +187,7 @@ test("restoring a building canal publishes the saved clock before rebuilding que
     let observed;
     const runtime = {
       gameState: null, restoredGameState: state, weatherClockMinutes: 0, voyageStartClockMinutes: 0,
+      recoveredWhaleClockMinutes: 0,
       restoredWorldClock: { currentMinute: startMinute + elapsed, voyageStartMinute: 10 },
       weatherClockParts: minute => ({ minute }), savedShip: { typeSlug: "galleon" },
       payload: {}, savedWorldTopology: {}, legacyCityIdForPortReference() {}, migratedDiscoveryReferenceCount: 0,

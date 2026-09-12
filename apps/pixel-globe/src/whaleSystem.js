@@ -119,6 +119,25 @@ export function migrateWhaleMemory(memory) {
   return validateWhaleMemory(migrated);
 }
 
+// Save-boundary repair for the released restore initializer that seeded whales
+// on the outgoing world's clock, then saved them with the incoming clock.
+// Keep this while those saves are supported. This translates calendar metadata;
+// it does not replay ecology backwards or resurrect hunted animals.
+export function repairSavedWhaleClock(memory, currentMinute) {
+  validateWhaleMemory(memory);
+  assertSimulationMinute(currentMinute);
+  if (memory.lastEcologyMinute === null || memory.lastEcologyMinute <= currentMinute) return 0;
+  const offsetMinutes = memory.lastEcologyMinute - currentMinute;
+  for (const whale of memory.individuals) {
+    for (const key of ["birthMinute", "pregnancyDueMinute", "lastCalvingMinute", "nextMatingMinute"]) {
+      if (whale[key] !== null) whale[key] -= offsetMinutes;
+    }
+  }
+  memory.lastEcologyMinute = currentMinute;
+  validateWhaleMemory(memory);
+  return offsetMinutes;
+}
+
 function compactMigratedWhaleIndividuals(individuals) {
   if (!Array.isArray(individuals)) throw new Error("Migrated whale memory requires individuals");
   const retained = individuals

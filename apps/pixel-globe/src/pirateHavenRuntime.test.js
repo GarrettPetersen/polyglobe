@@ -14,15 +14,26 @@ test("a revenge waypoint follows the actual ship and returns to the issuer if th
   const merchant = { id: "merchant-1", seed: 77, hitPoints: 20, currentPort: port, visualNavigation: { vector: [0.9, 0.1, 0] } };
   const quest = { id: "quest-1", kind: "revenge", ready: false, originCityId: haven.cityId, havenCityId: haven.cityId,
     targetShipId: merchant.id, targetShipSeed: merchant.seed, targetCaptainName: "Joao", targetShipName: "Santa Maria" };
+  let location = { kind: "visible", position: merchant.visualNavigation.vector };
   const context = { gameState: { memory: { pirateHavens: { revenge: quest, suppression: null } } },
     npcSeaRoutes: { shipById: new Map([[merchant.id, merchant]]) }, cityById: new Map([[haven.cityId, haven]]),
-    pirateHavenNavigationReasonText, pirateRevengeTargetPresent, weatherClockMinutes: 1, npcShipSnapshotForId: () => ({ routeVector: [0.8, 0.2, 0] }),
+    pirateHavenNavigationReasonText, pirateRevengeTargetPresent, weatherClockMinutes: 1,
+    npcShipLocation: (_system, id, minute) => {
+      assert.equal(id, merchant.id);
+      assert.equal(minute, 1);
+      return location;
+    },
     placedCityTargetVector: city => city.vector, requireEntityById: (map, id) => map.get(id),
     cityLabelText: city => city.city, QUEST_NAVIGATION_STYLE: {} };
   const entries = runInNewContext(`${declaration("pirateHavenNavigationEntries")}; pirateHavenNavigationEntries`, context);
   assert.deepEqual(entries()[0].targetVector, merchant.visualNavigation.vector);
   merchant.visualNavigation = null;
+  location = { kind: "sailing", position: [0.8, 0.2, 0] };
   assert.deepEqual(entries()[0].targetVector, [0.8, 0.2, 0]);
+  for (const kind of ["waiting", "hidden"]) {
+    location = { kind, position: port.vector };
+    assert.deepEqual(entries()[0].targetVector, port.vector);
+  }
   merchant.seed++;
   assert.deepEqual(entries()[0].targetVector, haven.vector);
   assert.match(entries()[0].reason, /Ship lost/);

@@ -28,8 +28,8 @@ window.inspectSavedStartup = () => !regularGameLoopStarted ? { ready: false } : 
   saved: readLocalSave().save?.payload,
   serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY)
 });
-window.exerciseCityDuelReturn = async () => {
-  const call = chart.cityCalls.find(entry => entry.character);
+window.exerciseCityDuelReturn = async ({ whaleClockCase = "current" } = {}) => {
+  const call = chart.cityCalls.find(entry => entry.cityId === gameState.playerCharacter.homePortCityId && entry.character);
   if (!call) throw new Error("Duel return fixture requires a nearby port");
   openPortDialogue(call);
   if (!portCityView) throw new Error("Duel return fixture did not enter the city");
@@ -38,6 +38,27 @@ window.exerciseCityDuelReturn = async () => {
   if (!returnToStartMenuFromOptions()) throw new Error("Could not save voyage before duel");
   await waitForSaveRestoreSmokePersistence();
   const saved = structuredClone(localSaveResult.save.payload);
+  if (whaleClockCase !== "current") {
+    // Supported older saves can lack an initialized population. Exercise
+    // loading that checkpoint while another mode has a later world clock.
+    if (whaleClockCase === "unseeded") {
+      saved.gameState.memory.whales = { version: saved.gameState.memory.whales.version,
+        nextId: 1, individuals: [], activeHunt: null, lastEcologyMinute: null };
+    } else if (whaleClockCase === "future") {
+      // A prior affected Continue could persist the bad calendar before its
+      // first ecology tick. Retain every animal while reproducing that save.
+      const whales = saved.gameState.memory.whales;
+      whales.lastEcologyMinute += 366 * 1440;
+      for (const whale of whales.individuals) {
+        for (const key of ["birthMinute", "pregnancyDueMinute", "lastCalvingMinute", "nextMatingMinute"]) {
+          if (whale[key] !== null) whale[key] += 366 * 1440;
+        }
+      }
+    } else throw new Error("Unknown whale clock fixture");
+    const write = await writeLocalSaveWithRecoveryAsync(saved);
+    localSaveResult = { status: "ready", save: write.save, error: null };
+    adjustWeatherClock(366 * 1440);
+  }
   const serialized = gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY);
   openLakeBattleMode();
   lakeBattleMode.enemyIndex = LAKE_BATTLE_ENEMY_SLUGS.findIndex(lakeBattleCombatantIsCity);
@@ -49,11 +70,14 @@ window.exerciseCityDuelReturn = async () => {
   closeLakeBattleModeToStartMenu();
   if (gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) !== serialized) throw new Error("Duel overwrote voyage save");
   await continueSavedVoyage();
+  updateWhales(WHALE_SIMULATION_INTERVAL_SECONDS, lastFrameMs);
   return { started: hasStartedVoyage, menu: Boolean(startMenu), city: portCityView,
     transition: portCityTransition, dialogue: dialogueState, duel: lakeBattleMode,
     seed: gameState.voyageSeed, savedSeed: saved.gameState.voyageSeed,
     shipType: ship.typeSlug, savedShipType: saved.playerShip.typeSlug,
-    position: ship.position, savedPosition: saved.playerShip.position };
+    position: ship.position, savedPosition: saved.playerShip.position,
+    minute: weatherClockMinutes, savedMinute: saved.worldClock.currentMinute,
+    ecologyMinute: gameState.memory.whales.lastEcologyMinute };
 };` });
   });
   try {
@@ -108,16 +132,21 @@ window.exerciseCityDuelReturn = async () => {
     assert.notEqual(replacement.voyageSeed, before.voyageSeed);
     assert.equal(replacement.saved.gameState.voyageSeed, replacement.voyageSeed);
     assert.deepEqual(errors, []);
-    const resumed = await page.evaluate(() => window.exerciseCityDuelReturn());
-    assert.ok(resumed.started && !resumed.menu);
-    for (const key of ["city", "transition", "dialogue", "duel"]) assert.equal(resumed[key], null, key);
-    assert.equal(resumed.seed, resumed.savedSeed);
-    assert.equal(resumed.shipType, resumed.savedShipType);
-    for (let index = 0; index < 3; index++) {
-      assert.ok(Math.abs(resumed.position[index] - resumed.savedPosition[index] / Math.hypot(...resumed.savedPosition)) < 1e-8);
+    for (const whaleClockCase of ["current", "unseeded", "future"]) {
+      const resumed = await page.evaluate(options => window.exerciseCityDuelReturn(options), { whaleClockCase });
+      assert.ok(resumed.started && !resumed.menu);
+      for (const key of ["city", "transition", "dialogue", "duel"]) assert.equal(resumed[key], null, key);
+      assert.equal(resumed.seed, resumed.savedSeed);
+      assert.equal(resumed.shipType, resumed.savedShipType);
+      assert.ok(resumed.minute >= resumed.savedMinute && resumed.minute < resumed.savedMinute + 60);
+      assert.ok(resumed.ecologyMinute <= resumed.minute, "whale ecology belongs to the restored clock");
+      for (let index = 0; index < 3; index++) {
+        assert.ok(Math.abs(resumed.position[index] - resumed.savedPosition[index] / Math.hypot(...resumed.savedPosition)) < 1e-8);
+      }
+      assert.deepEqual(errors, []);
     }
-    assert.deepEqual(errors, []);
     console.log("Voyage → options → city duel → Continue restores the voyage without the duel scene or save contamination.");
+    console.log("Whale ecology advances after Continue with populated, unseeded earlier, and previously corrupted calendar saves.");
     console.log("Disposable save: New Game cancellation preserved Continue; confirmation and reload created a new voyage without reusing the old one.");
   } finally {
     await page.close();

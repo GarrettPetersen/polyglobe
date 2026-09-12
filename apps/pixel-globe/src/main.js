@@ -959,6 +959,7 @@ import {
   killExhaustedWhale,
   livingWhaleCountForSpecies,
   reconcileWhalePresentationIds,
+  repairSavedWhaleClock,
   seedWhalePopulation,
   tetherWhale,
   underwaterWhaleSongPresence,
@@ -5080,7 +5081,7 @@ async function main() {
   pendingWineCaptainDialogues.length = 0;
   pendingFetchQuestCaptainDialogues.length = 0;
   consumedLandedSeagullIds.clear();
-  ensureWhalePopulation(gameState);
+  ensureWhalePopulation(gameState, { currentMinute: weatherClockMinutes, playerPosition: ship.position });
   ensureIcebergPopulation(gameState);
   if (CAPTURE_SCENARIO) applyCaptureIcebergs(gameState, CAPTURE_SCENARIO.icebergs || []);
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes, restoring: true });
@@ -17786,7 +17787,7 @@ function auditBrowserNpcLocationBoundaries() {
           (["hidden", "sunk"].includes(kind)) !== (sighting === null)) {
         throw new Error(`Soak NPC visibility mismatch: ${target.id}/${kind}`);
       }
-      drawQuestShipArrow({ id: target.id }, { idPrefix: "soak", label: "Target", nowMs: lastFrameMs });
+      drawQuestShipArrow({ id: target.id }, { idPrefix: "soak", label: uiText("common.target"), nowMs: lastFrameMs });
       cases.push(kind);
     }
     if (npcShipLocation(npcSeaRoutes, "soak-absent-target", weatherClockMinutes) !== null) {
@@ -17992,7 +17993,15 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   if (correctedCharacterNameCount > 0) {
     console.info("[pixel-globe] corrected cultural name forms for saved characters:", correctedCharacterNameCount);
   }
-  ensureWhalePopulation(restoredGameState);
+  ensureWhalePopulation(restoredGameState, {
+    currentMinute: restoredWorldClock.currentMinute,
+    playerPosition: savedShip.position
+  });
+  const recoveredWhaleClockMinutes = repairSavedWhaleClock(restoredGameState.memory.whales,
+    restoredWorldClock.currentMinute);
+  if (recoveredWhaleClockMinutes > 0) {
+    console.warn("[pixel-globe] repaired saved whale calendar ahead of voyage clock:", recoveredWhaleClockMinutes);
+  }
   const migratedPortReferenceCount = reconcileQuestPortTiles(
     restoredGameState,
     savedCityReferenceCatalog,
@@ -18050,6 +18059,9 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   landTradeSystem = candidateWorld.landTradeSystem;
   npcSeaRoutes = candidateWorld.npcSeaRoutes;
   let recoveredDerivedSystems = candidateWorld.recoveredDerivedSystems;
+  if (recoveredWhaleClockMinutes > 0) {
+    recoveredDerivedSystems = addDerivedSaveRecoveryLabel(recoveredDerivedSystems, "whale calendar");
+  }
   syncExeterCanalWorldState(restoredGameState, restoredWorldClock.currentMinute, { restoring: true });
   syncColonizationWorldState(restoredGameState, { startMinute: restoredWorldClock.currentMinute, restoring: true });
   applyCurrentPortConquestOwnership({ refreshMaltaQuest: false });
@@ -43458,7 +43470,7 @@ function tileCenterVector(tileId) {
   return [graph.centers[k], graph.centers[k + 1], graph.centers[k + 2]];
 }
 
-function ensureWhalePopulation(state) {
+function ensureWhalePopulation(state, { currentMinute, playerPosition }) {
   const memory = state?.memory?.whales;
   if (!memory) throw new Error("Whale population requires voyage memory");
   if (memory.individuals.length > 0) {
@@ -43486,8 +43498,8 @@ function ensureWhalePopulation(state) {
     });
   }
   seedWhalePopulation(memory, candidates, undefined, {
-    startMinute: weatherClockMinutes,
-    avoidPosition: ship?.position || null,
+    startMinute: currentMinute,
+    avoidPosition: playerPosition,
     seedKey: state.voyageSeed
   });
   reconcileWhaleCoastClearance(memory);

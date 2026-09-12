@@ -23,6 +23,7 @@ import {
   livingWhaleCountForSpecies,
   npcWhalingCooldownMinutes,
   reconcileWhalePresentationIds,
+  repairSavedWhaleClock,
   seedWhalePopulation,
   migrateWhaleMemory,
   tetherWhale,
@@ -72,6 +73,39 @@ function candidates(count = 20) {
 function whaleNavigation(tileId, canSurface = true) {
   return { ok: true, canSurface, tileId };
 }
+
+test("saved future whale calendars are rebased once without losing animals or hunts", () => {
+  const previousMinute = 630829.1815998117;
+  const currentMinute = 114245.035868;
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 20, { startMinute: previousMinute });
+  memory.individuals[0].phase = WHALE_PHASE_DEAD;
+  const quarry = memory.individuals[1];
+  quarry.phase = WHALE_PHASE_SURFACED;
+  tetherWhale(memory, quarry.id, WHALE_HARPOONS[0]);
+  const original = structuredClone(memory);
+  const offset = repairSavedWhaleClock(memory, currentMinute);
+  assert.equal(offset, previousMinute - currentMinute);
+  assert.equal(memory.lastEcologyMinute, currentMinute);
+  assert.deepEqual(memory.activeHunt, original.activeHunt);
+  assert.equal(memory.nextId, original.nextId);
+  for (let index = 0; index < memory.individuals.length; index++) {
+    const before = original.individuals[index];
+    const after = { ...memory.individuals[index] };
+    for (const key of ["birthMinute", "pregnancyDueMinute", "lastCalvingMinute", "nextMatingMinute"]) {
+      if (before[key] !== null) {
+        assert.ok(Math.abs((previousMinute - before[key]) - (currentMinute - after[key])) < 1e-6);
+        after[key] = before[key];
+      }
+    }
+    assert.deepEqual(after, before);
+  }
+  const repaired = structuredClone(memory);
+  assert.equal(repairSavedWhaleClock(memory, currentMinute), 0);
+  assert.deepEqual(memory, repaired);
+  assert.doesNotThrow(() => beginWhaleAdvance(memory, 0, () => whaleNavigation(1), currentMinute));
+  assert.throws(() => beginWhaleAdvance(memory, 0, () => whaleNavigation(1), currentMinute - 1), /cannot move backwards/);
+});
 
 test("voyage seeds vary whale populations while remaining deterministic", () => {
   const first = createWhaleMemory();
