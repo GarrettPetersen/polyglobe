@@ -13,6 +13,7 @@ import {
   CITY_PERSON_SKIN_RAMP
 } from "../city-visualizer/cityPeopleCatalog.js";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
+import { validateCityBuildingLayers } from "./cityBuildingExportContract.mjs";
 
 const toolRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(toolRoot, "..");
@@ -47,6 +48,9 @@ const BUILDING_LAYER_OVERRIDES = Object.freeze({
 });
 
 const REGIONAL_BUILDING_LAYERS = Object.freeze({
+  "Palisade Far": Object.freeze({ cityType: "wooden-palisade", regionalOf: "Far Castle", sourceBase: "Castle Wall Far", hasChimney: false }),
+  "Palisade Gateway": Object.freeze({ cityType: "wooden-palisade", regionalOf: "Gate", sourceBase: "Far Gate Side", hasChimney: false }),
+  "Palisade Near": Object.freeze({ cityType: "wooden-palisade", regionalOf: "Near Castle", sourceBase: "Castle Wall Near", hasChimney: false }),
   "Earthen Hut": Object.freeze({
     cityType: "earthen-village",
     regionalOf: "Home",
@@ -182,6 +186,13 @@ const REGIONAL_BUILDING_LAYERS = Object.freeze({
 });
 
 const BUILDING_FOREGROUND_LAYERS = Object.freeze({
+  "Palisade Gateway Front Edge": Object.freeze({
+    layer: "Palisade Gateway Front Edge",
+    cityType: "wooden-palisade",
+    regionalOf: "Gate Front Edge",
+    sourceBase: "Palisade Gateway",
+    targetLayer: "Palisade Gateway"
+  }),
   "European Gate Front Edge": Object.freeze({
     layer: "Gate Front Edge",
     sourceBase: "Far Gate Side",
@@ -762,14 +773,7 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
       ...Object.keys(BUILDING_FOREGROUND_LAYERS)
     ];
     const overrideFrames = visibleFrames.filter((frame) => expectedLayerNames.includes(frame.layer));
-    const missingLayerNames = expectedLayerNames.filter((layer) => (
-      !overrideFrames.some((frame) => frame.layer === layer)
-    ));
-    if (missingLayerNames.length > 0) {
-      throw new Error(
-        `Missing buildings.aseprite overrides: ${missingLayerNames.join(", ")}`
-      );
-    }
+    validateCityBuildingLayers(visibleFrames, expectedLayerNames);
 
     const [staticAtlas, overrideAtlas] = await Promise.all([
       loadImage(staticPngPath),

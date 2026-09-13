@@ -269,6 +269,8 @@ function visualizerCityRecord({
     settlementType: city.settlementType || "city",
     factionId: city.factionId,
     architecture,
+    ...(city.colonialFoundingType || city.colonialFounding?.type
+      ? { colonialFoundingType: city.colonialFoundingType || city.colonialFounding.type } : {}),
     ...(city.isPirateHideout ? { isPirateHideout: true, pirateCulture: city.pirateCulture, pirateArchitectureStyle: city.pirateArchitectureStyle, territoryId: city.territoryId } : {}),
     services,
     capital: Boolean(city.declaredCapitalFactionId),

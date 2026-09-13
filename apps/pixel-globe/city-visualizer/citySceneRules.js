@@ -3,7 +3,7 @@ import {
   BACKGROUND_CITY_FRONT_DEPTH,
   cityBackgroundEnabled
 } from "./cityBackground.js";
-import { cityArchitectureProfile, cityServiceProfile } from "./cityArchitecture.js";
+import { cityArchitectureProfile, cityServiceProfile, WOODEN_PALISADE_STYLE } from "./cityArchitecture.js";
 import { cityQuayCargoCount } from "./cityQuayCargo.js";
 import { cityGroundPainterZ } from "./cityPainterOrder.js";
 import { CITY_HORIZON_LANDMARK, cityHasHorizonLandmark } from "./cityHorizonLandmarks.js";
@@ -655,12 +655,13 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   const architecture = cityArchitectureProfile(city);
   const services = cityServiceProfile(city);
   const primitiveSettlement = architecture.settlementForm === "sparse-village";
+  const woodenPalisade = architecture.fortificationStyle === WOODEN_PALISADE_STYLE;
   const automatic = {
     settlementStage: "city",
     approach: city.approach,
     distantRiverBend: city.riverHorizon === "closed",
     dock: city.dock,
-    fortified: primitiveSettlement ? false : Boolean(city.fortified),
+    fortified: woodenPalisade || (!primitiveSettlement && Boolean(city.fortified)),
     mountainsLeft: Boolean(city.mountains?.left),
     mountainsRight: Boolean(city.mountains?.right),
     leftTerrain: requireTerrain(city.terrain?.left || "grass"),
@@ -686,7 +687,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   for (const key of Object.keys(requestedOverrides)) {
     if (!(key in automatic) && key !== "props") throw new Error(`Unknown city scene override: ${key}`);
   }
-  const features = { ...automatic, ...requestedOverrides };
+  const features = { ...automatic, ...requestedOverrides, woodenPalisade };
   if (!["uninhabited", "colony", "ruins", "city"].includes(features.settlementStage)) {
     throw new Error(`Unknown city scene settlement stage: ${features.settlementStage}`);
   }
@@ -731,6 +732,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
       "fortified", "backgroundCity", "leftBankCity", "pyramid", "church", "mosque",
       "inn", "store", "market", "shipyard"
     ]) features[key] = false;
+    if (features.settlementStage === "ruins" && woodenPalisade) features.fortified = true;
   }
   return Object.freeze(features);
 }

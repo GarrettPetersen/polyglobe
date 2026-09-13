@@ -205,7 +205,11 @@ test("regional buildings retain their canonical chimney emitters", async () => {
       "Middle East Gate Front Edge",
       "Middle East Home",
       "Middle East Near Wall",
-      "Middle East Smith"
+      "Middle East Smith",
+      "Palisade Far",
+      "Palisade Gateway",
+      "Palisade Gateway Front Edge",
+      "Palisade Near"
     ].sort()
   );
   for (const frame of chimneylessRegionalFrames) {

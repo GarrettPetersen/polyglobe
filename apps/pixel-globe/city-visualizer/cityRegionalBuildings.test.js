@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { validateCityBuildingLayers } from "../tools/cityBuildingExportContract.mjs";
 
 import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
@@ -12,6 +13,10 @@ import {
 } from "./cityRegionalBuildings.js";
 
 const FRAMES = Object.freeze([
+  frame("Palisade Far", { cityType: "wooden-palisade", regionalOf: "Far Castle", hasChimney: false }),
+  frame("Palisade Gateway", { cityType: "wooden-palisade", regionalOf: "Gate", hasChimney: false }),
+  frame("Palisade Gateway Front Edge", { cityType: "wooden-palisade", regionalOf: "Gate Front Edge", hasChimney: false }),
+  frame("Palisade Near", { cityType: "wooden-palisade", regionalOf: "Near Castle", hasChimney: false }),
   frame("Inn"),
   frame("Smith"),
   frame("Home"),
@@ -308,6 +313,26 @@ test("regional frames preserve their logical building roles", () => {
   }
 });
 
+test("building exports require exactly one frame per authored role", () => {
+  const frames = [{ layer: "Palisade Far" }, { layer: "Palisade Gateway" }];
+  assert.doesNotThrow(() => validateCityBuildingLayers(frames, ["Palisade Far", "Palisade Gateway"]));
+  assert.throws(() => validateCityBuildingLayers([...frames, { layer: "Palisade Far" }], ["Palisade Far"]), /Palisade Far.*found 2/);
+  assert.throws(() => validateCityBuildingLayers(frames, ["Palisade Near"]), /Palisade Near.*found 0/);
+});
+
+test("exported palisades retain wall footprints and require their own gate overlay", () => {
+  const exportedIds = EXPORTED_FRAMES.map((frame) => frame.id);
+  assert.equal(new Set(exportedIds).size, exportedIds.length, "static frame IDs must be unique");
+  for (const [baseLayer, layer] of [["Far Castle", "Palisade Far"], ["Gate", "Palisade Gateway"], ["Near Castle", "Palisade Near"]]) {
+    const base = EXPORTED_FRAMES.find((frame) => frame.layer === baseLayer);
+    const wood = cityRegionalBuildingFrame(EXPORTED_FRAMES, "wooden-palisade", baseLayer);
+    assert.equal(wood.layer, layer);
+    assert.equal(wood.spriteSourceSize.y + wood.spriteSourceSize.h, base.spriteSourceSize.y + base.spriteSourceSize.h);
+  }
+  assert.throws(() => cityRegionalBuildingFrame(EXPORTED_FRAMES.filter((frame) => frame.layer !== "Palisade Gateway Front Edge"),
+    "wooden-palisade", "Gate Front Edge"), /Missing/);
+});
+
 test("exported earthen huts preserve the two housing ground lines", () => {
   for (const [baseLayer, regionalLayer] of [
     ["Home", "Earthen Hut"],
@@ -337,6 +362,7 @@ test("Mediterranean fortifications preserve Northern geometry", () => {
 
 test("exported gate fronts preserve each authored gate-relative offset", () => {
   for (const [cityType, gateLayer, frontLayer] of [
+    ["wooden-palisade", "Palisade Gateway", "Palisade Gateway Front Edge"],
     ["northern-european", "Gate", "Gate Front Edge"],
     ["east-asian", "China Gateway", "China Gateway Front Edge"],
     ["japanese", "Japan Gateway", "Japan Gateway Front Edge"],

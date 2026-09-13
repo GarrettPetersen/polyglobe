@@ -725,7 +725,7 @@ function resolveCityRecord(cityId, {
       ...catalogCity, factionId: liveFactionId, label: liveLabel,
       population: population ?? catalogCity.population,
       settlementType: settlementType ?? catalogCity.settlementType,
-      ...(settlementType === null ? {} : { architecture: undefined, services: undefined }),
+      ...(settlementType === null && population === null ? {} : { architecture: undefined, services: undefined }),
       ...(population === null ? {} : { backgroundCity })
     });
 }
@@ -1705,6 +1705,7 @@ function createSceneRenderEntries() {
       });
       if (
         layerName === CITY_GATEHOUSE_FLAG_LAYER &&
+        state.features.settlementStage !== "ruins" &&
         state.cityFlagImage &&
         cityGatehouseFlagVisible({
           fortified: state.features.fortified,
@@ -1956,6 +1957,8 @@ function drawQuayCargo(placement, targetContext) {
 }
 
 function drawGateFront(frame, targetContext) {
+  // Ruined palisades have no surviving doorway to occlude pedestrians.
+  if (state.features.settlementStage === "ruins" && state.features.woodenPalisade) return;
   const regional = regionalStaticFrame(frame, "Gate Front Edge");
   const sourceAtlas = regional?.atlas || state.staticAtlas;
   const sourceFrame = regional?.frame || frame;
@@ -2221,6 +2224,11 @@ function backgroundCityAtmosphereFrame(frame, level) {
 }
 
 function authoredBombardmentPresentation(frame, layerName, occurrence, source) {
+  if (state.features.settlementStage === "ruins" && state.features.woodenPalisade &&
+      ["Far Castle", "Gate", "Near Castle"].includes(layerName)) {
+    return damagedBuildingFramePresentation({ source,
+      buildingId: `ruins|palisade|${layerName}`, foundationHeight: 2 });
+  }
   if (state.assaultPresentation !== null) {
     const foundationHeight = cityAssaultFacadeFoundationHeight(layerName, source.frame.frame.h, layerPainterZ(layerName, occurrence, state.features.approach));
     if (foundationHeight !== null) {

@@ -1,4 +1,5 @@
 import { colonizationTargetForCity, colonizationSiteIsRuined } from "./colonialCities.js";
+import { cityUsesWoodenPalisade } from "../city-visualizer/cityArchitecture.js";
 import {
   COLONIZATION_STAGE_OUTBOUND,
   COLONIZATION_STAGE_AWAITING_RESUPPLY,
@@ -72,7 +73,7 @@ export function colonizationCitySceneOptions(city, { landingVisit = false } = {}
     featureOverrides: Object.freeze({
       settlementStage,
       ...(target.preexistingSettlement ? {} : {
-        fortified: false,
+        fortified: settlementStage === "city" && cityUsesWoodenPalisade({ ...city, colonialFoundingType: target.type }),
         leftBankCity: false,
         npcs: deserted ? 0 : settlementStage === "city" ? 4 : 3
       })

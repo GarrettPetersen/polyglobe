@@ -33,6 +33,15 @@ test("founding visit stays empty, while revisits and restored awaiting-resupply 
     .featureOverrides.settlementStage, "city", "full resupply upgrades even during the founding visit");
 });
 
+test("established settler colonies gain palisades only at the developing-town tier", () => {
+  const target = COLONIZATION_TARGETS.find(({ type, cityId }) => type === "settler-colony" && cityId !== "roanoke|united states of america");
+  for (const [population, fortified] of [[120, false], [2400, true], [25000, false]]) {
+    const city = { ...colony(target, "established"), population };
+    assert.equal(colonizationCitySceneOptions(city).featureOverrides.fortified, fortified);
+    assert.equal(colonizationCitySceneOptions({ ...city, colonizationQuestStage: "awaiting-resupply" }).featureOverrides.fortified, false);
+  }
+});
+
 test("ordinary ports retain their presentation and invalid colony states fail loudly", () => {
   assert.deepEqual(colonizationCitySceneOptions({ cityId: "london|united kingdom" }), {});
   const city = colony(COLONIZATION_TARGETS[0], "established");

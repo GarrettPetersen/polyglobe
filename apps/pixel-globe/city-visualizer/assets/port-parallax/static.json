@@ -406,10 +406,10 @@
    },
    {
     "filename": "port-parallax (Castle Shadow).aseprite",
-    "frame": { "x": 1986, "y": 1606, "w": 183, "h": 110 },
+    "frame": { "x": 1986, "y": 1606, "w": 183, "h": 114 },
     "rotated": false,
     "trimmed": true,
-    "spriteSourceSize": { "x": 1182, "y": 481, "w": 183, "h": 110 },
+    "spriteSourceSize": { "x": 1182, "y": 477, "w": 183, "h": 114 },
     "sourceSize": { "w": 1365, "h": 910 },
     "duration": 100
    },
@@ -614,10 +614,10 @@
  ],
  "meta": {
   "app": "https://www.aseprite.org/",
-  "version": "1.3.18.2-x64",
+  "version": "1.3.18.3-x64",
   "image": "static.png",
   "format": "RGBA8888",
-  "size": { "w": 2730, "h": 1716 },
+  "size": { "w": 2730, "h": 1720 },
   "scale": "1",
   "layers": [
    { "name": "Sky", "opacity": 255, "blendMode": "normal" },

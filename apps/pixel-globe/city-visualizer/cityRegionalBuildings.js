@@ -22,6 +22,7 @@ const CITY_REGIONAL_BUILDING_SHARED_BASE_STYLES = new Map([
   ["mediterranean", CITY_REGIONAL_BUILDING_FORTIFICATION_LAYERS]
 ]);
 const DIRECT_CITY_REGIONAL_BUILDING_STYLES = new Set([
+  "wooden-palisade",
   "earthen-village",
   "east-asian",
   "islamic-desert",

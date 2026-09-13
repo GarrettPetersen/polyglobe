@@ -139,9 +139,12 @@ test("new colonies use colonizer architecture, population, and shipbuilding", ()
     if (target.waterAccess === "inland") continue;
     const baked = city(target.cityId);
     assert.equal(baked.populationProfileId, "european", `${target.cityId} population`);
-    for (const style of ["housingStyle", "serviceStyle", "fortificationStyle"]) {
+    for (const style of ["housingStyle", "serviceStyle"]) {
       assert.equal(baked.architecture[style], expectedStyle, `${target.cityId} ${style}`);
     }
+    assert.equal(baked.architecture.fortificationStyle,
+      target.type === COLONIAL_FOUNDING_SETTLER ? "wooden-palisade" : expectedStyle,
+      `${target.cityId} developing colony enclosure`);
     assert.equal(
       baked.defaultShip,
       expectedStyle === "mediterranean" ? "xebec" : "small-cog",
@@ -171,12 +174,11 @@ test("every baked settler colony uses its colonizer's architectural family", () 
     assert.ok(expectedStyle, `missing settler style expectation for ${founding.factionId}`);
     assert.equal(baked.cityType, expectedStyle, `${founding.cityId} city type`);
     assert.equal(baked.populationProfileId, "european", `${founding.cityId} population`);
-    assert.ok(
-      Object.values(baked.architecture).every((value) => (
-        value === expectedStyle || value === "urban"
-      )),
-      `${founding.cityId} architecture`
-    );
+    assert.equal(baked.architecture.housingStyle, expectedStyle);
+    assert.equal(baked.architecture.serviceStyle, expectedStyle);
+    assert.equal(baked.architecture.settlementForm, "urban");
+    assert.equal(baked.architecture.fortificationStyle,
+      baked.population >= 500 && baked.population < 25000 ? "wooden-palisade" : expectedStyle);
   }
   assert.ok(reviewedCount >= 10, `reviewed only ${reviewedCount} baked settler colonies`);
 });

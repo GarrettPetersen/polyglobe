@@ -4,12 +4,30 @@ import test from "node:test";
 import {
   EARTHEN_VILLAGE_BUILDING_STYLE,
   JAPANESE_BUILDING_STYLE,
+  cityUsesWoodenPalisade,
   cityArchitectureProfile,
   cityArchitectureStyleForLayer,
   cityServiceProfile,
   deriveCityArchitectureProfile,
   deriveCityServiceProfile
 } from "./cityArchitecture.js";
+
+test("wooden palisades cover developing settler colonies, pirate havens and Roanoke", () => {
+  for (const [population, expected] of [[499, false], [500, true], [24999, true], [25000, false]]) {
+    const city = cityRecord({ population, colonialFoundingType: "settler-colony" });
+    assert.equal(cityUsesWoodenPalisade(city), expected);
+    assert.equal(deriveCityArchitectureProfile(city).fortificationStyle,
+      expected ? "wooden-palisade" : "northern-european");
+  }
+  for (const type of [undefined, "conquered-city", "negotiated-settlement"]) {
+    assert.equal(cityUsesWoodenPalisade(cityRecord({ colonialFoundingType: type })), false);
+  }
+  assert.equal(cityUsesWoodenPalisade(cityRecord({ colonialFounding: { type: "settler-colony" } })), true);
+  assert.equal(cityUsesWoodenPalisade(cityRecord({ cityId: "roanoke|united states of america", population: 0 })), true);
+  const pirate = deriveCityArchitectureProfile(cityRecord({ isPirateHideout: true, pirateArchitectureStyle: "east-asian" }));
+  assert.equal(pirate.housingStyle, "east-asian");
+  assert.equal(pirate.fortificationStyle, "wooden-palisade");
+});
 
 test("every catalog village uses the sparse earthen settlement form instead of regional fallbacks", () => {
   for (const cityType of [

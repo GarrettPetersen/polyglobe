@@ -104,6 +104,25 @@ const CITY = Object.freeze({
   }
 });
 
+test("palisades enclose developing colonies and sparse pirate havens with existing shadows", () => {
+  for (const metadata of [
+    { colonialFoundingType: "settler-colony", population: 2400 },
+    { isPirateHideout: true, pirateArchitectureStyle: "northern-european", population: 800 }
+  ]) {
+    const city = { ...CITY, ...metadata, fortified: false };
+    const features = resolveCitySceneFeatures(city);
+    assert.equal(features.woodenPalisade, true);
+    assert.equal(features.fortified, true);
+    const layers = activePortSceneLayers(features);
+    for (const layer of ["Castle Shadow", "Far Castle", "Gate", "Near Castle"]) assert.ok(layers.has(layer));
+    for (const settlementStage of ["uninhabited", "colony"]) {
+      assert.equal(resolveCitySceneFeatures(city, { settlementStage }).fortified, false);
+    }
+    assert.equal(resolveCitySceneFeatures(city, { settlementStage: "ruins" }).fortified, true);
+    assert.throws(() => resolveCitySceneFeatures(city, { woodenPalisade: false }), /Unknown city scene override/);
+  }
+});
+
 test("opposite-bank mountains require a river, including when terrain overrides enable them", () => {
   for (const city of CITY_VISUALIZER_CATALOG.cities) {
     for (const approach of ["ocean", "lake", "river"]) {
@@ -1269,7 +1288,9 @@ test("only cities within the canonical pyramid horizon receive the grounded dist
   const pyramidFrame = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find(({ layer }) => layer === "Pyramid");
   const desertFrame = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find(({ layer }) => layer === "Distant Desert");
   assert.deepEqual(pyramidFrame?.spriteSourceSize, { x: 775, y: 399, w: 100, h: 51 });
-  assert.deepEqual(pyramidFrame?.frame, { x: 0, y: 4037, w: 100, h: 51 });
+  // Atlas packing may move when unrelated source artwork changes.
+  assert.equal(pyramidFrame.frame.w, 100);
+  assert.equal(pyramidFrame.frame.h, 51);
   assert.ok(
     CITY_VISUALIZER_PORT_MANIFEST.layerOrder.indexOf("Pyramid") <
       CITY_VISUALIZER_PORT_MANIFEST.layerOrder.indexOf("Distant Desert")
@@ -1530,11 +1551,12 @@ test("ruins retain a street and foundations but no residents, amenities or skyli
     assert.equal(features.npcs, 0);
     assert.equal(features.props, 0);
     assert.equal(features.backgroundCity, false);
-    assert.equal(features.fortified, false);
+    assert.equal(features.fortified, features.woodenPalisade);
     assert.equal(features.dock, "none");
     const layers = activePortSceneLayers(features);
     assert.ok(layers.has("Road"));
-    for (const layer of ["Smith", "Inn", "Shipyard", "Market Stall", "Church", "Mosque", "Gate"]) {
+    assert.equal(layers.has("Gate"), features.woodenPalisade);
+    for (const layer of ["Smith", "Inn", "Shipyard", "Market Stall", "Church", "Mosque"]) {
       assert.equal(layers.has(layer), false, `${city.id}:${layer}`);
     }
     const buildings = cityStreetBuildingPlacements({ features, frames: CITY_VISUALIZER_PORT_MANIFEST.staticFrames });

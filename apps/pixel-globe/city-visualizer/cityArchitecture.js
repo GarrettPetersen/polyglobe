@@ -3,6 +3,15 @@ import { portCityServiceProfile } from "../src/portCityServices.js";
 
 export const EARTHEN_VILLAGE_BUILDING_STYLE = "earthen-village";
 export const JAPANESE_BUILDING_STYLE = "japanese";
+export const WOODEN_PALISADE_STYLE = "wooden-palisade";
+
+// A visual development tier, not a change to the settlement's combat strength.
+export function cityUsesWoodenPalisade(city) {
+  if (city.isPirateHideout === true) return true;
+  if (city.cityId === "roanoke|united states of america") return true;
+  const foundingType = city.colonialFoundingType || city.colonialFounding?.type;
+  return foundingType === "settler-colony" && city.population >= 500 && city.population < 25000;
+}
 
 const HOUSING_LAYERS = new Set(["Home", "Home 2"]);
 const SERVICE_BUILDING_LAYERS = new Set(["Inn", "Smith"]);
@@ -19,7 +28,7 @@ export function deriveCityArchitectureProfile(city) {
   if (city.isPirateHideout === true) {
     const style = city.pirateArchitectureStyle;
     return architectureProfile({ housingStyle: style, serviceStyle: style,
-      fortificationStyle: style, settlementForm: "sparse-village" });
+      fortificationStyle: WOODEN_PALISADE_STYLE, settlementForm: "sparse-village" });
   }
   const settlementType = settlementTypeForCity(city);
   const sparseEarthenVillage = settlementType === "village";
@@ -32,7 +41,7 @@ export function deriveCityArchitectureProfile(city) {
       ? EARTHEN_VILLAGE_BUILDING_STYLE
       : regionalStyle,
     serviceStyle: swahiliCoast ? "islamic-desert" : regionalStyle,
-    fortificationStyle: swahiliCoast ? "islamic-desert" : regionalStyle,
+    fortificationStyle: cityUsesWoodenPalisade(city) ? WOODEN_PALISADE_STYLE : swahiliCoast ? "islamic-desert" : regionalStyle,
     settlementForm: sparseEarthenVillage ? "sparse-village" : "urban"
   });
 }
