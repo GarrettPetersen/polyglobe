@@ -11,7 +11,7 @@ import { patrolWokouHuntAtPort } from "./npcSeaRoutes.js";
 import { pirateHavenNavigationReasonText } from "./pirateHavenDialogue.js";
 import { shipItemRows } from "./gameState.js";
 import { pirateQuestAtIssuer, pirateHavenIsRuined, pirateRevengeTargetPresent, pirateHavenIsVisible, pirateHavenQuestOffer, ruinPirateHaven, seizePirateRevengeItem } from "./pirateHavens.js";
-import { riverPortApproachReachable } from "./riverPortApproach.js";
+import { portApproachReachable } from "./portApproach.js";
 import { chartCityLocationId, indexChartCityLocations } from "./chartCityLocations.js";
 import { offscreenCannonCue, CANNON_CUE_DURATION_MS } from "./offscreenCannonCue.js";
 import { createPortAssaultForecastClient } from "./portAssaultForecastClient.js";
@@ -30424,7 +30424,7 @@ function portCallInInteractionRange(call) {
     call.interactionX,
     call.interactionY
   ) <= PORT_INTERACTION_RADIUS_PX * PORT_INTERACTION_RADIUS_PX &&
-    riverPortApproachReachable({ graph, earthRows: earthById, riverMasks, riverToWaterMasks,
+    portApproachReachable({ graph, earthRows: earthById, riverMasks, riverToWaterMasks,
       shipTileId: ship.tileId, portTileId: call.tileId });
 }
 

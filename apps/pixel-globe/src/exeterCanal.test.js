@@ -1,5 +1,5 @@
 import { arrivalOfferEligible, recordArrivalOffer } from "./arrivalOfferCadence.js";
-import { riverPortApproachReachable } from "./riverPortApproach.js";
+import { portApproachReachable } from "./portApproach.js";
 import { createWorldMutationBoundary } from "./runtimeTransitions.js";
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
 import { createDirectionIndex } from "./geodesic.js";
@@ -247,12 +247,24 @@ test("real-map canal stages add connected cuts and restore the original map with
     const navigation = exeterCanalNavigation(base, graph, earthRows, stage);
     const options = { ...placement, ...navigation, exeterCanalOpen: stage === 3 };
     if (stage === 3) {
-      assert.equal(riverPortApproachReachable({ graph, earthRows, ...navigation,
+      assert.equal(portApproachReachable({ graph, earthRows, ...navigation,
         shipTileId: topsham.tileId, portTileId: exeter.tileId }), true);
       for (const neighbor of graph.neighbors[exeter.tileId]) {
         if (EXETER_CANAL_TILE_CHAIN.includes(neighbor)) continue;
-        assert.equal(riverPortApproachReachable({ graph, earthRows, ...navigation,
+        assert.equal(portApproachReachable({ graph, earthRows, ...navigation,
           shipTileId: neighbor, portTileId: exeter.tileId }), false, `cannot dock across land from ${neighbor}`);
+      }
+      const nearby = new Set(graph.neighbors[exeter.tileId]);
+      for (const neighbor of graph.neighbors[exeter.tileId]) {
+        for (const tileId of graph.neighbors[neighbor]) nearby.add(tileId);
+      }
+      const northernSea = [...nearby].filter(tileId =>
+        ["water", "beach"].includes(earthRows[tileId].t) &&
+        graph.latDeg[tileId] > graph.latDeg[exeter.tileId]);
+      assert.ok(northernSea.length, "exercise the sea north of Exeter, beyond intervening land");
+      for (const shipTileId of northernSea) {
+        assert.equal(portApproachReachable({ graph, earthRows, ...navigation,
+          shipTileId, portTileId: exeter.tileId }), false, "the northern sea must not bypass Exeter's canal");
       }
     }
 
