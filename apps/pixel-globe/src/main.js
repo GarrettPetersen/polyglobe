@@ -1968,6 +1968,7 @@ import {
   QUEST_SITE_OVERLAY_CHARACTER_ALERT,
   QUEST_SITE_OVERLAY_DIALOGUE,
   questSiteArrivalCandidate,
+  questSearchAreaReached,
   questSiteArrivalOverlayKind,
   resolveAutomaticQuestSiteAnchorClosure
 } from "./questSiteArrival.js";
@@ -8571,12 +8572,18 @@ function resolveQuestJourneyDialogueChoice(quest, event, choiceId) {
   dirty = true;
 }
 
+function playerReachedCampaignSearchArea(sighting) {
+  if (!chart || !localLayout) return false;
+  const target = latLonToDirection(sighting.latitudeDeg, sighting.longitudeDeg);
+  return questSearchAreaReached(localPointForGlobeVector(target), {
+    x: localLayout.viewX, y: localLayout.viewY
+  });
+}
+
 function updateWhiteWhaleSightingObjective() {
   const goal = gameState?.memory?.campaignGoal;
   if (!goal || goal.type !== CAMPAIGN_GOAL_WHITE_WHALE || !goal.sighting || goal.sighting.reached) return false;
-  const target = latLonToDirection(goal.sighting.latitudeDeg, goal.sighting.longitudeDeg);
-  const distancePx = Math.acos(clamp(dot3(ship.position, target), -1, 1)) * PIXELS_PER_RADIAN;
-  if (distancePx > 28 || captainAlertModal || dialogueState) return false;
+  if (captainAlertModal || dialogueState || !playerReachedCampaignSearchArea(goal.sighting)) return false;
   const message = reachWhiteWhaleSighting(goal);
   if (!message) return false;
   openCaptainAlertModal(message, "stern");
@@ -8590,11 +8597,7 @@ function updateTreasurePirateSearchObjective() {
       captainAlertModal || dialogueState) {
     return false;
   }
-  const hint = treasurePirateHints(goal).find((entry) => {
-    const target = latLonToDirection(entry.latitudeDeg, entry.longitudeDeg);
-    const distancePx = Math.acos(clamp(dot3(ship.position, target), -1, 1)) * PIXELS_PER_RADIAN;
-    return distancePx <= 28;
-  });
+  const hint = treasurePirateHints(goal).find(playerReachedCampaignSearchArea);
   if (!hint) return false;
   const arrival = reachTreasurePirateHint(
     goal,
@@ -26745,11 +26748,14 @@ function toggleAnchor({ findCastaway = true } = {}) {
 }
 
 function maybeAutoAnchorAtNonPortQuestSite() {
-  if (!ship || anchored || portWaitState || gameOverReason || dialogueState || captainAlertModal ||
+  if (!ship || portWaitState || gameOverReason || dialogueState || captainAlertModal ||
       menusAreOpen() || playerHasCombatEngagement() || !chart || !localLayout || !worldFramePresented) {
     return false;
   }
 
+  // A save can resume already anchored at the island; completion must not
+  // depend on toggling the anchor again after restoration.
+  if (anchored) return maybeRecoverCampaignTreasureAtAnchor();
   const treasureGoal = activeTreasureCampaignGoal();
   const treasureTileId = treasureGoal && treasureCampaignPhase(treasureGoal) === "find-treasure"
     ? treasureGoal.treasureTileId
@@ -26762,7 +26768,7 @@ function maybeAutoAnchorAtNonPortQuestSite() {
       y: localLayout.viewY
     },
     treasureTileId,
-    nearestShoreTileId: treasureTileId === null ? null : nearestScavengeShoreCall()?.id ?? null
+    treasureShoreTileId: treasureTileId === null ? null : nearestScavengeShoreCall({ tileId: treasureTileId })?.id ?? null
   });
   if (!arrival) {
     lastAutomaticQuestSiteCityId = null;
@@ -26801,8 +26807,8 @@ function maybeAutoAnchorAtNonPortQuestSite() {
 function maybeRecoverCampaignTreasureAtAnchor() {
   const goal = activeTreasureCampaignGoal();
   if (!goal || treasureCampaignPhase(goal) !== "find-treasure") return false;
-  const shoreCall = nearestScavengeShoreCall();
-  if (!shoreCall || shoreCall.id !== goal.treasureTileId) return false;
+  const shoreCall = nearestScavengeShoreCall({ tileId: goal.treasureTileId });
+  if (!shoreCall) return false;
 
   recoverTreasure(goal, Math.floor(weatherClockMinutes));
   const cargoReward = receiveTreasureCargo(gameState, {
@@ -26839,12 +26845,16 @@ function canAnchorAtCurrentShore() {
   return Boolean(nearestScavengeShoreCall());
 }
 
-function nearestScavengeShoreCall() {
+function nearestScavengeShoreCall({ tileId = null } = {}) {
+  if (tileId !== null && (!Number.isInteger(tileId) || tileId < 0)) {
+    throw new Error(`Invalid shore target tile: ${tileId}`);
+  }
   if (!ship || !chart || !localLayout) return null;
   const maxDistance2 = ANCHOR_SHORE_MAX_PX * ANCHOR_SHORE_MAX_PX;
   let nearest = null;
   let nearestDistance2 = Infinity;
   for (const call of chart.tileCalls) {
+    if (tileId !== null && call.id !== tileId) continue;
     if (isWaterSurfaceRow(call.row) && !tileHasSurfaceIce(call.id)) continue;
     const callDistance2 = distance2(localLayout.viewX, localLayout.viewY, call.x, call.y);
     if (callDistance2 > maxDistance2 || callDistance2 >= nearestDistance2) continue;

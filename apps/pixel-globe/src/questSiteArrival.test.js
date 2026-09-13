@@ -8,6 +8,7 @@ import {
   colonizationSiteCallIsInArrivalRange,
   questSiteArrivalOverlayKind,
   questSiteArrivalCandidate,
+  questSearchAreaReached,
   resolveAutomaticQuestSiteAnchorClosure
 } from "./questSiteArrival.js";
 
@@ -86,12 +87,12 @@ test("a completed pirate map automatically arrives only at its exact shore tile"
   assert.deepEqual(questSiteArrivalCandidate({
     cityCalls: [],
     treasureTileId: 73,
-    nearestShoreTileId: 73
+    treasureShoreTileId: 73
   }), { kind: "treasure", tileId: 73 });
   assert.equal(questSiteArrivalCandidate({
     cityCalls: [],
     treasureTileId: 73,
-    nearestShoreTileId: 74
+    treasureShoreTileId: 74
   }), null);
 });
 
@@ -132,4 +133,13 @@ test("closing an automatically anchored quest-site overlay raises only its own a
     trackedOverlayKind: QUEST_SITE_OVERLAY_CHARACTER_ALERT,
     closingOverlayKind: QUEST_SITE_OVERLAY_CHARACTER_ALERT
   }), /without its anchor down/);
+});
+
+
+test("search bearings arrive in local chart coordinates with a bounded radius", () => {
+  const player = { x: 900, y: -600 };
+  assert.equal(questSearchAreaReached({ x: 928, y: -600 }, player), true);
+  assert.equal(questSearchAreaReached({ x: 929, y: -600 }, player), false);
+  assert.equal(questSearchAreaReached(null, player), false);
+  assert.throws(() => questSearchAreaReached({ x: NaN, y: 1 }, player), /finite local chart coordinates/);
 });
