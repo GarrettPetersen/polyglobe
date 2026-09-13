@@ -168,6 +168,20 @@ canvas {
   line-height: 1.5;
 }
 
+.loading-screen[data-phase="bootstrap"] .loading-screen__status {
+  top: 40%;
+  bottom: auto;
+  white-space: normal;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.loading-screen[data-phase="bootstrap"] ~ .crash-copy-button {
+  font-size: 14px;
+  min-height: 48px;
+}
+
 .crash-copy-button {
   position: absolute;
   z-index: 200;

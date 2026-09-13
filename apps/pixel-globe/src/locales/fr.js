@@ -54,6 +54,7 @@ export default {
   "options.mute": "MUET",
   "options.diagnosticMode": "MODE DIAGNOSTIC",
   "crash.copyDetails": "COPIER LE RAPPORT D'ERREUR",
+  "crash.startupFailed": "LE JEU N’A PAS PU DÉMARRER. COPIEZ LES DÉTAILS DE L’ERREUR CI-DESSOUS.",
   "crash.copied": "RAPPORT D'ERREUR COPIÉ",
   "crash.copyFailed": "ÉCHEC DE LA COPIE",
   "options.enterFullscreen": "ACTIVER LE PLEIN ÉCRAN",

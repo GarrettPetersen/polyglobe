@@ -57,6 +57,12 @@ The storefront's Full Controller Support checkbox should only be selected after 
 
 ## Packaged launch gate
 
+`steam:upload --platform=all` and `--platform=macos` now run this gate
+automatically for every selected edition, before starting SteamCMD. These
+uploads must run on macOS with Steam signed in; there is no skip flag. A failed
+launch, renderer error, loading failure, or timeout blocks the upload. The gate
+requires a packaged application and ignores development game-root overrides.
+
 With Steam running and signed in, run `node tools/check-steam-launch.mjs APP_ID
 EXECUTABLE` from the app directory for **both** the full and demo packaged apps
 (IDs `4516500` and `5029880`). On macOS, EXECUTABLE is the binary inside
@@ -65,3 +71,16 @@ that the real Steam host shows a window and finishes production loading, then
 closes it without starting a voyage. Run once without a controller to cover
 keyboard-only startup. Mocked host tests and web startup tests do not replace
 this gate. Controller-connected hardware verification remains a separate check.
+
+## Early startup failures
+
+The bootstrap boundary displays a localized failure screen and copy button even
+when platform bootstrap or Cloud hydration fails before the main game loads.
+It keeps a single 8 KiB diagnostic in local browser storage under
+`marque-and-reprisal.last-startup-failure`; this key is not synchronized to Cloud
+or transmitted as telemetry. Storage or clipboard failure cannot hide the
+original error. No save is cleared and no automatic startup retry is attempted.
+
+After a production build, run `npm run test:startup-failure` to inject platform,
+Cloud, and storage failures and verify the rendered failure screen. Unit tests
+cover localization, report bounds, save preservation, and upload-gate rejection.

@@ -6,7 +6,13 @@ import { loadPlaywright } from "./reachability/browser-runtime.mjs";
 
 // Requires the real Steam client. Supply a packaged executable, or the local
 // Electron executable followed by the host directory. Never starts a voyage.
-const [appId, executable, ...args] = process.argv.slice(2);
+const [appId, executable, ...options] = process.argv.slice(2);
+const requirePackaged = options.includes("--require-packaged");
+const args = options.filter(value => value !== "--require-packaged");
+const launchEnvironment = { ...process.env };
+// A release gate must not accidentally test an overridden development asset directory.
+delete launchEnvironment.MARQUE_STEAM_GAME_ROOT;
+delete launchEnvironment.MARQUE_STEAM_INPUT_MANIFEST;
 assert.ok(["4516500", "5029880"].includes(appId), "Expected full or demo Steam App ID");
 assert.ok(executable, "Expected an Electron game executable");
 const profile = await mkdtemp(join(tmpdir(), "marque-steam-launch-"));
@@ -17,11 +23,15 @@ try {
   desktop = await loadPlaywright()._electron.launch({
     executablePath: resolve(executable),
     args: [...args, `--user-data-dir=${profile}`],
-    env: { ...process.env, SteamAppId: appId, SteamGameId: appId,
+    env: { ...launchEnvironment, SteamAppId: appId, SteamGameId: appId,
       MARQUE_STEAM_APP_ID: appId, MARQUE_STEAM_EDITION: appId === "5029880" ? "demo" : "full",
       MARQUE_STEAM_REQUIRE_RELAUNCH: "0" },
     timeout: 90_000
   });
+  if (requirePackaged) {
+    assert.equal(await desktop.evaluate(({ app }) => app.isPackaged), true,
+      "Steam upload gate requires the packaged application, not a development host");
+  }
   desktop.process().stderr.on("data", chunk => {
     const text = chunk.toString();
     if (text.includes("desktop host failed") || text.includes("Uncaught Exception")) failures.push(text);
@@ -42,14 +52,6 @@ try {
   await page.screenshot({ path: join(tmpdir(), `marque-steam-${appId}-launch.png`) });
   console.log(`Steam ${appId}: real host window visible, production startup complete, no fatal errors`);
 } catch (error) {
-  if (page && !page.isClosed()) console.error(await page.evaluate(async () => {
-    const serialized = await window.marqueSteamPlatform.readCloudFile("marque-profile-v1.json");
-    try {
-      return { cloudLength: serialized?.length, cloudVersion: JSON.parse(serialized)?.version };
-    } catch (failure) {
-      return { cloudLength: serialized?.length, cloudJsonError: failure.message.replace(/"[^"\n]*"/g, '"[redacted]"') };
-    }
-  }));
   if (page && !page.isClosed()) console.error(await page.evaluate(() => ({
     url: location.href, title: document.title,
     loading: document.querySelector("#loading-screen")?.outerHTML.slice(0, 2500),

@@ -54,6 +54,7 @@ export default {
   "options.mute": "WYCISZ",
   "options.diagnosticMode": "TRYB DIAGNOSTYCZNY",
   "crash.copyDetails": "KOPIUJ SZCZEGÓŁY BŁĘDU",
+  "crash.startupFailed": "NIE UDAŁO SIĘ URUCHOMIĆ GRY. SKOPIUJ SZCZEGÓŁY BŁĘDU PONIŻEJ.",
   "crash.copied": "SZCZEGÓŁY BŁĘDU SKOPIOWANE",
   "crash.copyFailed": "KOPIOWANIE NIEUDANE",
   "options.enterFullscreen": "WŁĄCZ PEŁNY EKRAN",

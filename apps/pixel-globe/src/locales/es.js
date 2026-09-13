@@ -54,6 +54,7 @@ export default {
   "options.mute": "SILENCIAR",
   "options.diagnosticMode": "MODO DE DIAGNÓSTICO",
   "crash.copyDetails": "COPIAR DATOS DEL FALLO",
+  "crash.startupFailed": "NO SE PUDO INICIAR EL JUEGO. COPIA LOS DETALLES DEL ERROR ABAJO.",
   "crash.copied": "DATOS DEL FALLO COPIADOS",
   "crash.copyFailed": "ERROR AL COPIAR",
   "options.enterFullscreen": "ACTIVAR PANTALLA COMPLETA",

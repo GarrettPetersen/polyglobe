@@ -54,6 +54,7 @@ export default {
   "options.mute": "БЕЗ ЗВУКА",
   "options.diagnosticMode": "РЕЖИМ ДИАГНОСТИКИ",
   "crash.copyDetails": "КОПИРОВАТЬ ДАННЫЕ СБОЯ",
+  "crash.startupFailed": "НЕ УДАЛОСЬ ЗАПУСТИТЬ ИГРУ. СКОПИРУЙТЕ СВЕДЕНИЯ ОБ ОШИБКЕ НИЖЕ.",
   "crash.copied": "ДАННЫЕ СБОЯ СКОПИРОВАНЫ",
   "crash.copyFailed": "НЕ УДАЛОСЬ СКОПИРОВАТЬ",
   "options.enterFullscreen": "ПОЛНЫЙ ЭКРАН",

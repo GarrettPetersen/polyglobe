@@ -1,35 +1,10 @@
-import { BUILD_EDITION_ID } from "./buildEdition.js";
-import { buildDocumentTitle } from "./buildTitle.js";
-import { gameStorage, setGameStorageMutationHandler } from "./gameStorage.js";
-import {
-  createPlatformCloudSync,
-  currentPlatformGameLanguage,
-  hydratePlatformCloudStorage,
-  platformServicesAdapter,
-  validatePlatformCapabilities
-} from "./platformServices.js";
-import { setSteamInterfaceLanguage } from "./loadingScreenLocale.js";
+import { reportStartupFailure } from "./startupFailure.js";
 
-const bridge = platformServicesAdapter(window);
-document.title = buildDocumentTitle({
-  edition: BUILD_EDITION_ID,
-  platformId: bridge?.platformId || "browser"
-});
-if (bridge) {
-  const capabilities = await validatePlatformCapabilities(bridge);
-  setSteamInterfaceLanguage(await currentPlatformGameLanguage(bridge));
-  if (capabilities.cloud) {
-    const hydration = await hydratePlatformCloudStorage(gameStorage, bridge);
-    const cloudSync = createPlatformCloudSync(gameStorage, bridge);
-    const requestCloudSync = (key) => {
-      void cloudSync.request(key).catch((error) => console.error("[steam] cloud sync failed", error));
-    };
-    setGameStorageMutationHandler(requestCloudSync);
-    if (!hydration.loaded) requestCloudSync("marque-and-reprisal.save");
-    window.addEventListener("pagehide", () => {
-      void cloudSync.flush().catch((error) => console.error("[steam] final cloud sync failed", error));
-    });
-  }
+try {
+  const { startPlatformGame } = await import("./platformBootstrap.js");
+  await startPlatformGame();
+} catch (error) {
+  reportStartupFailure(error);
+  // Keep the original failure observable to developer tools and launch checks.
+  throw error;
 }
-
-await import("./main.js");

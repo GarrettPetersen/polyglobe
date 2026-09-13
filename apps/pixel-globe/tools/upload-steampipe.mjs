@@ -1,4 +1,5 @@
-import { access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
+import { steamLaunchChecks, runSteamLaunchGate } from "./steam-launch-gate.mjs";
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +37,14 @@ if (prepareResult.status !== 0) {
   throw new Error(`SteamPipe preparation failed with exit code ${prepareResult.status}`);
 }
 await access(steamCmd);
+
+const launchChecks = steamLaunchChecks({
+  appRoot, edition, platform, hostPlatform: process.platform,
+  settings: JSON.parse(await readFile(join(appRoot, "steam/application-settings.json"), "utf8"))
+});
+runSteamLaunchGate(launchChecks, args => spawnSync(process.execPath, args, {
+  cwd: appRoot, stdio: "inherit"
+}));
 
 const selectedAppIds = edition === "all"
   ? [4516500, 5029880]

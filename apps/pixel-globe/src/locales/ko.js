@@ -54,6 +54,7 @@ export default {
   "options.mute": "음소거",
   "options.diagnosticMode": "진단 모드",
   "crash.copyDetails": "충돌 정보 복사",
+  "crash.startupFailed": "게임을 시작할 수 없습니다. 아래 오류 세부 정보를 복사해 주세요.",
   "crash.copied": "충돌 정보 복사됨",
   "crash.copyFailed": "복사 실패",
   "options.enterFullscreen": "전체 화면 켜기",

@@ -54,6 +54,7 @@ export default {
   "options.mute": "STUMM",
   "options.diagnosticMode": "DIAGNOSEMODUS",
   "crash.copyDetails": "ABSTURZDETAILS KOPIEREN",
+  "crash.startupFailed": "DAS SPIEL KONNTE NICHT STARTEN. KOPIERE UNTEN DIE FEHLERDETAILS.",
   "crash.copied": "ABSTURZDETAILS KOPIERT",
   "crash.copyFailed": "KOPIEREN FEHLGESCHLAGEN",
   "options.enterFullscreen": "VOLLBILD AKTIVIEREN",

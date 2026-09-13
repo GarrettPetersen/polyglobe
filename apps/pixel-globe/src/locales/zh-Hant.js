@@ -54,6 +54,7 @@ export default {
   "options.mute": "靜音",
   "options.diagnosticMode": "診斷模式",
   "crash.copyDetails": "複製當機詳情",
+  "crash.startupFailed": "遊戲無法啟動。請複製下方的錯誤詳情。",
   "crash.copied": "已複製當機詳情",
   "crash.copyFailed": "複製失敗",
   "options.enterFullscreen": "進入全螢幕",
