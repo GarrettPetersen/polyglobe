@@ -36,6 +36,7 @@ const files = [
   "src/pirateHavenDialogue.test.js",
   "src/pirateHavenRuntime.test.js",
   "src/sailingContinuity.test.js",
+  "src/windIndicatorRuntime.test.js",
   "src/waypointPointerInput.test.js",
   "src/gameStateLoot.test.js",
   "src/religiousMissions.test.js",

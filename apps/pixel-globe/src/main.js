@@ -2906,11 +2906,6 @@ const HULL_SPLINTER_MAX_BURSTS = 128;
 const splinterSpritePaletteCache = new WeakMap();
 const ARROW_LINE_LENGTH_PX = 4;
 const WIND_INDICATOR_RADIUS_PX = 20;
-const WIND_INDICATOR_DIRECTION_COUNT = 16;
-const WIND_INDICATOR_DIRECTION_STABLE_FRAMES = 3;
-const WIND_INDICATOR_TURN_RATE_RAD = Math.PI * 1.35;
-const WIND_INDICATOR_STRENGTH_LERP_PER_SECOND = 2.4;
-const WIND_INDICATOR_WARNING_LERP_PER_SECOND = 8;
 const WIND_INDICATOR_STALL_PULSE_MS = 900;
 const WATER_REDRAW_MS = 125;
 const BEACH_WAVE_REDRAW_MS = BEACH_WAVE_PERIOD_MS / BEACH_WAVE_FRAME_COUNT;
@@ -7250,7 +7245,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
       () => updateNpcShips(simulationSeconds)
     )) dirty = true;
     if (updateSeagulls(simulationSeconds, nowMs)) dirty = true;
-    if (updateWindIndicator(simulationSeconds)) dirty = true;
+    if (updateWindIndicator()) dirty = true;
     if (measurePerformanceBenchmarkStage("precipitation", () => updatePrecipitationAnimation(nowMs))) dirty = true;
     if (updateStormLightning(stormLightningState, {
       nowMs,
@@ -63015,95 +63010,35 @@ function drawQuestArrowGlyph(point, direction, nowMs, style = {}, sizeScale = 1)
   return geometry.hitRect;
 }
 
-function updateWindIndicator(dt) {
+function updateWindIndicator() {
   if (!ship || !graph) return false;
   const target = windIndicatorTarget();
-  if (!windIndicatorState) {
-    windIndicatorState = createWindIndicatorState(target);
-    return true;
-  }
-
-  updateWindIndicatorDirectionTarget(target.directionIndex);
-  const targetDirectionRad = windDirectionForBucket(windIndicatorState.targetDirectionIndex);
-  const directionDelta = shortestAngleDelta(windIndicatorState.flowDirectionRad, targetDirectionRad);
-  const maxStep = WIND_INDICATOR_TURN_RATE_RAD * dt;
-  const directionStep = clamp(directionDelta, -maxStep, maxStep);
-  const strengthStep = 1 - Math.exp(-WIND_INDICATOR_STRENGTH_LERP_PER_SECOND * dt);
-  const nextStrength = windIndicatorState.strength + (target.strength - windIndicatorState.strength) * strengthStep;
-  const warningStep = 1 - Math.exp(-WIND_INDICATOR_WARNING_LERP_PER_SECOND * dt);
-  const nextWarning = windIndicatorState.stallWarning +
-    (target.stallWarning - windIndicatorState.stallWarning) * warningStep;
-  const changed = Math.abs(directionStep) > 0.0004 ||
-    Math.abs(nextStrength - windIndicatorState.strength) > 0.002 ||
-    Math.abs(nextWarning - windIndicatorState.stallWarning) > 0.002 ||
-    (!reducedMotionPreferred && nextWarning > 0.01);
-
-  windIndicatorState = {
-    flowDirectionRad: normalizeAngleRad(windIndicatorState.flowDirectionRad + directionStep),
-    strength: nextStrength,
-    stallWarning: nextWarning,
-    targetDirectionIndex: windIndicatorState.targetDirectionIndex,
-    pendingDirectionIndex: windIndicatorState.pendingDirectionIndex,
-    pendingDirectionFrames: windIndicatorState.pendingDirectionFrames
-  };
+  const changed = !windIndicatorState ||
+    Math.abs(shortestAngleDelta(windIndicatorState.flowDirectionRad, target.flowDirectionRad)) > 0.0004 ||
+    Math.abs(target.strength - windIndicatorState.strength) > 0.002 ||
+    target.stallWarning !== windIndicatorState.stallWarning ||
+    (!reducedMotionPreferred && target.stallWarning > 0);
+  // The sailing wind is already smoothed. A second direction filter or rounded
+  // compass bucket makes the displayed no-go zone disagree with propulsion.
+  windIndicatorState = target;
   return changed;
 }
 
 function windIndicatorTarget() {
   const wind = windForShip();
-  const flowDirectionRad = normalizeAngleRad(wind.directionRad + Math.PI);
-  const directionIndex = windDirectionBucket(flowDirectionRad);
   const windFlow = windFlowVectorAtShip(wind);
   const alignment = clamp(dot3(ship.heading, windFlow), -1, 1);
   const angleFromWind = Math.acos(clamp(-alignment, -1, 1));
+  const stats = currentPlayerEffectiveShipStats();
   return {
-    flowDirectionRad: windDirectionForBucket(directionIndex),
-    directionIndex,
+    flowDirectionRad: windVFlowDirectionForScreenVector(
+      dot3(windFlow, camera.right), -dot3(windFlow, camera.up)
+    ),
     strength: wind.strength,
-    stallWarning: shipHasWindDeadZone(ship.stats)
-      ? sailingStallWarningStrength(angleFromWind, currentPlayerEffectiveShipStats().upwindStallAngleRad)
+    stallWarning: shipHasWindDeadZone(stats)
+      ? sailingStallWarningStrength(angleFromWind, stats.upwindStallAngleRad)
       : 0
   };
-}
-
-function createWindIndicatorState(target) {
-  return {
-    flowDirectionRad: target.flowDirectionRad,
-    strength: target.strength,
-    stallWarning: target.stallWarning,
-    targetDirectionIndex: target.directionIndex,
-    pendingDirectionIndex: target.directionIndex,
-    pendingDirectionFrames: 0
-  };
-}
-
-function updateWindIndicatorDirectionTarget(directionIndex) {
-  if (directionIndex === windIndicatorState.targetDirectionIndex) {
-    windIndicatorState.pendingDirectionIndex = directionIndex;
-    windIndicatorState.pendingDirectionFrames = 0;
-    return;
-  }
-  if (directionIndex !== windIndicatorState.pendingDirectionIndex) {
-    windIndicatorState.pendingDirectionIndex = directionIndex;
-    windIndicatorState.pendingDirectionFrames = 1;
-    return;
-  }
-
-  windIndicatorState.pendingDirectionFrames += 1;
-  if (windIndicatorState.pendingDirectionFrames >= WIND_INDICATOR_DIRECTION_STABLE_FRAMES) {
-    windIndicatorState.targetDirectionIndex = directionIndex;
-    windIndicatorState.pendingDirectionFrames = 0;
-  }
-}
-
-function windDirectionBucket(angle) {
-  const step = Math.PI * 2 / WIND_INDICATOR_DIRECTION_COUNT;
-  return Math.round(normalizeAngleRad(angle) / step) % WIND_INDICATOR_DIRECTION_COUNT;
-}
-
-function windDirectionForBucket(index) {
-  const step = Math.PI * 2 / WIND_INDICATOR_DIRECTION_COUNT;
-  return normalizeAngleRad(index * step);
 }
 
 function shortestAngleDelta(from, to) {

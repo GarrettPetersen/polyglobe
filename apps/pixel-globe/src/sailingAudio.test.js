@@ -72,10 +72,12 @@ test("stalled sail remains prominent in a light wind", () => {
   assert.ok(stalled.sailFlap >= 0.82);
 });
 
-test("stall warning is full in the no-go angle and fades across the close-wind margin", () => {
+test("stall warning ends exactly at the effective no-go boundary", () => {
   const stallAngle = Math.PI / 4;
   assert.equal(sailingStallWarningStrength(stallAngle - 0.1, stallAngle), 1);
-  assert.ok(sailingStallWarningStrength(stallAngle + 0.15, stallAngle) > 0.4);
+  assert.equal(sailingStallWarningStrength(stallAngle, stallAngle), 1);
+  assert.equal(sailingStallWarningStrength(stallAngle + 1e-8, stallAngle), 0);
+  assert.equal(sailingStallWarningStrength(stallAngle + 0.15, stallAngle), 0);
   assert.equal(sailingStallWarningStrength(stallAngle + Math.PI / 6, stallAngle), 0);
 });
 
