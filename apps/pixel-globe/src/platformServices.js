@@ -1,5 +1,7 @@
 export const PLATFORM_CLOUD_FILE = "marque-profile-v1.json";
-export const PLATFORM_CLOUD_VERSION = 1;
+// Keep the remote filename stable so existing players' profiles are migrated in place.
+export const PLATFORM_CLOUD_VERSION = 2;
+const HISTORICAL_BATTLE_RECORDS_KEY = "marque-and-reprisal.historical-battle-records";
 export const PLATFORM_CLOUD_STORAGE_KEYS = Object.freeze([
   "marque-and-reprisal.save",
   "marque-and-reprisal.achievements",
@@ -90,8 +92,10 @@ export async function hydratePlatformCloudStorage(storage, bridge) {
   if (!bridge) return Object.freeze({ loaded: false, source: "local" });
   const serialized = await bridge.readCloudFile(PLATFORM_CLOUD_FILE);
   if (serialized === null) return Object.freeze({ loaded: false, source: "local" });
-  const envelope = parseCloudEnvelope(serialized);
+  const { envelope, missingLegacyKeys } = decodeCloudEnvelope(serialized);
   for (const key of PLATFORM_CLOUD_STORAGE_KEYS) {
+    // An older build never synchronized this field; absence must not erase local history.
+    if (missingLegacyKeys.includes(key)) continue;
     const value = envelope.values[key];
     if (value === null) storage.removeItem(key);
     else storage.setItem(key, value);
@@ -220,6 +224,10 @@ export function serializeCloudEnvelope(storage, savedAt) {
 }
 
 export function parseCloudEnvelope(serialized) {
+  return decodeCloudEnvelope(serialized).envelope;
+}
+
+function decodeCloudEnvelope(serialized) {
   if (typeof serialized !== "string" || serialized.length === 0) {
     throw new Error("Steam Cloud profile is empty");
   }
@@ -229,11 +237,17 @@ export function parseCloudEnvelope(serialized) {
   } catch (error) {
     throw new Error("Steam Cloud profile is not valid JSON", { cause: error });
   }
-  if (!envelope || envelope.version !== PLATFORM_CLOUD_VERSION ||
+  if (!envelope || ![1, PLATFORM_CLOUD_VERSION].includes(envelope.version) ||
       !Number.isFinite(envelope.savedAt) || envelope.savedAt <= 0 ||
       !envelope.values || typeof envelope.values !== "object" || Array.isArray(envelope.values)) {
     throw new Error(`Unsupported Steam Cloud profile version: ${envelope?.version ?? "missing"}`);
   }
+  // Historical battle records were added to the shipped v1 format without a version bump.
+  // Support both frozen v1 shapes, but require every field in all new v2 profiles.
+  const missingLegacyKeys = envelope.version === 1 &&
+    !Object.hasOwn(envelope.values, HISTORICAL_BATTLE_RECORDS_KEY)
+    ? [HISTORICAL_BATTLE_RECORDS_KEY] : [];
+  for (const key of missingLegacyKeys) envelope.values[key] = null;
   for (const key of PLATFORM_CLOUD_STORAGE_KEYS) {
     if (!Object.hasOwn(envelope.values, key)) throw new Error(`Steam Cloud profile is missing ${key}`);
     const value = envelope.values[key];
@@ -241,7 +255,8 @@ export function parseCloudEnvelope(serialized) {
       throw new Error(`Steam Cloud profile has invalid value for ${key}`);
     }
   }
-  return envelope;
+  envelope.version = PLATFORM_CLOUD_VERSION;
+  return { envelope, missingLegacyKeys };
 }
 
 function validatePresence(presence) {

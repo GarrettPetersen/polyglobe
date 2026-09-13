@@ -81,6 +81,11 @@ settings into `marque-profile-v1.json` through Steam Remote Storage. Enable
 Cloud support for all users only after the desktop bridge has completed a
 save-on-one-machine/load-on-another test.
 
+The envelope now writes schema version 2 while retaining that remote filename.
+Both shipped version-1 shapes are supported: profiles predating historical battle
+records preserve any local records when hydrated; later profiles explicitly
+synchronize that field. Missing fields in version 2 remain validation errors.
+
 ## Demo application
 
 Steam demo App `5029880` is linked to full-game App `4516500`. Once the full

@@ -37,26 +37,15 @@ const DIGITAL_DIRECTIONS = Object.freeze({
 
 exportForCommonJs();
 
+function initializeSteamInput({ input, nativeApi, manifestPath }) {
+  nativeApi.setInputActionManifest(manifestPath);
+  input.init();
+  return createSteamInputService(input);
+}
+
 function createSteamInputService(input) {
   assertInputApi(input);
-  const actionSets = Object.fromEntries(ACTION_SET_NAMES.map((name) => [
-    name,
-    requiredActionHandle(input.getActionSet(name), `action set ${name}`)
-  ]));
-  const digitalActions = Object.fromEntries(
-    [...new Set([
-      ...Object.values(DIGITAL_BUTTONS).flatMap((buttons) => Object.keys(buttons)),
-      ...Object.values(DIGITAL_DIRECTIONS).flatMap((directions) => Object.values(directions))
-    ])].map((name) => [
-      name,
-      requiredActionHandle(input.getDigitalAction(name), `digital action ${name}`)
-    ])
-  );
-  const analogActions = Object.freeze({
-    steer: requiredActionHandle(input.getAnalogAction("steer"), "analog action steer"),
-    navigate: requiredActionHandle(input.getAnalogAction("navigate"), "analog action navigate"),
-    scroll: requiredActionHandle(input.getAnalogAction("scroll"), "analog action scroll")
-  });
+  let handles = null;
   let activeActionSet = "Menus";
 
   function setActionSet(name) {
@@ -67,7 +56,14 @@ function createSteamInputService(input) {
 
   function snapshot() {
     const controller = input.getControllers()[0];
-    if (!controller) return null;
+    // Steam can have no action mapping on keyboard-only installations. Do not
+    // ask for handles (which can block and return zero) until a controller exists.
+    if (!controller) {
+      handles = null;
+      return null;
+    }
+    handles ??= resolveActionHandles(input);
+    const { actionSets, digitalActions, analogActions } = handles;
     controller.activateActionSet(actionSets[activeActionSet]);
     const buttons = Array(16).fill(0);
     for (const [name, buttonIndex] of Object.entries(DIGITAL_BUTTONS[activeActionSet])) {
@@ -103,6 +99,28 @@ function createSteamInputService(input) {
   return Object.freeze({ setActionSet, snapshot });
 }
 
+function resolveActionHandles(input) {
+  const actionSets = Object.fromEntries(ACTION_SET_NAMES.map((name) => [
+    name,
+    requiredActionHandle(input.getActionSet(name), `action set ${name}`)
+  ]));
+  const digitalActions = Object.fromEntries(
+    [...new Set([
+      ...Object.values(DIGITAL_BUTTONS).flatMap((buttons) => Object.keys(buttons)),
+      ...Object.values(DIGITAL_DIRECTIONS).flatMap((directions) => Object.values(directions))
+    ])].map((name) => [
+      name,
+      requiredActionHandle(input.getDigitalAction(name), `digital action ${name}`)
+    ])
+  );
+  const analogActions = Object.freeze({
+    steer: requiredActionHandle(input.getAnalogAction("steer"), "analog action steer"),
+    navigate: requiredActionHandle(input.getAnalogAction("navigate"), "analog action navigate"),
+    scroll: requiredActionHandle(input.getAnalogAction("scroll"), "analog action scroll")
+  });
+  return { actionSets, digitalActions, analogActions };
+}
+
 function digitalActionValue(controller, handle) {
   return controller.isDigitalActionPressed(handle) ? 1 : 0;
 }
@@ -132,5 +150,5 @@ function requiredActionHandle(handle, label) {
 }
 
 function exportForCommonJs() {
-  module.exports = { ACTION_SET_NAMES, createSteamInputService };
+  module.exports = { ACTION_SET_NAMES, createSteamInputService, initializeSteamInput };
 }

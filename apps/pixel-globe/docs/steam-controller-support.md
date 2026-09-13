@@ -34,8 +34,11 @@ window.marqueSteamInput = {
 ```
 
 The shipping implementation is installed by `steam-host/preload.cjs`. The host
-initializes Steam Input and sets `steam-input/game_actions.vdf` as the action
-manifest before the game window opens.
+registers `steam-input/game_actions.vdf` before initializing Steam Input.
+Action handles are resolved only once a controller is connected: Steam may not
+provide an action mapping on a keyboard-only installation. Disconnecting clears
+the handles so reconnecting resolves the current mapping. A connected controller
+with an invalid mapping still fails validation rather than emitting fake input.
 
 The browser build does not require the bridge.
 
@@ -51,3 +54,14 @@ The browser build does not require the bridge.
 6. Retest prompts with Steam Input enabled and disabled, including the manual Controller Icons override.
 
 The storefront's Full Controller Support checkbox should only be selected after that shipping-build hardware pass and the official Steam configuration have been published.
+
+## Packaged launch gate
+
+With Steam running and signed in, run `node tools/check-steam-launch.mjs APP_ID
+EXECUTABLE` from the app directory for **both** the full and demo packaged apps
+(IDs `4516500` and `5029880`). On macOS, EXECUTABLE is the binary inside
+`Product.app/Contents/MacOS/`. This uses a temporary browser profile, verifies
+that the real Steam host shows a window and finishes production loading, then
+closes it without starting a voyage. Run once without a controller to cover
+keyboard-only startup. Mocked host tests and web startup tests do not replace
+this gate. Controller-connected hardware verification remains a separate check.

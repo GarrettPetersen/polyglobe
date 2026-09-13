@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import {
   PLATFORM_CLIP_PRIORITY,
@@ -26,6 +27,54 @@ function memoryStorage(entries = {}) {
     removeItem: (key) => values.delete(key)
   };
 }
+
+const legacyCloudProfile = readFileSync(new URL("./test-fixtures/steam-cloud-v1.json", import.meta.url), "utf8");
+const battleRecordsKey = "marque-and-reprisal.historical-battle-records";
+
+test("frozen legacy Cloud profiles migrate idempotently without erasing local battle history", async () => {
+  const migrated = parseCloudEnvelope(legacyCloudProfile);
+  assert.equal(migrated.version, 2);
+  assert.equal(migrated.values[battleRecordsKey], null);
+  assert.deepEqual(parseCloudEnvelope(JSON.stringify(migrated)), migrated);
+  for (const records of [null, "local-battle-history"]) {
+    const storage = memoryStorage(records === null ? {} : { [battleRecordsKey]: records });
+    await hydratePlatformCloudStorage(storage, bridge({ readCloudFile: async () => legacyCloudProfile }));
+    assert.equal(storage.getItem(battleRecordsKey), records);
+    assert.equal(storage.getItem("marque-and-reprisal.save"), "frozen-save-payload");
+    assert.equal(JSON.parse(serializeCloudEnvelope(storage, 1234)).version, 2);
+  }
+});
+
+test("later v1 Cloud records remain authoritative, including explicit deletion", async () => {
+  for (const records of [null, "cloud-battle-history"]) {
+    const profile = JSON.parse(legacyCloudProfile);
+    profile.values[battleRecordsKey] = records;
+    const storage = memoryStorage({ [battleRecordsKey]: "local-history" });
+    await hydratePlatformCloudStorage(storage, bridge({ readCloudFile: async () => JSON.stringify(profile) }));
+    assert.equal(storage.getItem(battleRecordsKey), records);
+  }
+});
+
+test("Cloud migration rejects malformed profiles before mutating local storage", async () => {
+  const malformed = [];
+  for (const key of Object.keys(JSON.parse(legacyCloudProfile).values)) {
+    const profile = JSON.parse(legacyCloudProfile);
+    delete profile.values[key];
+    malformed.push(profile);
+  }
+  malformed.push({ ...JSON.parse(legacyCloudProfile), version: 2 });
+  malformed.push({ ...JSON.parse(legacyCloudProfile), version: 3 });
+  const invalidRecords = JSON.parse(legacyCloudProfile);
+  invalidRecords.values[battleRecordsKey] = 42;
+  malformed.push(invalidRecords);
+  for (const profile of malformed) {
+    const storage = memoryStorage({ "marque-and-reprisal.save": "local-save" });
+    await assert.rejects(hydratePlatformCloudStorage(storage, bridge({
+      readCloudFile: async () => JSON.stringify(profile)
+    })));
+    assert.equal(storage.getItem("marque-and-reprisal.save"), "local-save");
+  }
+});
 
 function bridge(overrides = {}) {
   return {

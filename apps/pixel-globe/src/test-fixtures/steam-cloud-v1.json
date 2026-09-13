@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "savedAt": 1720000000000,
+  "values": {
+    "marque-and-reprisal.save": "frozen-save-payload",
+    "marque-and-reprisal.achievements": "[]",
+    "marque-and-reprisal.voyage-history": "[]",
+    "marque-and-reprisal.key-bindings": null,
+    "pixel_globe_language": "en",
+    "pixel_globe_controller_glyphs": null,
+    "pixel_globe_music_volume": "0.5",
+    "pixel_globe_sfx_volume": "0.7",
+    "pixel_globe_audio_muted": "false"
+  }
+}

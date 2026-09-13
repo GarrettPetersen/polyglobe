@@ -4,7 +4,7 @@ const steamworks = require("steamworks.js");
 
 const { startStaticServer } = require("./staticServer.cjs");
 const { createSteamNativeApi } = require("./steamNativeApi.cjs");
-const { createSteamInputService } = require("./steamInput.cjs");
+const { initializeSteamInput } = require("./steamInput.cjs");
 const { createSteamInputPump } = require("./steamInputPump.cjs");
 const { updateHighWaterStats } = require("./steamStats.cjs");
 const {
@@ -36,10 +36,8 @@ app.whenReady().then(async () => {
   capabilities = steamCapabilitiesForEdition(desktopConfig.edition, {
     cloudEnabled: steamCloudEnabled(client)
   });
-  client.input.init();
   nativeApi = createSteamNativeApi();
-  nativeApi.setInputActionManifest(INPUT_MANIFEST);
-  steamInput = createSteamInputService(client.input);
+  steamInput = initializeSteamInput({ input: client.input, nativeApi, manifestPath: INPUT_MANIFEST });
   installIpcHandlers();
   staticServer = await startStaticServer(GAME_ROOT);
   await createGameWindow(staticServer.url);
