@@ -3,6 +3,39 @@ import { migrateGameState } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { CAMPAIGN_GOAL_FAMILY_DEBT } from "./campaignGoals.js";
 import { repairSavedWhaleClock } from "./whaleSystem.js";
+import { indexEntitiesById } from "./entityIds.js";
+
+export function createLegacyCityReferenceResolver(cities, tileMigration = null) {
+  if (!Array.isArray(cities)) throw new Error("Legacy home-port catalog must be an array");
+  const byId = indexEntitiesById(cities, { idField: "cityId" });
+  if (tileMigration !== null && !(tileMigration instanceof Map)) throw new Error("Legacy home-port migration requires a tile map");
+  const normalize = value => typeof value === "string" ? value.normalize("NFC").trim().toLowerCase() : "";
+  return ({ tileId, name, country }) => {
+    if (!Number.isInteger(tileId) || tileId < 0 ||
+        (name != null && typeof name !== "string") ||
+        (country != null && typeof country !== "string")) {
+      throw new Error("Legacy city reference requires a tile ID and optional name and country strings");
+    }
+    const currentTileId = tileMigration?.get(tileId) ?? tileId;
+    const tileMatches = cities.filter(city => city.tileId === currentTileId);
+    // Authored redirections (for example old Exeter to Topsham) take precedence.
+    if (tileMigration?.has(tileId) && tileMatches.length === 1) return tileMatches[0].cityId;
+    const oldName = normalize(name);
+    const oldCountry = normalize(country);
+    if (oldName) {
+      // Names were identity in these released saves. Resolve them once at the
+      // load boundary; never infer a different hometown from a nearby tile.
+      const oldId = `${oldName}|${oldCountry}`;
+      if (oldCountry && byId.has(oldId)) return oldId;
+      const named = cities.filter(city => (!oldCountry || normalize(city.country) === oldCountry) &&
+        [city.city, city.displayCity, city.portAlias].some(label => normalize(label) === oldName));
+      if (named.length === 1) return named[0].cityId;
+      if (named.length > 1) throw new Error(`Ambiguous saved home port: ${name}, ${country}: ${named.map(city => city.cityId).join(", ")}`);
+    }
+    if (tileMatches.length !== 1) throw new Error(`Saved home-port tile ${tileId} resolves to ${tileMatches.length} canonical cities; name=${name}; country=${country}`);
+    return tileMatches[0].cityId;
+  };
+}
 
 export function migrateSavedVoyageCore(payload, {
   legacyCityIdForPortReference = null,

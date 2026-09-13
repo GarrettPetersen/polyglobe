@@ -2076,6 +2076,7 @@ import {
 import { browserJourneyEnabled, saveRestoreSmokeEnabled } from "./saveRestoreSmoke.js";
 import {
   migrateSavedVoyageCore,
+  createLegacyCityReferenceResolver,
   savedVoyageWorldTopology
 } from "./saveCompatibility.js";
 import {
@@ -15430,11 +15431,8 @@ function clearHistoricalBattlePendingActions() {
 }
 
 function closeLakeBattleModeToStartMenu() {
-  if (dialogueState?.kind === HISTORICAL_BATTLE_DIALOGUE_KIND) {
-    releaseDialogueSession({ destination: "handoff" });
-  }
   clearLakeBattlePortAssault();
-  deactivatePortCityView({ animate: false });
+  releaseDialogueSession({ destination: "sailing", animate: false });
   lakeBattleMode = null;
   clearLakeBattleTerrainCache();
   combatMusicUntilMs = 0;
@@ -17956,16 +17954,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
     ...cityById.values(),
     ...savedPortReferenceCatalog
   ].map((city) => [city.cityId, city])).values()];
-  const legacyCityIdForPortReference = ({ tileId }) => {
-    const currentTileId = legacyPortTileIds.get(tileId) ?? tileId;
-    const matches = savedCityReferenceCatalog.filter((city) => city.tileId === currentTileId);
-    if (matches.length !== 1) {
-      throw new Error(
-        `Saved home-port tile ${tileId} resolves to ${matches.length} canonical cities`
-      );
-    }
-    return matches[0].cityId;
-  };
+  const legacyCityIdForPortReference = createLegacyCityReferenceResolver(savedCityReferenceCatalog, legacyPortTileIds);
   const preparedVoyage = migrateSavedVoyageCore(payload, {
     legacyCityIdForPortReference,
     crewMigrationContextForHomePort: crewGenerationContextForHomePort
@@ -18048,7 +18037,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   // All persisted domain systems and required player assets are prepared before
   // publishing any of them. The remainder rebuilds transient presentation state.
   clearPoliticalNotices();
-  deactivatePortCityView({ animate: false });
+  releaseDialogueSession({ destination: "sailing", animate: false });
   resetStormPassageState(stormPassageState);
   resetFogStrengthEnvelope(stormFogStrengthEnvelope);
   resetStormWaveState(stormWaveState);
@@ -19595,7 +19584,7 @@ function returnToStartMenuFromOptions() {
 
   closeOptionsMenu();
   closeCaptainMenu();
-  deactivatePortCityView({ animate: false });
+  releaseDialogueSession({ destination: "sailing", animate: false });
   startMenu = createStartMenuState();
   syncCanvasAriaLabel();
   keys.clear();
@@ -27426,15 +27415,16 @@ function handlePortWaitKeyDown(event) {
   if (event.key === "Enter" || event.key === " " || event.key === "Escape") stopWaitingInPort();
 }
 
-function releaseDialogueSession({ destination }) {
+function releaseDialogueSession({ destination, animate = true }) {
   if (!["sailing", "port-wait", "handoff"].includes(destination)) {
     throw new Error(`Unknown dialogue exit destination: ${destination}`);
   }
+  if (typeof animate !== "boolean") throw new Error("Dialogue exit animation must be boolean");
   pendingPortAssaultStart?.abortController.abort();
   dialogueState = null;
   clearPausedView(dialogueViewCache);
   dialogueLayout = createDialogueLayoutState();
-  if (destination !== "handoff") deactivatePortCityView();
+  if (destination !== "handoff") deactivatePortCityView({ animate });
   if (destination === "port-wait") {
     dialogueShipMotionPause = null;
     stopShipForDialogue();

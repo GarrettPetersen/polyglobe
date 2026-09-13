@@ -50,9 +50,15 @@ window.exerciseCityDuelReturn = async ({ whaleClockCase = "current" } = {}) => {
   openPortDialogue(call);
   if (!portCityView) throw new Error("Duel return fixture did not enter the city");
   await synchronizePortCityScene();
+  openPortMenu(call, { initialNodeId: "root", admittedToPort: true });
+  if (!portCityRootPresentationIsOwned()) throw new Error("Menu exit fixture requires an admitted city root");
   openOptionsMenu();
   if (!returnToStartMenuFromOptions()) throw new Error("Could not save voyage before duel");
   await waitForSaveRestoreSmokePersistence();
+  // Render the menu before moving into the duel. Previously the city scene was
+  // discarded but its admitted root survived and crashed this cover check.
+  currentChartReframeCoverState();
+  if (dialogueState || portCityView) throw new Error("Menu retained city presentation state");
   const saved = structuredClone(localSaveResult.save.payload);
   if (whaleClockCase !== "current") {
     // Supported older saves can lack an initialized population. Exercise

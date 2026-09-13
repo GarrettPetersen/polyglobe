@@ -16,6 +16,7 @@ const files = [
   "src/worldAssetRetry.test.js",
   "src/staticAssetFetch.test.js",
   "src/startupAssetVerifier.test.js",
+  "src/startMenuSavedVoyage.test.js",
   "src/soundEffectContracts.test.js",
   "src/portAssaultShipEffects.test.js",
   "src/playtesterPortRegressions.test.js",
@@ -68,6 +69,8 @@ const files = [
 for (const path of files) if (!statSync(resolve(root, path)).isFile()) throw new Error(`Missing telemetry regression: ${path}`);
 execFileSync(process.execPath, ["--test", "--test-concurrency=1", ...files], { cwd: root, stdio: "inherit", timeout: 9 * 60_000 });
 console.log(JSON.stringify({ status: "passed", files, fingerprints: [
+  "b65fff8806a7efdad379418843b5d55053609cca33faf5fcb4222c52bf0379e8",
+  "631fd6f375aa7d05be56b7f525e48a03f233890a028d36bb52428a19514d9b1e",
   "4a02ac6643810309b21f7e7fe3e0b5c7b0dec019a0685e796c5bffdfc5c10c79",
   "fd66917f3cf1b50215bd98a7d3248f5be543552a9b02ab9105e72721154d13a8",
   "8cf96413b303d2cdaeabebdf658c18a59776d98a9f30b955b71ff8449c85857a",

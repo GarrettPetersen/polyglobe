@@ -7,6 +7,7 @@ import {
   reconcileQuestPortTiles,
   validateGameState
 } from "./gameState.js";
+import { CANONICAL_PORTS } from "./canonicalPorts.js";
 import { COURT_ACTION_KINDS } from "./courtPolitics.js";
 import { IMPERIAL_HISTORY_EVENT_KINDS } from "./imperialConstitution.js";
 import {
@@ -14,6 +15,7 @@ import {
   readLocalSave
 } from "./localSave.js";
 import {
+  createLegacyCityReferenceResolver,
   migrateSavedVoyageCore,
   recoverSavedVoyageWorldClock,
   savedVoyageWorldTopology
@@ -252,3 +254,56 @@ function memoryStorage(serialized) {
     }
   };
 }
+
+
+test("legacy hometown names survive obsolete and reassigned tile references across the port catalog", () => {
+  const cities = [...new Map(Object.values(CANONICAL_PORTS).map(city => [city.cityId, city])).values()];
+  const resolver = createLegacyCityReferenceResolver(cities.map((city, index) => ({ ...city, tileId: index })));
+  for (const city of cities) {
+    for (const tileId of [23004, 0]) {
+      assert.equal(resolver({ tileId, name: city.city, country: city.country }), city.cityId);
+    }
+  }
+});
+
+test("home-port migration honors authored redirects and rejects ambiguous or missing identities", () => {
+  const cities = [
+    { cityId: "exeter|united kingdom", city: "Exeter", country: "United Kingdom", tileId: 20 },
+    { cityId: "topsham|united kingdom", city: "Topsham", country: "United Kingdom", tileId: 21 },
+    { cityId: "colony-a", city: "Port Royal", country: "France", tileId: 22 },
+    { cityId: "colony-b", city: "Port Royal", country: "England", tileId: 23 }
+  ];
+  const resolver = createLegacyCityReferenceResolver(cities, new Map([[10, 21]]));
+  assert.equal(resolver({ tileId: 10, name: "Exeter", country: "United Kingdom" }), "topsham|united kingdom");
+  assert.equal(resolver({ tileId: 20 }), "exeter|united kingdom");
+  assert.equal(resolver({ tileId: 23004, name: "Port Royal", country: "France" }), "colony-a");
+  assert.throws(() => resolver({ tileId: 23004, name: "Port Royal" }), /Ambiguous saved home port/);
+  assert.throws(() => resolver({ tileId: 23004, name: "Unknown", country: "France" }), /resolves to 0 canonical cities/);
+  assert.throws(() => createLegacyCityReferenceResolver([...cities, cities[0]]), /duplicate id/);
+  assert.throws(() => createLegacyCityReferenceResolver(cities, {}), /requires a tile map/);
+  assert.throws(() => resolver({ tileId: 20, name: {} }), /Legacy city reference requires/);
+  assert.throws(() => resolver({ tileId: -1 }), /Legacy city reference requires/);
+});
+
+test("released pre-canonical save migrates an obsolete hometown tile using its stored identity", () => {
+  const payload = JSON.parse(readFileSync(new URL("local-save-v1-game-state-v37.json", FIXTURE_DIRECTORY), "utf8")).payload;
+  const character = payload.gameState.playerCharacter;
+  assert.equal(character.homePortCityId, undefined);
+  character.homePortTileId = 23004;
+  payload.gameState.memory.campaignGoal.homePortTileId = 23004;
+  const before = structuredClone(payload);
+  const resolver = createLegacyCityReferenceResolver([
+    { cityId: "lisbon|portugal", city: "Lisbon", country: "Portugal", tileId: 424242 },
+    { cityId: "porto|portugal", city: "Porto", country: "Portugal", tileId: 515151 }
+  ]);
+  const restored = migrateSavedVoyageCore(payload, {
+    ...testCrewMigrationOptions(), legacyCityIdForPortReference: resolver
+  });
+  assert.equal(restored.gameState.playerCharacter.homePortCityId, "lisbon|portugal");
+  assert.equal(restored.gameState.memory.campaignGoal.homePortCityId, "lisbon|portugal");
+  assert.deepEqual(payload, before, "never rewrite the stored save during preparation");
+  const repeated = migrateSavedVoyageCore({ ...payload, gameState: restored.gameState, playerShip: restored.savedShip }, {
+    legacyCityIdForPortReference: () => assert.fail("canonical saves must not resolve hometowns by tile or name")
+  });
+  assert.deepEqual(repeated.gameState, restored.gameState);
+});

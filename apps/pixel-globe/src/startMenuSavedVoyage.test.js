@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { assertPortRootScene } from "./portEntryFlow.js";
 const source = ts.createSourceFile("main.js", readFileSync(new URL("./main.js", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
 const functions = ["prepareSavedVoyageForMenu", "continueSavedVoyage"].map(name => {
   const declaration = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name);
@@ -86,6 +87,42 @@ test("mode exits discard city views, pending wipes and stale selection work with
     assert.equal(context.worldFramePresented, false);
   }
   for (const name of ["closeLakeBattleModeToStartMenu", "returnToStartMenuFromOptions", "restoreSavedVoyage"]) {
-    assert.match(declaration(name), /deactivatePortCityView\(\{ animate: false \}\)/, `${name} must discard the previous mode's city`);
+    assert.match(declaration(name), /releaseDialogueSession\(\{ destination: "sailing", animate: false \}\)/, `${name} must discard the previous mode's city`);
   }
 });
+
+for (const saveSucceeds of [true, false]) {
+  test(`return from an admitted city to the menu is atomic (save succeeds: ${saveSucceeds})`, () => {
+    const cityId = "cadiz|spain";
+    const session = { kind: "port", nodeId: "root", cityId, admittedToPort: true };
+    const scene = { cityId, sceneReady: true };
+    const calls = [];
+    const context = {
+      optionsMenu: { isOpen: true }, lakeBattleMode: null, startMenu: null, hasStartedVoyage: true,
+      dialogueState: session, portCityView: scene, dialogueViewCache: {}, keys: new Set(),
+      portCitySceneSelectionSerial: 1, pendingPortAssaultStart: null,
+      saveVoyageNow: () => { assert.equal(context.dialogueState, session); assert.equal(context.portCityView, scene); return saveSucceeds; },
+      closeOptionsMenu: () => { context.optionsMenu.isOpen = false; }, closeCaptainMenu() {},
+      clearPausedView: () => calls.push("invalidate"), createDialogueLayoutState: () => ({}),
+      createStartMenuState: () => ({}), syncCanvasAriaLabel() {}, clearPointerSteering() {},
+      capturePresentedFrame: () => assert.fail("menu exit must not create an old-city wipe")
+    };
+    const functions = ["returnToStartMenuFromOptions", "releaseDialogueSession", "deactivatePortCityView"]
+      .map(name => source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name).getText(source)).join("\n");
+    const result = runInNewContext(`${functions}\nreturnToStartMenuFromOptions();`, context);
+    assert.equal(result, saveSucceeds);
+    assert.doesNotThrow(() => assertPortRootScene(context.dialogueState, context.portCityView));
+    if (saveSucceeds) {
+      assert.equal(context.dialogueState, null);
+      assert.equal(context.portCityView, null);
+      assert.equal(context.portCityTransition, null);
+      assert.ok(context.startMenu);
+      assert.deepEqual(calls, ["invalidate"]);
+    } else {
+      assert.equal(context.dialogueState, session);
+      assert.equal(context.portCityView, scene);
+      assert.equal(context.startMenu, null);
+      assert.equal(context.optionsMenu.isOpen, true);
+    }
+  });
+}
