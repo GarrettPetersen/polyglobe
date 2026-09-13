@@ -327,7 +327,14 @@ test("exported palisades retain wall footprints and require their own gate overl
     const base = EXPORTED_FRAMES.find((frame) => frame.layer === baseLayer);
     const wood = cityRegionalBuildingFrame(EXPORTED_FRAMES, "wooden-palisade", baseLayer);
     assert.equal(wood.layer, layer);
-    assert.equal(wood.spriteSourceSize.y + wood.spriteSourceSize.h, base.spriteSourceSize.y + base.spriteSourceSize.h);
+    if (layer === "Palisade Far") {
+      const gate = cityRegionalBuildingFrame(EXPORTED_FRAMES, "wooden-palisade", "Gate");
+      assert.equal(wood.spriteSourceSize.y, gate.spriteSourceSize.y - 3,
+        "the far wall must stay joined to the gateway when its ground shadow extends downward");
+      assert.equal(wood.spriteSourceSize.x, gate.spriteSourceSize.x - 5);
+    } else {
+      assert.equal(wood.spriteSourceSize.y + wood.spriteSourceSize.h, base.spriteSourceSize.y + base.spriteSourceSize.h);
+    }
   }
   assert.throws(() => cityRegionalBuildingFrame(EXPORTED_FRAMES.filter((frame) => frame.layer !== "Palisade Gateway Front Edge"),
     "wooden-palisade", "Gate Front Edge"), /Missing/);

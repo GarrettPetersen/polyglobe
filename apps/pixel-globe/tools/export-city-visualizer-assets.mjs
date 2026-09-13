@@ -48,7 +48,10 @@ const BUILDING_LAYER_OVERRIDES = Object.freeze({
 });
 
 const REGIONAL_BUILDING_LAYERS = Object.freeze({
-  "Palisade Far": Object.freeze({ cityType: "wooden-palisade", regionalOf: "Far Castle", sourceBase: "Castle Wall Far", hasChimney: false }),
+  // The far wall includes a ground shadow: anchor to the gateway rather than
+  // its trimmed bottom so extending the shadow cannot lift the wall.
+  // Keep the established three-pixel scene correction relative to the source gateway.
+  "Palisade Far": Object.freeze({ cityType: "wooden-palisade", regionalOf: "Far Castle", sourceBase: "Palisade Gateway", anchorLayer: "Gate", sceneOffsetY: 3, hasChimney: false }),
   "Palisade Gateway": Object.freeze({ cityType: "wooden-palisade", regionalOf: "Gate", sourceBase: "Far Gate Side", hasChimney: false }),
   "Palisade Near": Object.freeze({ cityType: "wooden-palisade", regionalOf: "Near Castle", sourceBase: "Castle Wall Near", hasChimney: false }),
   "Earthen Hut": Object.freeze({
@@ -848,7 +851,9 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
         ? regionalBuildingSpriteSourceSize({
             regionalFrame: standaloneFrame,
             sourceBaseFrame: visibleFrames.find((frame) => frame.layer === regional.sourceBase),
-            targetFrame: staticFrames.find((frame) => frame.layer === regional.regionalOf),
+            targetFrame: staticFrames.find((frame) => frame.layer === (regional.anchorLayer || regional.regionalOf)),
+            anchorToSourceBase: Boolean(regional.anchorLayer),
+            sceneOffsetY: regional.sceneOffsetY ?? 0,
             sceneOffsetX: regional.sceneOffsetX ?? 0
           })
         : standaloneFrame.spriteSourceSize;
@@ -947,22 +952,28 @@ function regionalBuildingSpriteSourceSize({
   regionalFrame,
   sourceBaseFrame,
   targetFrame,
+  anchorToSourceBase = false,
+  sceneOffsetY = 0,
   sceneOffsetX = 0
 }) {
   if (!sourceBaseFrame || !targetFrame) {
     throw new Error(`Missing canonical source for regional building: ${regionalFrame.layer}`);
   }
-  if (!Number.isInteger(sceneOffsetX)) {
-    throw new Error(`Invalid regional building scene offset: ${regionalFrame.layer}/${sceneOffsetX}`);
+  if (!Number.isInteger(sceneOffsetX) || !Number.isInteger(sceneOffsetY)) {
+    throw new Error(`Invalid regional building scene offset: ${regionalFrame.layer}/${sceneOffsetX},${sceneOffsetY}`);
   }
   return {
     x: targetFrame.spriteSourceSize.x + (
       regionalFrame.spriteSourceSize.x - sourceBaseFrame.spriteSourceSize.x
     ) + sceneOffsetX,
-    // Every regional variant shares the canonical scene ground line. Authored
-    // source layers can trim one transparent row differently, which must not
-    // make a replacement building hover or sink by a pixel in the quay scene.
-    y: targetFrame.spriteSourceSize.y + targetFrame.spriteSourceSize.h - regionalFrame.frame.h,
+    // Normally variants share the canonical ground line despite trim differences.
+    // Shadow-bearing pieces instead retain their authored offset from a grounded
+    // source anchor; the shadow's bottom is not the wall's ground line.
+    y: sceneOffsetY + targetFrame.spriteSourceSize.y + targetFrame.spriteSourceSize.h - (
+      anchorToSourceBase
+        ? sourceBaseFrame.frame.h - regionalFrame.spriteSourceSize.y + sourceBaseFrame.spriteSourceSize.y
+        : regionalFrame.frame.h
+    ),
     w: regionalFrame.frame.w,
     h: regionalFrame.frame.h
   };
