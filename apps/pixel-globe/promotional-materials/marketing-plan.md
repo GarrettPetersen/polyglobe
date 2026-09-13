@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **September 12, 2026**.
+Last updated: **September 13, 2026**.
 
 ## Dated marketing calendar
 
@@ -9,30 +9,32 @@ Last updated: **September 12, 2026**.
   [youtube-shorts-release-log.md](youtube-shorts-release-log.md), then schedule
   the next batch and cross-post it to X.
 - **September 8:** Garrett sent the Galaxies Autumn follow-up to
-  `hello@galaxiesshow.com`; awaiting a reply. Its August 24 selection-notice
-  date passed without a recorded result. Also confirm whether the submitted
-  SCHMOOVEMENT application was accepted before its September 22 start.
+  `hello@galaxiesshow.com`. Galaxies declined September 9; SCHMOOVEMENT
+  declined September 11. Both applications are closed for this edition.
 - **September 2:** Indie Game Award 2027 pre-selection materials submitted.
 - **September 3:** Mobidictum Steam Showcase application submitted. Watch for
   a Steamworks event invitation or a later request for jury build access.
 - **September 7:** DevGAMM Awards application submitted. IGF 2027 fee-waiver
   request deadline. Steam also pulls the
-  current base-game trailer for possible inclusion in its official Next Fest
+  current base-game trailer on September 8 for possible inclusion in its official Next Fest
   trailer, if Valve has notified us that the game is under consideration.
-- **September 11:** Steam beta-testing keys received. Valve request for 250
-  full-game creator/review release-state override keys submitted and pending.
-  Distribute the available QA keys across Windows, macOS and Linux, confirm the
-  separate demo QA-key batch is available, and collect clean-machine results
+- **September 11:** Steam beta-testing keys received. Valve approved 250
+  full-game press keys and three demo QA keys later that day.
+  Distribute the available QA keys across Windows, macOS and Linux, retrieve the
+  approved demo QA-key batch, and collect clean-machine results
   before locking the public demo launch.
 - **September 12:** IGF 2027 entry submitted ahead of the September 13
   application and build deadline. Entry fee covered by a redeemed code;
   monitor email and the entry portal for judging questions or build-access issues.
+- **September 13:** Demo-launch trailer deployed to all 11 press-kit languages
+  and the ZIP. Bumblebee press-release draft assembled; availability wording
+  and final gameplay-claim review remain.
 - **September 14:** Optional Next Fest press-preview review target. This is
   only the date by which a demo build and demo store presence should be
   submitted for Valve review if the developer wants the demo playable when
   the press preview opens. It is not a condition of Next Fest participation.
-  Our demo page and build are already approved; verify the Next Fest
-  participation checklist and press-preview opt-in in Steamworks.
+  Demo approvals and Next Fest registration were rechecked September 13.
+  Complete the player-support field and verify press-preview opt-in.
 - **September 17:** Target the coordinated public Steam demo launch only if
   the Windows, macOS and Linux QA matrix is green. Publish the human-authored
   launch package, use the one-time demo wishlist notification, release the
@@ -51,11 +53,9 @@ Last updated: **September 12, 2026**.
   change the date or combine this with the public demo launch.
   Sources verified September 6: [Steam Personal Calendar](https://steamcommunity.com/games/593110/announcements/detail/507342099205587495)
   and [Steam release dates](https://partner.steamgames.com/doc/store/release_dates).
-- **September 22–29:** SCHMOOVEMENT Festival.
 - **September 28:** Valve deadline for all required Next Fest items to be
   submitted for review. This is the actual preparation deadline if they were
-  not already completed for the optional press preview. Also the Galaxies
-  Autumn trailer deadline, if selected.
+  not already completed for the optional press preview.
 - **September 28 at 7:59 p.m. PDT:** Submit to INDIE Live Expo with a
   30-second trailer and a separate 15-second gameplay clip.
 - **October 5:** Atlantic Canada Game Celebration begins. The demo should
@@ -65,7 +65,6 @@ Last updated: **September 12, 2026**.
   opted into press-preview availability are included; the preview is optional.
 - **October 12–18:** Support the Indies creator event. Submit the public demo
   by late September and track any resulting streams or coverage.
-- **October 15:** Galaxies Autumn showcase, if selected.
 - **October 19 at 10:00 a.m. PDT:** Absolute Next Fest deadline for the public
   demo. Our operational target is earlier than October 5 because of ACGC.
 - **October 19–26:** Steam Next Fest.
@@ -101,12 +100,13 @@ do not wait for an IGN response before launching.
 
 - [ ] **Make the approved Steam demo public**
   - Status: Valve approved the demo page and build. The associated demo has
-    been marked ready in Steamworks. As of September 2, its public page still
-    says **Coming soon**, and the base-game page has no demo install control.
+    been marked ready in Steamworks. September 13 account check confirms
+    both checklists complete and **Approved for release**, but the app remains
+    **Prerelease / Coming Soon**.
     The public launch and logged-out install flow still need to be completed
     and verified.
   - A current stable build has been uploaded to Steam. Beta-testing keys have
-    been obtained; confirm the demo-specific QA-key batch, then assign one full
+    been obtained; three demo QA keys were approved September 11. Assign one full
     game key and one demo key to each Windows, macOS and Linux tester.
   - Provisional public launch: **September 17**, conditional on a clean
     platform-test matrix and no release-blocking defect.
@@ -124,13 +124,15 @@ do not wait for an IGN response before launching.
 - [ ] **Update the main-game and demo Steam descriptions for the larger world**
   - As of September 2, the public English pages still describe a 164k-hex
     world. Update all 11 store localizations to the current **655,362-tile
-    Earth with 277 cities**, matching the website and current build.
+    Earth**, matching the website and current build. Read the city count from
+    `../city-visualizer/data/cities.json` when updating copy; 277 is obsolete.
 
 - [x] **Get the full build approved on Steam**
   - Status: Valve approved the corrected full build on August 13.
   - A current stable build has been uploaded. Beta-testing keys are available,
-    and the request for 250 creator/press release-state override keys was sent
-    to Valve on September 11 and is pending.
+    and Valve approved 250 press keys plus three demo QA keys September 11.
+  - [Approval email](https://mail.google.com/mail/#all/1a09314ae6c0521a).
+    Retrieve keys in Steamworks; keep raw keys out of repository files.
   - Keep the build private until release, apart from keys provided for coverage
     and testing.
 
@@ -142,8 +144,9 @@ do not wait for an IGN response before launching.
 
 - [x] **End the IGN exclusivity wait and launch with a trailer on Steam**
   - The campaign is no longer holding the trailer for an exclusive.
-  - Steam has a trailer, and the current 39.7-second gameplay trailer and
-    thumbnail are available in the press kit.
+  - Steam has a trailer. The September 8 demo-launch MP4 is now embedded and
+    downloadable in the [live press kit](https://marque-and-reprisal.com/press/#trailer),
+    including all 11 locales and the ZIP README (deployed September 13).
 
 - [ ] **Publish the current trailer cut publicly on YouTube**
   - Confirm that YouTube and Steam both use the final recut rather than an older
@@ -241,17 +244,17 @@ game merely to tick every box.
   - Confirm the Steam developer/publisher link leads to an Iron Pagoda developer
     homepage and follow the game's Steam Community discussion board.
 
-- [ ] **Give selected creators advance access one to two weeks before the
-  coordinated public demo beat.**
-  - Prefer the pending full-build review keys because they provide more to
-    show. Until Valve approves the 250-key request, keep beta-testing keys for
-    actual platform QA rather than broad outreach.
+- [ ] **Offer advance access to the first 10–20 well-matched creators, then
+  continue in small batches after launch.**
+  - The 250 full-build press keys are approved; retrieve and track assignments
+    privately. Reserve the three-per-app QA batches for testers.
+  - One to two weeks of lead time is no longer possible for September 17; do
+    not delay a ready demo solely to meet the earlier outreach target.
   - Do not mass-send all 2,837 contacts before measuring the first batches.
 
-- [ ] **Prepare the demo-release trailer and external launch package.**
-  - Use a clean current-build trailer with a clear **Play the demo** call to
-    action. Do not create another cut if the current trailer only needs a new
-    end card.
+- [ ] **Finish the external launch package.**
+  - The demo-launch trailer is complete and live in the press kit. Its end card
+    says **Demo Out Now!**; coordinate promotional posts with public availability.
   - Confirm the itch.io demo is current and under its platform limits.
   - Prepare Steam, X, Reddit, Japanese-press, creator and GamesPress copy using
     campaign-specific UTM links.
@@ -309,9 +312,9 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
   - The contribution includes the cover, four screenshots, store and website
     links, Windows/macOS/Linux release entries, categorization and all 11
     interface languages.
-  - Moderation is pending. Developer-account verification is optional and is
-    not blocking the contribution.
-  - Verify the category appears on Twitch after the IGDB submission is approved.
+  - IGDB accepted the contribution August 4:
+    [confirmation email](https://mail.google.com/mail/#all/19fca817590bb5fc).
+  - Still verify that the category appears on Twitch.
   - Use the category to monitor for new streams and notify Garrett.
 
 - [ ] Set up a proper campaign sender at `marque-and-reprisal.com`, including
@@ -320,7 +323,7 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 - [ ] Prepare the first creator-outreach wave.
   - The CSV now contains 2,837 contacts; finding more names is not the current
     bottleneck.
-  - Recheck and personalize the first 25–50 priority A and B contacts before
+  - Recheck and personalize the first 10–20 priority A and B contacts before
     scaling up.
   - Keep the initial batches small enough to compare delivery, replies, key
     redemption, coverage and wishlist results.
@@ -335,7 +338,8 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
     only with verified mechanical substitutions such as the creator name and a
     relevant game they actually covered.
   - Do not pretend to have watched content that we have not actually reviewed.
-  - Track the key, send date, response, follow-up and resulting coverage in the CSV.
+  - Track send date, response, follow-up and coverage in the CSV. Store raw keys
+    and recipient/key assignments privately, outside git.
   - Honour opt-outs and the `do_not_contact` field.
   - Compare results between batches before scaling up.
 
@@ -346,9 +350,11 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
     [gamespress-demo-launch-release.txt](gamespress-demo-launch-release.txt) is
     a legacy agent-written draft. Use it only as an internal factual checklist;
     do not submit or lightly polish it into public copy.
-  - Ask Garrett for the exact headline, announcement paragraph, gameplay
-    paragraph, quotation, full-game paragraph and studio biography, then place
-    his wording into the plain-text submission without rewriting it.
+  - The [Bumblebee draft](demo-launch-press-release-bumblebee.md) contains
+    Garrett's lead, scope and inspiration sentence, verbatim Steam/DevGAMM
+    prose and the approved functional press-kit pointer.
+  - Still needed: availability sentence (confirmed date/platforms), final
+    gameplay-claim review and a plain-text export excluding editorial notes.
   - GamesPress accepts free submissions at `inbox@gamespress.com`. Put the
     release in the email body or attach it as plain text, attach publication
     images separately, and link the full press kit. Do not send a PDF.
@@ -373,12 +379,13 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 - [ ] Use campaign-specific UTM links for every external Steam link.
   - Separate at least X, Reddit, Japanese press, the website, festivals and each
     streamer batch so Steamworks can attribute visits and wishlists.
-  - Record the UTM naming scheme with the outreach materials and use it
-    consistently.
+  - [Campaign links](demo-launch-campaign-links.md) prepared September 13.
+    Insert them into approved materials and verify attribution after launch.
 
 - [ ] Direct players to the demo.
   - The public call to action is to play the demo and wishlist the game.
-  - Be clear that the demo has no timer and includes the full feature set within the Mediterranean, Black Sea, and connected rivers, centered on the family-debt quest.
+  - Use Garrett's supplied demo-scope wording. Do not add a timer/no-timer
+    claim to promotional copy.
 
 - [ ] Post on Reddit without getting banned for self-promotion.
   - Read each subreddit's current rules before posting.
@@ -397,9 +404,14 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 - [x] Register by **August 31 at 11:59 PM PDT**.
   - Registered August 2 with Strategy and Simulation as the event categories
     and Garrett as the press contact.
-- [ ] By **September 14**, verify the approved demo build/store presence and
-  press-preview opt-in if we want inclusion when the optional preview begins.
-  This is not a requirement to participate in Next Fest.
+- [x] **September 13:** Rechecked registration and demo review status in
+  Steamworks. Registered; Strategy/Simulation selected; demo store/build
+  checklists complete and approved for release. Demo is still prerelease.
+- [ ] Complete the event player-support field: **Single-player** was unchecked
+  in the September 13 registration page. Recheck the press-contact email.
+- [ ] Verify press-preview availability settings. No preview toggle appeared
+  on the inspected registration page, so opt-in remains unverified. The
+  September 14 optional review target is already covered by demo approvals.
 - [ ] Submit all required Next Fest items for review by **September 28**.
 - [ ] If opted in, verify the public demo when the optional press preview opens
   **October 8 at 10:00 AM PDT**.
@@ -459,17 +471,17 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
   - Prepare: Steam page, two review keys or a playable build, demo link, trailer and a release-window or demo announcement.
   - Application: https://docs.google.com/forms/d/e/1FAIpQLScDvtE9Sk40Kvk_FXODPa-Z_EcwsW5SbqxdVvxeJMyPCBbeNw/viewform
 
-- [x] **Galaxies Autumn 2026 — submitted August 2**
-  - September 8: Garrett confirmed sending a follow-up to
-    `hello@galaxiesshow.com`. Awaiting a reply; selection remains unconfirmed.
+- [x] **Galaxies Autumn 2026 — declined September 9**
+  - Submitted August 2; follow-up sent September 8.
+  - [Organizer decision](https://mail.google.com/mail/#all/1a08732b3364e647):
+    not selected. No September 28 trailer delivery is needed.
   - Google Forms confirmed that the response was recorded. Application answers
     are recorded in
     [festival-application-workbench-2026.md](festival-application-workbench-2026.md).
   - Showcase: October 15.
   - Why: Free slots are reserved for self-published indie teams, with media partners including IGN and GameSpot.
   - Pitch: A new look at gameplay or the Steam demo, not the trailer already pitched to IGN.
-  - If selected: Supply a new 30- or 60-second trailer by September 28.
-  - Selection notices are due by August 24.
+  - Future editions allow resubmission; no further action for Autumn 2026.
   - Application: https://docs.google.com/forms/d/e/1FAIpQLSe8x1tqzdZ0uUqF8gbcamoh8S49S9rHXKcNepI1HyT_yjaU9w/viewform
 
 - [x] **Atlantic Canada Game Celebration — accepted August 4**
@@ -518,7 +530,9 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
   - Why: Free international indie competition with approximately 50 finalists, livestreamed showcases, awards and a Steam event.
   - Application: https://indiex.online/submitgame/
 
-- [x] **SCHMOOVEMENT Festival — submitted August 2**
+- [x] **SCHMOOVEMENT Festival — declined September 11**
+  - [Organizer decision](https://mail.google.com/mail/#all/1a093040fe3318ae):
+    not selected. No event promotion is required.
   - Google Forms confirmed that the response was recorded under Movement
     Underground with the public Steam demo.
   - Event: September 22–29, 2026 Steam event. The organizer's form gives an
@@ -570,7 +584,9 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
     for jury access; provide the Cloudflare browser build or Steam keys then.
   - Application: https://form.jotform.com/261741269632965
 
-- [x] **DevGAMM Awards 2026 — submitted September 7**
+- [x] **DevGAMM Awards 2026 — accepted into competition September 7**
+  - [Confirmation](https://mail.google.com/mail/#all/1a07c367c287007a) confirms
+    entry, not nomination or separate Steam-event acceptance.
   - Why: Free international competition judged by 150+ industry professionals,
     with an Awards Celebration Steam event and an IGN-streamed ceremony.
   - Entered Excellence in Game Design, Best Small Team Game, Most Anticipated
@@ -678,21 +694,31 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
 
 ## Current critical path
 
-In deadline order now: distribute the beta-testing keys across Windows, macOS
-and Linux and get results; verify the Next Fest
-participation checklist and optional press-preview opt-in by September 14;
-launch the demo on September 17 only if platform QA is green; and submit every
-remaining required Next Fest item plus INDIE Live Expo by September 28. In
-parallel, await Valve's decision on the 250 creator/review keys, the Galaxies
-follow-up reply and SCHMOOVEMENT selection; update both Steam descriptions for
-the larger world; finish UTM links; obtain Garrett's exact demo-launch and
-press-release wording; send IGN the non-exclusive update once the date is
-locked; verify the first 25–50 creator contacts; and schedule the next batch of
-Shorts and X cross-posts.
+Work through these in order; outreach preparation can proceed while testers work.
 
-Platform QA → confirm September 17 demo launch → make the approved demo public
-and verify its logged-out install flow → use the one-time wishlist notification
-and coordinated human-authored launch package → send the GamesPress release and
-IGN update → measure store conversion and coverage → distribute full-build
-review keys in small creator batches after Valve approval → prepare October
-Next Fest → release decision
+1. **Next Fest settings:** Registration and demo approvals verified September
+   13. Complete the unchecked Single-player field, recheck press-contact email
+   and locate/verify press-preview opt-in. No new demo review submission is
+   needed for the September 14 optional target.
+2. **Confirm the September 17 launch:** Record tested demo/full-game Steam build
+   IDs and Windows, macOS and Linux clean-install, gameplay and save/load results.
+   Resolve blocking defects and keep the last known good build available.
+3. **Finish the launch package:** Correct outdated Steam world descriptions;
+   obtain availability wording and final claim review for the Bumblebee release;
+   assemble human-authored Steam/X/Reddit/creator messages; verify the new trailer
+   on Steam and YouTube. The press-kit deployment is complete.
+4. **Prepare outreach now:** Retrieve approved press keys, verify the first 10–20
+   creator contacts and prepare messages. Send only with Garrett's authorization.
+   Send IGN the confirmed-date update without offering exclusivity.
+5. **Launch execution:** Record wishlist/traffic baseline; release the demo;
+   republish the base-game page if needed; verify public install and play flows;
+   then send the wishlist notification and publish/send approved campaign copy.
+6. **First 24 and 72 hours:** Garrett covers player support and reviews crashes,
+   install problems, demo playtime, wishlists, tracked visits and creator replies.
+   Record findings and continue outreach in small batches. Fix blocking problems
+   before scaling promotion; retain tested build IDs for recovery.
+7. **Next deadlines:** September 24 full-release commitment gate; September 28
+   remaining Next Fest review items and INDIE Live Expo submission. Continue
+   Mobidictum/DevGAMM Steam-event follow-up; Galaxies and SCHMOOVEMENT are closed.
+
+Campaign links and measurement fields: [demo-launch-campaign-links.md](demo-launch-campaign-links.md).

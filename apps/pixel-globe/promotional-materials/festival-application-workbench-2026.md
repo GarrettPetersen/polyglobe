@@ -1,6 +1,6 @@
 # 2026 Festival Application Workbench
 
-Last updated: **September 12, 2026**
+Last updated: **September 13, 2026**
 
 ## Reusable game details
 
@@ -43,6 +43,9 @@ recorded.** Deadline: August 3.
   brings a new origin, ship, objective and route.
 
 ## SCHMOOVEMENT Festival
+
+Outcome: **Declined September 11** ([organizer email](https://mail.google.com/mail/#all/1a093040fe3318ae)).
+No further event obligations. Original answers below are preserved as submitted.
 
 Status: **Submitted August 2. Google Forms confirmed that the response was
 recorded.**
@@ -93,6 +96,9 @@ Status: **Registered August 2, 2026.**
   reviewed before the event workback deadlines in the marketing plan
 
 ## Galaxies Autumn 2026
+
+Outcome: **Declined September 9** ([organizer email](https://mail.google.com/mail/#all/1a08732b3364e647)).
+No further event obligations. Original answers below are preserved as submitted.
 
 Status: **Submitted August 2. Google Forms confirmed that the response was
 recorded.** Selection notices are due by August 24.
