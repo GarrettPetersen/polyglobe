@@ -346,9 +346,12 @@ test("press kit publishes every localized screenshot set and download", async ()
 test("world copy follows the production subdivision-8 globe and city catalog", async () => {
   assert.equal(WORLD_MAP_CELL_COUNT, 655_362);
   assert.equal(WORLD_MAP_HEX_COUNT, 655_350);
-  assert.equal(WORLD_CITY_COUNT, 277);
+  const catalog = JSON.parse(await readFile(
+    path.join(appRoot, "../pixel-globe/city-visualizer/data/cities.json"), "utf8"
+  ));
+  assert.equal(WORLD_CITY_COUNT, catalog.cityCount);
   assert.match(features[0].copy, /655,362-tile map/);
-  assert.match(features[0].copy, /277 cities/);
+  assert.ok(features[0].copy.includes(`${WORLD_CITY_COUNT} cities`));
 
   const pagesSource = await readFile(
     path.join(appRoot, "tools/pages.mjs"),
@@ -356,11 +359,11 @@ test("world copy follows the production subdivision-8 globe and city catalog", a
   );
   assert.match(pagesSource, /WORLD_MAP_CELL_COUNT\.toLocaleString\("en-US"\)/);
   assert.match(pagesSource, /WORLD_CITY_COUNT\.toLocaleString\("en-US"\)/);
-  assert.match(homePage(), /655,362\s+tiles ·\s+277\s+cities/);
+  assert.match(homePage(), new RegExp(`655,362\\s+tiles ·\\s+${WORLD_CITY_COUNT}\\s+cities`));
   assert.match(qAndAText(), /655,350 hexes and 12 pentagons/);
   for (const locale of websiteLocales) {
     assert.match(locale.featureCopy.explore, /655/);
-    assert.match(locale.featureCopy.explore, /277/);
+    assert.ok(locale.featureCopy.explore.includes(String(WORLD_CITY_COUNT)));
   }
   assert.doesNotMatch(
     features[0].copy + qAndAText() + websiteLocales.map(({ featureCopy }) => featureCopy.explore).join("\n"),
@@ -516,7 +519,7 @@ test("the gameplay trailer and thumbnail are published as permanent press downlo
   );
 
   for (const url of Object.values(pressMedia)) {
-    assert.match(url, /^https:\/\/downloads\.marque-and-reprisal\.com\/press\//);
+    assert.match(url, /^https:\/\/downloads\.marque-and-reprisal\.com\/(press|trailers)\//);
     assert.ok(pressPage().includes(url));
     assert.ok(buildSource.includes("pressMedia"));
     assert.ok(pressReadme.includes(url));
@@ -525,5 +528,10 @@ test("the gameplay trailer and thumbnail are published as permanent press downlo
   assert.match(pressPage(), /Download 1080p MP4/);
   assert.match(pressPage(), /Download JPG/);
   assert.match(pressPage(), /Download PNG/);
-  assert.match(pressPage("ja"), /marque-and-reprisal-gameplay-trailer-v9\.mp4/);
+  for (const locale of websiteLocales) {
+    const page = pressPage(locale.appLocale);
+    assert.ok(page.includes("https://downloads.marque-and-reprisal.com/trailers/marque-and-reprisal-demo-launch-trailer-2026-09-08.mp4"));
+    assert.ok(!page.includes("marque-and-reprisal-gameplay-trailer-v9.mp4"));
+    assert.match(page, /Demo-launch trailer/);
+  }
 });

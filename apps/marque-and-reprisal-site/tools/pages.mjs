@@ -42,13 +42,13 @@ const SCREENSHOT_UI_KEYS = Object.freeze({
 function pressMediaSection() {
   return [
     "<section class='press-assets press-media' id='trailer' aria-labelledby='trailer-title'>",
-    "<div class='asset-heading'><div><p class='eyebrow'>Video &amp; thumbnail</p><h2 id='trailer-title'>Gameplay trailer</h2></div>",
+    "<div class='asset-heading'><div><p class='eyebrow'>Video &amp; thumbnail</p><h2 id='trailer-title'>Demo-launch trailer</h2></div>",
     "<a href='", pressMedia.trailerUrl, "' download>Download 1080p MP4</a></div>",
-    "<p class='asset-intro'>The current gameplay trailer and its 1920 × 1080 YouTube thumbnail are available for editorial use.</p>",
+    "<p class='asset-intro'>Download the demo-launch trailer and promotional thumbnail artwork for editorial use.</p>",
     "<div class='press-media-grid'>",
     "<article class='press-asset-card press-video-card'><video controls preload='metadata' poster='", pressMedia.thumbnailJpgUrl,
     "' width='1920' height='1080'><source src='", pressMedia.trailerUrl, "' type='video/mp4'></video>",
-    "<div><h3>Gameplay trailer</h3><p>1920 × 1080 H.264 MP4 · 39.7 seconds</p><a href='", pressMedia.trailerUrl,
+    "<div><h3>Demo-launch trailer</h3><p>1920 × 1080 H.264 MP4</p><a href='", pressMedia.trailerUrl,
     "' download>Download MP4</a></div></article>",
     "<article class='press-asset-card'><a class='asset-preview' href='", pressMedia.thumbnailPngUrl,
     "' download><img src='", pressMedia.thumbnailJpgUrl,

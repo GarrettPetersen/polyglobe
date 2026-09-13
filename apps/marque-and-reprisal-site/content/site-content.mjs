@@ -53,7 +53,7 @@ export const site = Object.freeze({
 });
 
 export const pressMedia = Object.freeze({
-  trailerUrl: "https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-v9.mp4",
+  trailerUrl: "https://downloads.marque-and-reprisal.com/trailers/marque-and-reprisal-demo-launch-trailer-2026-09-08.mp4",
   thumbnailJpgUrl: "https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-thumbnail-v9.jpg",
   thumbnailPngUrl: "https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-thumbnail-v9.png"
 });
