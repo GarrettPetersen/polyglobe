@@ -2,6 +2,7 @@ import { WORLD_GLOBE_SUBDIVISIONS } from "../src/worldScale.js";
 import { ensureMinimapBake } from "./build-minimap-bake.mjs";
 import { RUNTIME_MODULE_IDS } from "./runtimeModuleIds.mjs";
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -178,9 +179,12 @@ async function copyEntry(fromRoot, [from, to], filter = null) {
 }
 
 async function writeSingleFileChunkManifest(target, byteLength) {
+  const bytes = await readFile(target);
+  if (bytes.byteLength !== byteLength) throw new Error(`File changed while reading: ${target}`);
   await writeFile(`${target}.chunks.json`, JSON.stringify({
+    version: 1,
     byteLength,
-    chunks: [{ path: basename(target), byteLength }]
+    chunks: [{ path: basename(target), byteLength, sha256: chunkSha256(bytes) }]
   }, null, 2));
 }
 
@@ -202,13 +206,18 @@ async function writeLargeBytesAsChunks(bytes, target) {
     await writeFile(chunkPath, chunk);
     chunks.push({
       path: chunkName,
-      byteLength: chunk.byteLength
+      byteLength: chunk.byteLength,
+      sha256: chunkSha256(chunk)
     });
   }
   await writeFile(
     `${target}.chunks.json`,
-    JSON.stringify({ byteLength: bytes.byteLength, chunks }, null, 2)
+    JSON.stringify({ version: 1, byteLength: bytes.byteLength, chunks }, null, 2)
   );
+}
+
+function chunkSha256(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 async function copySharedEntry(entry) {

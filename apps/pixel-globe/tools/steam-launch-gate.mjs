@@ -8,15 +8,18 @@ export function steamLaunchChecks({ appRoot, edition, platform, hostPlatform, se
     throw new Error("Mac Steam uploads require a real packaged launch on macOS with Steam signed in");
   }
   const editions = edition === "all" ? ["full", "demo"] : [edition];
-  return editions.map(id => {
+  return editions.flatMap(id => {
     const config = settings.editions[id];
     if (!config || !Number.isInteger(config.appId) || !config.productName) {
       throw new Error(`Missing Steam launch configuration for ${id}`);
     }
-    return [join(appRoot, "tools/check-steam-launch.mjs"), String(config.appId),
+    const args = [join(appRoot, "tools/check-steam-launch.mjs"), String(config.appId),
       join(appRoot, "build/steam", id, "darwin-universal",
         `${config.productName}-darwin-universal`, `${config.productName}.app`,
         "Contents/MacOS", config.productName), "--require-packaged"];
+    // Each invocation uses a fresh process and temporary profile. These are
+    // consecutive required passes, not retries that can hide a failed launch.
+    return Array.from({ length: 3 }, () => [...args]);
   });
 }
 

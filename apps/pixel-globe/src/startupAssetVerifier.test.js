@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 
 import { verifyRemoteStartupAssets } from "../tools/startupAssetVerifier.mjs";
 
@@ -15,10 +16,13 @@ test("deployment verification reconstructs the startup Earth cache through its c
     const url = new URL(resource);
     if (url.pathname.endsWith("earth-globe-cache-0.json.chunks.json")) {
       return jsonResponse({
+        version: 1,
         byteLength: bytes.length,
         chunks: [
-          { path: "earth-globe-cache-0.json.part000", byteLength: split },
-          { path: "earth-globe-cache-0.json.part001", byteLength: bytes.length - split }
+          { path: "earth-globe-cache-0.json.part000", byteLength: split,
+            sha256: createHash("sha256").update(bytes.subarray(0, split)).digest("hex") },
+          { path: "earth-globe-cache-0.json.part001", byteLength: bytes.length - split,
+            sha256: createHash("sha256").update(bytes.subarray(split)).digest("hex") }
         ]
       });
     }

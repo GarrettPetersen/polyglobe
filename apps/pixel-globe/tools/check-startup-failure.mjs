@@ -50,6 +50,29 @@ try {
   assert.equal(await page.evaluate(() => localStorage.getItem("marque-and-reprisal.last-startup-failure")), null);
   await context.close();
   console.log("Normal browser startup passed without a failure report");
+  for (const persistent of [false, true]) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    let attempts = 0;
+    await page.route(/\/earth-globe-cache-8\.json\.part000(?:\?|$)/, async route => {
+      attempts++;
+      const response = await route.fetch();
+      const body = Buffer.from(await response.body());
+      if (persistent || attempts === 1) body[0] ^= 1;
+      await route.fulfill({ response, body });
+    });
+    await page.goto(`http://127.0.0.1:${server.address().port}/`);
+    if (persistent) {
+      await page.locator('#loading-screen[data-state="failed"]').waitFor({ timeout: 180000 });
+      assert.match(await page.locator("#loading-status-text").innerText(), /SHA-256 mismatch/);
+      assert.equal(attempts, 5, "Persistent corruption must stop after bounded retries");
+    } else {
+      await page.waitForFunction(() => document.getElementById("loading-screen")?.hidden, null, { timeout: 180000 });
+      assert.equal(attempts, 2, "Same-length corruption must retry the damaged chunk");
+    }
+    await context.close();
+    console.log(`World chunk integrity passed: ${persistent ? "persistent corruption fails cleanly" : "transient corruption recovers"}`);
+  }
 } finally {
   await browser.close();
   await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

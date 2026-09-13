@@ -53,6 +53,9 @@ export async function fetchChunkedBinary(path, label, {
       `Malformed ${label} chunk manifest: ${error instanceof Error ? error.message : String(error)}`
     );
   }
+  if (manifest?.version !== 1) {
+    throw new Error(`Malformed ${label} chunk manifest: unsupported version ${manifest?.version}`);
+  }
   if (!Number.isSafeInteger(manifest.byteLength) || manifest.byteLength < 0) {
     throw new Error(`Malformed ${label} chunk manifest: invalid byteLength`);
   }
@@ -67,7 +70,9 @@ export async function fetchChunkedBinary(path, label, {
       typeof chunkSpec.path !== "string" ||
       chunkSpec.path.length === 0 ||
       !Number.isSafeInteger(chunkSpec.byteLength) ||
-      chunkSpec.byteLength < 0
+      chunkSpec.byteLength < 0 ||
+      typeof chunkSpec.sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/.test(chunkSpec.sha256)
     ) {
       throw new Error(`Malformed ${label} chunk manifest entry ${index}`);
     }
@@ -75,6 +80,7 @@ export async function fetchChunkedBinary(path, label, {
       index,
       path: chunkSpec.path,
       byteLength: chunkSpec.byteLength,
+      sha256: chunkSpec.sha256,
       offset: expectedByteLength
     });
     expectedByteLength += chunkSpec.byteLength;
@@ -172,10 +178,18 @@ async function fetchValidatedChunk(chunkUrl, chunkSpec, label, {
       );
       continue;
     }
-    if (bytes.byteLength === chunkSpec.byteLength) return bytes;
-    lastContentError = new Error(
-      `expected ${chunkSpec.byteLength} bytes, got ${bytes.byteLength}`
-    );
+    if (bytes.byteLength !== chunkSpec.byteLength) {
+      lastContentError = new Error(
+        `expected ${chunkSpec.byteLength} bytes, got ${bytes.byteLength}`
+      );
+      continue;
+    }
+    // A successful HTTP response of the right size can still contain damaged
+    // bytes. Verify content before it enters the shared assembly buffer.
+    const digest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes));
+    const sha256 = Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join("");
+    if (sha256 === chunkSpec.sha256) return bytes;
+    lastContentError = new Error(`SHA-256 mismatch: expected ${chunkSpec.sha256}, got ${sha256}`);
   }
 
   throw new Error(
