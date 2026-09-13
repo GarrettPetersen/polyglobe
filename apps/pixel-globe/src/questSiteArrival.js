@@ -1,3 +1,5 @@
+import { localChartDistancePx } from "./localChartProximity.js";
+
 const NON_PORT_COLONIZATION_KINDS = new Set([
   "found-colony",
   "investigate-lost-colony"
@@ -42,13 +44,8 @@ export function questSiteArrivalCandidate({
 // Sighting markers use the settled local chart, whose visible tiles can be
 // displaced from an ideal globe projection. Arrival must use that same frame.
 export function questSearchAreaReached(sitePoint, playerPoint) {
-  if (sitePoint === null) return false; // The sighting is outside the local chart.
-  for (const point of [sitePoint, playerPoint]) {
-    if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
-      throw new Error("Quest search arrival requires finite local chart coordinates");
-    }
-  }
-  return Math.hypot(sitePoint.x - playerPoint.x, sitePoint.y - playerPoint.y) <= 28;
+  const distancePx = localChartDistancePx(sitePoint, playerPoint);
+  return distancePx !== null && distancePx <= 28;
 }
 
 export function colonizationSiteCallIsInArrivalRange(call, playerInteractionPoint) {

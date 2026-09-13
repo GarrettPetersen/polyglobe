@@ -1972,6 +1972,7 @@ import {
   questSiteArrivalOverlayKind,
   resolveAutomaticQuestSiteAnchorClosure
 } from "./questSiteArrival.js";
+import { localChartDistancePx } from "./localChartProximity.js";
 import {
   WATER_LATITUDE_MAX_BAND,
   darkerResurrect64Hex,
@@ -8617,10 +8618,14 @@ function updateColonizationQuest() {
   if (!memory || !ship) return false;
   let questChanged = false;
   if (Number.isInteger(memory.targetTileId)) {
-    const targetVector = tileCenterVector(memory.targetTileId);
-    const distancePx = Math.acos(clamp(dot3(ship.position, targetVector), -1, 1)) * PIXELS_PER_RADIAN;
+    // No chart during startup is not evidence of departure. Once it is ready,
+    // a colony outside that chart is necessarily beyond the departure radius.
+    const distancePx = chart && localLayout
+      ? playerLocalDistanceToGlobeVector(tileCenterVector(memory.targetTileId))
+      : null;
     questChanged = advanceColonizationQuest(memory, weatherClockMinutes, {
-      awayFromColony: distancePx >= COLONY_DEPARTURE_DISTANCE_PX
+      awayFromColony: Boolean(chart && localLayout) &&
+        (distancePx === null || distancePx >= COLONY_DEPARTURE_DISTANCE_PX)
     });
   }
   const aftermathEvents = advanceColonizationAftermaths(memory, weatherClockMinutes, {
@@ -8640,15 +8645,15 @@ function updateColonizationQuest() {
 }
 
 function maybeDiscoverMissingColonizationAftermath() {
-  if (!gameState?.memory?.colonization || !ship || gameOverReason || dialogueState ||
+  if (!gameState?.memory?.colonization || !ship || !chart || !localLayout || gameOverReason || dialogueState ||
       captainAlertModal || portWaitState) {
     return false;
   }
   const aftermath = colonizationAftermathView(gameState.memory.colonization);
   if (aftermath?.stage !== COLONIZATION_AFTERMATH_MISSING) return false;
   const targetVector = tileCenterVector(aftermath.target.tileId);
-  const distancePx = Math.acos(clamp(dot3(ship.position, targetVector), -1, 1)) * PIXELS_PER_RADIAN;
-  if (!discoverableColonizationAftermath(gameState.memory.colonization, distancePx)) return false;
+  const distancePx = playerLocalDistanceToGlobeVector(targetVector);
+  if (distancePx === null || !discoverableColonizationAftermath(gameState.memory.colonization, distancePx)) return false;
   const reportPort = colonizationAftermathReportPort(gameState.memory.colonization, portCities);
   if (!reportPort) return false;
   discoverColonizationAftermath(
@@ -37200,7 +37205,8 @@ function updateOverboardCrew(dt) {
     }
     if (entry.ageSeconds > entry.flightSeconds) {
       entry.remainingSeconds -= Math.max(0, entry.ageSeconds - Math.max(previousAge, entry.flightSeconds));
-      if (vectorArcDistance(ship.position, entry.position) * PIXELS_PER_RADIAN <= OVERBOARD_RECOVERY_RADIUS_PX) {
+      const distancePx = playerLocalDistanceToGlobeVector(entry.position);
+      if (distancePx !== null && distancePx <= OVERBOARD_RECOVERY_RADIUS_PX) {
         rescued.push(entry);
       } else if (entry.remainingSeconds <= 0) {
         drowned.push(entry);
@@ -42759,6 +42765,12 @@ function npcHullFitsDrawnNavigation(x, y, heading, slug, navigation) {
   return shipFootprintPerimeterSamples(frame, SHIP_COLLISION_SAMPLE_STEP_PX).every((sample) => {
     const surface = drawnSurfaceNavigationAtLocalPoint(x + sample.x, y + sample.y);
     return surface?.water === true;
+  });
+}
+
+function playerLocalDistanceToGlobeVector(targetVector) {
+  return localChartDistancePx(localPointForGlobeVector(targetVector), {
+    x: localLayout.viewX, y: localLayout.viewY
   });
 }
 
