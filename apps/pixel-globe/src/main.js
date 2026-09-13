@@ -26536,7 +26536,7 @@ function maybeShipTargetRumor(interactionKey) {
   const hunt = activeWokouHuntQuest();
   const revenge = gameState.memory.pirateHavens.revenge;
   const targets = [];
-  if (hunt?.stage === "hunt") targets.push({ kind: "wokou", id: hunt.targetShipId, label: `the wokou ${shipLabelForProse(hunt.targetShipSlug)}` });
+  if (hunt?.stage === "hunt") targets.push({ kind: "wokou", id: hunt.targetShipId });
   if (revenge && !revenge.ready && pirateRevengeTargetPresent(gameState.memory.pirateHavens, npcSeaRoutes.shipById)) {
     targets.push({ kind: "revenge", id: revenge.targetShipId, label: revenge.targetShipName });
   }
@@ -26549,7 +26549,8 @@ function maybeShipTargetRumor(interactionKey) {
     if (!position) continue;
     const coordinates = vectorLatLon(position);
     const reference = nearestCityToPosition(position);
-    const text = shipTargetRumorText(target.label, { lat: coordinates.latitudeDeg, lon: coordinates.longitudeDeg }, reference);
+    const label = target.kind === "wokou" ? wokouHuntTargetLabel(hunt) : target.label;
+    const text = shipTargetRumorText(label, { lat: coordinates.latitudeDeg, lon: coordinates.longitudeDeg }, reference);
     recordShipTargetRumor(gameState.memory.decisions, target.kind, simMinute);
     saveVoyageNow("heard ship-target sighting");
     return { text };
@@ -62941,11 +62942,17 @@ function nearestDiscoveryDirection(discovery, position) {
   ), directions[0]);
 }
 
+function wokouHuntTargetLabel(quest) {
+  const captain = npcShipCaptains.get(quest.targetShipId);
+  if (!captain) throw new Error(`Commissioned wokou has no captain: ${quest.targetShipId}`);
+  return `Captain ${captain.name}'s ${shipLabelForProse(quest.targetShipSlug)}`;
+}
+
 function questNavigationTarget(quest, destination) {
   if (isWokouHuntQuest(quest) && quest.stage === "hunt") {
     const position = npcShipSightingPosition(npcSeaRoutes, quest.targetShipId, weatherClockMinutes);
     if (position) {
-      return { vector: position, label: `the wokou ${shipLabelForProse(quest.targetShipSlug)}`, shipTarget: true };
+      return { vector: position, label: wokouHuntTargetLabel(quest), shipTarget: true };
     }
   }
   return { vector: placedCityTargetVector(destination), label: cityLabelText(destination), shipTarget: false };

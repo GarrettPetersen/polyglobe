@@ -106,15 +106,47 @@ test("a live wokou marker follows its ship, while concealed or returning hunts m
   const context = { npcSeaRoutes: {}, weatherClockMinutes: 100,
     isWokouHuntQuest: quest => quest.kind === "wokou-hunt",
     npcShipSightingPosition: (_routes, id) => { assert.equal(id, quest.targetShipId); return position; },
+    npcShipCaptains: new Map([[quest.targetShipId, { name: "Wang Zhi" }]]),
     shipLabelForProse: () => "small junk", placedCityTargetVector: () => [1, 0, 0], cityLabelText: () => "Nagasaki" };
+  context.wokouHuntTargetLabel = compiled("wokouHuntTargetLabel", context);
   const target = compiled("questNavigationTarget", context);
   assert.equal(target(quest, {}).vector, position);
   assert.equal(target(quest, {}).shipTarget, true);
+  assert.equal(target(quest, {}).label, "Captain Wang Zhi's small junk");
   context.npcShipSightingPosition = () => null;
   assert.equal(target(quest, {}).label, "Nagasaki");
   context.npcShipSightingPosition = () => { throw new Error("Returning quest must not track the ship"); };
   quest.stage = "return";
   assert.equal(target(quest, {}).shipTarget, false);
+});
+
+test("wokou sightings name the commissioned captain, never a same-hull warship or a dead quarry", async () => {
+  const { shipTargetRumorEligible, recordShipTargetRumor, shipTargetRumorText } = await import("./shipTargetRumors.js");
+  const quest = { stage: "hunt", targetShipId: "wokou-quarry", targetShipSlug: "japanese-kobaya" };
+  const quarry = { id: quest.targetShipId, hitPoints: 30 };
+  const warship = { id: "hosokawa-warship", hitPoints: 30, slug: quest.targetShipSlug };
+  const context = { gameState: { memory: { decisions: {}, pirateHavens: { revenge: null } } },
+    weatherClockMinutes: 100, activeWokouHuntQuest: () => quest,
+    shipTargetRumorEligible, recordShipTargetRumor, shipTargetRumorText, spriteKeyHash: () => 0,
+    npcSeaRoutes: { shipById: new Map([[quarry.id, quarry], [warship.id, warship]]) },
+    npcShipCaptains: new Map([[warship.id, { name: "Hosokawa Norimasa" }], [quarry.id, { name: "Wang Zhi" }]]),
+    shipLabelForProse: () => "kobaya",
+    npcShipSightingPosition: (_routes, id) => { assert.equal(id, quest.targetShipId); return [1, 0, 0]; },
+    vectorLatLon: () => ({ latitudeDeg: 32.75, longitudeDeg: 129.88 }),
+    nearestCityToPosition: () => ({ city: "Nagasaki", lat: 32.75, lon: 129.88 }), saveVoyageNow: () => {} };
+  context.wokouHuntTargetLabel = compiled("wokouHuntTargetLabel", context);
+  const rumor = compiled("maybeShipTargetRumor", context);
+  assert.match(rumor("speaker-1").text, /Captain Wang Zhi's kobaya off Nagasaki/);
+  context.weatherClockMinutes += 7 * 1440;
+  quarry.hitPoints = 0;
+  assert.equal(rumor("speaker-dead"), null);
+  context.npcSeaRoutes.shipById.delete(quarry.id);
+  context.npcShipCaptains.delete(quarry.id);
+  assert.equal(rumor("speaker-missing"), null);
+  // A living target must have an identity; do not silently identify a different captain.
+  quarry.hitPoints = 30;
+  context.npcSeaRoutes.shipById.set(quarry.id, quarry);
+  assert.throws(() => rumor("speaker-broken-identity"), /Commissioned wokou has no captain: wokou-quarry/);
 });
 
 test("docked and hidden commissioned ships are not mistaken for sunk quarry", () => {
