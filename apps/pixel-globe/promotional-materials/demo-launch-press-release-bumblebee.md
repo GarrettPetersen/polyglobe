@@ -2,7 +2,7 @@
 
 Editorial working document, September 13, 2026. Bracketed placeholders and the
 notes below are editorial instructions, not release copy. The headline was
-suggested by Codex and explicitly selected by Garrett. The functional press-kit pointer was written by Codex with Garrett's permission.
+suggested by Codex and explicitly selected by Garrett. The functional press-kit pointer was written by Codex with Garrett's permission. The launch date was added to the lead with Garrett's explicit authorization.
 All other body prose selected
 for the release is verbatim from Garrett's archived Steam or DevGAMM writing
 or his September 13 demo-launch paragraphs supplied in this conversation.
@@ -12,7 +12,7 @@ Quotation marks, attribution, headings and link labels are assembly formatting.
 
 Historical sailing sandbox Marque & Reprisal launches free Steam demo
 
-The 1-person Canadian indie studio Iron Pagoda is launching a demo for its roguelike historical sailing sandbox game, Marque & Reprisal, on Steam.
+The 1-person Canadian indie studio Iron Pagoda is launching a demo for its roguelike historical sailing sandbox game, Marque & Reprisal, on Steam on September 17, 2026.
 
 Marque & Reprisal is a massive roguelike sandbox that threads the needle between deep historical simulation and simple, accessible gameplay.
 
@@ -46,7 +46,8 @@ Press contact: Garrett Petersen — garrett.m.petersen@gmail.com
 ## Source ledger — exclude from publication
 
 - Launch lead and demo scope: Garrett's September 13 message in this
-  conversation, inserted verbatim.
+  conversation. Lead updated with September 17, 2026, as explicitly authorized
+  by Garrett; all other wording preserved verbatim.
 - Inspiration sentence: Garrett's wording supplied in this conversation,
   inserted verbatim. Headline: Codex suggestion explicitly selected by Garrett.
 - Game description and core loop: `devgamm-awards-2026-why-deserving.md`,
@@ -62,14 +63,11 @@ Press contact: Garrett Petersen — garrett.m.petersen@gmail.com
   English store copy was used. No prose from the legacy agent-written
   GamesPress release was used.
 
-## Wording needed from Garrett — exclude from publication
-
-1. **Availability sentence:** The confirmed launch date and Windows, macOS
-   and Linux availability. September 17 remains provisional. The headline
-   already states that the demo is free.
-
 ## Editorial checks — exclude from publication
 
+- September 17 is the authorized launch date for this release. Garrett plans
+  to test macOS and Windows September 13; results and Linux QA remain pending.
+  Confirm platform readiness before adding platform-specific availability claims.
 - Confirm that each selected gameplay claim still applies to the launch demo,
   especially port capture and the scale of NPC shipping. Update changed claims
   in Garrett's words rather than silently rewriting source text.

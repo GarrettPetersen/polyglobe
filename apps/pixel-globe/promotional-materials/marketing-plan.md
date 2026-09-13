@@ -27,8 +27,9 @@ Last updated: **September 13, 2026**.
   application and build deadline. Entry fee covered by a redeemed code;
   monitor email and the entry portal for judging questions or build-access issues.
 - **September 13:** Demo-launch trailer deployed to all 11 press-kit languages
-  and the ZIP. Bumblebee press-release draft assembled; availability wording
-  and final gameplay-claim review remain.
+  and the ZIP. Bumblebee press-release draft now includes the authorized
+  September 17 launch date; final gameplay-claim review remains. Garrett will
+  test macOS and Windows today; results and Linux QA remain pending.
 - **September 14:** Optional Next Fest press-preview review target. This is
   only the date by which a demo build and demo store presence should be
   submitted for Valve review if the developer wants the demo playable when
@@ -84,9 +85,9 @@ Last updated: **September 13, 2026**.
   ends. If the Steam discount dashboard permits it as expected, manually join
   the Winter Sale already in progress; it runs through January 4, 2027.
 
-The coordinated public demo launch is provisionally targeted for **September
-17**. Keep that date only if all three platform testers pass the current full
-game and demo builds. Before launch, obtain Garrett's exact human-authored
+Garrett confirmed **September 17** as the demo launch target and authorized
+its use in the press release. Platform QA remains a launch gate. Garrett will
+test macOS and Windows September 13; Linux testing still needs coverage. Before launch, obtain Garrett's exact human-authored
 wording for Steam, X, Reddit, press, creators and GamesPress; do not publish the
 legacy agent-written drafts. Send the existing IGN contact a short update with
 the confirmed date, downloadable trailer, Steam page and press-kit links, but
@@ -108,7 +109,7 @@ do not wait for an IGN response before launching.
   - A current stable build has been uploaded to Steam. Beta-testing keys have
     been obtained; three demo QA keys were approved September 11. Assign one full
     game key and one demo key to each Windows, macOS and Linux tester.
-  - Provisional public launch: **September 17**, conditional on a clean
+  - Confirmed campaign target: **September 17**, conditional on a clean
     platform-test matrix and no release-blocking defect.
   - Steam App: `5029880`.
   - The demo has no timer and retains the full feature set, but its voyages are
@@ -154,7 +155,8 @@ do not wait for an IGN response before launching.
   - Link the public upload from the website and future press pitches.
 
 - [ ] **Send the demo-launch trailer update to IGN**
-  - Reply in the existing thread after the September 17 launch date is locked.
+  - September 17 is the authorized campaign target. Prepare the reply in the
+    existing thread; send with Garrett's authorization.
   - Use Garrett's exact human-written wording and include the Steam page,
     press kit and downloadable full-quality trailer. No exclusivity request.
   - Follow up once if useful, but do not make the demo launch contingent on a
@@ -353,8 +355,9 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
   - The [Bumblebee draft](demo-launch-press-release-bumblebee.md) contains
     Garrett's lead, scope and inspiration sentence, verbatim Steam/DevGAMM
     prose and the approved functional press-kit pointer.
-  - Still needed: availability sentence (confirmed date/platforms), final
-    gameplay-claim review and a plain-text export excluding editorial notes.
+  - September 17 is included in the lead with Garrett's authorization.
+    Still needed: final gameplay-claim review and a plain-text export excluding
+    editorial notes. Confirm QA before adding platform availability claims.
   - GamesPress accepts free submissions at `inbox@gamespress.com`. Put the
     release in the email body or attach it as plain text, attach publication
     images separately, and link the full press kit. Do not send a PDF.
@@ -700,11 +703,12 @@ Work through these in order; outreach preparation can proceed while testers work
    13. Complete the unchecked Single-player field, recheck press-contact email
    and locate/verify press-preview opt-in. No new demo review submission is
    needed for the September 14 optional target.
-2. **Confirm the September 17 launch:** Record tested demo/full-game Steam build
+2. **Complete QA for the September 17 target:** Garrett will test macOS and
+   Windows September 13; Linux coverage remains open. Record demo/full-game build
    IDs and Windows, macOS and Linux clean-install, gameplay and save/load results.
    Resolve blocking defects and keep the last known good build available.
 3. **Finish the launch package:** Correct outdated Steam world descriptions;
-   obtain availability wording and final claim review for the Bumblebee release;
+   complete final claim review for the dated Bumblebee release;
    assemble human-authored Steam/X/Reddit/creator messages; verify the new trailer
    on Steam and YouTube. The press-kit deployment is complete.
 4. **Prepare outreach now:** Retrieve approved press keys, verify the first 10–20
