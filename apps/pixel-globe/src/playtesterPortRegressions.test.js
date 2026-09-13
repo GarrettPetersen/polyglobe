@@ -154,11 +154,31 @@ test("docked and hidden commissioned ships are not mistaken for sunk quarry", ()
     const quest = { stage: "hunt", targetShipId: "quarry", patrolCityId: "nagasaki|japan" };
     const ship = { id: quest.targetShipId, hiddenAtHideout, hitPoints: 20, currentPort: { cityId: quest.patrolCityId } };
     const context = { activeWokouHuntQuest: () => quest, npcSeaRoutes: { shipById: new Map([[ship.id, ship]]) },
-      weatherClockMinutes: 100, stationWokouHuntAtPort: () => {},
+      weatherClockMinutes: 100, patrolWokouHuntAtPort: () => {}, npcShipHasCombatGrace: () => false,
       recordWokouHuntDefeatedByOthers: () => { throw new Error("Living quarry was declared defeated"); } };
     assert.equal(compiled("ensureWokouHuntEncounter", context)(), ship);
     assert.equal(quest.stage, "hunt");
   }
+});
+
+test("a player's wokou victory is recorded before an interruptible surrender decision", () => {
+  const ship = { id: "quarry", role: "pirate", factionId: "pirate", hitPoints: 10, encounter: { kind: "wokou-hunt" } };
+  let won = false;
+  let decisionOpened = false;
+  const context = { npcSeaRoutes: { shipById: new Map([[ship.id, ship]]) },
+    npcVisualShips: new Map([[ship.id, { playerAttackRecorded: true }]]), shoreBatteryStates: new Map(),
+    PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND: "revenge", TREASURE_PIRATE_ENCOUNTER_KIND: "treasure",
+    NPC_ROLE_PIRATE: "pirate", PLAYER_COMBAT_ID: "player", npcShipHasCombatGrace: () => false,
+    combatEntityPoint: () => ({ x: 0, y: 0 }), recordCombatAuthorityOutcome: () => {},
+    recordPlayerShipVictory: () => {}, npcPrizeRecipientId: () => null,
+    surrenderNpcShip: () => ({ specie: 0, cargo: {} }),
+    resolveWokouHuntPlayerVictory: id => { assert.equal(id, ship.id); won = true; },
+    ensureWokouHuntEncounter: () => { throw new Error("Player victory attributed to someone else"); },
+    clearCombatForShip: () => {}, playStruckColorsSound: () => {}, retireProjectilesForSurrenderedShip: () => {},
+    saveVoyageNow: () => { assert.equal(won, true); },
+    requestDamageSurrenderDecision: () => { assert.equal(won, true); decisionOpened = true; } };
+  compiled("handleNpcSurrender", context)(ship.id, "player", { damageInduced: true });
+  assert.equal(decisionOpened, true);
 });
 
 test("a hostile toll offer intercepts attempted docking before opening the barred city screen", () => {

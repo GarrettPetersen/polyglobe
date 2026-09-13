@@ -118,7 +118,7 @@ const ROUTE_MONTH_DAYS = WEATHER_DAYS / ROUTE_MONTHS;
 const ROUTE_MONTH_MINUTES = ROUTE_MONTH_DAYS * WEATHER_MINUTES_PER_DAY;
 const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
-export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 11;
+export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 12;
 const ROUTE_WIND_SEED = 90210;
 const NPC_FLEET_TARGET = 212;
 export const NPC_PACIFIC_FLEET_TARGET = 32;
@@ -151,6 +151,8 @@ export const NPC_PORT_RESPONSE_BURNING = "burning-port";
 export const NPC_PORT_RESPONSE_LOST = "lost-port";
 export const NPC_PORT_RESPONSE_WAR_LOAN = "war-loan-offensive";
 export const NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL = "connected-patrol";
+const NPC_ENCOUNTER_ROUTE_POLICY_LOCAL_PATROL = "local-patrol";
+export const WOKOU_PATROL_MAX_DISTANCE_KM = 30;
 export const NPC_CAPITAL_NAVAL_RESERVE_MAX = 3;
 const NPC_PORT_RESPONSE_REASONS = new Set([
   NPC_PORT_RESPONSE_ATTACK,
@@ -903,32 +905,105 @@ export function reconcileNpcRouteEncounterIdentity(system, shipId, {
 
 // A commissioned hunt is a local encounter, not an intercontinental trade route.
 // Older hunts are repositioned once; subsequent restores preserve combat damage.
-export function stationWokouHuntAtPort(system, shipId, cityId, clockMinutes) {
+export function patrolWokouHuntAtPort(system, shipId, cityId, clockMinutes) {
   assertSaveableNpcRouteSystem(system);
   if (!Number.isFinite(clockMinutes) || clockMinutes < 0) throw new Error(`Invalid wokou staging minute: ${clockMinutes}`);
   const ship = requiredNpcShip(system, shipId);
   if (ship.encounter?.kind !== "wokou-hunt") throw new Error(`Not a commissioned wokou: ${shipId}`);
-  if (ship.encounter.holdAtDestination && ship.encounter.destinationCityId === cityId) {
-    // Held encounters still need a visible offshore position after restoring
-    // a save that omitted their reconstructible navigation state.
-    return stageNpcRouteEncounterAtDestination(system, shipId, clockMinutes);
+  if (shipHasCombatGrace(ship)) throw new Error(`Surrendered wokou cannot resume hunting: ${shipId}`);
+  if (ship.encounter.routePolicy === NPC_ENCOUNTER_ROUTE_POLICY_LOCAL_PATROL &&
+      ship.encounter.destinationCityId === cityId) {
+    assertLocalPatrolPlan(ship);
+    return false;
   }
   const destination = requiredNpcRoutePort(system, cityId, "Wokou hunting port");
   const origin = system.ports.filter(port => !samePort(port, destination) && npcRoutePortAcceptsTraffic(port) &&
     npcPortsShareRouteNetwork(system, port, destination))
     .sort((a, b) => npcTravelDistanceKm(system, a, destination) - npcTravelDistanceKm(system, b, destination) || a.cityId.localeCompare(b.cityId))[0];
   if (!origin) throw new Error(`Wokou hunting port has no navigable approach: ${cityId}`);
+  const route = routeBetweenPorts(system, origin, destination, ship.slug, clockMinutes);
+  const lastSail = [...route.segments].reverse().find(segment => segment.kind === "sail");
+  if (!lastSail) throw new Error(`Wokou hunting port has no sailing approach: ${cityId}`);
+  const plan = buildLocalPatrolPlan(ship, destination, lastSail, npcEffectiveClock(ship, clockMinutes));
   ship.encounter.originCityId = origin.cityId;
   ship.encounter.destinationCityId = cityId;
-  ship.encounter.holdAtDestination = true;
+  ship.encounter.routePolicy = NPC_ENCOUNTER_ROUTE_POLICY_LOCAL_PATROL;
+  delete ship.encounter.holdAtDestination;
+  delete ship.encounter.holdProgress;
+  delete ship.encounter.holdApproachVectors;
+  delete ship.encounter.arrivedAtMinute;
   ship.hiddenAtHideout = false;
   ship.hiddenUntilMinute = 0;
   ship.seekingHideout = false;
   ship.hideoutDestinationTileId = null;
-  ship.currentPort = origin;
-  ship.finalDestination = destination;
-  ship.plan = buildNpcPlan(origin, destination, routeBetweenPorts(system, origin, destination, ship.slug, clockMinutes), clockMinutes);
-  stageNpcRouteEncounterAtDestination(system, shipId, clockMinutes, { holdProgress: 0.98 });
+  ship.currentPort = destination;
+  ship.finalDestination = null;
+  ship.plan = plan;
+  ship.visualNavigation = null;
+  return true;
+}
+
+function buildLocalPatrolPlan(ship, port, approach, startMinute) {
+  // This is a local section of an existing sailing approach, not a new
+  // straight-line route between ports. Stay clear of the port itself.
+  const approachKm = distanceKm(approach.from, approach.to);
+  if (!Number.isFinite(approachKm) || approachKm <= 0) {
+    throw new Error(`Local patrol has no usable sea approach: ${ship.id}`);
+  }
+  const outerKm = Math.min(WOKOU_PATROL_MAX_DISTANCE_KM, approachKm * 0.9);
+  const innerKm = Math.min(3, outerKm / 3);
+  // These IDs identify spatial observations belonging to this encounter.
+  const inner = { id: `${ship.id}:patrol:inner`, ...slerpPoint(approach.from, approach.to, 1 - innerKm / approachKm) };
+  const outer = { id: `${ship.id}:patrol:outer`, ...slerpPoint(approach.from, approach.to, 1 - outerKm / approachKm) };
+  const legMinutes = (outerKm - innerKm) / npcCruisingKmPerGameDay(shipStatsForSlug(ship.slug)) * WEATHER_MINUTES_PER_DAY;
+  const plan = { origin: port, destination: port, startMinute, endMinute: startMinute + 2 * legMinutes,
+    segments: [
+      { kind: "sail", from: inner, to: outer, startMinute, endMinute: startMinute + legMinutes },
+      { kind: "sail", from: outer, to: inner, startMinute: startMinute + legMinutes, endMinute: startMinute + 2 * legMinutes }
+    ] };
+  assertLocalPatrolPlan({ id: ship.id, plan, encounter: { kind: "wokou-hunt", destinationCityId: port.cityId } });
+  return plan;
+}
+
+function assertLocalPatrolPlan(ship) {
+  const plan = ship.plan;
+  const [outward, homeward] = plan?.segments || [];
+  if (ship.encounter?.kind !== "wokou-hunt" || !plan || plan.segments.length !== 2 ||
+      plan.origin?.cityId !== ship.encounter.destinationCityId || plan.destination?.cityId !== plan.origin.cityId ||
+      !Number.isFinite(plan.startMinute) || !Number.isFinite(plan.endMinute) || plan.endMinute <= plan.startMinute ||
+      outward?.kind !== "sail" || homeward?.kind !== "sail" || outward.startMinute !== plan.startMinute ||
+      outward.endMinute !== homeward.startMinute || homeward.endMinute !== plan.endMinute ||
+      outward.endMinute <= outward.startMinute || homeward.endMinute <= homeward.startMinute ||
+      outward.from?.id !== `${ship.id}:patrol:inner` || outward.to?.id !== `${ship.id}:patrol:outer` ||
+      homeward.from?.id !== outward.to.id || homeward.to?.id !== outward.from.id) {
+    throw new Error(`Invalid local patrol plan: ${ship.id}`);
+  }
+  if (outward.from.lat !== homeward.to.lat || outward.from.lon !== homeward.to.lon ||
+      outward.to.lat !== homeward.from.lat || outward.to.lon !== homeward.from.lon) {
+    throw new Error(`Local patrol has disconnected turns: ${ship.id}`);
+  }
+  for (const point of [outward.from, outward.to, homeward.from, homeward.to]) {
+    if (!Number.isFinite(point.lat) || !Number.isFinite(point.lon) ||
+        Math.abs(point.lat) > 90 || Math.abs(point.lon) > 180 ||
+        distanceKm(plan.destination, point) > WOKOU_PATROL_MAX_DISTANCE_KM + 0.01) {
+      throw new Error(`Local patrol leaves its hunting waters: ${ship.id}`);
+    }
+  }
+}
+
+function advanceLocalPatrol(ship, clockMinutes) {
+  const plan = ship.plan;
+  if (clockMinutes < plan.endMinute) return false;
+  // Skip complete circuits arithmetically: years of catch-up must not become
+  // thousands of fake port calls, hull repairs, or per-lap simulation steps.
+  const durationMinutes = plan.endMinute - plan.startMinute;
+  const offsetMinutes = Math.floor((clockMinutes - plan.startMinute) / durationMinutes) * durationMinutes;
+  plan.startMinute += offsetMinutes;
+  plan.endMinute += offsetMinutes;
+  for (const segment of plan.segments) {
+    segment.startMinute += offsetMinutes;
+    segment.endMinute += offsetMinutes;
+  }
   return true;
 }
 
@@ -1615,7 +1690,7 @@ export function restoreNpcSeaRouteSystem(
 ) {
   assertSaveableNpcRouteSystem(system);
   validateOptionalSeedKey(seedKey, "restored NPC routes");
-  if (!snapshot || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
+  if (!snapshot || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil) ||
       (snapshot.version >= 3 && !Array.isArray(snapshot.capitalNavalReserveSlots))) {
     throw new Error("Unsupported NPC route save data");
@@ -1721,6 +1796,13 @@ export function restoreNpcSeaRouteSystem(
     if (repairedRecords > 0) console.warn(`Migrated ${repairedRecords} stale shipyard records from NPC snapshot v${snapshot.version}`);
   }
   assertShipyardFleetIdentity(system.economy.shipyards, retainedIds);
+  if (snapshot.version < 12) {
+    for (const ship of system.ships) {
+      if (ship.encounter?.kind === "wokou-hunt" && ship.encounter.holdAtDestination && !shipHasCombatGrace(ship)) {
+        patrolWokouHuntAtPort(system, ship.id, ship.encounter.destinationCityId, system.economy.lastMinute);
+      }
+    }
+  }
   return system;
 }
 
@@ -1752,6 +1834,11 @@ function reconcileRestoredNpcShip(ship, context) {
       !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints <= 0) {
     throw new Error(`Invalid restored NPC hull: ${ship.id}`);
   }
+  const routePolicy = ship.encounter?.routePolicy;
+  if (routePolicy !== undefined && ![NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL, NPC_ENCOUNTER_ROUTE_POLICY_LOCAL_PATROL].includes(routePolicy)) {
+    throw new Error(`Invalid restored NPC encounter policy: ${ship.id}: ${routePolicy}`);
+  }
+  if (routePolicy === NPC_ENCOUNTER_ROUTE_POLICY_LOCAL_PATROL) assertLocalPatrolPlan(ship);
   ship.cultureType = ship.cultureType || ship.currentPort?.cityType || null;
   ship.cartazUntilMinute = ship.cartazUntilMinute ?? 0;
   if (!Number.isFinite(ship.cartazUntilMinute) || ship.cartazUntilMinute < 0) {
@@ -4522,6 +4609,9 @@ function assertNpcShipSupportsFleetMode(slug, profileSpec, shipId) {
 }
 
 function assignNpcPlan(system, ship, startMinute) {
+  if (ship.encounter?.routePolicy === NPC_ENCOUNTER_ROUTE_POLICY_LOCAL_PATROL && shipHasCombatGrace(ship)) {
+    delete ship.encounter.routePolicy;
+  }
   const commissionedYard = commissionedShipyard(system.economy.shipyards, ship.id);
   if (commissionedYard && system.shipById.get(ship.id) === ship) {
     assignShipyardSupplyPlan(system, ship, commissionedYard, startMinute);
@@ -4589,6 +4679,9 @@ function seedNpcShipOnRoute(system, ship, startMinute) {
 function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
   if (!Number.isInteger(maxPlans) || maxPlans < 1) {
     throw new Error(`Invalid NPC route settlement limit: ${maxPlans}`);
+  }
+  if (ship.encounter?.routePolicy === NPC_ENCOUNTER_ROUTE_POLICY_LOCAL_PATROL && !shipHasCombatGrace(ship)) {
+    return advanceLocalPatrol(ship, clockMinutes);
   }
   if (ship.hiddenAtHideout) {
     const dangerUntil = system.pirateHideoutDangerUntil.get(ship.currentPort.tileId) || 0;

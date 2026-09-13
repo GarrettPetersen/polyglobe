@@ -111,9 +111,9 @@ test("released mixed-generation Istanbul books cannot resell an existing fleet h
   } finally { await worker.close(); }
 });
 
-test("worker catch-up resolves a lost commissioned quarry without resurrecting it", { timeout: 120000 }, async () => {
+for (const loss of ["sunk", "surrendered"]) test(`worker catch-up resolves a ${loss} commissioned quarry without resurrecting it`, { timeout: 120000 }, async () => {
   const { adjustFactionReputation, factionReputation, wokouHuntMissionOfferForCity, acceptQuest } = await import("./gameState.js");
-  const { configureNpcRouteEncounter, sinkNpcShip } = await import("./npcSeaRoutes.js");
+  const { configureNpcRouteEncounter, sinkNpcShip, surrenderNpcShip } = await import("./npcSeaRoutes.js");
   const voyage = createWorkerVoyage("missing-wokou-quarry");
   adjustFactionReputation(voyage.gameState, "ming", 30 - factionReputation(voyage.gameState, "ming"), { reason: "direct", simMinute: 0 });
   const capital = voyage.cities.find(city => city.factionId === "ming" && city.isFactionCapital);
@@ -125,8 +125,8 @@ test("worker catch-up resolves a lost commissioned quarry without resurrecting i
     role: "pirate", shipSlug: quest.targetShipSlug, replaceOnSink: false,
     hiddenAtOrigin: true, encounter: { kind: "wokou-hunt", questId: quest.id }
   }, 0);
-  sinkNpcShip(voyage.npcSeaRoutes, quest.targetShipId, 1);
-  assert.equal(voyage.npcSeaRoutes.shipById.has(quest.targetShipId), false);
+  if (loss === "sunk") sinkNpcShip(voyage.npcSeaRoutes, quest.targetShipId, 1);
+  else surrenderNpcShip(voyage.npcSeaRoutes, quest.targetShipId);
   const worker = createWorkerDriver();
   try {
     await worker.reset(voyage);
@@ -134,9 +134,47 @@ test("worker catch-up resolves a lost commissioned quarry without resurrecting i
     const probe = createApplyProbe(voyage, event, 360);
     let steps = 0;
     while (probe.state()) { probe.step(); assert.ok(++steps < 2000); }
-    assert.equal(voyage.npcSeaRoutes.shipById.has(quest.targetShipId), false);
+    assert.equal(voyage.npcSeaRoutes.shipById.has(quest.targetShipId), loss !== "sunk");
     assert.equal(voyage.gameState.memory.quests.active.stage, "return");
     assert.equal(voyage.gameState.memory.quests.active.destinationCityId, capital.cityId);
     assert.equal(voyage.gameState.memory.quests.active.reward, 0);
+  } finally { await worker.close(); }
+});
+
+
+test("real worker advances wokou patrols at all six hunting ports and preserves their phase on restore", { timeout: 120000 }, async () => {
+  const { configureNpcRouteEncounter, patrolWokouHuntAtPort, npcShipSnapshotForId } = await import("./npcSeaRoutes.js");
+  const { CANONICAL_PORTS } = await import("./canonicalPorts.js");
+  const { greatCircleDistanceKm } = await import("./worldDistance.js");
+  const voyage = createWorkerVoyage("local-wokou-patrols");
+  const patrols = [CANONICAL_PORTS.NAGASAKI, CANONICAL_PORTS.YAMAGUCHI, CANONICAL_PORTS.KAGOSHIMA,
+    CANONICAL_PORTS.NINGBO, CANONICAL_PORTS.FUZHOU, CANONICAL_PORTS.GUANGZHOU].map(reference => {
+    const port = voyage.ports.find(port => port.cityId === reference.cityId);
+    assert.ok(port, reference.cityId);
+    const ship = configureNpcRouteEncounter(voyage.npcSeaRoutes, { id: `wokou-local:${port.cityId}`, originCityId: port.cityId,
+      factionId: "pirate", role: "pirate", shipSlug: port.country === "Japan" ? "japanese-kobaya" : "small-junk", replaceOnSink: false,
+      hiddenAtOrigin: true, encounter: { kind: "wokou-hunt" } }, 0);
+    patrolWokouHuntAtPort(voyage.npcSeaRoutes, ship.id, port.cityId, 0);
+    ship.hitPoints -= 5;
+    return { ship, port, hp: ship.hitPoints, initial: npcShipSnapshotForId(voyage.npcSeaRoutes, ship.id, 0).routeVector };
+  });
+  const worker = createWorkerDriver();
+  try {
+    await worker.reset(voyage);
+    const event = await worker.advance(voyage, 360);
+    const probe = createApplyProbe(voyage, event, 360);
+    let steps = 0;
+    while (probe.state()) { probe.step(); assert.ok(++steps < 2000); }
+    const positions = patrols.map(({ ship, port, hp, initial }) => {
+      const actual = npcShipSnapshotForId(voyage.npcSeaRoutes, ship.id, 360);
+      assert.ok(actual && !actual.hidden, ship.id);
+      assert.notDeepEqual(actual.routeVector, initial, ship.id);
+      assert.equal(actual.hitPoints, hp, ship.id);
+      const [x, y, z] = actual.routeVector;
+      assert.ok(greatCircleDistanceKm(port, { lat: Math.asin(y) * 180 / Math.PI, lon: Math.atan2(-z, x) * 180 / Math.PI }) <= 30.01, ship.id);
+      return actual.routeVector;
+    });
+    restoreWorkerVoyage(voyage, snapshotWorkerVoyage(voyage));
+    patrols.forEach(({ ship }, index) => assert.deepEqual(npcShipSnapshotForId(voyage.npcSeaRoutes, ship.id, 360).routeVector, positions[index]));
   } finally { await worker.close(); }
 });

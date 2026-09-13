@@ -7,7 +7,7 @@ import { STEAM_WISHLIST_URL, wishlistPromotionEnabled, wishlistPulse, wishlistMo
 import { questOfferCooldownReady, recordQuestOffer } from "./questOfferPolicies.js";
 import { arrivalOfferEligible, recordArrivalOffer } from "./arrivalOfferCadence.js";
 import { shipTargetRumorEligible, recordShipTargetRumor, shipTargetRumorText } from "./shipTargetRumors.js";
-import { stationWokouHuntAtPort } from "./npcSeaRoutes.js";
+import { patrolWokouHuntAtPort } from "./npcSeaRoutes.js";
 import { pirateHavenNavigationReasonText } from "./pirateHavenDialogue.js";
 import { shipItemRows } from "./gameState.js";
 import { pirateQuestAtIssuer, pirateHavenIsRuined, pirateRevengeTargetPresent, pirateHavenIsVisible, pirateHavenQuestOffer, ruinPirateHaven, seizePirateRevengeItem } from "./pirateHavens.js";
@@ -8947,13 +8947,13 @@ function ensureWokouHuntEncounter({ assignCaptains = true, createIfMissing = fal
   const quest = activeWokouHuntQuest();
   if (!quest || quest.stage !== "hunt" || !npcSeaRoutes) return null;
   const existing = npcSeaRoutes.shipById.get(quest.targetShipId);
-  if (existing) {
-    stationWokouHuntAtPort(npcSeaRoutes, existing.id, quest.patrolCityId, weatherClockMinutes);
+  if (existing && !npcShipHasCombatGrace(npcSeaRoutes, existing.id)) {
+    patrolWokouHuntAtPort(npcSeaRoutes, existing.id, quest.patrolCityId, weatherClockMinutes);
     return existing;
   }
   // Only acceptance creates the quarry. Restore and world simulation must
   // resolve a lost target rather than resurrecting it beneath the port's guns.
-  if (!createIfMissing) {
+  if (!createIfMissing || existing) {
     recordWokouHuntDefeatedByOthers(gameState, quest.targetShipId, {
       simMinute: Math.floor(weatherClockMinutes)
     });
@@ -8974,7 +8974,7 @@ function ensureWokouHuntEncounter({ assignCaptains = true, createIfMissing = fal
       challenge: "The wokou captain orders you away from their hunting waters."
     }
   }, weatherClockMinutes);
-  stationWokouHuntAtPort(npcSeaRoutes, strategic.id, quest.patrolCityId, weatherClockMinutes);
+  patrolWokouHuntAtPort(npcSeaRoutes, strategic.id, quest.patrolCityId, weatherClockMinutes);
   if (assignCaptains) ensureNpcShipCaptain(strategic.id);
   return strategic;
 }
@@ -38247,9 +38247,10 @@ function finishDistantWorldSimulationApply(state) {
   }
   distantWorldApplyState = null;
   const hunt = activeWokouHuntQuest();
-  const targetMissing = hunt?.stage === "hunt" && !npcSeaRoutes.shipById.has(hunt.targetShipId);
-  if (targetMissing) ensureWokouHuntEncounter();
-  return Boolean(targetMissing || result.changed || state.visualFleetChanged || result.foreignPortCalls.length > 0);
+  const targetUnavailable = hunt?.stage === "hunt" && (!npcSeaRoutes.shipById.has(hunt.targetShipId) ||
+    npcShipHasCombatGrace(npcSeaRoutes, hunt.targetShipId));
+  if (targetUnavailable) ensureWokouHuntEncounter();
+  return Boolean(targetUnavailable || result.changed || state.visualFleetChanged || result.foreignPortCalls.length > 0);
 }
 
 function updateNpcVisualShips(dt) {
@@ -40602,6 +40603,12 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     preserveHull: options.preserveHull === true,
     retainLoot: playerWon && damageInduced
   });
+  if (strategicBeforeSurrender.encounter?.kind === "wokou-hunt") {
+    // The hunt is won when the colors fall, before any interruptible prize
+    // dialogue. A worker update or reload must not attribute it to someone else.
+    if (playerWon) resolveWokouHuntPlayerVictory(loserId);
+    else ensureWokouHuntEncounter();
+  }
   if (strategicBeforeSurrender.encounter?.kind === "ningbo-delegation") {
     resolveNingboDelegationShipLoss(loserId);
   }
@@ -40691,9 +40698,6 @@ function continuePlayerSurrenderOutcome(npcShipId, lootSummary, context = {}) {
   const treasureEncounter = context.treasureEncounter ||
     (strategic.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND ? { ...strategic.encounter } : null);
   const loserWasPirate = context.loserWasPirate ?? strategic.role === NPC_ROLE_PIRATE;
-  if (strategic.encounter?.kind === "wokou-hunt") {
-    resolveWokouHuntPlayerVictory(npcShipId);
-  }
   if (strategic.encounter?.kind === PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND &&
       resolveEscapedPirateCaptiveDefeat(npcShipId, { sunk: false, lootSummary })) {
     return;

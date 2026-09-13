@@ -3984,36 +3984,89 @@ test("a ruined haven cannot outfit a hidden pirate with a larger hull", async ()
   }
 });
 
-test("old wandering wokou hunts are stationed off their promised port and remain there after restore", async () => {
-  const { stationWokouHuntAtPort } = await import("./npcSeaRoutes.js");
-  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
-  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+test("commissioned wokou patrol locally without docking, healing, hiding, or losing their saved phase", async () => {
+  const { patrolWokouHuntAtPort, WOKOU_PATROL_MAX_DISTANCE_KM } = await import("./npcSeaRoutes.js");
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 1000 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 1000, economy });
   const encounter = configureNpcRouteEncounter(routes, { id: "wokou-hunt:test", originCityId: PORTS[0].cityId,
     factionId: PIRATE_FACTION_ID, role: NPC_ROLE_PIRATE, shipSlug: "pirate-brig", replaceOnSink: false,
     hiddenAtOrigin: true, encounter: { kind: "wokou-hunt" } }, 1000);
   encounter.hitPoints -= 3;
   const hp = encounter.hitPoints;
-  assert.equal(stationWokouHuntAtPort(routes, encounter.id, PORTS[0].cityId, 1000), true);
+  assert.equal(patrolWokouHuntAtPort(routes, encounter.id, PORTS[0].cityId, 1000), true);
   assert.equal(encounter.hiddenAtHideout, false);
+  assert.equal(encounter.encounter.holdAtDestination, undefined);
   assert.equal(encounter.currentPort.cityId, PORTS[0].cityId);
+  const visits = encounter.portVisits;
+  const duration = encounter.plan.endMinute - encounter.plan.startMinute;
+  const initial = snapshotNpcSeaRouteSystem(routes);
+  const positionAt = minute => {
+    updateNpcSeaRouteEvents(routes, minute, [encounter.id]);
+    const visible = npcShipSnapshots(routes, minute).find(ship => ship.id === encounter.id);
+    assert.ok(visible && !visible.hidden);
+    const [x, y, z] = visible.routeVector;
+    const position = { lat: Math.asin(y) * 180 / Math.PI, lon: Math.atan2(-z, x) * 180 / Math.PI };
+    assert.ok(greatCircleDistanceKm(PORTS[0], position) <= WOKOU_PATROL_MAX_DISTANCE_KM + 0.01);
+    return visible;
+  };
+  const inner = positionAt(1000);
+  const outer = positionAt(1000 + duration / 2);
+  assert.notDeepEqual(inner.routeVector, outer.routeVector);
+  assert.ok(inner.routeHeading.reduce((sum, value, i) => sum + value * outer.routeHeading[i], 0) < -0.99);
+  for (let step = 3; step <= 40; step++) positionAt(1000 + duration * step / 4);
+  const lateMinute = 1000 + 180 * 1440 + duration / 3;
+  const late = positionAt(lateMinute);
   assert.equal(encounter.hitPoints, hp);
-  const position = [...encounter.visualNavigation.vector];
-  assert.equal(stationWokouHuntAtPort(routes, encounter.id, PORTS[0].cityId, 1001), false);
-  updateNpcSeaRouteSystem(routes, 1000 + 180 * 1440);
-  assert.equal(encounter.currentPort.cityId, PORTS[0].cityId);
-  assert.deepEqual(encounter.visualNavigation.vector, position);
+  assert.equal(encounter.portVisits, visits);
+  assert.equal(encounter.hiddenAtHideout, false);
+  assert.equal(patrolWokouHuntAtPort(routes, encounter.id, PORTS[0].cityId, lateMinute), false);
   const snapshot = snapshotNpcSeaRouteSystem(routes);
   restoreNpcSeaRouteSystem(routes, snapshot);
-  assert.equal(routes.shipById.get(encounter.id).encounter.holdAtDestination, true);
-  const restored = routes.shipById.get(encounter.id);
-  restored.visualNavigation = null;
-  assert.equal(stationWokouHuntAtPort(routes, restored.id, PORTS[0].cityId, 1000 + 180 * 1440), true);
-  assert.equal(restored.hitPoints, hp);
-  assert.equal(restored.hiddenAtHideout, false);
-  const visible = npcShipSnapshots(routes, 1000 + 180 * 1440).find(ship => ship.id === restored.id);
-  assert.ok(visible && !visible.hidden);
-  assert.deepEqual(visible.routeVector, position);
-  assert.equal(stationWokouHuntAtPort(routes, restored.id, PORTS[0].cityId, 1000 + 180 * 1440), false);
+  assert.deepEqual(positionAt(lateMinute).routeVector, late.routeVector);
+  assert.equal(patrolWokouHuntAtPort(routes, encounter.id, PORTS[0].cityId, lateMinute), false);
+  // One large worker-style catch-up agrees with small foreground advances.
+  restoreNpcSeaRouteSystem(routes, initial);
+  const coarse = positionAt(lateMinute);
+  coarse.routeVector.forEach((value, i) => assert.ok(Math.abs(value - late.routeVector[i]) < 1e-10));
+  const broken = structuredClone(snapshot);
+  broken.ships.find(ship => ship.id === encounter.id).plan.segments[0].to.lat += 20;
+  assert.throws(() => restoreNpcSeaRouteSystem(routes, broken), /Local patrol has disconnected turns/);
+  broken.ships.find(ship => ship.id === encounter.id).plan.segments[1].from.lat += 20;
+  assert.throws(() => restoreNpcSeaRouteSystem(routes, broken), /Local patrol leaves its hunting waters/);
+  restoreNpcSeaRouteSystem(routes, snapshot);
+  const surrendering = routes.shipById.get(encounter.id);
+  surrenderNpcShip(routes, surrendering.id);
+  updateNpcSeaRouteEvents(routes, surrendering.plan.endMinute + 1, [surrendering.id]);
+  assert.equal(surrendering.encounter.routePolicy, undefined);
+  assert.equal(npcShipHasCombatGrace(routes, surrendering.id), true);
+  assert.throws(() => patrolWokouHuntAtPort(routes, encounter.id, PORTS[0].cityId, lateMinute), /Surrendered wokou cannot resume hunting/);
+});
+
+test("v11 held wokou saves become moving patrols once while retaining damage and captain identity", async () => {
+  const { patrolWokouHuntAtPort } = await import("./npcSeaRoutes.js");
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 1000 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 1000, economy });
+  const encounter = configureNpcRouteEncounter(routes, { id: "old-wokou", originCityId: PORTS[1].cityId,
+    destinationCityId: PORTS[0].cityId, factionId: PIRATE_FACTION_ID, role: NPC_ROLE_PIRATE,
+    shipSlug: "pirate-brig", replaceOnSink: false,
+    encounter: { kind: "wokou-hunt", holdAtDestination: true } }, 1000);
+  stageNpcRouteEncounterAtDestination(routes, encounter.id, 1000, { holdProgress: 0.98 });
+  encounter.hitPoints -= 5;
+  const old = snapshotNpcSeaRouteSystem(routes);
+  old.version = 11;
+  const oldShip = old.ships.find(ship => ship.id === encounter.id);
+  oldShip.visualNavigation = null;
+  restoreNpcSeaRouteSystem(routes, old);
+  const migrated = routes.shipById.get(encounter.id);
+  assert.equal(migrated.hitPoints, oldShip.hitPoints);
+  assert.equal(migrated.seed, oldShip.seed);
+  assert.equal(migrated.encounter.routePolicy, "local-patrol");
+  assert.ok(migrated.plan.segments.every(segment => segment.kind === "sail"));
+  assert.equal(patrolWokouHuntAtPort(routes, migrated.id, PORTS[0].cityId, 1000), false);
+  const current = snapshotNpcSeaRouteSystem(routes);
+  assert.equal(current.version, 12);
+  restoreNpcSeaRouteSystem(routes, current);
+  assert.deepEqual(routes.shipById.get(encounter.id).plan, migrated.plan);
 });
 
 test("workshop procurement sails real cargo repeatedly and survives a saved voyage", () => {
