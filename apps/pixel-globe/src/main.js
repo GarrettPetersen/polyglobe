@@ -3948,6 +3948,7 @@ let animalImages;
 let statusHudImages;
 let statusDoubloonImages;
 let statusPersonImages;
+let worldCrewImage;
 let statusPersonOpaquePixels;
 let cityCatalog;
 let cityByTileId;
@@ -4664,6 +4665,7 @@ async function main() {
   statusHudImages = loadedStatusHudImages;
   statusDoubloonImages = createStatusDoubloonImages(statusHudImages.doubloon);
   statusPersonImages = createStatusPersonImages(statusHudImages.crew);
+  worldCrewImage = createWorldCrewImage(statusHudImages.crew);
   statusPersonOpaquePixels = opaqueStatusPersonPixels(statusHudImages.crew);
   cityCatalog = loadedCityCatalog;
   registerPlaceProperNames([
@@ -6410,6 +6412,13 @@ function createStatusPersonImages(crewImage) {
       "crew status"
     )))
   ]));
+}
+
+function createWorldCrewImage(crewImage) {
+  // HUD silhouettes disappear against dark water and ship detail.
+  return tintStatusIconImage(
+    crewImage, CREW_STATUS_ICON_WIDTH, CREW_STATUS_ICON_HEIGHT, "#ffffff", "world crew"
+  );
 }
 
 function createStatusDoubloonImages(doubloonImage) {
@@ -21826,6 +21835,7 @@ function createDialogueLayoutState() {
   return {
     optionRects: [],
     scrollOffset: 0,
+    marketReturnPosition: null,
     crewPageSize: 0,
     previousRect: null,
     nextRect: null,
@@ -27670,6 +27680,7 @@ function performDialogueOption(optionIndex, displayedOption) {
   const acknowledgesPortArrivalGreeting = dialogueState.kind === "port" &&
     previousNodeId === "greeting" && dialogueState.rumorText === null;
   const previousMarketMode = dialogueState.marketMode || null;
+  const previousScrollOffset = dialogueLayout.scrollOffset;
   const purchaseIconOrigin = dialogueState.kind === "port"
     ? dialogueOptionIconOrigin(optionIndex)
     : null;
@@ -28019,13 +28030,35 @@ function performDialogueOption(optionIndex, displayedOption) {
       continuePortArrivalDialogues()) {
     return;
   }
-  if ((dialogueState.nodeId || null) !== previousNodeId ||
-      (dialogueState.marketMode || null) !== previousMarketMode) {
-    dialogueLayout.scrollOffset = 0;
-  }
+  updateDialogueNavigationPosition(dialogueState, dialogueLayout, {
+    nodeId: previousNodeId, marketMode: previousMarketMode,
+    selectedIndex: optionIndex, scrollOffset: previousScrollOffset
+  });
   clampDialogueSelection();
   ensureDialoguePortraitLoaded();
   dirty = true;
+}
+
+function updateDialogueNavigationPosition(session, layout, previous) {
+  if ((session.nodeId || null) === previous.nodeId &&
+      (session.marketMode || null) === previous.marketMode) return;
+  const marketWarning = session.kind === "port" && [
+    "trade-embargo-warning", "trade-embargo-sale-warning",
+    "tribute-theft-warning", "quest-cargo-sale-warning"
+  ].includes(session.nodeId);
+  if (previous.nodeId === "market" && marketWarning) {
+    // These dialogues interrupt the same stable goods list, sometimes in a chain.
+    layout.marketReturnPosition = previous;
+  } else if (session.kind === "port" && session.nodeId === "market" &&
+      layout.marketReturnPosition?.marketMode === session.marketMode) {
+    layout.scrollOffset = layout.marketReturnPosition.scrollOffset;
+    session.selectedIndex = layout.marketReturnPosition.selectedIndex;
+    layout.marketReturnPosition = null;
+    return;
+  } else if (!marketWarning) {
+    layout.marketReturnPosition = null;
+  }
+  layout.scrollOffset = 0;
 }
 
 function dialogueOptionIconOrigin(optionIndex) {
@@ -61081,8 +61114,8 @@ function drawOverboardCrewWebGL(nowMs, painter) {
   for (const entry of overboardCrew) {
     const point = overboardCrewScreenPoint(entry);
     if (!point || !pointNearScreen(point, CREW_STATUS_ICON_WIDTH + 4)) continue;
-    const image = statusPersonImages?.get("crew")?.[entry.variant];
-    if (!image) throw new Error(`Missing overboard crew sprite variant ${entry.variant}`);
+    const image = worldCrewImage;
+    if (!image) throw new Error("Missing world crew sprite");
     const x = Math.round(point.x - image.width / 2);
     const y = Math.round(point.y - image.height / 2);
     if (entry.ageSeconds < entry.flightSeconds) {
@@ -61126,8 +61159,8 @@ function drawCrewDeathEffectsWebGL(nowMs, painter) {
       drawCrewDeathLandBurst(effect, point, frame.resolutionProgress, painter);
       continue;
     }
-    const image = statusPersonImages?.get("crew")?.[effect.variant];
-    if (!image) throw new Error(`Missing dead crew sprite variant ${effect.variant}`);
+    const image = worldCrewImage;
+    if (!image) throw new Error("Missing world crew sprite");
     const sinkOffset = frame.phase === "sink"
       ? Math.round(frame.resolutionProgress * 4)
       : 0;

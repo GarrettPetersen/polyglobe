@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 
 import {
   CREW_DEATH_LAND_BURST_SECONDS,
@@ -62,4 +64,49 @@ test("crew death effects reject an ambiguous ejection direction", () => {
     () => effect({ incomingDirection: { x: 3, y: 0 } }),
     /not normalized/
   );
+});
+
+test("casualties and rescuable sailors share white sprites at the original size", () => {
+  const main = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  const source = (name) => {
+    const start = main.indexOf(`function ${name}(`);
+    assert.ok(start >= 0);
+    return main.slice(start, main.indexOf("\nfunction ", start));
+  };
+  const draws = [];
+  const runtime = {
+    CREW_STATUS_ICON_WIDTH: 3, CREW_STATUS_ICON_HEIGHT: 6,
+    tintStatusIconImage: (source, width, height, color) => ({ source, width, height, color }),
+    crewDeathEffects: [effect({ arrowEmbedded: false })],
+    crewDeathEffectFrame,
+    crewDeathEffectScreenPoint: () => ({ x: 50, y: 40 }),
+    overboardCrew: [{ ageSeconds: 0, flightSeconds: 1 }],
+    overboardCrewScreenPoint: () => ({ x: 50, y: 40 }),
+    drawOverboardSplash: () => {},
+    pointNearScreen: () => true,
+    worldRenderer: { drawAtlasSprite: (draw) => draws.push(draw) }
+  };
+  runInNewContext([
+    source("createWorldCrewImage"), source("drawCrewDeathEffectsWebGL"), source("drawOverboardCrewWebGL")
+  ].join("\n"), runtime);
+  runtime.worldCrewImage = runtime.createWorldCrewImage({});
+  runtime.drawCrewDeathEffectsWebGL(0, {});
+  assert.equal(draws.length, 1);
+  assert.equal(draws[0].source.color, "#ffffff");
+  assert.equal(draws[0].destinationRect.width, 3);
+  assert.equal(draws[0].destinationRect.height, 6);
+  assert.equal(draws[0].alpha, 1);
+  draws.length = 0;
+  runtime.drawOverboardCrewWebGL(0, {});
+  assert.equal(draws.length, 1);
+  assert.equal(draws[0].source, runtime.worldCrewImage);
+  assert.equal(draws[0].destinationRect.width, 3);
+  assert.equal(draws[0].destinationRect.height, 6);
+  draws.length = 0;
+  runtime.overboardCrew[0].ageSeconds = 1;
+  runtime.drawOverboardCrewWebGL(1000, {});
+  assert.equal(draws.length, 2);
+  assert.ok(draws.every((draw) => draw.source === runtime.worldCrewImage));
+  assert.equal(draws[0].destinationRect.height + draws[1].destinationRect.height, 6);
+  assert.equal(draws[1].alpha, 0.44);
 });

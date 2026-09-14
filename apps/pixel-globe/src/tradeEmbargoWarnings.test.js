@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 
 import { createWorldEconomy } from "./economy.js";
 import {
@@ -18,6 +20,12 @@ import {
 import { adjustDiplomaticStance } from "./worldDiplomacy.js";
 
 const MINUTES_PER_DAY = 24 * 60;
+const mainSource = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+const navigationStart = mainSource.indexOf("function updateDialogueNavigationPosition(");
+assert.ok(navigationStart >= 0);
+const navigationRuntime = {};
+runInNewContext(mainSource.slice(navigationStart, mainSource.indexOf("\nfunction ", navigationStart)), navigationRuntime);
+const updateNavigation = navigationRuntime.updateDialogueNavigationPosition;
 const PLAYER = Object.freeze({
   id: "embargo-warning-captain",
   name: "Joan Alden",
@@ -129,4 +137,53 @@ test("proceeding through the embargo modal records the issuer cooldown", () => {
     state.memory.decisions["trade.embargo-warning-acknowledged.france"],
     simMinute + 1
   );
+});
+
+for (const warningChoice of [0, 1]) {
+  test(`embargo purchase choice ${warningChoice} restores the selected good and scroll position`, () => {
+    const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+    state.doubloons = 10000;
+    adjustDiplomaticStance(state.relations.diplomacy, "england", "france", "improve", 1);
+    const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+    const session = createPortDialogueSession(LONDON, {
+      initialNodeId: "market", marketMode: "buy", admittedToPort: true
+    });
+    const context = { simMinute: 10 };
+    const view = portDialogueView(session, LONDON, state, economy, [LONDON], context);
+    const index = view.options.findIndex(({ action }) => action.type === "buy" && action.goodId === "timber");
+    assert.ok(index > 0);
+    const layout = { scrollOffset: Math.max(1, index - 2), marketReturnPosition: null };
+    const origin = { nodeId: session.nodeId, marketMode: session.marketMode,
+      selectedIndex: index, scrollOffset: layout.scrollOffset };
+    selectPortDialogueOption(session, LONDON, state, economy, [LONDON], index, context);
+    updateNavigation(session, layout, origin);
+    assert.equal(layout.scrollOffset, 0, "warning starts at its own first option");
+    const warning = { nodeId: session.nodeId, marketMode: session.marketMode,
+      selectedIndex: warningChoice, scrollOffset: 0 };
+    selectPortDialogueOption(session, LONDON, state, economy, [LONDON], warningChoice, context);
+    updateNavigation(session, layout, warning);
+    assert.equal(session.nodeId, "market");
+    assert.equal(layout.scrollOffset, origin.scrollOffset);
+    assert.equal(session.selectedIndex, index);
+    assert.equal(layout.marketReturnPosition, null);
+  });
+}
+
+test("chained sale warnings preserve position but ordinary navigation clears it", () => {
+  const origin = { nodeId: "market", marketMode: "sell", selectedIndex: 12, scrollOffset: 8 };
+  const session = { kind: "port", nodeId: "trade-embargo-sale-warning", marketMode: "sell", selectedIndex: 0 };
+  const layout = { scrollOffset: 8, marketReturnPosition: null };
+  updateNavigation(session, layout, origin);
+  session.nodeId = "quest-cargo-sale-warning";
+  updateNavigation(session, layout, { ...origin, nodeId: "trade-embargo-sale-warning", selectedIndex: 0, scrollOffset: 0 });
+  session.nodeId = "market";
+  updateNavigation(session, layout, { ...origin, nodeId: "quest-cargo-sale-warning", selectedIndex: 0, scrollOffset: 0 });
+  assert.equal(layout.scrollOffset, 8);
+  assert.equal(session.selectedIndex, 12);
+  session.nodeId = "trade-embargo-sale-warning";
+  updateNavigation(session, layout, origin);
+  session.nodeId = "root";
+  updateNavigation(session, layout, { ...origin, nodeId: "trade-embargo-sale-warning" });
+  assert.equal(layout.scrollOffset, 0);
+  assert.equal(layout.marketReturnPosition, null);
 });

@@ -14,7 +14,7 @@ import { shipyardAtPort } from "./shipyards.js";
 
 const source = ts.createSourceFile("main.js", readFileSync(new URL("./main.js", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
 const transactionSource = ["finishPendingDistantWorldCommit", "snapshotVoyagePayload", "invalidateDistantWorldWorkerState", "applyDialogueOption", "performDialogueOption",
-  "advanceDistantWorldSimulationApply", "advanceDistantWorldPartRestore", "finishDistantWorldSimulationApply"].map((name) => {
+  "updateDialogueNavigationPosition", "advanceDistantWorldSimulationApply", "advanceDistantWorldPartRestore", "finishDistantWorldSimulationApply"].map((name) => {
   const declaration = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name.text === name);
   assert.ok(declaration, name);
   return declaration.getText(source);
@@ -62,6 +62,7 @@ for (const phase of ["in-flight", "queued", "compare", "restore"]) {
     const completed = new Error("Transaction completed; stop before unrelated audiovisual effects");
     const runtime = {
       activeWokouHuntQuest: () => null,
+      dialogueLayout: { scrollOffset: 0, marketReturnPosition: null },
       createWorldMutationBoundary, dialogueState, gameState: state, worldEconomy: economy, distantWorldWorkerClient: client,
       pendingDistantWorldEvents: pending, distantWorldWorkerResetPending: false,
       distantWorldApplyState: ["compare", "restore"].includes(phase)
