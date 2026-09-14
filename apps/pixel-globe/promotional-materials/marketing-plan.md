@@ -31,8 +31,9 @@ Last updated: **September 13, 2026**.
   September 17 launch date; final gameplay-claim review remains. Garrett will
   test macOS and Windows today; results and Linux QA remain pending. Start the
   first 10–20 creator outreach messages today using current full-game press
-  keys, verified contacts and Garrett's exact reusable wording. Finish and
-  stage the GamesPress release today. Advance news coverage is welcome; only
+  keys, verified contacts and Garrett's exact reusable wording. Garrett sent
+  the GamesPress release September 13 (confirmed in conversation). Advance
+  news coverage is welcome; only
   “play now” announcements wait for verified public availability September 17.
 - **September 14:** Optional Next Fest press-preview review target. This is
   only the date by which a demo build and demo store presence should be
@@ -382,9 +383,9 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 - [x] Prepare the GamesPress demo-launch email from Garrett's own words.
   - [Email text](gamespress-demo-launch-email.txt) prepared with September 17
     in the headline and FOR IMMEDIATE RELEASE.
-  - [Unsent Gmail draft](https://mail.google.com/mail/#drafts/1a09e3ef71400eca)
-    includes Bosporus, broadside and lightning screenshots plus the transparent
-    logo as separate PNG attachments. No email has been sent.
+  - Garrett confirmed sending the prepared email September 13, 2026. The
+    prepared attachment set included Bosporus, broadside and lightning
+    screenshots plus the transparent logo as separate PNG attachments.
   - The existing
     [gamespress-demo-launch-release.txt](gamespress-demo-launch-release.txt) is
     a legacy agent-written draft. Use it only as an internal factual checklist;
@@ -403,7 +404,11 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
     authorization. The draft explains that the demo launches September 17 and
     the linked launch trailer ends with “Demo Out Now!”
 
-- [ ] Submit the demo-launch release to GamesPress.
+- [x] Submit the demo-launch release to GamesPress.
+  - Sent by Garrett to `inbox@gamespress.com` September 13, 2026; confirmed
+    in conversation. Publication has not yet been confirmed.
+
+- [ ] Check GamesPress publication and replies.
   - Treat publication as useful press infrastructure rather than guaranteed
     editorial coverage. Record the published GamesPress URL and any resulting
     enquiries or coverage.
