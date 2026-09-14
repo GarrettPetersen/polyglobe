@@ -36,13 +36,6 @@ app.whenReady().then(async () => {
     return;
   }
   client = steamworks.init(APP_ID);
-  if (await offerFullGameLaunch({ edition: desktopConfig.edition, apps: client.apps,
-    language: currentGameLanguage(),
-    showMessageBox: (options) => dialog.showMessageBox(options),
-    openExternal: (url) => shell.openExternal(url) })) {
-    app.quit();
-    return;
-  }
   capabilities = steamCapabilitiesForEdition(desktopConfig.edition, {
     cloudEnabled: steamCloudEnabled(client)
   });
@@ -53,7 +46,13 @@ app.whenReady().then(async () => {
   steamInput = initializeSteamInput({ input: client.input, nativeApi, manifestPath: INPUT_MANIFEST });
   installIpcHandlers();
   staticServer = await startStaticServer(GAME_ROOT);
-  await createGameWindow(staticServer.url);
+  const window = await createGameWindow(staticServer.url);
+  // On macOS an unparented pre-window dialog can leave the app invisible and
+  // block launch/quit. Offer the switch as a sheet on the actual game window.
+  if (await offerFullGameLaunch({ edition: desktopConfig.edition, apps: client.apps,
+    language: currentGameLanguage(),
+    showMessageBox: (options) => dialog.showMessageBox(window, options),
+    openExternal: (url) => shell.openExternal(url) })) app.quit();
 }).catch((error) => {
   console.error("[steam] desktop host failed to start", error);
   app.exit(1);
@@ -105,6 +104,7 @@ async function createGameWindow(url) {
     }
   });
   steamInputPump.start();
+  return window;
 }
 
 function installIpcHandlers() {

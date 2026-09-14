@@ -52,6 +52,7 @@ try {
   await page.screenshot({ path: join(tmpdir(), `marque-steam-${appId}-launch.png`) });
   console.log(`Steam ${appId}: real host window visible, production startup complete, no fatal errors`);
 } catch (error) {
+  console.error(error);
   if (page && !page.isClosed()) console.error(await page.evaluate(() => ({
     url: location.href, title: document.title,
     loading: document.querySelector("#loading-screen")?.outerHTML.slice(0, 2500),
@@ -60,6 +61,13 @@ try {
   console.error(failures);
   throw error;
 } finally {
-  await desktop?.close();
+  if (desktop) {
+    const child = desktop.process();
+    // A native startup dialog must not keep a failed release gate alive forever.
+    let forcedShutdown = false;
+    const timeout = setTimeout(() => { forcedShutdown = true; child.kill("SIGKILL"); }, 5000);
+    try { await desktop.close(); } finally { clearTimeout(timeout); }
+    assert.equal(forcedShutdown, false, "Steam host did not quit within five seconds");
+  }
   await rm(profile, { recursive: true, force: true });
 }

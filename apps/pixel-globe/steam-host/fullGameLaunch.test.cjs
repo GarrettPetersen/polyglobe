@@ -46,3 +46,28 @@ test("the production window starts fullscreen in either edition", async () => {
     assert.equal(options.webPreferences.contextIsolation, true);
   }
 });
+
+test("the owner switch is parented to an existing game window rather than blocking window creation", async () => {
+  const source = readFileSync(require.resolve("./main.cjs"), "utf8");
+  const startup = source.slice(source.indexOf("app.whenReady().then("), source.indexOf('app.on("window-all-closed"'));
+  const events = [];
+  const window = {};
+  const client = { apps: {}, localplayer: { getSteamId: () => ({ steamId64: "test-account" }) }, cloud: {}, input: {} };
+  await runInNewContext(startup, {
+    app: { whenReady: async () => {}, getPath: () => "/test-profile", quit: () => events.push("quit"), exit: () => assert.fail("startup failed") },
+    desktopConfig: { edition: "demo", requireRelaunch: false }, APP_ID: 5029880,
+    steamworks: { init: () => client }, client: null, capabilities: null,
+    steamCloudEnabled: () => false, steamCapabilitiesForEdition: () => ({}),
+    profileStore: null, createProfileStore: () => ({}),
+    nativeApi: null, createSteamNativeApi: () => ({}),
+    steamInput: null, initializeSteamInput: () => ({}), INPUT_MANIFEST: "/manifest",
+    installIpcHandlers() {}, staticServer: null, GAME_ROOT: "/demo",
+    startStaticServer: async () => ({ url: "http://localhost/" }),
+    createGameWindow: async () => { events.push("window"); return window; },
+    currentGameLanguage: () => "english",
+    offerFullGameLaunch: async ({ showMessageBox }) => { await showMessageBox({ type: "question" }); return false; },
+    dialog: { showMessageBox: async parent => { assert.equal(parent, window); events.push("prompt"); return { response: 1 }; } },
+    shell: {}, console
+  });
+  assert.deepEqual(events, ["window", "prompt"]);
+});
