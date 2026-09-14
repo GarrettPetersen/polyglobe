@@ -1,11 +1,12 @@
 import { SHIP_WATERLINE_LEVEL } from "./shipWaterline.js";
 
-export const SHIP_SINK_EFFECT_DURATION_MS = 5200;
+export const SHIP_SINK_EFFECT_DURATION_MS = 7000;
 export const SHIP_SINK_DEPTH_CHANNEL_TOLERANCE = 4;
 
 const SHIP_SINK_BURST_SHARE = 0.28;
 const SHIP_SINK_START_MS = 320;
-const SHIP_SINK_MAX_SETTLE_SHARE = 0.18;
+const SHIP_SINK_MAX_SETTLE_SHARE = 0.12;
+const SHIP_SINK_DRAG_RESPONSE = 6;
 const SHIP_SINK_SURFACE_LEVEL = 0.2;
 const SHIP_SINK_RIPPLE_COLOR = "#fff1bf";
 const SHIP_SINK_SUBMERSION_FADE_RANGE = 0.24;
@@ -153,13 +154,16 @@ export function shipSinkPose(effect, nowMs) {
     0,
     1
   );
+  // Integrated velocity under linear drag: a brief acceleration approaches a
+  // terminal speed instead of a delayed plunge. Use one depth curve for the
+  // hull, its visible translation, and attachments such as fires and crew.
+  const descentProgress = dragLimitedDescent(timelineProgress);
   const sinkProgress = SHIP_WATERLINE_LEVEL +
     // Carry even the highest model pixel below the visibility depth before
     // completing the effect; opacity depends only on depth, never elapsed time.
-    (1 + SHIP_SINK_SUBMERSION_FADE_RANGE - SHIP_WATERLINE_LEVEL) * smootherstep(timelineProgress);
-  const settleProgress = smoothstep(clamp((timelineProgress - 0.12) / 0.88, 0, 1));
+    (1 + SHIP_SINK_SUBMERSION_FADE_RANGE + 0.01 - SHIP_WATERLINE_LEVEL) * descentProgress;
   const maxSettleOffset = Math.max(2, Math.round(effect.frameSize * SHIP_SINK_MAX_SETTLE_SHARE));
-  const sinkOffset = Math.round(settleProgress * maxSettleOffset);
+  const sinkOffset = Math.round(descentProgress * maxSettleOffset);
   return { sinkProgress, sinkOffset };
 }
 
@@ -202,7 +206,7 @@ function createBurstParticle(pixel, index, frameSize, seed) {
 function sinkRipples(effect, elapsedMs) {
   const ripples = [];
   for (let ring = 0; ring < 4; ring++) {
-    const delayMs = ring * 1250;
+    const delayMs = ring * (SHIP_SINK_EFFECT_DURATION_MS - 1900) / 3;
     const ageMs = elapsedMs - delayMs;
     if (ageMs < 0) continue;
     const life = clamp(ageMs / 1900, 0, 1);
@@ -311,9 +315,10 @@ function smoothstep(value) {
   return x * x * (3 - 2 * x);
 }
 
-function smootherstep(value) {
-  const x = clamp(value, 0, 1);
-  return x * x * x * (x * (x * 6 - 15) + 10);
+function dragLimitedDescent(progress) {
+  const drag = SHIP_SINK_DRAG_RESPONSE;
+  return (progress + Math.expm1(-drag * progress) / drag) /
+    (1 + Math.expm1(-drag) / drag);
 }
 
 function clamp(value, min, max) {

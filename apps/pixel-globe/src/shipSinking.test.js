@@ -69,8 +69,8 @@ test("ship breakup deterministically partitions sprite pixels into hull and debr
 test("remaining hull pixels descend while model-low pixels submerge and fade first", () => {
   const effect = createTestEffect();
   const start = shipSinkFrame(effect, 1000);
-  const middle = shipSinkFrame(effect, 3400);
-  const late = shipSinkFrame(effect, 5400);
+  const middle = shipSinkFrame(effect, effect.startedAtMs + SHIP_SINK_EFFECT_DURATION_MS / 2);
+  const late = shipSinkFrame(effect, effect.startedAtMs + SHIP_SINK_EFFECT_DURATION_MS - 100);
 
   assert.equal(start.hullPixels.length, middle.hullPixels.length);
   assert.equal(middle.hullPixels.length, late.hullPixels.length);
@@ -143,6 +143,24 @@ test("water drag keeps the hull anchored while its baked slices submerge", () =>
   assert.ok(endTop > startTop);
   assert.ok(endTop - startTop <= Math.ceil(effect.frameSize * 0.2));
   assert.ok(nearEnd.hullPixels.filter((pixel) => pixel.underwater).length > start.hullPixels.length * 0.9);
+});
+
+test("large hulls descend slowly and settle at a terminal speed instead of plunging", () => {
+  const effect = createTestEffect({ frameSize: 320 });
+  let previous = shipSinkPose(effect, effect.startedAtMs);
+  for (let elapsedMs = 500; elapsedMs <= SHIP_SINK_EFFECT_DURATION_MS; elapsedMs += 500) {
+    const pose = shipSinkPose(effect, effect.startedAtMs + elapsedMs);
+    assert.ok(pose.sinkOffset >= previous.sinkOffset);
+    assert.ok(pose.sinkProgress >= previous.sinkProgress);
+    assert.ok(pose.sinkOffset - previous.sinkOffset <= 4, `hull plunged at ${elapsedMs}ms`);
+    previous = pose;
+  }
+  const increments = [3000, 4000, 5000, 6000].map(elapsedMs =>
+    shipSinkPose(effect, effect.startedAtMs + elapsedMs + 500).sinkProgress -
+    shipSinkPose(effect, effect.startedAtMs + elapsedMs).sinkProgress);
+  assert.ok(Math.max(...increments) / Math.min(...increments) < 1.15,
+    "after the initial settling, water resistance must keep the descent nearly steady");
+  assert.ok(SHIP_SINK_EFFECT_DURATION_MS >= 6500, "allow time to read the gradual loss of buoyancy");
 });
 
 test("surface ripples originate at the inferred low-hull waterline throughout the sink", () => {

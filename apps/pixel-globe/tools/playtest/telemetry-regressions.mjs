@@ -19,6 +19,7 @@ const files = [
   "src/startMenuSavedVoyage.test.js",
   "src/soundEffectContracts.test.js",
   "src/portAssaultShipEffects.test.js",
+  "src/shipSinking.test.js",
   "src/playtesterPortRegressions.test.js",
   "src/shipTargetRumors.test.js",
   "src/treasureCampaign.test.js",

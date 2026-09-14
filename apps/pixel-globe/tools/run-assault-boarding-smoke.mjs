@@ -16,6 +16,7 @@ try {
   await page.evaluate(async()=>{
     const {createCitySceneRuntime}=await import('/city-visualizer/main.js');
     const battle=await import('/src/portAssaultBattle.js');
+    window.boardingSinkDurationMs=(await import('/src/shipSinking.js')).SHIP_SINK_EFFECT_DURATION_MS;
     window.boardingBattleApi=battle;
     window.boardingScene=await createCitySceneRuntime({canvas:document.querySelector('canvas'),assetBaseUrl:'/city-visualizer/assets',
       initialCityId:'london|united kingdom',initialShipSlug:'galleon',externalFrameClock:true,onDestination:()=>{throw new Error('Unexpected navigation in boarding smoke');}});
@@ -27,7 +28,8 @@ try {
       shipHitPoints:80,shipMaxHitPoints:100,dockKind:'wood',fortified:false}),seed));
   });
   await mkdir(`${appRoot}/.playtest/boarding`,{recursive:true});
-  for (const [name,battleIndex] of [['deck-firing',0],['return-ashore',0],['sinking',1],['afloat',1]]) {
+  for (const [name,battleIndex] of [['deck-firing',0],['return-ashore',0],
+    ['sinking-start',1],['sinking',1],['sinking-middle',1],['sinking-late',1],['afloat',1]]) {
     const result=await page.evaluate(({battleIndex,name})=>{
       const battle=window.boardingBattles[battleIndex];
       // Select the actual behavior being tested, rather than a timestamp that
@@ -46,7 +48,9 @@ try {
         if(battle.finalShipHitPoints!==0) throw new Error('Sinking fixture did not sink the ship');
         const last=window.boardingBattleApi.portAssaultPresentationAt(battle,battle.durationMs);
         if(!last.units.some(unit=>unit.alive&&unit.surface==='deck')) throw new Error('Sinking fixture has no live deck occupants');
-        elapsedMs=battle.durationMs+(name==='sinking'?2000:7000);
+        const offsets={'sinking-start':0,sinking:2000,'sinking-middle':4000,'sinking-late':6000,
+          afloat:window.boardingSinkDurationMs+1000};
+        elapsedMs=last.shipSunkAtMs+offsets[name];
       }
       const presentation=window.boardingBattleApi.portAssaultPresentationAt(battle,elapsedMs);
       window.boardingScene.setAssaultPresentation(presentation,{immediateCamera:true});
