@@ -1,8 +1,9 @@
+import { COLONIZATION_SETTLER_COUNT } from "../src/colonizationParty.js";
 import { cityCivilianAppearanceIds } from "./cityPeople.js";
 import { cityAssaultJumpPoint } from "./cityAssaultMotion.js";
 import { portAssaultLandingDurationMs } from "../src/portAssaultBattle.js";
 
-export const CITY_COLONIST_COUNT = 9;
+export const CITY_COLONIST_COUNT = COLONIZATION_SETTLER_COUNT;
 export const CITY_COLONIST_LANE_FEET_Y = Object.freeze([530, 544, 558]);
 const DEPARTURE_INTERVAL_MS = 170;
 const JUMP_DURATION_MS = portAssaultLandingDurationMs("none");

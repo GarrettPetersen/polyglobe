@@ -2091,6 +2091,13 @@ function portGoodIsListedForSale(port, good, state) {
 }
 
 function marketPrice(port, good, stock, specieMultiplier = speciePriceMultiplier(port)) {
+  if (portMintsGood(port, good)) {
+    // Bullion is converted to coin, so neither warehouse scarcity nor the
+    // mint's newly earned fees may change its specie-denominated quote.
+    const midPrice = good.basePrice;
+    return { midPrice, buyPrice: Math.round(midPrice * PORT_MARKUP),
+      sellPrice: Math.floor(midPrice / (1 + MINT_FEE_RATE)) };
+  }
   if (Number.isFinite(good.fixedBuyPrice)) {
     const midPrice = Math.max(1, good.fixedBuyPrice * specieMultiplier);
     return {

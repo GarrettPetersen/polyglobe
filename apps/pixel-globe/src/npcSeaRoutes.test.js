@@ -4217,3 +4217,57 @@ test("ship sightings cover waiting, sailing, visual, hidden, and sunk targets", 
   assert.equal(npcShipSightingPosition(routes, ship.id, 50), null);
   assert.equal(npcShipSightingPosition(routes, "absent", 50), null);
 });
+
+function stalledSupplyFixture(seedKey) {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0, seedKey });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy, seedKey });
+  const home = PORTS[0];
+  const yard = fundWorldEconomyShipyard(economy, home, { investedMinute: 0, seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 } });
+  const ship = routes.ships.find(entry => entry.role === NPC_ROLE_MERCHANT &&
+    entry.factionId === home.factionId && entry.currentPort.cityId === home.cityId);
+  assert.ok(ship);
+  ship.plan = { origin: ship.currentPort, destination: ship.currentPort, startMinute: 0, endMinute: 1,
+    segments: [{ kind: "wait", startMinute: 0, endMinute: 1 }] };
+  ship.cargo = {}; ship.cargoCost = {}; ship.cargoOrigins = {};
+  yard.materialInventory = { ...shipyardMaterialStockTargets(yard), iron: 0 };
+  yard.prepaidMaterialInventory = Object.fromEntries(Object.keys(yard.materialInventory).map(id => [id, 0]));
+  yard.upgrades.opportunities["supply-ship"].availableMinute = 0;
+  updateShipyardSupplyOffers(routes, 0);
+  purchaseShipyardUpgrade(yard, { doubloons: 100000 }, "supply-ship", 0);
+  return { economy, routes, home, yard, ship };
+}
+
+test("commissioned suppliers can sail beyond 2000 km when local materials are unavailable", () => {
+  const { routes, home, ship } = stalledSupplyFixture("distant-supplies");
+  routes.portSailingDistances = structuredClone(routes.portSailingDistances);
+  const matrix = routes.portSailingDistances.distancesKm;
+  for (let i = 1; i < PORTS.length; i++) matrix[0][i] = matrix[i][0] = 3500 + i;
+  updateNpcSeaRouteEvents(routes, 1, [ship.id]);
+  assert.notEqual(ship.plan.destination.cityId, home.cityId);
+  assert.ok(ship.plan.segments.some(segment => segment.kind !== "wait"));
+});
+
+test("a supply captain without purchasing money waits instead of making empty voyages", () => {
+  const { routes, yard, ship } = stalledSupplyFixture("unaffordable-supplies");
+  ship.specie = 0;
+  updateNpcSeaRouteEvents(routes, 1, [ship.id]);
+  assert.equal(shipyardSupplyShipStatus(routes, yard).waiting, true);
+  ship.specie = 10000;
+  updateNpcSeaRouteEvents(routes, ship.plan.endMinute, [ship.id]);
+  assert.equal(shipyardSupplyShipStatus(routes, yard).waiting, false);
+});
+
+test("surplus returned materials cannot trap a supply captain while another material is missing", () => {
+  const { routes, economy, home, yard, ship } = stalledSupplyFixture("surplus-supplies");
+  updateNpcSeaRouteEvents(routes, 1, [ship.id]);
+  for (let stop = 0; stop < 4 && !ship.cargo.iron; stop++) updateNpcSeaRouteEvents(routes, ship.plan.endMinute, [ship.id]);
+  assert.ok(ship.cargo.iron > 0);
+  yard.materialInventory.iron = shipyardMaterialStockTargets(yard).iron;
+  yard.materialInventory.timber = 0;
+  economy.portStates.get(home.cityId).specie = 100000;
+  updateNpcSeaRouteEvents(routes, ship.plan.endMinute, [ship.id]);
+  assert.equal(ship.cargo.iron, undefined);
+  assert.equal(shipyardSupplyShipStatus(routes, yard).goodId, "timber");
+  assert.equal(shipyardSupplyShipStatus(routes, yard).waiting, false);
+});

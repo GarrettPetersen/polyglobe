@@ -67,3 +67,12 @@ test("landing motion is continuous through jump, wade and shore transitions", ()
   }
   for (const point of previous.values()) assert.deepEqual(point, geometry.assembly);
 });
+
+test("the entire embarked colony party reaches shore, including its organizer", async () => {
+  const { COLONIZATION_SETTLER_COUNT } = await import("../src/colonizationParty.js");
+  const roster = createCityColonistRoster(catalog.cities[0]);
+  assert.equal(roster.length, COLONIZATION_SETTLER_COUNT);
+  assert.equal(roster.length, 12);
+  const frame = cityColonistLandingFrame(roster, CITY_COLONIST_LANDING_DURATION_MS);
+  assert.equal(frame.units.filter(unit => unit.phase === "ashore").length, COLONIZATION_SETTLER_COUNT);
+});

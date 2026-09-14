@@ -7202,7 +7202,7 @@ function assignShipyardSupplyPlan(system, ship, yard, minute) {
       .map(port => ({ port,
         outboundKm: portSailingDistanceKm(system.portSailingDistances, origin, port),
         homewardKm: portSailingDistanceKm(system.portSailingDistances, port, home) }))
-      .filter(entry => entry.outboundKm !== null && entry.homewardKm !== null && entry.homewardKm <= 2000)
+      .filter(entry => entry.outboundKm !== null && entry.homewardKm !== null)
       .sort((a, b) => (a.outboundKm + a.homewardKm) - (b.outboundKm + b.homewardKm) ||
         a.port.cityId.localeCompare(b.port.cityId))
       .map(entry => entry.port);
@@ -7210,7 +7210,11 @@ function assignShipyardSupplyPlan(system, ship, yard, minute) {
       const supplier = suppliers.find((port) => {
         if (!supplyTradePermitted(system, ship, port, home, need.goodId)) return false;
         const supply = portGoodSupply(system.economy, port, need.goodId);
-        return supply.listedForSale && supply.stock >= 1;
+        if (!supply.listedForSale || supply.stock < 1 || npcCargoAvailableQuantity(ship, need.goodId) < 1) return false;
+        const cartazCost = npcCartazVoyageCost(system, ship, port, home);
+        if (!Number.isFinite(cartazCost) || cartazCost > ship.specie) return false;
+        return maximumPortSaleQuantity(system.economy, port, need.goodId, 1,
+          ship.specie - cartazCost, npcPurchaseMultiplier(system, ship, port)(need.goodId)) > 0;
       });
       if (!supplier) continue;
       destination = supplier;
@@ -7240,7 +7244,15 @@ function handleShipyardSupplyArrival(system, ship, yard, minute) {
     const held = ship.cargo[goodId];
     const room = shipyardMaterialStatus(yard).find((entry) => entry.goodId === goodId).stockpileMissing;
     const quantity = Math.min(held, Math.floor(room));
-    if (quantity <= 0) return;
+    if (quantity <= 0) {
+      if (shipyardMaterialStatus(yard).some(entry => entry.goodId !== goodId && entry.stockpileMissing >= 1)) {
+        // Another delivery can fill this warehouse while the captain is away.
+        // Resell the surplus so it cannot trap the ship while another input is missing.
+        sellNpcCargo(system, ship, home);
+        if (!ship.cargo[goodId]) commission.supplyGoodId = null;
+      }
+      return;
+    }
     const cost = Math.ceil(ship.cargoCost[goodId] * quantity / held);
     receiveCommissionedShipyardMaterials(yard, { goodId, quantity, cost, minute });
     ship.specie += cost;

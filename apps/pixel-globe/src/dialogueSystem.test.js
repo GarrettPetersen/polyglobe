@@ -2696,14 +2696,15 @@ test("trade advice prefers a useful regional price over a better transcontinenta
     population: 180000,
     factionId: "neutral"
   };
-  const cairo = {
+  // A non-mint port can bid more for scarce bullion.
+  const alexandria = {
     tileId: 111,
-    cityId: "cairo|egypt",
-    city: "Cairo",
+    cityId: "alexandria|egypt",
+    city: "Alexandria",
     country: "Egypt",
     cityType: "islamic-desert",
-    lat: 30.04,
-    lon: 31.24,
+    lat: 31.2,
+    lon: 29.92,
     population: 120000,
     factionId: "neutral"
   };
@@ -2718,9 +2719,9 @@ test("trade advice prefers a useful regional price over a better transcontinenta
     population: 150000,
     factionId: "neutral"
   };
-  const ports = [istanbul, cairo, wuhan];
+  const ports = [istanbul, alexandria, wuhan];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  economy.portStates.get(cairo.cityId).goods.get("silver").stock = 0;
+  economy.portStates.get(alexandria.cityId).goods.get("silver").stock = 0;
   economy.portStates.get(wuhan.cityId).goods.get("silver").stock = 0;
   const gameState = createGameState({ cargoCapacity: 20 });
   const purchases = {
@@ -2728,7 +2729,7 @@ test("trade advice prefers a useful regional price over a better transcontinenta
   };
   gameState.cargo.silver = 1;
   const sailingDistanceKm = testSailingDistances([
-    [istanbul, cairo, 1250],
+    [istanbul, alexandria, 1250],
     [istanbul, wuhan, 10700]
   ]);
   const route = (destinations) => bestPurchasedTradeRoute({
@@ -2740,13 +2741,13 @@ test("trade advice prefers a useful regional price over a better transcontinenta
     sailingDistanceKm
   });
 
-  const cairoOnly = route([cairo]);
+  const alexandriaOnly = route([alexandria]);
   const wuhanOnly = route([wuhan]);
-  assert.ok(wuhanOnly.expectedPnl > cairoOnly.expectedPnl);
-  assert.ok(wuhanOnly.distanceKm > cairoOnly.distanceKm * 5);
+  assert.ok(wuhanOnly.expectedPnl > alexandriaOnly.expectedPnl);
+  assert.ok(wuhanOnly.distanceKm > alexandriaOnly.distanceKm * 5);
 
-  const recommended = route([cairo, wuhan]);
-  assert.equal(recommended.destinationName, "Cairo");
+  const recommended = route([alexandria, wuhan]);
+  assert.equal(recommended.destinationName, "Alexandria");
   assert.equal(recommended.goodLabel, "Silver");
 });
 

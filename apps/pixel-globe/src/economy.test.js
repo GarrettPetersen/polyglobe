@@ -1996,3 +1996,44 @@ test("incremental world prices handle coalesced ports, undo, and whole-world upd
   advanceWorldEconomy(economy, 1440);
   check();
 });
+
+test("mint bullion quotes stay fixed through large sales, scarcity and changes in specie", async () => {
+  const { executeRepeatedPortPurchase } = await import("./economy.js");
+  for (const goodId of ["gold", "silver"]) {
+    const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+    const market = economy.portStates.get(LONDON.cityId);
+    const unitPrice = quotePortPurchase(economy, LONDON, goodId, 1);
+    const stock = market.goods.get(goodId).stock;
+    assert.equal(executeRepeatedPortPurchase(economy, LONDON, goodId, 180).total, unitPrice * 180);
+    assert.equal(quotePortPurchase(economy, LONDON, goodId, 1), unitPrice);
+    assert.equal(market.goods.get(goodId).stock, stock, "minted bullion never enters warehouse stock");
+    for (const specie of [0, 10000000]) {
+      market.specie = specie;
+      for (const stock of [0, 100000]) {
+        market.goods.get(goodId).stock = stock;
+        assert.equal(quotePortPurchase(economy, LONDON, goodId, 180), unitPrice * 180);
+        assert.ok(quotePortSale(economy, LONDON, goodId, 1) > unitPrice, "mint spread prevents a local round-trip profit");
+      }
+    }
+  }
+});
+
+test("mint conversion stays fixed while earned reputation can improve customs terms", async () => {
+  const { sellAllGood, playerTradeTerms, factionReputation } = await import("./gameState.js");
+  const london = { ...LONDON, factionId: "england" };
+  const economy = createWorldEconomy({ ports: [london], startMinute: 0 });
+  const state = createGameState({ cargoCapacity: 200 });
+  state.cargo.gold = 180;
+  state.accounts.cargoCostBasis.gold = 18000;
+  const before = playerTradeTerms(state, london, "gold");
+  const standing = factionReputation(state, "england");
+  const unitPrice = quotePortPurchase(economy, london, "gold", 1, before.saleMultiplier);
+  sellAllGood(state, economy, london, "gold", 180);
+  assert.ok(factionReputation(state, "england") > standing);
+  const after = playerTradeTerms(state, london, "gold");
+  assert.ok(after.customsRate < before.customsRate);
+  assert.ok(after.saleMultiplier > before.saleMultiplier);
+  assert.equal(quotePortPurchase(economy, london, "gold", 1),
+    Math.floor(tradeGoodById("gold").basePrice / 1.05));
+  assert.ok(quotePortPurchase(economy, london, "gold", 1, after.saleMultiplier) >= unitPrice);
+});
