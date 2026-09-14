@@ -21,6 +21,7 @@ function storage(entries = {}) {
 test("a full voyage anywhere in the world is never imported into the demo", () => {
   const full = voyage();
   const store = storage({ [FULL]: full });
+  assert.equal(prepareDesktopVoyageStorage(store, "demo"), true);
   assert.equal(prepareDesktopVoyageStorage(store, "demo"), false);
   assert.equal(store.getItem(DEMO), null);
   assert.equal(store.getItem(FULL), full);
@@ -36,6 +37,7 @@ test("legacy demo voyages migrate once and full-game continuation preserves both
     store.setItem(FULL, full);
     assert.equal(prepareDesktopVoyageStorage(store, "demo"), false);
     assert.equal(store.getItem(DEMO), demo);
+    assert.equal(prepareDesktopVoyageStorage(store, "full"), true);
     assert.equal(prepareDesktopVoyageStorage(store, "full"), false);
     assert.equal(store.getItem(FULL), full);
   }
@@ -83,4 +85,23 @@ test("invalid legacy data fails before copying or modifying either voyage", () =
   assert.throws(() => prepareDesktopVoyageStorage(store, "demo"));
   assert.equal(store.getItem(FULL), "broken");
   assert.equal(store.getItem(DEMO), null);
+});
+
+test("New Game and death leave an initialized slot empty instead of importing an older voyage again", async () => {
+  for (const edition of ["demo", "full"]) {
+    const destination = edition === "demo" ? DEMO : FULL;
+    const source = edition === "demo" ? FULL : DEMO;
+    const demo = voyage("mediterranean");
+    const store = storage({ [source]: demo });
+    assert.equal(prepareDesktopVoyageStorage(store, edition), true);
+    assert.equal(store.getItem(destination), demo);
+    store.removeItem(destination);
+    assert.equal(prepareDesktopVoyageStorage(store, edition), false);
+    assert.equal(store.getItem(destination), null);
+    const reloaded = storage();
+    await hydratePlatformCloudStorage(reloaded, { readCloudFile: async () => serializeCloudEnvelope(store, 1234) });
+    assert.equal(prepareDesktopVoyageStorage(reloaded, edition), false);
+    assert.equal(reloaded.getItem(destination), null);
+    assert.equal(reloaded.getItem(source), demo);
+  }
 });

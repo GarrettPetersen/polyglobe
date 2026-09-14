@@ -37,8 +37,9 @@ window.exerciseCityDuelReturn = async ({ whaleClockCase = "current" } = {}) => {
   // New Game is live while its asynchronous save finishes. On slower machines
   // wind can carry the ship away from home (or onto a coastal sprite boundary).
   // Materialize a stationary, navigable harbor checkpoint for this mode test.
-  // Sailing and coastal recovery have their own scenarios; Continue must still
-  // restore this checkpoint's exact position, without any duel contamination.
+  // Sailing and coastal recovery have their own scenarios. Compare duel return
+  // with an ordinary restore of the same checkpoint, including legitimate
+  // rendered-hull placement corrections in narrow river harbors.
   const homeCity = cityById.get(gameState.playerCharacter.homePortCityId);
   if (!homeCity) throw new Error("Duel return fixture requires a canonical home port");
   anchored = true;
@@ -79,9 +80,12 @@ window.exerciseCityDuelReturn = async ({ whaleClockCase = "current" } = {}) => {
     } else throw new Error("Unknown whale clock fixture");
     const write = await writeLocalSaveWithRecoveryAsync(saved);
     localSaveResult = { status: "ready", save: write.save, error: null };
-    adjustWeatherClock(366 * 1440);
   }
   const serialized = gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY);
+  await restoreSavedVoyage(structuredClone(saved));
+  const ordinaryRestorePosition = ship.position.slice();
+  const ordinaryRestoreTileId = ship.tileId;
+  if (whaleClockCase !== "current") adjustWeatherClock(366 * 1440);
   openLakeBattleMode();
   lakeBattleMode.enemyIndex = LAKE_BATTLE_ENEMY_SLUGS.findIndex(lakeBattleCombatantIsCity);
   await beginLakeBattle();
@@ -97,7 +101,7 @@ window.exerciseCityDuelReturn = async ({ whaleClockCase = "current" } = {}) => {
     transition: portCityTransition, dialogue: dialogueState, duel: lakeBattleMode,
     seed: gameState.voyageSeed, savedSeed: saved.gameState.voyageSeed,
     shipType: ship.typeSlug, savedShipType: saved.playerShip.typeSlug,
-    position: ship.position, savedPosition: saved.playerShip.position,
+    position: ship.position, savedPosition: saved.playerShip.position, ordinaryRestorePosition, ordinaryRestoreTileId,
     tileId: ship.tileId, savedTileId: saved.playerShip.tileId,
     minute: weatherClockMinutes, savedMinute: saved.worldClock.currentMinute,
     ecologyMinute: gameState.memory.whales.lastEcologyMinute };
@@ -163,8 +167,9 @@ window.exerciseCityDuelReturn = async ({ whaleClockCase = "current" } = {}) => {
       assert.equal(resumed.shipType, resumed.savedShipType);
       assert.ok(resumed.minute >= resumed.savedMinute && resumed.minute < resumed.savedMinute + 60);
       assert.ok(resumed.ecologyMinute <= resumed.minute, "whale ecology belongs to the restored clock");
+      assert.equal(resumed.tileId, resumed.ordinaryRestoreTileId);
       for (let index = 0; index < 3; index++) {
-        assert.ok(Math.abs(resumed.position[index] - resumed.savedPosition[index] / Math.hypot(...resumed.savedPosition)) < 1e-8,
+        assert.ok(Math.abs(resumed.position[index] - resumed.ordinaryRestorePosition[index]) < 1e-8,
           JSON.stringify({ whaleClockCase, ...resumed }));
       }
       assert.deepEqual(errors, []);

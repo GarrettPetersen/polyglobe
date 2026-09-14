@@ -136,6 +136,9 @@ branch manually after upload and verification.
   deleting existing slots. A first full-game launch copies demo progress only
   when there is no full voyage; returning to the demo cannot overwrite it.
   Legacy shared-slot saves with demo scope are copied to the demo slot once.
+  Per-slot initialization markers prevent an intentional empty slot (New Game
+  or death) from importing an older voyage again. Publish matching full/demo
+  desktop builds together when updating this shared profile schema.
   The host also atomically writes an account-specific local profile under
   Electron userData/profiles/SteamID, including when Steam Cloud is disabled.
   On load, the newer local/remote profile wins; the renderer validates it.

@@ -5,6 +5,8 @@ const HISTORICAL_BATTLE_RECORDS_KEY = "marque-and-reprisal.historical-battle-rec
 export const PLATFORM_CLOUD_STORAGE_KEYS = Object.freeze([
   "marque-and-reprisal.save",
   "marque-and-reprisal.demo-save",
+  "marque-and-reprisal.save.initialized",
+  "marque-and-reprisal.demo-save.initialized",
   "marque-and-reprisal.achievements",
   "marque-and-reprisal.voyage-history",
   "marque-and-reprisal.historical-battle-records",
@@ -251,8 +253,10 @@ function decodeCloudEnvelope(serialized) {
   const missingLegacyKeys = envelope.version === 1 &&
     !Object.hasOwn(envelope.values, HISTORICAL_BATTLE_RECORDS_KEY)
     ? [HISTORICAL_BATTLE_RECORDS_KEY] : [];
-  if (envelope.version < 3 && !Object.hasOwn(envelope.values, "marque-and-reprisal.demo-save")) {
-    missingLegacyKeys.push("marque-and-reprisal.demo-save");
+  if (envelope.version < 3) {
+    for (const key of ["marque-and-reprisal.demo-save", "marque-and-reprisal.save.initialized", "marque-and-reprisal.demo-save.initialized"]) {
+      if (!Object.hasOwn(envelope.values, key)) missingLegacyKeys.push(key);
+    }
   }
   for (const key of missingLegacyKeys) envelope.values[key] = null;
   for (const key of PLATFORM_CLOUD_STORAGE_KEYS) {

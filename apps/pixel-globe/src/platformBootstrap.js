@@ -34,9 +34,9 @@ export async function startPlatformGame() {
     window.addEventListener("pagehide", () => {
       void cloudSync.flush().catch((error) => console.error("[steam] final cloud sync failed", error));
     });
-    const copiedVoyage = prepareDesktopVoyageStorage(profileStorage, BUILD_EDITION_ID);
+    const initializedVoyageSlot = prepareDesktopVoyageStorage(profileStorage, BUILD_EDITION_ID);
     if (BUILD_EDITION_ID === "demo") setVoyageStorageKey(DEMO_VOYAGE_STORAGE_KEY);
-    if (copiedVoyage) await cloudSync.request("marque-and-reprisal.demo-save");
+    if (initializedVoyageSlot) await cloudSync.request("marque-and-reprisal.demo-save");
   }
 
   await import("./main.js");
