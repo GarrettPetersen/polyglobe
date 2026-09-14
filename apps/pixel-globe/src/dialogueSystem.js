@@ -8909,13 +8909,13 @@ function captureCapitalQuestView(session, questState, returnNodeId, gameState) {
     return {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "stern",
-      text: `The war against ${quest.targetFactionNoun} is nearly won. ${politicalContext} Take ` +
+      text: `We must bring ${quest.targetFactionNoun} to terms. ${politicalContext} Take ` +
         `${quest.targetName} in ${quest.originRulerName}'s name and hold its court for the commissioners ` +
         `who will press the terms. Keep the spoils; ` +
         `return for ${quest.reward.toLocaleString("en-US")} doubloons. ${captureCommissionTroopOfferText(quest)}`,
       feedback: session.feedback,
       options: [
-        questAcceptanceOption(`Accept final commission: capture ${quest.targetName}`, quest, gameState, {
+        questAcceptanceOption(`Accept capital commission: capture ${quest.targetName}`, quest, gameState, {
           detail: `${formatDistanceKm(quest.distanceKm)}  ${quest.reward.toLocaleString("en-US")} db`
         }),
         option("Decline the warrant", { type: "decline-capture-commission", questId: quest.id }),

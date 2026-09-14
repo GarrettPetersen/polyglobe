@@ -957,8 +957,8 @@ test("a mostly defeated enemy can trigger a distinct war-ending capital commissi
     simMinute: 0,
     spawnChance: 1,
     sailingDistanceKm: (origin, destination) => {
-      assert.equal(origin.tileId, LONDON.tileId);
-      assert.equal(destination.tileId, PARIS.tileId);
+      assert.ok(ports.some(port => port.cityId === origin.cityId));
+      assert.equal(destination.cityId, PARIS.cityId);
       return 520;
     }
   });
@@ -1531,7 +1531,7 @@ function canonicalTestCity(cityId, tileId) {
 }
 
 
-test("independent capture warrants require an actual nearby foothold and can be declined without blocking work", () => {
+test("distant independent capture warrants can be declined without blocking work", () => {
   const stats = shipStatsForSlug("large-junk");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, playerCharacter: PLAYER, shipStats: stats });
   setTestCrewCount(state, 36);
@@ -1539,7 +1539,7 @@ test("independent capture warrants require an actual nearby foothold and can be 
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   const farVillage = { ...CALAIS, cityId: "chillicothe|united states of america", city: "Chillicothe", factionId: "neutral", foundingFactionId: "neutral", settlementType: "village" };
   const context = { simMinute: 0, spawnChance: 1, sailingDistanceKm: () => 14000 };
-  assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, farVillage], context), null);
+  assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, farVillage], context).targetCityId, farVillage.cityId);
   const foothold = { ...DOVER, tileId: 15, cityId: "new-foothold", city: "Foothold" };
   const ports = [LONDON, farVillage, foothold];
   const reachable = { ...context, sailingDistanceKm: (base) => base.cityId === foothold.cityId ? 1000 : 14000 };

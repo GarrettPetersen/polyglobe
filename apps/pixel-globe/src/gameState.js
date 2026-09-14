@@ -1,3 +1,4 @@
+import { conquestStrategicWeight } from "./conquestStrategies.js";
 import { stationCaptureCommissionTroops, validateCommissionGarrisons, reconcileCommissionGarrisons, createCaptureCommissionTroops, captureCommissionTroopsAboard, validateCaptureCommissionTroops } from "./captureCommissionTroops.js";
 import { createWorkshopSupplyOffer, validateWorkshopSupplyQuest, workshopSupplyReady } from "./workshopSupplyQuest.js";
 import { isPirateHavenCityId } from "./pirateHavenCatalog.js";
@@ -599,10 +600,6 @@ export const WOKOU_HUNT_MISSION_SPAWN_CHANCE = questOfferPolicy("wokou").spawnCh
 export const WOKOU_HUNT_MISSION_ROLL_PERIOD_MINUTES = questOfferPolicy("wokou").rollPeriodMinutes;
 export const WOKOU_HUNT_REPUTATION_REQUIRED = 10;
 export const WOKOU_HUNT_REPUTATION_GAIN = 8;
-export const CAPTURE_PORT_MISSION_MAX_DISTANCE_KM = 20000;
-export const CAPTURE_INDEPENDENT_FRONTIER_DISTANCE_KM = 2500;
-export const CAPTURE_CAPITAL_MISSION_MAX_DISTANCE_KM = 20000;
-export const CAPTURE_CAPITAL_MISSION_MAX_REMAINING_PORTS = 2;
 export const ONBOARDING_DELIVERY_COUNT = 4;
 export const ONBOARDING_DELIVERY_SCENARIOS = Object.freeze([
   Object.freeze({
@@ -7626,6 +7623,8 @@ function capturePortMissionTarget(
     throw new Error("Capture-port target selection requires a seed");
   }
   if (requestedTargetFactionId !== null) assertFactionId(requestedTargetFactionId);
+  const bases = portCities.filter(port => port.factionId === issuerFactionId && captureCommissionSettlementEligible(port));
+  const capitals = bases.filter(port => port.isFactionCapital === true && port.capitalOfFactionId === issuerFactionId);
   const eligiblePorts = portCities
     .filter((port) => captureCommissionTargetOwnershipEligible(
       state,
@@ -7642,31 +7641,24 @@ function capturePortMissionTarget(
       const kind = currentEnemyCapital
         ? CAPTURE_CAPITAL_MISSION_KIND
         : CAPTURE_PORT_MISSION_KIND;
-      const maxDistanceKm = currentEnemyCapital
-        ? CAPTURE_CAPITAL_MISSION_MAX_DISTANCE_KM
-        : CAPTURE_PORT_MISSION_MAX_DISTANCE_KM;
-      if (distanceKm > maxDistanceKm) return null;
       const defeat = currentEnemyCapital
-        ? captureCapitalDefeatStatus(portCities, port.factionId)
-        : {
-            originalPortCount: null,
-            remainingPortCount: null,
-            lostOriginalPortCount: null,
-            mostlyDefeated: true
-          };
-      if (!defeat.mostlyDefeated) return null;
+        ? captureCapitalHoldings(portCities, port.factionId)
+        : { originalPortCount: null, remainingPortCount: null, lostOriginalPortCount: null };
       const priority = captureCommissionPriorityForPort(issuerFactionId, port, simMinute);
-      // A neutral settlement is not a worldwide free target. Unscripted
-      // expansion must adjoin the issuer's actual maritime possessions.
-      if (port.factionId === NEUTRAL_FACTION_ID && priority.kind === "strategic" &&
-          !portCities.some((base) => {
-            if (base.factionId !== issuerFactionId) return false;
-            const frontierKm = sailingDistanceKm(base, port);
-            return Number.isFinite(frontierKm) && frontierKm > 0 && frontierKm <= CAPTURE_INDEPENDENT_FRONTIER_DISTANCE_KM;
-          })) return null;
+      const distanceFrom = base => base.cityId === origin.cityId ? distanceKm : sailingDistanceKm(base, port);
+      const reachableDistances = locations => locations.map(distanceFrom)
+        .filter(km => Number.isFinite(km) && km >= 0);
+      const frontierDistances = reachableDistances(bases);
+      if (frontierDistances.length === 0) return null;
+      const capitalDistances = reachableDistances(capitals);
+      const strategicWeight = conquestStrategicWeight(issuerFactionId, port, {
+        frontierDistanceKm: Math.min(...frontierDistances),
+        capitalDistanceKm: capitalDistances.length ? Math.min(...capitalDistances) : null
+      });
       return {
         port,
         distanceKm,
+        strategicWeight,
         kind,
         priorityKind: priority.kind,
         priorityTier: priority.tier,
@@ -7678,9 +7670,7 @@ function capturePortMissionTarget(
     })
     .filter(Boolean);
   if (eligiblePorts.length === 0) return null;
-  const bestTier = Math.min(...eligiblePorts.map((candidate) => candidate.priorityTier));
   return eligiblePorts
-    .filter((candidate) => candidate.priorityTier === bestTier)
     .map((candidate) => ({
       ...candidate,
       selectionScore: captureCommissionTargetScore(candidate, selectionSeed)
@@ -7699,7 +7689,7 @@ function captureCommissionTargetOwnershipEligible(
   port,
   requestedTargetFactionId = null
 ) {
-  return port.tileId !== origin.tileId &&
+  return port.cityId !== origin.cityId &&
     captureCommissionSettlementEligible(port) &&
     port.factionId !== PIRATE_FACTION_ID &&
     port.factionId !== issuerFactionId &&
@@ -7708,7 +7698,7 @@ function captureCommissionTargetOwnershipEligible(
       diplomacyBetweenForState(state, issuerFactionId, port.factionId) === DIPLOMACY_WAR);
 }
 
-function captureCapitalDefeatStatus(portCities, factionId) {
+function captureCapitalHoldings(portCities, factionId) {
   const originalPorts = portCities.filter((port) => (
     (port.foundingFactionId || port.factionId) === factionId &&
     captureCommissionSettlementEligible(port)
@@ -7721,10 +7711,7 @@ function captureCapitalDefeatStatus(portCities, factionId) {
   return {
     originalPortCount: originalPorts.length,
     remainingPortCount: currentPorts.length,
-    lostOriginalPortCount,
-    mostlyDefeated: originalPorts.length > 0 &&
-      currentPorts.length <= CAPTURE_CAPITAL_MISSION_MAX_REMAINING_PORTS &&
-      (lostOriginalPortCount > 0 || originalPorts.length === 1)
+    lostOriginalPortCount
   };
 }
 
@@ -7737,23 +7724,19 @@ function captureCommissionSettlementEligible(port) {
 }
 
 function captureCommissionTargetScore(candidate, selectionSeed) {
-  const population = Math.max(1, Number(candidate.port.population || 1));
-  if (!Number.isFinite(population)) {
-    throw new Error(`Invalid capture target population: ${candidate.port.population}`);
-  }
-  const populationValue = 1 + Math.log10(1 + population / 2500);
   const colonialValue = candidate.port.playerFoundedColony === true
     ? 1.55
     : candidate.port.colonialFoundingType
       ? 1.25
       : 1;
-  const capitalValue = candidate.kind === CAPTURE_CAPITAL_MISSION_KIND ? 1.35 : 1;
-  const distanceWeight = 1 / (1 + candidate.distanceKm / 2200);
+  const capitalValue = candidate.kind === CAPTURE_CAPITAL_MISSION_KIND
+    ? 0.4 + 0.95 / Math.max(1, candidate.remainingPortCount) : 1;
+  const politicalWeight = 2 ** (4 - candidate.priorityTier);
   const randomWeight = 0.82 + seededFraction(
     `${selectionSeed}|${cityKey(candidate.port)}|${candidate.port.factionId}`
   ) * 0.36;
-  return candidate.priorityWeight * populationValue * colonialValue * capitalValue *
-    distanceWeight * randomWeight;
+  return candidate.priorityWeight * politicalWeight * candidate.strategicWeight *
+    colonialValue * capitalValue * randomWeight;
 }
 
 function capturePortMissionReward(target, distanceKm, kind) {

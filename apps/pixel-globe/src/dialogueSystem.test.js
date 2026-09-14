@@ -8584,7 +8584,7 @@ test("an independent-port warrant fixes the objective without inventing a neutra
   assert.match(underway.text, /your charge is .*take it, not to alter the terms/i);
 });
 
-test("a final capital commission explains the war's grievance and general peace", () => {
+test("a capital commission explains its political goal without claiming the enemy is nearly defeated", () => {
   const london = {
     tileId: 811,
     cityId: "london|united kingdom",
@@ -8650,10 +8650,11 @@ test("a final capital commission explains the war's grievance and general peace"
   assert.equal(offer.kind, "capture-capital");
   assert.match(view.text, /old claims across the Channel/i);
   assert.match(view.text, /hold its court for the commissioners.*press the terms/i);
+  assert.doesNotMatch(view.text, /nearly won/i);
   assert.doesNotMatch(view.text, /captain.*terms|you.*negotiate|force peace/i);
   assert.match(view.text, new RegExp(`${offer.reward.toLocaleString("en-US")} doubloons`));
   assert.ok(view.options.some((entry) => (
-    entry.action.type === "accept-quest" && /final commission/i.test(entry.label)
+    entry.action.type === "accept-quest" && /capital commission/i.test(entry.label)
   )));
 });
 
