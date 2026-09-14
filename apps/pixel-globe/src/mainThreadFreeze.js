@@ -79,8 +79,11 @@ export function recordMainThreadWork(monitor, name, durationMs, completedAtMs) {
     throw new Error("Main-thread freeze work requires a bounded name, duration, and completion time");
   }
   const current = monitor.recentWork;
+  // Stage labels describe subsystems, not the call tree: render.world.end is
+  // inside render.gradeAndStorm. Only a contained interval can explain a parent.
   const currentIsSpecificChild = current !== null &&
-    current.name.startsWith(`${name}.`) &&
+    current.completedAtMs <= completedAtMs &&
+    current.completedAtMs - current.durationMs >= completedAtMs - durationMs &&
     current.durationMs >= durationMs * 0.5;
   if (!currentIsSpecificChild && (current === null || durationMs > current.durationMs)) {
     monitor.recentWork = { name, durationMs, completedAtMs };

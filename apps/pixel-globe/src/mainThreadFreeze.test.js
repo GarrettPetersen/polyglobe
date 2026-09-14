@@ -95,3 +95,35 @@ test("an ineligible frame resets the watchdog before returning to play", () => {
   assert.equal(beginMainThreadFreezeFrame(monitor, 1_500, { eligible: false }), null);
   assert.equal(beginMainThreadFreezeFrame(monitor, 5_000), null);
 });
+
+test("actual nested render timing survives differently named wrapper stages", () => {
+  const monitor = createMainThreadFreezeMonitor();
+  beginMainThreadFreezeFrame(monitor, 100);
+  recordMainThreadWork(monitor, "render.world.end", 920, 1040);
+  recordMainThreadWork(monitor, "render.gradeAndStorm", 1000, 1100);
+  recordMainThreadWork(monitor, "render", 1050, 1150);
+  finishMainThreadFreezeFrame(monitor, 1050);
+  const report = beginMainThreadFreezeFrame(monitor, 1200);
+  assert.equal(report.cause, "render.world.end");
+  assert.equal(report.recentWorkMs, 920);
+});
+
+test("matching name prefixes do not make successive work a parent and child", () => {
+  const monitor = createMainThreadFreezeMonitor();
+  beginMainThreadFreezeFrame(monitor, 100);
+  recordMainThreadWork(monitor, "render.city.raster", 900, 1000);
+  recordMainThreadWork(monitor, "render", 1000, 2100);
+  finishMainThreadFreezeFrame(monitor, 2000);
+  const report = beginMainThreadFreezeFrame(monitor, 2200);
+  assert.equal(report.cause, "render");
+  assert.equal(report.recentWorkMs, 1000);
+});
+
+test("partially overlapping intervals do not count as nested work", () => {
+  const monitor = createMainThreadFreezeMonitor();
+  beginMainThreadFreezeFrame(monitor, 100);
+  recordMainThreadWork(monitor, "render.world.end", 900, 1100);
+  recordMainThreadWork(monitor, "render", 1000, 2000);
+  finishMainThreadFreezeFrame(monitor, 1900);
+  assert.equal(beginMainThreadFreezeFrame(monitor, 2100).cause, "render");
+});

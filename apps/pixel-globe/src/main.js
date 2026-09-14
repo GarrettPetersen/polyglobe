@@ -7423,7 +7423,8 @@ function measurePerformanceBenchmarkStage(name, callback) {
   try {
     return callback();
   } finally {
-    const durationMs = performance.now() - startedAtMs;
+    const completedAtMs = performance.now();
+    const durationMs = completedAtMs - startedAtMs;
     if (benchmarkActive) {
       recordPerformanceBenchmarkStage(performanceBenchmarkState, name, durationMs);
     }
@@ -7431,7 +7432,7 @@ function measurePerformanceBenchmarkStage(name, callback) {
       recordPersistentLowFrameRateStage(persistentLowFrameRateMonitor, name, durationMs);
     }
     if (freezeProfiling && durationMs >= 100) {
-      recordMainThreadWork(mainThreadFreezeMonitor, name, durationMs, performance.now());
+      recordMainThreadWork(mainThreadFreezeMonitor, name, durationMs, completedAtMs);
     }
   }
 }
