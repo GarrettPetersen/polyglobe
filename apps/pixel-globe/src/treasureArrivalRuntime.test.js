@@ -74,7 +74,7 @@ for (const alreadyAnchored of [false, true]) {
       anchored: alreadyAnchored, portWaitState: null, dialogueState: null, captainAlertModal: null,
       chart: { tileCalls: calls, cityCalls: [] }, localLayout: { viewX: 0, viewY: 0 }, worldFramePresented: true,
       menusAreOpen: () => false, playerHasCombatEngagement: () => false,
-      activeTreasureCampaignGoal: () => goal, activeColonizationObjective: () => null,
+      activeTreasureCampaignGoal: () => goal, activeColonizationObjectives: () => [],
       treasureCampaignPhase, questSiteArrivalCandidate, ANCHOR_SHORE_MAX_PX: 36,
       isWaterSurfaceRow, tileHasSurfaceIce: () => false,
       distance2: (x, y, a, b) => (x-a)**2 + (y-b)**2,

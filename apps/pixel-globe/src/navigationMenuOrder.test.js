@@ -19,7 +19,7 @@ test("waypoints list quests and price tips before shipyard dividends", () => {
     hospitallerMaltaQuestObjective: () => null, activeConquistadorDestination: () => null,
     activeQuestDestinations: () => [{ quest: { id: "delivery" }, destination }],
     isWokouHuntQuest: () => false,
-    activeRescuedTravelerDestinations: () => [], activeColonizationObjective: () => null,
+    activeRescuedTravelerDestinations: () => [], activeColonizationObjectives: () => [],
     currentReadyFetchQuestDestinations: () => [], activeCampaignGoalDestinations: () => [],
     activeNaturalistReportDestination: () => null, cityLabelText: city => city.city,
     placedCityTargetVector: () => [1, 0, 0], navigationQuestReason: () => "DELIVER",
@@ -30,4 +30,24 @@ test("waypoints list quests and price tips before shipyard dividends", () => {
   };
   const entries = runInNewContext(`${targetDeclaration.getText(source)}\n${declaration.getText(source)}; navigationMenuEntries()`, context);
   assert.deepEqual(Array.from(entries, entry => entry.id), ["quest:delivery:london|united kingdom", "price-tip", "pirate-quest", "dividend-a", "dividend-b"]);
+});
+
+test("each simultaneous colony objective draws its own blue waypoint", () => {
+  const objectives = [{ kind: "investigate-lost-colony", tileId: 20 }, { kind: "found-colony", tileId: 30 }];
+  const sites = new Map([[20, { cityId: "roanoke|united states of america", city: "Roanoke" }],
+    [30, { cityId: "salvador|brazil", city: "Salvador" }]]);
+  const draws = [];
+  const style = {};
+  const context = { ship: {}, chart: {}, localLayout: {}, gameState: {},
+    activeColonizationObjectives: () => objectives,
+    colonizationObjectiveDestination: (_state, objective) => sites.get(objective.tileId),
+    tileCenterVector: tileId => [tileId, 0, 0], visibleChartCity: () => null,
+    localPointForGlobeVector: vector => vector, cityLabelText: city => city.city,
+    drawWorldTargetArrow: arrow => draws.push(arrow), QUEST_ARROW_CITY_Y_OFFSET: 0,
+    COLONIZATION_NAVIGATION_STYLE: style };
+  const drawDeclaration = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name.text === "drawColonizationDestinationArrow");
+  runInNewContext(`${drawDeclaration.getText(source)}; drawColonizationDestinationArrow(1);`, context);
+  assert.deepEqual(draws.map(({ label }) => label), ["Roanoke", "Salvador"]);
+  assert.equal(new Set(draws.map(({ id }) => id)).size, 2);
+  assert.ok(draws.every(arrow => arrow.style === style));
 });

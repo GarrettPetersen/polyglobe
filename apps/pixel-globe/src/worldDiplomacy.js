@@ -678,7 +678,7 @@ function suzeraintyHeadline(kind, subjectId, suzerainId) {
   if (kind === SUZERAINTY_KIND_AUTONOMOUS_VASSAL) {
     return `${factionName(subjectId)} accepts ${factionName(suzerainId)} as protector while retaining its own foreign policy.`;
   }
-  return `${factionName(subjectId)} accepts ${factionName(suzerainId)} as suzerain.`;
+  return `${factionName(subjectId)} accepts ${factionName(suzerainId)} as suzerain, yielding its foreign policy and pledging service in its wars.`;
 }
 
 export function dissolveFactionDiplomaticSuzerainties(state, factionId, simMinute, source = "annexation") {

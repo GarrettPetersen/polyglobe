@@ -2217,7 +2217,7 @@ import {
   colonizationAftermathReportPort,
   colonizationAftermathView,
   colonizationGovernmentInExileFactionId,
-  colonizationNavigationObjective,
+  colonizationNavigationObjectives,
   colonizationOfferForCity,
   colonizationOriginCanHostExiledSponsor,
   colonizationOrganizerShouldApproach,
@@ -26841,7 +26841,7 @@ function maybeAutoAnchorAtNonPortQuestSite() {
     ? treasureGoal.treasureTileId
     : null;
   const arrival = questSiteArrivalCandidate({
-    colonizationObjective: activeColonizationObjective(),
+    colonizationObjectives: activeColonizationObjectives(),
     cityCalls: chart.cityCalls || [],
     playerInteractionPoint: {
       x: localLayout.viewX,
@@ -48378,7 +48378,7 @@ function currentReadyFetchQuestDestinations() {
 
 function questJournalEntries() {
   if (!gameState) return [];
-  const entries = [];
+  const entries = pirateHavenJournalEntries();
   const canal = exeterCanalQuestView(gameState, cityById.get(TOPSHAM_CITY_ID), Math.max(0, weatherClockMinutes));
   if (canal?.accepted && !canal.complete) {
     entries.push({ id: "exeter-canal", title: "EXETER CANAL",
@@ -49325,8 +49325,7 @@ function navigationMenuEntries() {
     });
   }
 
-  const colonizationTarget = activeColonizationObjective();
-  if (colonizationTarget) {
+  for (const colonizationTarget of activeColonizationObjectives()) {
     const destination = colonizationObjectiveDestination(gameState, colonizationTarget);
     if (!destination) throw new Error("Colonization navigation destination is missing");
     entries.push({
@@ -49413,8 +49412,8 @@ function fetchQuestNavigationReason(fetchTarget) {
   throw new Error(`Unknown fetch quest navigation reason: ${fetchTarget.questId}`);
 }
 
-function activeColonizationObjective() {
-  return colonizationNavigationObjective(gameState, {
+function activeColonizationObjectives() {
+  return colonizationNavigationObjectives(gameState, {
     currentMinute: Math.max(0, weatherClockMinutes)
   });
 }
@@ -62836,21 +62835,21 @@ function drawHospitallerMaltaDestinationArrow(nowMs) {
 
 function drawColonizationDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout || !gameState) return;
-  const objective = activeColonizationObjective();
-  if (!objective) return;
-  const destination = colonizationObjectiveDestination(gameState, objective);
-  if (!destination) throw new Error("Colonization objective has no world destination");
-  const targetVector = tileCenterVector(objective.tileId);
-  const visibleCity = visibleChartCity(destination);
-  drawWorldTargetArrow({
-    id: `colonization:${objective.kind}:${destination.cityId}`,
-    label: cityLabelText(destination),
-    targetVector,
-    localPoint: visibleCity || localPointForGlobeVector(targetVector),
-    localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
-    nowMs,
-    style: COLONIZATION_NAVIGATION_STYLE
-  });
+  for (const objective of activeColonizationObjectives()) {
+    const destination = colonizationObjectiveDestination(gameState, objective);
+    if (!destination) throw new Error("Colonization objective has no world destination");
+    const targetVector = tileCenterVector(objective.tileId);
+    const visibleCity = visibleChartCity(destination);
+    drawWorldTargetArrow({
+      id: `colonization:${objective.kind}:${destination.cityId}`,
+      label: cityLabelText(destination),
+      targetVector,
+      localPoint: visibleCity || localPointForGlobeVector(targetVector),
+      localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+      nowMs,
+      style: COLONIZATION_NAVIGATION_STYLE
+    });
+  }
 }
 
 function drawFetchQuestDestinationArrows(nowMs) {
@@ -69127,6 +69126,17 @@ function pirateHavenNavigationEntries() {
       style: QUEST_NAVIGATION_STYLE, targetVector: targetLocation ? targetLocation.position : placedCityTargetVector(destination),
       optionalWaypointId: null, destination };
   });
+}
+
+function pirateHavenJournalEntries() {
+  return pirateHavenNavigationEntries().map((entry) => ({
+    id: entry.id,
+    title: entry.reason,
+    nextStep: uiText("quest.actionAt", {
+      action: renderedUiText(entry.reason), city: entry.destinationName
+    }),
+    style: entry.style
+  }));
 }
 
 function visiblePirateHavenPorts() {

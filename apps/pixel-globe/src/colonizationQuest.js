@@ -1201,10 +1201,12 @@ function colonizationWorldRecordUnchecked(memory) {
   };
 }
 
-export function colonizationObjective(memory) {
+export function colonizationObjectives(memory) {
   validateColonizationQuestMemory(memory);
-  const aftermathObjective = colonizationAftermathObjective(memory);
-  if (aftermathObjective) return aftermathObjective;
+  return [colonizationAftermathObjective(memory), colonyExpeditionObjective(memory)].filter(Boolean);
+}
+
+function colonyExpeditionObjective(memory) {
   if (memory.targetTileId === null) return null;
   if (memory.stage === COLONIZATION_STAGE_OUTBOUND) {
     const approval = colonizationApprovalIdentity(memory);
@@ -1234,24 +1236,24 @@ export function colonizationObjective(memory) {
   return null;
 }
 
-export function colonizationNavigationObjective(
+export function colonizationNavigationObjectives(
   state,
   { currentMinute = 0 } = {}
 ) {
   const quest = colonizationQuestView(state, { currentMinute });
-  const objective = colonizationObjective(state.memory.colonization);
-  if (objective?.kind === "negotiate-colony" && !quest.approvalCargoDeliverable) return null;
-  if (objective) return objective;
+  const objectives = colonizationObjectives(state.memory.colonization).filter((objective) => (
+    objective.kind !== "negotiate-colony" || quest.approvalCargoDeliverable
+  ));
   if (quest.stage === COLONIZATION_STAGE_FETCH && quest.canDeliverFetch) {
-    return { tileId: quest.origin.tileId, kind: "deliver-colony-materials" };
+    objectives.push({ tileId: quest.origin.tileId, kind: "deliver-colony-materials" });
   }
   if (quest.stage === COLONIZATION_STAGE_READY) {
     if (!Number.isInteger(quest.origin?.tileId)) {
       throw new Error("Ready colonization expedition has no sponsor port");
     }
-    return { tileId: quest.origin.tileId, kind: "embark-colonists" };
+    objectives.push({ tileId: quest.origin.tileId, kind: "embark-colonists" });
   }
-  return null;
+  return objectives;
 }
 
 function initializeColonizationAftermath(memory, target, establishedMinute) {

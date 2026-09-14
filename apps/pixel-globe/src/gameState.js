@@ -4952,6 +4952,15 @@ export function isEnvoyQuest(quest) {
   return Boolean(quest && ENVOY_QUEST_KINDS.has(quest.kind));
 }
 
+function envoyForeignPolicyText(quest, accord) {
+  const representedCourts = [
+    [quest.originFactionId, accord.factionAId],
+    [quest.targetFactionId, accord.factionBId]
+  ].filter(([courtId, principalId]) => courtId !== principalId)
+    .map(([courtId, principalId]) => `${factionById(courtId).name} conducts its foreign policy through ${factionById(principalId).name}.`);
+  return `${quest.dialogue.negotiation} These articles concern relations between ${factionById(accord.factionAId).name} and ${factionById(accord.factionBId).name}. ${representedCourts.join(" ")}`;
+}
+
 export function negotiateEnvoyQuest(state, city, context = {}) {
   assertGameState(state);
   const quests = questMemory(state);
@@ -5035,6 +5044,11 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
       context.simMinute,
       { homeFactionId: state.playerCharacter?.nationalityId || null }
     );
+    const accord = events[0];
+    if (accord && (accord.factionAId !== active.originFactionId ||
+        accord.factionBId !== active.targetFactionId)) {
+      active.dialogue.negotiation = envoyForeignPolicyText(active, accord);
+    }
   }
   const foreignSettlementExpulsions = expelHostileForeignSettlements({
     memory: state.relations.foreignSettlementExpulsions,

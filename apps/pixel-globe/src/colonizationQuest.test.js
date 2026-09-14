@@ -33,12 +33,12 @@ import {
   colonizationAftermathReportPort,
   colonizationAftermathView,
   colonizationGovernmentInExileFactionId,
-  colonizationObjective,
+  colonizationObjectives,
   colonizationOfferForCity,
   colonizationOriginCanHostExiledSponsor,
   colonizationOriginCanSponsorTarget,
   colonizationOrganizerShouldApproach,
-  colonizationNavigationObjective,
+  colonizationNavigationObjectives,
   colonizationQuestView,
   colonizationShipEligibility,
   colonizationWorldRecord,
@@ -135,10 +135,10 @@ test("a colonization expedition requires three ordered paid material stages", ()
 
   assert.equal(memory.stage, COLONIZATION_STAGE_READY);
   assert.equal(memory.fetchStageIndex, COLONIZATION_FETCH_STAGES.length);
-  assert.deepEqual(colonizationNavigationObjective(questViewState(memory)), {
+  assert.deepEqual(colonizationNavigationObjectives(questViewState(memory)), [{
     tileId: BORDEAUX.tileId,
     kind: "embark-colonists"
-  });
+  }]);
   assert.equal(validateColonizationQuestMemory(memory), memory);
 });
 
@@ -464,10 +464,10 @@ test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continue
   assert.throws(() => grantColonizationApproval(offer), /requires its trade demonstration cargo/);
   state.cargo = { matchlocks: 4, gunpowder: 3 };
   assert.equal(colonizationQuestView(state).approvalCargoReady, true);
-  assert.deepEqual(colonizationObjective(offer), { tileId: kyoto.tileId, kind: "negotiate-colony" });
+  assert.deepEqual(colonizationObjectives(offer), [{ tileId: kyoto.tileId, kind: "negotiate-colony" }]);
   assert.throws(() => landColonists(offer, 1000), /requires government approval in Kyoto/);
   grantColonizationApproval(offer, { approvalCargoDelivered: true });
-  assert.deepEqual(colonizationObjective(offer), { tileId: nagasaki.tileId, kind: "develop-port" });
+  assert.deepEqual(colonizationObjectives(offer), [{ tileId: nagasaki.tileId, kind: "develop-port" }]);
   landColonists(offer, 1000);
   assert.equal(offer.stage, COLONIZATION_STAGE_AWAITING_RESUPPLY);
 });
@@ -749,17 +749,17 @@ test("landing creates a village and an immediate one-year resupply objective", (
   beginColonizationExpedition(memory);
   assert.equal(memory.stage, COLONIZATION_STAGE_OUTBOUND);
   assert.equal(colonizationWorldRecord(memory).hiddenSettlement, true);
-  assert.equal(colonizationObjective(memory).kind, "found-colony");
+  assert.equal(colonizationObjectives(memory)[0].kind, "found-colony");
 
   landColonists(memory, 1000);
   assert.equal(memory.stage, COLONIZATION_STAGE_AWAITING_RESUPPLY);
   assert.equal(memory.resupplyDeadlineMinute, 1000 + COLONIZATION_RESUPPLY_DAYS * DAY);
   assert.equal(colonizationWorldRecord(memory).settlementType, "village");
-  assert.equal(colonizationObjective(memory).kind, "resupply-colony");
+  assert.equal(colonizationObjectives(memory)[0].kind, "resupply-colony");
   assert.equal(assertColonizationResupplyDelivery(memory, 1001), COLONIZATION_RESUPPLY);
 
   assert.equal(advanceColonizationQuest(memory, 1001, { awayFromColony: true }), true);
-  assert.equal(colonizationObjective(memory).kind, "resupply-colony");
+  assert.equal(colonizationObjectives(memory)[0].kind, "resupply-colony");
   assert.equal(assertColonizationResupplyDelivery(memory, 1001), COLONIZATION_RESUPPLY);
 });
 
@@ -776,7 +776,7 @@ test("timely resupply creates a discounted French city", () => {
   assert.equal(city.economyRegion, "temperate-american-colony");
   assert.equal(city.playerFoundedColony, true);
   assert.ok(city.purchaseDiscountMultiplier < 1);
-  assert.equal(colonizationObjective(memory), null);
+  assert.deepEqual(colonizationObjectives(memory), []);
 });
 
 test("Roanoke is available from 1522 and becomes a lost-colony investigation two years after founding", () => {
@@ -832,10 +832,10 @@ test("Roanoke is available from 1522 and becomes a lost-colony investigation two
 
   commissionColonizationAftermath(offer, LONDON, offer.aftermath.dueMinute + 2);
   assert.equal(offer.aftermath.stage, COLONIZATION_AFTERMATH_INVESTIGATING);
-  assert.deepEqual(colonizationObjective(offer), {
+  assert.deepEqual(colonizationObjectives(offer), [{
     tileId: ROANOKE.tileId,
     kind: "investigate-lost-colony"
-  });
+  }]);
   const abandoned = colonizationWorldRecord(offer);
   assert.equal(abandoned.hiddenSettlement, false);
   assert.equal(abandoned.colonyAbandoned, true);
@@ -846,10 +846,10 @@ test("Roanoke is available from 1522 and becomes a lost-colony investigation two
   inspectColonizationAftermath(offer, abandoned, offer.aftermath.dueMinute + 3);
   assert.equal(offer.aftermath.stage, COLONIZATION_AFTERMATH_REPORTING);
   assert.equal(roanokeCluesAboard(offer), true);
-  assert.deepEqual(colonizationObjective(offer), {
+  assert.deepEqual(colonizationObjectives(offer), [{
     tileId: LONDON.tileId,
     kind: "report-lost-colony"
-  });
+  }]);
   assert.equal(colonizationAftermathView(offer).reportCity, "London");
 
   const gameState = createGameState({
@@ -874,7 +874,7 @@ test("Roanoke is available from 1522 and becomes a lost-colony investigation two
   completeColonizationAftermath(offer, LONDON, offer.aftermath.dueMinute + 4);
   assert.equal(offer.aftermath.stage, COLONIZATION_AFTERMATH_COMPLETE);
   assert.equal(roanokeCluesAboard(offer), false);
-  assert.equal(colonizationObjective(offer), null);
+  assert.deepEqual(colonizationObjectives(offer), []);
   assert.equal(shipItemRows(gameState).some((row) => row.id === ROANOKE_CLUES_ITEM_ID), false);
 });
 
@@ -922,10 +922,10 @@ test("approaching missing Roanoke commissions the existing investigation without
   );
   assert.equal(investigation.stage, COLONIZATION_AFTERMATH_INVESTIGATING);
   assert.equal(investigation.reportCity, "London");
-  assert.deepEqual(colonizationObjective(memory), {
+  assert.deepEqual(colonizationObjectives(memory), [{
     tileId: ROANOKE.tileId,
     kind: "investigate-lost-colony"
-  });
+  }]);
 });
 
 test("an established colony is archived before a later expedition is offered", () => {
@@ -964,10 +964,10 @@ test("the colony remains a navigation destination with only fractional resupply 
   });
 
   assert.equal(colonizationQuestView(state).resupply.deliverable, 0);
-  assert.deepEqual(colonizationNavigationObjective(state), {
+  assert.deepEqual(colonizationNavigationObjectives(state), [{
     tileId: PORT_ROYAL.tileId,
     kind: "resupply-colony"
-  });
+  }]);
 });
 
 test("establishing Nagasaki upgrades its Japanese village with a Portuguese settlement", () => {
@@ -1046,24 +1046,24 @@ test("historically attacked colonies upgrade, survive a canoe defense, and await
   assert.ok(memory.defenseShipIds.length >= 2 && memory.defenseShipIds.length <= 4);
   assert.equal(new Set(memory.defenseShipIds).size, memory.defenseShipIds.length);
   assert.equal(colonizationWorldRecord(memory).settlementType, "city");
-  assert.deepEqual(colonizationObjective(memory), {
+  assert.deepEqual(colonizationObjectives(memory), [{
     tileId: target.tileId,
     kind: "defend-colony",
     attackerName: "Powhatan"
-  });
+  }]);
 
   for (const [index, shipId] of memory.defenseShipIds.entries()) {
     assert.equal(defeatColonizationAttacker(memory, shipId, 1210 + index), true);
   }
   assert.equal(memory.stage, COLONIZATION_STAGE_REPORT_DEFENSE);
-  assert.deepEqual(colonizationObjective(memory), {
+  assert.deepEqual(colonizationObjectives(memory), [{
     tileId: target.tileId,
     kind: "report-colony-defense"
-  });
+  }]);
 
   completeColonizationDefense(memory, 1300);
   assert.equal(memory.stage, COLONIZATION_STAGE_ESTABLISHED);
-  assert.equal(colonizationObjective(memory), null);
+  assert.deepEqual(colonizationObjectives(memory), []);
 });
 
 test("rebinding an old Jamestown save corrects its tile without restarting the founded colony", () => {

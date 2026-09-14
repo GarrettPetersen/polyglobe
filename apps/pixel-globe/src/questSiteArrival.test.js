@@ -24,7 +24,7 @@ const PLAYER_AT_SITE = Object.freeze({ x: SITE.interactionX, y: SITE.interaction
 test("colony and lost-colony shore objectives automatically arrive inside interaction range", () => {
   for (const kind of ["found-colony", "investigate-lost-colony"]) {
     const arrival = questSiteArrivalCandidate({
-      colonizationObjective: { kind, tileId: SITE.tileId },
+      colonizationObjectives: [{ kind, tileId: SITE.tileId }],
       cityCalls: [SITE],
       playerInteractionPoint: PLAYER_AT_SITE
     });
@@ -38,7 +38,7 @@ test("colony and lost-colony shore objectives automatically arrive inside intera
 test("an unfounded colony triggers from geography without requiring nonexistent port staff", () => {
   const site = { ...SITE, cityId: "port royal|canada", character: null };
   const arrival = questSiteArrivalCandidate({
-    colonizationObjective: { kind: "found-colony", tileId: site.tileId },
+    colonizationObjectives: [{ kind: "found-colony", tileId: site.tileId }],
     cityCalls: [site], playerInteractionPoint: PLAYER_AT_SITE
   });
   assert.equal(arrival.call, site);
@@ -48,12 +48,12 @@ test("an unfounded colony triggers from geography without requiring nonexistent 
 
 test("ordinary ports and distant quest sites retain their normal interaction", () => {
   assert.equal(questSiteArrivalCandidate({
-    colonizationObjective: { kind: "found-colony", tileId: SITE.tileId },
+    colonizationObjectives: [{ kind: "found-colony", tileId: SITE.tileId }],
     cityCalls: [{ ...SITE, requiredTradePort: true }],
     playerInteractionPoint: PLAYER_AT_SITE
   }), null);
   assert.equal(questSiteArrivalCandidate({
-    colonizationObjective: { kind: "found-colony", tileId: SITE.tileId },
+    colonizationObjectives: [{ kind: "found-colony", tileId: SITE.tileId }],
     cityCalls: [SITE],
     playerInteractionPoint: {
       x: SITE.interactionX + COLONIZATION_SITE_ARRIVAL_RADIUS_PX + 1,
@@ -61,7 +61,7 @@ test("ordinary ports and distant quest sites retain their normal interaction", (
     }
   }), null);
   assert.equal(questSiteArrivalCandidate({
-    colonizationObjective: { kind: "resupply-colony", tileId: SITE.tileId },
+    colonizationObjectives: [{ kind: "resupply-colony", tileId: SITE.tileId }],
     cityCalls: [SITE],
     playerInteractionPoint: PLAYER_AT_SITE
   }), null);

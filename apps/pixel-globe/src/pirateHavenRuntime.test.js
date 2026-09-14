@@ -135,3 +135,31 @@ test("an arriving passenger conversation cannot skip the port's independent job 
   assert.equal(arrive(city, false).questCharacterSession.questId, quest.id);
   assert.deepEqual(prepared, ["capture", "wokou", "delivery", "travel"]);
 });
+
+test("the captain's journal follows a stolen chest from pickup through reward", async () => {
+  const { createGameState } = await import("./gameState.js");
+  const { pirateHavenQuestOffer, acceptPirateHavenQuest, collectPirateGoods, completePirateHavenQuest } = await import("./pirateHavens.js");
+  const haven = { cityId: "pirate-haven-1", city: "Black Gull Cove", isPirateHideout: true, vector: [1, 0, 0] };
+  const port = { cityId: "lisbon|portugal", city: "Lisbon", vector: [0, 1, 0] };
+  const state = createGameState({ cargoCapacity: 20 });
+  const memory = state.memory.pirateHavens;
+  const offer = pirateHavenQuestOffer(memory, haven, { offerRoll: 0, contractKind: "smuggling",
+    havens: [haven], ports: [port], merchants: [], sailingDistanceKm: () => 200, simMinute: 0,
+    contactForPort: () => ({ id: "merchant-lisbon", name: "Joao" }) });
+  assert.ok(offer);
+  acceptPirateHavenQuest(memory, offer);
+  const context = { gameState: state, npcSeaRoutes: { shipById: new Map() },
+    cityById: new Map([[haven.cityId, haven], [port.cityId, port]]),
+    pirateHavenNavigationReasonText, pirateRevengeTargetPresent, weatherClockMinutes: 1,
+    placedCityTargetVector: city => city.vector, requireEntityById: (map, id) => map.get(id),
+    cityLabelText: city => city.city, QUEST_NAVIGATION_STYLE: {}, renderedUiText: text => text,
+    uiText: (_key, { action, city }) => `${action}: ${city}` };
+  const journal = runInNewContext(`${declaration("pirateHavenNavigationEntries")}\n${declaration("pirateHavenJournalEntries")}\npirateHavenJournalEntries`, context);
+  assert.match(declaration("questJournalEntries"), /pirateHavenJournalEntries\(\)/);
+  assert.equal(journal()[0].id, offer.id);
+  assert.match(journal()[0].nextStep, /night.*Lisbon/);
+  collectPirateGoods(memory, port.cityId, 22);
+  assert.match(journal()[0].nextStep, /reward.*Black Gull Cove/);
+  completePirateHavenQuest(state, haven.cityId, "smuggling", 10);
+  assert.equal(journal().length, 0);
+});

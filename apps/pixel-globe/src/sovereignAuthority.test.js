@@ -89,7 +89,11 @@ test("strong authority and friendly relations can consolidate subject ties", () 
     authority.scores[id] = 0;
     assert.equal(rawWorldDiplomacyBetween(diplomacy, "japan", id), DIPLOMACY_FRIENDLY);
   }
-  advanceSovereignAuthority(authority, diplomacy, authority.nextSubjectReviewMinute);
+  const result = advanceSovereignAuthority(authority, diplomacy, authority.nextSubjectReviewMinute);
+  const consolidation = result.diplomacyEvents.find(event => event.reason === "authority-consolidation");
+  assert.ok(consolidation);
+  assert.equal(rawWorldDiplomacyBetween(diplomacy, consolidation.factionAId, consolidation.factionBId), DIPLOMACY_FRIENDLY);
+  assert.match(consolidation.headline, /yielding its foreign policy/);
   assert.ok(Object.values(diplomacy.suzerainties.byVassalId).some(({ suzerainFactionId, kind }) => (
     suzerainFactionId === "japan" && kind === "vassal"
   )));

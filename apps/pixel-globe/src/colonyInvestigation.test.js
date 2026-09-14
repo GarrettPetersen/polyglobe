@@ -1,3 +1,6 @@
+import { shipStatsForSlug } from "./shipStats.js";
+import { createGameState } from "./gameState.js";
+import { questSiteArrivalCandidate } from "./questSiteArrival.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { colonizationTargetForCity } from "./colonialCities.js";
@@ -6,7 +9,7 @@ import {
   createColonizationQuestMemory, assignColonizationQuest, completeColonizationFetchStage,
   beginColonizationExpedition, landColonists, establishColony, advanceColonizationAftermaths,
   discoverColonizationAftermath, colonizationWorldRecord, completeColonizationAftermath,
-  roanokeCluesAboard, colonizationObjective
+  prepareNextColonizationExpedition, roanokeCluesAboard, colonizationObjectives, colonizationNavigationObjectives
 } from "./colonizationQuest.js";
 import { createPortDialogueSession, portDialogueView, portCityNavigationView,
   enterPortCityLocation, selectPortDialogueAction, selectPortDialogueOption } from "./dialogueSystem.js";
@@ -78,8 +81,53 @@ test("CROATOAN survives restore, is acquired once, and reporting remains the nex
   const restored = visit(JSON.parse(JSON.stringify(state.memory.colonization)));
   assert.equal(portDialogueView(restored.session, restored.city, restored.state, null, []).options
     .some(({ action }) => action.type === "inspect-colony-clue"), false);
-  assert.deepEqual(colonizationObjective(restored.state.memory.colonization), { tileId: LONDON.tileId, kind: "report-lost-colony" });
+  assert.deepEqual(colonizationObjectives(restored.state.memory.colonization), [{ tileId: LONDON.tileId, kind: "report-lost-colony" }]);
   completeColonizationAftermath(restored.state.memory.colonization, LONDON, minute + 1);
-  assert.equal(colonizationObjective(restored.state.memory.colonization), null);
+  assert.deepEqual(colonizationObjectives(restored.state.memory.colonization), []);
   assert.equal(roanokeCluesAboard(restored.state.memory.colonization), false);
 });
+
+for (const investigateFirst of [false, true]) {
+  test(`Roanoke and Salvador proceed independently, investigation first: ${investigateFirst}`, () => {
+    const { memory, minute } = investigation();
+    const ruins = colonizationWorldRecord(memory);
+    const salvador = { ...colonizationTargetForCity({ cityId: "salvador|brazil" }), tileId: 30 };
+    const lisbon = { ...LONDON, cityId: "lisbon|portugal", city: "Lisbon", country: "Portugal", factionId: "portugal", tileId: 11 };
+    assert.equal(prepareNextColonizationExpedition(null, memory), true);
+    assignColonizationQuest(memory, { target: salvador, origin: lisbon });
+    for (const fetch of colonizationHistoryForTarget(salvador).fetchStages) completeColonizationFetchStage(memory, fetch.id);
+    const state = createGameState({ cargoCapacity: 100, playerCharacter: {
+      id: "player-jane", name: "Jane Smith", nationalityId: "england", expressions: ["neutral"],
+      homePortCityId: LONDON.cityId, homePortTileId: LONDON.tileId,
+      homePortName: LONDON.city, homePortCountry: LONDON.country
+    } });
+    state.memory.colonization = JSON.parse(JSON.stringify(memory));
+    const current = state.memory.colonization;
+    const embarkSession = createPortDialogueSession(lisbon, { initialNodeId: "root", admittedToPort: true });
+    selectPortDialogueAction(embarkSession, lisbon, state, null, [],
+      { action: { type: "embark-colonists" } }, { simMinute: minute, shipStats: shipStatsForSlug("galleon") });
+    const inspect = () => {
+      const session = createPortDialogueSession(ruins, { initialNodeId: "root", admittedToPort: false });
+      const option = portDialogueView(session, ruins, state, null, [], { simMinute: minute }).options
+        .find(({ action }) => action.type === "inspect-colony-clue");
+      assert.ok(option);
+      selectPortDialogueAction(session, ruins, state, null, [], option, { simMinute: minute });
+    };
+    if (investigateFirst) inspect();
+    const objectives = colonizationNavigationObjectives(state, { currentMinute: minute });
+    assert.deepEqual(new Set(objectives.map(({ kind }) => kind)), new Set([
+      investigateFirst ? "report-lost-colony" : "investigate-lost-colony", "found-colony"
+    ]));
+    const call = { ...salvador, interactionX: 0, interactionY: 0, requiredTradePort: false };
+    const arrival = questSiteArrivalCandidate({ colonizationObjectives: objectives,
+      cityCalls: [call], playerInteractionPoint: { x: 0, y: 0 } });
+    assert.equal(arrival.actionType, "land-colonists");
+    const colonySession = createPortDialogueSession(call, { initialNodeId: "root", admittedToPort: false });
+    selectPortDialogueAction(colonySession, call, state, null, [],
+      { action: { type: arrival.actionType } }, { simMinute: minute });
+    assert.equal(current.stage, "awaiting-resupply");
+    if (!investigateFirst) inspect();
+    completeColonizationAftermath(current, LONDON, minute + 1);
+    assert.deepEqual(colonizationObjectives(current), [{ tileId: salvador.tileId, kind: "resupply-colony" }]);
+  });
+}

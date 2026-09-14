@@ -542,7 +542,8 @@ function enactSubjectAuthorityEvent(memory, diplomacy, candidate, simMinute) {
       suzerainFactionId: suzerainId,
       kind: nextKind,
       simMinute,
-      source: "authority-consolidation"
+      source: "authority-consolidation",
+      relation: rawWorldDiplomacyBetween(diplomacy, subjectId, suzerainId)
     }));
     authorityEvents.push(adjustSovereignAuthority(memory, suzerainId, 0.6, {
       simMinute,

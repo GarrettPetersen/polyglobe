@@ -914,3 +914,32 @@ test("current saves reject wrong mission slots and duplicate active identities",
   state.memory.quests.envoyActive = null;
   assert.throws(() => migrateGameState(state, null), /Envoy mission must occupy the envoy slot/);
 });
+
+for (const sharedPolicy of [false, true]) {
+  test(`Ragusan envoy respects Crimean foreign policy, shared: ${sharedPolicy}`, async () => {
+    const { establishSuzerainty } = await import("./suzerainty.js");
+    const { worldDiplomacyBetween } = await import("./worldDiplomacy.js");
+    const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+    const ragusa = { ...port(80, "Dubrovnik", "Croatia", "mediterranean", "ragusa", 42.6, 18.1),
+      isFactionCapital: true, capitalOfFactionId: "ragusa" };
+    const crimea = { ...port(81, "Bakhchysarai", "Ukraine", "islamic-desert", "crimea", 44.75, 33.86),
+      isFactionCapital: true, capitalOfFactionId: "crimea" };
+    if (sharedPolicy) establishSuzerainty(state.relations.diplomacy.suzerainties, {
+      vassalFactionId: "crimea", suzerainFactionId: "ottoman", kind: "vassal", simMinute: 0
+    });
+    const offer = envoyOfferForCapital(state, ragusa, [ragusa, crimea], {
+      sailingDistanceKm: () => 1800, envoySpawnChance: 1, envoyKind: "friendly-envoy",
+      destinationCityId: crimea.cityId, simMinute: 0,
+      relationBetween: (a, b) => worldDiplomacyBetween(state.relations.diplomacy, a, b),
+      createCharacter: () => ({ id: "ragusan-envoy", name: "Nikola" })
+    });
+    assert.ok(offer);
+    acceptQuest(state, offer);
+    const before = structuredClone(state.relations.diplomacy.suzerainties);
+    const result = negotiateEnvoyQuest(state, crimea, { simMinute: 10, portCities: [ragusa, crimea] });
+    assert.equal(result.events[0].factionAId, "ragusa");
+    assert.equal(result.events[0].factionBId, sharedPolicy ? "ottoman" : "crimea");
+    assert.deepEqual(state.relations.diplomacy.suzerainties, before, "friendly accord does not negotiate submission");
+    if (sharedPolicy) assert.match(result.quest.dialogue.negotiation, /foreign policy through Ottoman Empire/);
+  });
+}

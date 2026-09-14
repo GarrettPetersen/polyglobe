@@ -70,7 +70,7 @@ test("uninhabited quest sites can trigger arrival without a harbour master or po
     const call = { ...city, tileId: 99, requiredTradePort: false,
       character: { id: "colonial-organizer" }, interactionX: 10, interactionY: 10 };
     const arrival = questSiteArrivalCandidate({
-      colonizationObjective: { kind: "found-colony", tileId: 99 },
+      colonizationObjectives: [{ kind: "found-colony", tileId: 99 }],
       cityCalls: [call], playerInteractionPoint: { x: 10, y: 10 }
     });
     assert.equal(arrival.call, call);

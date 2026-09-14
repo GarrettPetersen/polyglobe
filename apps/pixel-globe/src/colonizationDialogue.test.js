@@ -12,7 +12,7 @@ import {
   advanceColonizationQuest,
   assignColonizationQuest,
   beginColonizationExpedition,
-  colonizationObjective,
+  colonizationObjectives,
   colonizationOrganizerShouldApproach,
   colonizationQuestView,
   colonizationWorldRecord,
@@ -397,10 +397,10 @@ test("Portuguese emissaries secure Japanese permission in Kyoto before opening N
   assert.equal(gameState.cargo.matchlocks, undefined);
   assert.equal(gameState.cargo.gunpowder, undefined);
   assert.equal(cargoReservationUnits(gameState, "port-royal-colonists"), 24);
-  assert.deepEqual(colonizationObjective(gameState.memory.colonization), {
+  assert.deepEqual(colonizationObjectives(gameState.memory.colonization), [{
     tileId: NAGASAKI.tileId,
     kind: "develop-port"
-  });
+  }]);
   assert.ok(gameState.accounts.ledger.some((entry) => entry.description === "Deliver Matchlocks x4"));
   assert.ok(gameState.accounts.ledger.some((entry) => entry.description === "Deliver Gunpowder x3"));
 });

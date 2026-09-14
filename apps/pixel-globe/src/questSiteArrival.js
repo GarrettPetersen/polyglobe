@@ -14,7 +14,7 @@ const QUEST_SITE_OVERLAY_KINDS = new Set([
 ]);
 
 export function questSiteArrivalCandidate({
-  colonizationObjective = null,
+  colonizationObjectives = [],
   cityCalls = [],
   playerInteractionPoint = null,
   treasureTileId = null,
@@ -22,7 +22,8 @@ export function questSiteArrivalCandidate({
 }) {
   if (!Array.isArray(cityCalls)) throw new Error("Quest-site arrival requires city calls");
 
-  if (NON_PORT_COLONIZATION_KINDS.has(colonizationObjective?.kind)) {
+  for (const colonizationObjective of colonizationObjectives) {
+    if (!NON_PORT_COLONIZATION_KINDS.has(colonizationObjective.kind)) continue;
     const siteCall = cityCalls.find((call) => call.tileId === colonizationObjective.tileId);
     if (siteCall && siteCall.requiredTradePort !== true &&
         colonizationSiteCallIsInArrivalRange(siteCall, playerInteractionPoint)) {
