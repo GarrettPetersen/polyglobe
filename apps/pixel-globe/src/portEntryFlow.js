@@ -15,6 +15,7 @@ export function recoveringPortBlocksArrival({
     throw new Error("Recovering-port entry requires a conquest status");
   }
   return !entryStatus.hostile &&
+    !(attackStatus.targetIsPirate === true && conquestStatus.canAttempt === true) &&
     !attackStatus.commissioned &&
     !conquestStatus.playerAssaultActive;
 }

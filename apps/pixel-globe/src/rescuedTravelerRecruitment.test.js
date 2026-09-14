@@ -1,3 +1,5 @@
+import { nextCharacterHomecoming } from "./characterHomecoming.js";
+import { ABOARD_ROLE_CREWMATE } from "./aboardRoster.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -39,6 +41,9 @@ const captain = Object.freeze({
 });
 const captive = Object.freeze({
   id: "captive-kefe",
+  homePortCityId: homePort.cityId,
+  homePortName: homePort.city,
+  homePortCountry: homePort.country,
   sourceId: "captive-portrait",
   name: "Brites Costa",
   givenName: "Brites",
@@ -102,4 +107,18 @@ test("rescued traveler recruitment rolls the roster back if quest completion fai
   assert.equal(state.ship.crew, 2);
   assert.equal(memory.active, quest);
   assert.equal(memory.completedCount, 0);
+});
+
+test("recruitment consumes only the rescued traveler's generic homecoming", () => {
+  const { state, memory, quest } = recruitmentFixture();
+  state.survival.lastMinute = 100;
+  recruitRescuedTravelerAsNamedCrew(state, memory, quest, quest.character);
+  const context = { decisions: state.memory.decisions, cityId: homePort.cityId,
+    cityName: homePort.city, currentMinute: 100, roster: { named: [{
+      kind: "named", role: ABOARD_ROLE_CREWMATE, character: state.namedCrew[0]
+    }] } };
+  assert.equal(nextCharacterHomecoming(context), null);
+  context.roster.named.push({ kind: "named", role: ABOARD_ROLE_CREWMATE,
+    character: { ...state.namedCrew[0], id: "another-crewmate" } });
+  assert.equal(nextCharacterHomecoming(context).character.id, "another-crewmate");
 });

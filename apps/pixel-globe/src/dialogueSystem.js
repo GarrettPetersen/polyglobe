@@ -2765,6 +2765,10 @@ export function selectPortDialogueAction(
     const result = selectPirateHavenCommission(gameState, city, action, context);
     session.selectedIndex = 0;
     session.feedback = result.feedback;
+    if (action.type === "complete-pirate-haven-quest" && result.changed) {
+      session.nodeId = session.nextPortNodeId || "root";
+      session.nextPortNodeId = null;
+    }
     return { closed: false, pirateHavenQuestChanged: result.changed };
   }
   if (action.type === "accept-exeter-canal") {

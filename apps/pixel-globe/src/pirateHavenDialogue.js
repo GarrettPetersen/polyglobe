@@ -10,11 +10,11 @@ export function pirateHavenCommissionView(state, city, context) {
     if (kind === "revenge" && !quest.ready && typeof context.pirateRevengeTargetPresent !== "boolean") throw new Error("Pirate audience requires the target ship's current status");
     const lostTarget = kind === "revenge" && !quest.ready && !context.pirateRevengeTargetPresent;
     return { speaker: city.isPirateHideout ? "Pirate captain" : "Harbour captain", expressionId: "stern",
-      text: lostTarget ? "That ship has gone down, and my cup with it. Our bargain is finished." : quest.ready ? `The deed is done. Return to ${quest.originName} for your ${quest.reward} doubloons.`
+      text: lostTarget ? "That ship has gone down, and my cup with it. Our bargain is finished." : quest.ready ? `The deed is done. Here are your ${quest.reward} doubloons.`
         : kind === "revenge" ? `${quest.targetCaptainName} still has my silver cup aboard ${quest.targetShipName}. Look for that merchant near ${quest.targetPortName}. Bring the cup back here.`
         : kind === "smuggling" ? `${quest.pickupContactName} waits by the waterfront in ${quest.pickupName}. Meet him after eight in the evening and before five in the morning. Bring his sealed goods back to ${quest.havenName}.`
         : `Break the batteries and drive the pirates out of ${quest.havenName}. Then return to ${quest.originName}.`,
-      options: [...(quest.ready && atIssuer ? [{ label: kind === "revenge" ? "Return the silver cup" : kind === "smuggling" ? "Deliver the stolen goods" : "Report the haven destroyed",
+      options: [...(quest.ready && atIssuer ? [{ label: kind === "revenge" ? "Return the silver cup" : kind === "smuggling" ? "Deliver the stolen goods" : "Collect commission reward",
         action: { type: "complete-pirate-haven-quest", kind } }] : []),
         { label: "Abandon this commission", action: { type: "abandon-pirate-haven-quest", kind } }, back] };
   }

@@ -5561,7 +5561,10 @@ export function recordAttackAgainstFaction(state, factionId, options = {}) {
     throw new Error("Attack consequences require an optional lawful-wartime-action flag");
   }
   const lawfulWartimeAction = options.lawfulWartimeAction === true;
-  if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) return factionReputation(state, id);
+  if (id === NEUTRAL_FACTION_ID) return factionReputation(state, id);
+  if (id === PIRATE_FACTION_ID) {
+    return adjustFactionReputation(state, id, -8, { reason: "attack" });
+  }
   if (id === "papal-states") {
     const revoked = revokeActivePapalCommission(
       state.relations.papacy,
@@ -5706,6 +5709,14 @@ export function recordPiracyAgainstFaction(state, victimFactionId, options = {})
   }
   if (Object.keys(changes).length > 0) recordDecision(state, `reputation.piracy.${victimId}`, 1);
   return changes;
+}
+
+// Applied by the successful destruction/capture transition, not by hits or views.
+export function recordPirateLoss(state, kind) {
+  assertGameState(state);
+  const penalties = { ship: -12, haven: -25 };
+  if (!Object.hasOwn(penalties, kind)) throw new Error(`Unknown pirate loss: ${kind}`);
+  return adjustFactionReputation(state, PIRATE_FACTION_ID, penalties[kind], { reason: "attack" });
 }
 
 export function recordPlayerNavalVictory(state, { pirate = false } = {}) {

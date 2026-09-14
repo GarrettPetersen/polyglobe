@@ -47,3 +47,91 @@ test("haven state changes cancel stale workers and rebuild chart records before 
   runInNewContext(`${declaration("refreshPirateHavenWorld")}; refreshPirateHavenWorld();`, context);
   assert.deepEqual(calls, ["worker", "chart", "spatial"]);
 });
+
+test("a completed haven commission opens before ordinary arrival dialogue and prepares other mission lanes", () => {
+  const city = { cityId: "lisbon|portugal" };
+  for (const needsLoadout of [false, true]) {
+    const calls = [];
+    const context = {
+      recordTeaRaceArrivalAtPort() {}, playerAccessiblePortCities: () => [city], weatherClockMinutes: 100,
+      gameState: { memory: { pirateHavens: {} } }, sailingDistanceBetweenPorts() {}, worldEconomy: {},
+      capturePortMissionOfferForCity: () => calls.push("capture"),
+      wokouHuntMissionOfferForCity: () => calls.push("wokou"),
+      deliveryOfferForCity: () => calls.push("delivery"),
+      passengerDialogueQuestsForCity: () => { calls.push("travel"); return []; },
+      pirateQuestAtIssuer: () => ({ ready: true, originCityId: city.cityId }),
+      createPortDialogueSession: (_city, options) => options
+    };
+    const session = runInNewContext(`${declaration("createOrdinaryPortArrivalSession")}; createOrdinaryPortArrivalSession`, context)(city, needsLoadout);
+    assert.deepEqual(calls, ["capture", "wokou", "delivery", "travel"]);
+    assert.equal(session.initialNodeId, "pirate-haven-commission");
+    assert.equal(session.nextPortNodeId, needsLoadout ? "loadout" : "root");
+  }
+});
+
+test("repeated combat callbacks penalize a pirate attack once without rewarding piracy", () => {
+  const ship = { factionId: "pirate" };
+  let attacks = 0;
+  const context = {
+    gameState: {}, npcSeaRoutes: { shipById: new Map() }, activeNingboMissionQuest: () => null,
+    npcVisualShips: new Map([["pirate-ship", ship]]), PIRATE_FACTION_ID: "pirate",
+    hasPrivateeringAuthorityAgainst: () => false,
+    recordAttackAgainstFaction: () => { attacks++; },
+    recordPiracyAgainstFaction: () => assert.fail("Attacking pirates is not piracy")
+  };
+  const record = runInNewContext(`${declaration("recordPlayerAttackConsequences")}; recordPlayerAttackConsequences`, context);
+  record("pirate-ship");
+  record("pirate-ship");
+  assert.equal(attacks, 1);
+});
+
+test("only a deliberate player sinking records a pirate hull loss, once", () => {
+  for (const [winner, accidental, expected] of [["player", false, 1], ["npc", false, 0], ["player", true, 0]]) {
+    const ship = { id: "pirate-ship", factionId: "pirate", role: "pirate", slug: "galleon" };
+    const ships = new Map([[ship.id, ship]]);
+    let losses = 0;
+    const context = {
+      npcSeaRoutes: { shipById: ships }, npcVisualShips: new Map(),
+      npcShipCaptains: new Map([[ship.id, { name: "Test Captain" }]]),
+      PLAYER_COMBAT_ID: "player", NPC_ROLE_PIRATE: "pirate", PIRATE_FACTION_ID: "pirate",
+      TREASURE_PIRATE_ENCOUNTER_KIND: "treasure", PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND: "revenge",
+      gameState: {}, weatherClockMinutes: 100, lastFrameMs: 1, NOTICE_DURATION_MS: { combat: 100 },
+      recordCombatAuthorityOutcome() {}, combatEntityPoint: () => ({}),
+      recordPlayerSelfDefenseConsequences: () => null, recordPlayerShipVictory() {},
+      factionById: () => ({ adjective: "Pirate" }), shipLabelForSlug: () => "Galleon",
+      maybeGrantDefeatedShipPerkItem: () => null,
+      sinkNpcShip: (_routes, id) => ships.delete(id),
+      recordPirateLoss: (_state, kind) => { assert.equal(kind, "ship"); losses++; },
+      recordPlayerAccidentalDamagePenalty: () => ({ delta: 0 }),
+      clearCombatForShip() {}, deleteNpcVisualShipState() {}, shipCombatEntryCollisionGrace: new Map(),
+      npcCombatProjectiles: [], maybeOpenPirateCaptiveQuest() {}
+    };
+    const sink = runInNewContext(`${declaration("handleNpcSinking")}; handleNpcSinking`, context);
+    assert.equal(sink(ship.id, winner, { accidentalPlayerCollision: accidental }), true);
+    assert.equal(sink(ship.id, winner, { accidentalPlayerCollision: accidental }), false);
+    assert.equal(losses, expected);
+  }
+});
+
+test("an arriving passenger conversation cannot skip the port's independent job offers", () => {
+  const city = { cityId: "london|united kingdom" };
+  const quest = { id: "arriving-envoy", destinationCityId: city.cityId };
+  const prepared = [];
+  const context = {
+    recordTeaRaceArrivalAtPort() {}, playerAccessiblePortCities: () => [city], weatherClockMinutes: 100,
+    gameState: { memory: { pirateHavens: {} } }, sailingDistanceBetweenPorts() {}, worldEconomy: {},
+    capturePortMissionOfferForCity: () => prepared.push("capture"),
+    wokouHuntMissionOfferForCity: () => prepared.push("wokou"),
+    deliveryOfferForCity: () => prepared.push("delivery"),
+    passengerDialogueQuestsForCity: () => { prepared.push("travel"); return []; },
+    pirateQuestAtIssuer: () => null, spriteKeyHash: () => 0, requireCityId: c => c.cityId,
+    weatherParts: { dayIndex: 0 }, portMemory: () => ({ visits: 1 }),
+    activeTravelMissionQuests: () => [quest], questHasDestination: () => true,
+    shouldAutoOpenPassengerDialogue: () => true, pendingQuestJourneyDialogue: () => null,
+    createWorldPassengerDialogueSession: (_city, q) => ({ questId: q.id }),
+    createPortArrivalDialogueSession: (_city, options) => options
+  };
+  const arrive = runInNewContext(`${declaration("createOrdinaryPortArrivalSession")}; createOrdinaryPortArrivalSession`, context);
+  assert.equal(arrive(city, false).questCharacterSession.questId, quest.id);
+  assert.deepEqual(prepared, ["capture", "wokou", "delivery", "travel"]);
+});

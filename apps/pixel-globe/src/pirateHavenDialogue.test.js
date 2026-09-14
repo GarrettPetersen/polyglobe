@@ -1,3 +1,4 @@
+import { createPortDialogueSession, selectPortDialogueAction } from "./dialogueSystem.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createGameState } from "./gameState.js";
@@ -53,4 +54,28 @@ test("a merchant moving between presentation and acceptance refreshes the offer 
   assert.equal(state.memory.pirateHavens.revenge, null);
   assert.equal(selectPirateHavenCommission(state, haven, { type: "accept-pirate-haven-quest", offer: latest }, { pirateHavenQuestOffer: latest }).changed, true);
   assert.equal(state.memory.pirateHavens.revenge.targetPortName, "Seville");
+});
+
+test("returning suppression patrons offer payment here and pay only once", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const context = { simMinute: 0, pirateHavenQuestOffer: pirateHavenQuestOffer(state.memory.pirateHavens, port, {
+    offerRoll: 0, havens: [haven], merchants: [], sailingDistanceKm: () => 200, simMinute: 0
+  }) };
+  selectPirateHavenCommission(state, port, { type: "accept-pirate-haven-quest", offer: context.pirateHavenQuestOffer }, context);
+  ruinPirateHaven(state.memory.pirateHavens, haven.cityId, 0);
+  const view = pirateHavenCommissionView(state, port, context);
+  assert.match(view.text, /Here are your/);
+  assert.doesNotMatch(view.text, /Return to/);
+  const collect = view.options.find(option => option.action.type === "complete-pirate-haven-quest");
+  assert.equal(collect.label, "Collect commission reward");
+  const before = state.doubloons;
+  const reward = state.memory.pirateHavens.suppression.reward;
+  const session = createPortDialogueSession(port, { initialNodeId: "pirate-haven-commission",
+    admittedToPort: true, nextPortNodeId: "loadout" });
+  selectPortDialogueAction(session, port, state, null, [port], collect, context);
+  assert.equal(session.nodeId, "loadout");
+  assert.equal(session.nextPortNodeId, null);
+  assert.equal(state.doubloons, before + reward);
+  assert.throws(() => selectPirateHavenCommission(state, port, collect.action, context), /cannot be delivered/);
+  assert.equal(state.doubloons, before + reward);
 });

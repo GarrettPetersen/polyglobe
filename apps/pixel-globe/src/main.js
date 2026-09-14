@@ -580,6 +580,7 @@ import {
   recordPeaceTreatyAuthorityForState,
   recordPortCaptureAuthorityForState,
   recordPlayerNavalVictory,
+  recordPirateLoss,
   reconcileCharacterForPapalAuthority,
   resolveCatholicBibleInspection,
   payPortugueseCartazFine,
@@ -24063,10 +24064,22 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     simMinute,
     sailingDistanceKm: sailingDistanceBetweenPorts
   });
+  // Prepare independent lanes before an arrival conversation can return early.
+  wokouHuntMissionOfferForCity(gameState, cityCall, accessiblePorts, { simMinute });
+  deliveryOfferForCity(gameState, cityCall, accessiblePorts, { economy: worldEconomy, simMinute, sailingDistanceKm: sailingDistanceBetweenPorts });
+  passengerDialogueQuestsForCity(cityCall, { createOffers: true });
+  const completedPirateQuest = pirateQuestAtIssuer(gameState.memory.pirateHavens, cityCall);
+  if (completedPirateQuest?.ready) {
+    return createPortDialogueSession(cityCall, {
+      initialNodeId: "pirate-haven-commission",
+      admittedToPort: true,
+      nextPortNodeId: needsLoadout ? "loadout" : "root"
+    });
+  }
   const drunkVariant = spriteKeyHash(
     `${requireCityId(cityCall, "Port gossip city")}|${weatherParts.dayIndex}|${portMemory(gameState, cityCall).visits}`
   );
-  const arrivingTravelMission = passengerDialogueQuestForCity(cityCall);
+  const arrivingTravelMission = activeTravelMissionQuests(gameState).find(quest => questHasDestination(quest, cityCall));
   if (arrivingTravelMission && shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
     const pendingJourneyEvent = pendingQuestJourneyDialogue(arrivingTravelMission, { arrived: true });
     const journeyEvent = Array.isArray(pendingJourneyEvent?.choices) ? null : pendingJourneyEvent;
@@ -24106,8 +24119,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       colonizationApproach: true
     });
   }
-  wokouHuntMissionOfferForCity(gameState, cityCall, accessiblePorts, { simMinute });
-  deliveryOfferForCity(gameState, cityCall, accessiblePorts, { economy: worldEconomy, simMinute, sailingDistanceKm: sailingDistanceBetweenPorts });
+
   const openDeliveryMission = !needsLoadout &&
     deliveryMissionShouldOpenOnArrival(gameState, cityCall, accessiblePorts);
   const vikingLongshipOffer = maybeSpawnVikingLongshipQuest(gameState, cityCall, { simMinute });
@@ -24215,7 +24227,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       nextPortNodeId
     });
   }
-  const passengerQuest = passengerDialogueQuestForCity(cityCall, { createOffer: true });
+  const passengerQuest = passengerDialogueQuestForCity(cityCall);
   const autoPassengerQuest = passengerQuest && shouldAutoOpenPassengerDialogue(cityCall, passengerQuest)
     ? passengerQuest
     : null;
@@ -25746,6 +25758,7 @@ function finishPlayerPortAssault(cityCall, status, battle, crewFates) {
   const simMinute = Math.floor(weatherClockMinutes);
   if (cityCall.isPirateHideout) {
     ruinPirateHaven(gameState.memory.pirateHavens, cityCall.cityId, simMinute);
+    recordPirateLoss(gameState, "haven");
     refreshPirateHavenWorld();
     clearCombatForShip(PLAYER_COMBAT_ID);
     restorePortAssaultDialogue();
@@ -28597,6 +28610,7 @@ async function captureSurrenderedShip(npcShipId) {
         const abandonedCargoQuantity = Object.values(deferredLoot.remainingCargo)
           .reduce((sum, quantity) => sum + quantity, 0);
         captureSurrenderedNpcShip(npcSeaRoutes, npcShipId, Math.floor(weatherClockMinutes));
+        if (strategic.factionId === PIRATE_FACTION_ID) recordPirateLoss(gameState, "ship");
         deleteNpcVisualShipState(npcShipId);
         shipCombatEntryCollisionGrace.delete(npcShipId);
         return { returnedHistorian, recoveredCargoQuantity, abandonedCargoQuantity };
@@ -28673,14 +28687,14 @@ function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
   if (ningboQuest?.eastAsianStage === "battle" && ningboQuest.eastAsianBattleShipIds.includes(npcShipId)) return;
   const state = npcVisualShips.get(npcShipId);
   const factionId = state?.factionId || npcSeaRoutes?.shipById?.get(npcShipId)?.factionId || fallbackFactionId;
-  if (!factionId || factionId === PIRATE_FACTION_ID) return;
+  if (!factionId) return;
   const lawfulWartimeAction = hasPrivateeringAuthorityAgainst(gameState, factionId) ||
     state?.playerTradeRestrictionEnforcementActive === true;
   if (!state?.playerAttackRecorded) {
     recordAttackAgainstFaction(gameState, factionId, { lawfulWartimeAction });
     if (state) state.playerAttackRecorded = true;
   }
-  if (lawfulWartimeAction) return;
+  if (lawfulWartimeAction || factionId === PIRATE_FACTION_ID) return;
   if (!state?.playerPiracyRecorded) {
     const hideoutsWereVisible = pirateHideoutsVisibleToPlayer(gameState);
     const reputationChanges = recordPiracyAgainstFaction(
@@ -35945,7 +35959,7 @@ function beginPlayerInitiatedShoreCombat(battery) {
   }
   battery.playerAttackActive = true;
   if (battery.playerAttackRecorded) return;
-  if (battery.factionId !== NEUTRAL_FACTION_ID && battery.factionId !== PIRATE_FACTION_ID) {
+  if (battery.factionId !== NEUTRAL_FACTION_ID) {
     recordAttackAgainstFaction(gameState, battery.factionId, {
       lawfulWartimeAction: attackStatus.piracy === false
     });
@@ -40864,6 +40878,7 @@ function handleNpcSinking(loserId, winnerId, {
       })
     : null;
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
+  if (playerVictory && factionId === PIRATE_FACTION_ID) recordPirateLoss(gameState, "ship");
   if (strategic.encounter?.kind === "ningbo-delegation") {
     resolveNingboDelegationShipLoss(loserId);
   }

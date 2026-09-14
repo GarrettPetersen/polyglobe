@@ -2,7 +2,7 @@ import { localizeText } from "./localization.js";
 import { createCaptureCommissionTroops, recordCaptureCommissionTroopLosses } from "./captureCommissionTroops.js";
 import { shipTravelerManifest } from "./gameState.js";
 import { PIRATE_HAVEN_SPECS } from "./pirateHavenCatalog.js";
-import { envoyOfferForCapital } from "./passengerMissions.js";
+import { envoyOfferForCapital, passengerOfferForCity } from "./passengerMissions.js";
 import { greatCircleDistanceKm as testSailingDistanceKm } from "./worldDistance.js";
 import { createPortDialogueSession, portDialogueView, selectPortDialogueAction } from "./dialogueSystem.js";
 import { dialogueOptionIconId } from "./gameIcons.js";
@@ -1601,7 +1601,10 @@ test("capture commissions coexist with ordinary work and migrate from the old sl
   reconcileQuestPortTiles(restored, [LONDON, movedCalais, PARIS]);
   assert.equal(restored.memory.quests.captureActive.targetTileId, movedCalais.tileId);
   assert.equal(restored.memory.quests.captureActive.targetName, "Renamed Calais");
-  const delivery = deliveryQuestForCity(LISBON, [LISBON, PORTO], { sailingDistanceKm: testSailingDistanceKm });
+  const delivery = deliveryOfferForCity(state, LONDON, [LONDON, DOVER], {
+    sailingDistanceKm: testSailingDistanceKm, simMinute: 0, spawnChance: 1
+  });
+  assert.ok(delivery, "the commission issuer still offers deliveries");
   acceptQuest(state, delivery);
   const envoy = envoyOfferForCapital(state, LONDON, [LONDON, PARIS], {
     sailingDistanceKm: () => 1800, envoySpawnChance: 1, envoyKind: "friendly-envoy",
@@ -1610,6 +1613,14 @@ test("capture commissions coexist with ordinary work and migrate from the old sl
   });
   assert.ok(envoy);
   acceptQuest(state, envoy);
+  const passenger = passengerOfferForCity(state, LONDON, [LONDON, LISBON], {
+    sailingDistanceKm: () => 1800, spawnChance: 1, simMinute: 0,
+    destinationCityId: LISBON.cityId, scenarioId: "shipwrecked-sailor",
+    createCharacter: () => ({ id: "passenger:alongside-capture", name: "Henry Ward" })
+  });
+  assert.ok(passenger, "the commission issuer still offers passengers alongside its envoy");
+  acceptQuest(state, passenger);
+  assert.equal(state.memory.quests.passengerActive.id, passenger.id);
   assert.equal(state.memory.quests.envoyActive.id, envoy.id);
   assert.equal(state.memory.quests.active.id, delivery.id);
   assert.equal(state.memory.quests.captureActive.id, offer.id);

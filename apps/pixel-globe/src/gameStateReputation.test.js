@@ -63,6 +63,7 @@ import {
   recordAttackAgainstFaction,
   recordPiracyAgainstFaction,
   recordPlayerNavalVictory,
+  recordPirateLoss,
   recordSelfDefenseAgainstFaction,
   recordShipMercyForFaction,
   validateGameState
@@ -1420,4 +1421,25 @@ test("buy-all and sell-all preserve the same standing and diplomatic trade weigh
   for (let i = 0; i < 3; i++) sellGood(singles, singleEconomy, LONDON, "wool", 1, { simMinute: 101 });
   assert.ok(Math.abs(factionReputation(bulk, "england") - factionReputation(singles, "england")) < 1e-8);
   assert.equal(bulk.memory.decisions["reputation.trade.england"], singles.memory.decisions["reputation.trade.england"]);
+});
+
+
+test("pirates resent attacks, prizes, and ruined havens more than they reward mercy", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  adjustFactionReputation(state, "pirate", 150);
+  const before = factionReputation(state, "pirate");
+  recordAttackAgainstFaction(state, "pirate");
+  assert.equal(factionReputation(state, "pirate"), before - 8);
+  recordShipMercyForFaction(state, "pirate");
+  assert.equal(factionReputation(state, "pirate"), before - 5);
+  recordPirateLoss(state, "ship");
+  assert.equal(factionReputation(state, "pirate"), before - 17);
+  recordPirateLoss(state, "haven");
+  assert.equal(factionReputation(state, "pirate"), before - 42);
+  recordPlayerNavalVictory(state, { pirate: true });
+  assert.equal(factionReputation(state, "pirate"), before - 42);
+  const after = factionReputation(state, "pirate");
+  assert.deepEqual(recordPiracyAgainstFaction(state, "pirate"), {});
+  assert.equal(factionReputation(state, "pirate"), after, "attacking pirates earns no piracy reward");
+  assert.throws(() => recordPirateLoss(state, "unknown"), /Unknown pirate loss/);
 });
