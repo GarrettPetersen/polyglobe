@@ -5179,7 +5179,7 @@ return Object.freeze({
     if (hit.fromLabel === true) focusDestination(hit.destination.id, { immediate: true });
     return activateDestination(hit.destination.id, hit.saleShipId);
   },
-  setColonistLandingElapsedMs(elapsedMs, { originCityId } = {}) {
+  setColonistLandingElapsedMs(elapsedMs, { originCityId, settlers, leader } = {}) {
     if (elapsedMs === null) {
       if (state.colonistLanding) {
         state.colonistLanding = null;
@@ -5196,7 +5196,7 @@ return Object.freeze({
     if (state.colonistLanding && state.colonistLanding.originCityId !== originCityId) {
       throw new Error("Colonist landing cannot change its expedition origin");
     }
-    const roster = state.colonistLanding?.roster || createCityColonistRoster(resolveCityRecord(originCityId));
+    const roster = state.colonistLanding?.roster || createCityColonistRoster(resolveCityRecord(originCityId), { settlers, leader });
     const frame = cityColonistLandingFrame(roster, elapsedMs);
     const shoreline = state.colonistLanding?.shoreline || colonistShoreline();
     const entering = state.colonistLanding === null;

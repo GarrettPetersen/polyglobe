@@ -1,3 +1,4 @@
+import { COLONIZATION_SETTLER_COUNT } from "./colonizationParty.js";
 import { workshopSupplyFetchObjectives } from "./workshopSupplyQuest.js";
 import { commissionGarrisonTroops, recordCommissionGarrisonLosses, captureCommissionTroopsAboard, captureCommissionTroopsForAssault, recordCaptureCommissionTroopLosses } from "./captureCommissionTroops.js";
 import { landCollisionSoundVolume } from "./landCollisionSound.js";
@@ -22598,7 +22599,9 @@ async function synchronizePortCityScene() {
   if (portCityView.colonistLanding &&
       portCityRuntime.getPresentationState().features.settlementStage === "uninhabited") {
     portCityRuntime.setColonistLandingElapsedMs(portCityView.colonistLanding.elapsedMs, {
-      originCityId: portCityView.colonistLanding.originCityId
+      originCityId: portCityView.colonistLanding.originCityId,
+      settlers: portCityView.colonistLanding.settlers,
+      leader: portCityView.colonistLanding.leader
     });
   }
   if (portCityTransition?.direction === "enter-pending") {
@@ -22687,7 +22690,9 @@ function beginColonistLanding({ cityId, originCityId }) {
   }
   if (portCityView.colonistLanding) throw new Error(`Colonists have already landed: ${cityId}`);
   requireEntityById(cityById, originCityId, "Colonist expedition origin");
-  portCityView.colonistLanding = { originCityId, startedAtMs: null, elapsedMs: 0, complete: false };
+  const leader = ensureColonizationOrganizer(gameState);
+  const settlers = currentColonistTravelerPeople(COLONIZATION_SETTLER_COUNT - 1, leader);
+  portCityView.colonistLanding = { originCityId, settlers, leader, startedAtMs: null, elapsedMs: 0, complete: false };
   portCitySceneSyncKey = null;
   invalidateDialogueOptionGeometry();
 }
@@ -22699,7 +22704,9 @@ function updateColonistLanding(nowMs) {
   landing.startedAtMs ??= nowMs;
   landing.elapsedMs = Math.max(0, nowMs - landing.startedAtMs);
   landing.complete = portCityRuntime.setColonistLandingElapsedMs(landing.elapsedMs, {
-    originCityId: landing.originCityId
+    originCityId: landing.originCityId,
+    settlers: landing.settlers,
+    leader: landing.leader
   });
   if (landing.complete) {
     invalidateDialogueView();
@@ -51331,6 +51338,23 @@ function currentAboardRoster() {
   return Object.freeze({ ...roster, named: Object.freeze(named) });
 }
 
+function currentColonistTravelerPeople(genericSettlerCount, colonyLeader) {
+  const memory = gameState.memory.colonization;
+  const origin = requireEntityById(cityById, memory.originCityId, "Colonization expedition origin");
+  const expeditionId = `colonization:${requireEntityId(
+    memory.targetCityId,
+    "Colonization expedition target"
+  )}`;
+  const sexes = colonistSexes(genericSettlerCount, expeditionId);
+  return createColonistTravelerPeople({
+    count: genericSettlerCount,
+    expeditionId,
+    originCityId: origin.cityId,
+    appearanceIds: cityCivilianAppearanceIds(origin, sexes, expeditionId),
+    identityForPerson: expeditionIdentityFactory(origin, [colonyLeader])
+  });
+}
+
 function currentExpeditionTravelerPeople({ travelerGroups, colonyLeader }) {
   if (!Array.isArray(travelerGroups)) throw new Error("Expedition roster requires traveler groups");
   const people = [];
@@ -51340,20 +51364,7 @@ function currentExpeditionTravelerPeople({ travelerGroups, colonyLeader }) {
   if (settlerCount > 0) {
     const genericSettlerCount = settlerCount - (colonyLeader ? 1 : 0);
     if (genericSettlerCount < 0) throw new Error("Colonization organizer exceeds the settler manifest");
-    const memory = gameState.memory.colonization;
-    const origin = requireEntityById(cityById, memory.originCityId, "Colonization expedition origin");
-    const expeditionId = `colonization:${requireEntityId(
-      memory.targetCityId,
-      "Colonization expedition target"
-    )}`;
-    const sexes = colonistSexes(genericSettlerCount, expeditionId);
-    people.push(...createColonistTravelerPeople({
-      count: genericSettlerCount,
-      expeditionId,
-      originCityId: origin.cityId,
-      appearanceIds: cityCivilianAppearanceIds(origin, sexes, expeditionId),
-      identityForPerson: expeditionIdentityFactory(origin, [colonyLeader])
-    }));
+    people.push(...currentColonistTravelerPeople(genericSettlerCount, colonyLeader));
   }
   const conquistador = gameState.memory.quests.conquistador;
   if (conquistador.stage === CONQUISTADOR_STAGE_CAPTURE && conquistador.companyStrength > 0) {

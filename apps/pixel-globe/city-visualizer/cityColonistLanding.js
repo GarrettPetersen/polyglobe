@@ -1,7 +1,10 @@
 import { COLONIZATION_SETTLER_COUNT } from "../src/colonizationParty.js";
+import { CITY_PERSON_APPEARANCES } from "./cityPeopleCatalog.js";
 import { cityCivilianAppearanceIds } from "./cityPeople.js";
 import { cityAssaultJumpPoint } from "./cityAssaultMotion.js";
 import { portAssaultLandingDurationMs } from "../src/portAssaultBattle.js";
+
+const APPEARANCE_IDS = new Set(CITY_PERSON_APPEARANCES.map(({ id }) => id));
 
 export const CITY_COLONIST_COUNT = COLONIZATION_SETTLER_COUNT;
 export const CITY_COLONIST_LANE_FEET_Y = Object.freeze([530, 544, 558]);
@@ -13,20 +16,31 @@ export const CITY_COLONIST_LANDING_DURATION_MS =
   (CITY_COLONIST_COUNT - 1) * DEPARTURE_INTERVAL_MS + JUMP_DURATION_MS +
   WADE_DURATION_MS + WALK_DURATION_MS + 600;
 
-export function createCityColonistRoster(city) {
-  const appearances = cityCivilianAppearanceIds(
-    city,
-    Array.from({ length: CITY_COLONIST_COUNT }, (_, index) => index % 2 ? "female" : "male"),
-    "colonist-landing"
-  );
-  return Object.freeze(appearances.map((appearanceId, index) => Object.freeze({
-    // These IDs identify temporary scene actors, not durable settlers.
-    id: `${city.id}:landing:${index}`,
-    appearanceId,
-    lane: index % CITY_COLONIST_LANE_FEET_Y.length,
-    column: Math.floor(index / CITY_COLONIST_LANE_FEET_Y.length),
-    departureMs: index * DEPARTURE_INTERVAL_MS
-  })));
+export function createCityColonistRoster(origin, { settlers, leader }) {
+  if (!Array.isArray(settlers) || settlers.length !== CITY_COLONIST_COUNT - 1) {
+    throw new Error("Colonist landing requires the embarked settlers");
+  }
+  if (!leader || typeof leader.id !== "string" || !leader.id ||
+      !["female", "male"].includes(leader.sex)) {
+    throw new Error("Colonist landing requires its named leader and sex");
+  }
+  const leaderAppearanceId = cityCivilianAppearanceIds(origin, [leader.sex], leader.id)[0];
+  const people = [...settlers, { id: leader.id, appearanceId: leaderAppearanceId }];
+  const ids = new Set();
+  return Object.freeze(people.map((person, index) => {
+    if (!person || typeof person.id !== "string" || !person.id || ids.has(person.id) ||
+        !APPEARANCE_IDS.has(person.appearanceId)) {
+      throw new Error(`Invalid or duplicate colonist landing person: ${person?.id}`);
+    }
+    ids.add(person.id);
+    return Object.freeze({
+      id: person.id,
+      appearanceId: person.appearanceId,
+      lane: index % CITY_COLONIST_LANE_FEET_Y.length,
+      column: Math.floor(index / CITY_COLONIST_LANE_FEET_Y.length),
+      departureMs: index * DEPARTURE_INTERVAL_MS
+    });
+  }));
 }
 
 export function cityColonistLandingFrame(roster, elapsedMs) {
