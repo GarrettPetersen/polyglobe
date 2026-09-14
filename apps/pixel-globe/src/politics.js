@@ -78,7 +78,7 @@ export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_WAR]: "War"
 });
 
-export const POLITICS_NEWS_HISTORY_LIMIT = 10;
+export const POLITICS_NEWS_HISTORY_LIMIT = 20;
 export const POLITICS_GROUP_HOLY_ROMAN_EMPIRE_ID = "political-group:holy-roman-empire";
 export const POLITICS_GROUP_JAPAN_ID = "political-group:japan";
 

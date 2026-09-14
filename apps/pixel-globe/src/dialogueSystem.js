@@ -89,7 +89,7 @@ import {
   personalTradePassStatuses,
   playerPortCustomsNotice,
   playerPortAttackStatus,
-  privateeringAuthorityIssuerIdsAgainst,
+  portPrivateeringAuthorityIssuerIdsAgainst,
   playerPortugueseCrownSpiceAccess,
   playerWhaleHarpoon,
   playerTradeAccess,
@@ -4803,7 +4803,7 @@ function cityAttackView(session, city, gameState, context) {
 }
 
 function portAttackOption(city, gameState, attack, action) {
-  const issuerIds = privateeringAuthorityIssuerIdsAgainst(gameState, attack.targetFactionId);
+  const issuerIds = portPrivateeringAuthorityIssuerIdsAgainst(gameState, attack.targetFactionId);
   if (attack.privateeringAuthority !== (issuerIds.length > 0)) {
     throw new Error(`Port attack authority is inconsistent for ${cityLabel(city)}`);
   }

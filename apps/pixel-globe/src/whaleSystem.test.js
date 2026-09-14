@@ -260,6 +260,33 @@ test("presentation reconciliation discards whales harvested by the distant simul
   assert.deepEqual(reconciliation.staleIds, ["whale-harvested-offscreen"]);
 });
 
+test("frame presentation reuses population validation and invalidates it on population or save replacement", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(40), 8);
+  let phaseReads = 0;
+  const whale = memory.individuals[0];
+  const phase = whale.phase;
+  Object.defineProperty(whale, "phase", { enumerable: true, get() { phaseReads++; return phase; } });
+  reconcileWhalePresentationIds(memory, []);
+  assert.ok(phaseReads > 0, "first use validates the population");
+  phaseReads = 0;
+  for (let frame = 0; frame < 120; frame++) {
+    assert.deepEqual(reconcileWhalePresentationIds(memory, [whale.id]).ids, [whale.id]);
+  }
+  assert.equal(phaseReads, 0, "render frames must not repeatedly validate offscreen whale biology");
+  memory.individuals = memory.individuals.slice();
+  reconcileWhalePresentationIds(memory, []);
+  assert.ok(phaseReads > 0, "a replaced worker population is validated");
+  memory.individuals.push({ ...whale });
+  assert.throws(() => reconcileWhalePresentationIds(memory, []), /Duplicate whale id/);
+  memory.individuals.pop();
+  const restored = JSON.parse(JSON.stringify(memory));
+  restored.individuals[0].phase = "invalid-phase";
+  assert.throws(() => reconcileWhalePresentationIds(restored, []), /phase/);
+  memory.activeHunt = { whaleId: "missing" };
+  assert.throws(() => reconcileWhalePresentationIds(memory, []), /missing individual/);
+});
+
 test("submerged whales swim beneath ice and wait for open water before rising", () => {
   const memory = createWhaleMemory();
   seedWhalePopulation(memory, candidates(), 6);

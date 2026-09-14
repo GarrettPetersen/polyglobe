@@ -5767,6 +5767,18 @@ export function privateeringAuthorityIssuerIdsAgainst(state, targetFactionId) {
   return privateeringAuthorityIssuerIdsAgainstValidState(state, targetId);
 }
 
+export function portPrivateeringAuthorityIssuerIdsAgainst(state, targetFactionId) {
+  assertGameState(state);
+  return portPrivateeringAuthorityIssuerIdsAgainstValidState(state, assertFactionId(targetFactionId));
+}
+
+function portPrivateeringAuthorityIssuerIdsAgainstValidState(state, targetId) {
+  // Foreign letters do not authorize raiding the captain's own country's cities.
+  // Use this same port-specific eligibility for both the attack and its notice.
+  if (targetId === state.playerCharacter?.nationalityId) return [];
+  return privateeringAuthorityIssuerIdsAgainstValidState(state, targetId);
+}
+
 function privateeringAuthorityIssuerIdsAgainstValidState(state, targetId) {
   if (targetId === NEUTRAL_FACTION_ID || targetId === PIRATE_FACTION_ID) return [];
   const inactiveFactionIds = new Set(state.memory.conquest.collapsedFactionIds);
@@ -7514,7 +7526,7 @@ export function playerPortAttackStatus(state, city, context = null) {
   const ownNationAtWar = !ownPort && playerFactionId !== NEUTRAL_FACTION_ID &&
     playerFactionId !== PIRATE_FACTION_ID &&
     diplomacyBetweenForState(state, playerFactionId, targetFactionId) === DIPLOMACY_WAR;
-  const privateeringAuthority = privateeringAuthorityIssuerIdsAgainstValidState(
+  const privateeringAuthority = portPrivateeringAuthorityIssuerIdsAgainstValidState(
     state,
     targetFactionId
   ).length > 0;

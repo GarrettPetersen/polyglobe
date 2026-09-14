@@ -48,7 +48,7 @@ const WHALE_TETHER_FINAL_LENGTH_SCALE = 0.36;
 const WHALE_RAM_TRIGGER_PROGRESS = 0.28;
 const WHALE_RAM_WARNING_SECONDS = 1.2;
 const WHALE_ECOLOGY_INTERVAL_MINUTES = 6 * 60;
-const whaleAdvanceValidationCache = new WeakMap();
+const whaleSimulationValidationCache = new WeakMap();
 const whaleIndexCache = new WeakMap();
 const whaleMovementBucketCache = new WeakMap();
 const whaleSimulationClockCache = new WeakMap();
@@ -282,7 +282,7 @@ export function beginWhaleAdvance(
   currentMinute,
   movementSchedule = null
 ) {
-  validateWhaleMemoryForAdvance(memory);
+  validateWhaleSimulationMemory(memory);
   if (!Number.isFinite(dt) || dt < 0) throw new Error(`Invalid whale simulation step: ${dt}`);
   if (typeof navigationAtPosition !== "function") {
     throw new Error("Whale simulation requires an ocean navigation resolver");
@@ -527,12 +527,12 @@ function whaleSimulationClock(memory) {
   return clock;
 }
 
-function validateWhaleMemoryForAdvance(memory) {
+function validateWhaleSimulationMemory(memory) {
   if (!memory || typeof memory !== "object") {
     validateWhaleMemory(memory);
     return;
   }
-  const signature = whaleAdvanceValidationCache.get(memory);
+  const signature = whaleSimulationValidationCache.get(memory);
   if (
     signature?.version === memory.version &&
     signature?.nextId === memory.nextId &&
@@ -544,7 +544,7 @@ function validateWhaleMemoryForAdvance(memory) {
     return;
   }
   validateWhaleMemory(memory);
-  whaleAdvanceValidationCache.set(memory, {
+  whaleSimulationValidationCache.set(memory, {
     version: memory.version,
     nextId: memory.nextId,
     individuals: memory.individuals,
@@ -755,7 +755,10 @@ export function whaleById(memory, whaleId) {
 }
 
 export function reconcileWhalePresentationIds(memory, whaleIds) {
-  validateWhaleMemory(memory);
+  // This runs every frame, including with no whales on screen. Reuse the
+  // simulation's population validation until a load or population change;
+  // presentation ID lookup must not rescan every whale in the world.
+  validateWhaleSimulationMemory(memory);
   if (!Array.isArray(whaleIds) || whaleIds.some((id) => typeof id !== "string" || id === "")) {
     throw new Error("Whale presentation reconciliation requires whale ids");
   }

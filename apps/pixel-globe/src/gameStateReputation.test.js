@@ -42,6 +42,7 @@ import {
   hasPersonalTradePass,
   hasPrivateeringAuthorityAgainst,
   privateeringAuthorityIssuerIdsAgainst,
+  portPrivateeringAuthorityIssuerIdsAgainst,
   issuePersonalTradePass,
   letterOfMarqueStatus,
   migrateGameState,
@@ -100,6 +101,30 @@ const LONDON_CAPITAL = {
   capitalOfFactionId: "england"
 };
 const CALAIS = port(2, "Calais", "France", "northern-european", 18000, "france");
+
+test("foreign letters cannot authorize raiding home-country ports, including conquered cities", () => {
+  for (const nationalityId of ["ottoman", "england", "utrecht"]) {
+    const issuerId = nationalityId === "utrecht" ? "england" : "utrecht";
+    const state = createGameState({ cargoCapacity: 10, playerCharacter: { ...PLAYER, nationalityId } });
+    state.relations.lettersOfMarque[issuerId] = { factionId: issuerId, simMinute: 0 };
+    state.relations.diplomacy.overrides[[issuerId, nationalityId].sort().join("|")] = DIPLOMACY_WAR;
+    const muscat = port(20, "Muscat", "Oman", "islamic-desert", 18000, nationalityId);
+    assert.deepEqual(privateeringAuthorityIssuerIdsAgainst(state, nationalityId), [issuerId]);
+    assert.deepEqual(portPrivateeringAuthorityIssuerIdsAgainst(state, nationalityId), []);
+    const status = playerPortAttackStatus(state, muscat);
+    assert.equal(status.ownPort, true);
+    assert.equal(status.privateeringAuthority, false);
+    assert.equal(status.piracy, true);
+    assert.equal(status.captureFactionId, null);
+    // The same city under foreign sovereignty remains a lawful privateering target.
+    state.playerCharacter.nationalityId = "ming";
+    assert.deepEqual(portPrivateeringAuthorityIssuerIdsAgainst(state, nationalityId), [issuerId]);
+    assert.equal(playerPortAttackStatus(state, muscat).piracy, false);
+    state.memory.conquest.collapsedFactionIds.push(issuerId);
+    assert.deepEqual(portPrivateeringAuthorityIssuerIdsAgainst(state, nationalityId), []);
+    assert.equal(playerPortAttackStatus(state, muscat).piracy, true);
+  }
+});
 
 test("player reputation starts from nationality, wars, and pirates", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });

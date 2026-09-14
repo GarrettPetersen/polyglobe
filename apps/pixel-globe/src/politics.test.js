@@ -477,8 +477,8 @@ test("scripted political notices remain available in dated politics history", ()
   )));
 });
 
-test("politics news keeps the ten newest dated developments", () => {
-  const recentEvents = Array.from({ length: 12 }, (_, index) => ({
+test("politics news keeps the twenty newest dated developments", () => {
+  const recentEvents = Array.from({ length: 22 }, (_, index) => ({
     id: `test-politics-${index}`,
     kind: index % 2 === 0 ? "war" : "peace",
     factionAId: "england",
@@ -493,10 +493,11 @@ test("politics news keeps the ten newest dated developments", () => {
     pendingPapalMatter: null
   });
 
-  assert.equal(history.length, POLITICS_NEWS_HISTORY_LIMIT);
+  assert.equal(POLITICS_NEWS_HISTORY_LIMIT, 20);
+  assert.equal(history.length, 20);
   assert.deepEqual(
     history.map((entry) => entry.simMinute),
-    [210, 200, 190, 180, 170, 160, 150, 140, 130, 120]
+    Array.from({ length: 20 }, (_, index) => 310 - index * 10)
   );
   assert.equal(history[0].text, "PEACE: ENGLAND / FRANCE");
   assert.equal(Object.isFrozen(history), true);

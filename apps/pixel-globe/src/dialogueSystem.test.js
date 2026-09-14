@@ -20,6 +20,7 @@ import {
   personalHostilityDialogue,
   portMarketTransactionSessionOpen,
   portDialogueView,
+  portCityNavigationView,
   prepareDamageSurrenderDialogue,
   prepareSurrenderPrizeDialogue,
   restorePortDialogueCityIdentity,
@@ -4421,6 +4422,29 @@ test("formal war permits a lawful port raid but grants no right of conquest", ()
   assert.match(warning.text, /ruler's express commission/i);
   assert.doesNotMatch(warning.text, /taken for England/i);
   assert.deepEqual(warning.options.map((entry) => entry.label), ["Attack city", "Back to city"]);
+});
+
+test("Muscat remains navigable with a foreign letter against the captain's own nation", () => {
+  const city = { tileId: 131, cityId: "muscat|oman", city: "Muscat", displayCity: "Muscat",
+    country: "Oman", factionId: "ottoman", cityType: "islamic-desert", population: 18000,
+    character: { name: "Harbor official", role: "harbour-master" } };
+  const gameState = createGameState({ cargoCapacity: 20,
+    playerCharacter: { name: "Mehmed", nationalityId: "ottoman", expressions: ["neutral"] } });
+  gameState.relations.lettersOfMarque.utrecht = { factionId: "utrecht", simMinute: 0 };
+  gameState.relations.diplomacy.overrides["ottoman|utrecht"] = DIPLOMACY_WAR;
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  const context = { portAttackStatus: playerPortAttackStatus(gameState, city) };
+  const navigation = portCityNavigationView(session, city, gameState, economy, [city], context);
+  const attack = navigation.locations.flatMap(location => location.actions).find(action => action.label === "Attack city");
+  assert.ok(attack);
+  assert.equal(attack.detail, "Piracy");
+  assert.equal(attack.disabled, false);
+  selectPortDialogueAction(session, city, gameState, economy, [city], attack, context);
+  const warning = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(warning.text, /attacking Muscat is piracy/);
+  assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context),
+    { closed: false, action: { type: "attack-city" } });
 });
 
 test("a port attack button identifies the letter of marque that makes it legal", () => {
