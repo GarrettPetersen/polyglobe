@@ -10,7 +10,9 @@ Quotation marks, attribution, headings and link labels are assembly formatting.
 
 ## Release copy
 
-Historical sailing sandbox Marque & Reprisal launches free Steam demo
+FOR IMMEDIATE RELEASE
+
+Historical sailing sandbox Marque & Reprisal launches free Steam demo September 17
 
 The 1-person Canadian indie studio Iron Pagoda is launching a demo for its roguelike historical sailing sandbox game, Marque & Reprisal, on Steam on September 17, 2026.
 
@@ -75,6 +77,8 @@ Press contact: Garrett Petersen — garrett.m.petersen@gmail.com
   differing counts, and the release does not need them.
 - The existing developer quote describes the full game's ambition; place it
   after the demo/full-game distinction so the scope is clear.
-- Add campaign-specific UTM parameters to the Steam link before distribution.
-- Publish only once the demo is playable and the install flow is verified.
+- The GamesPress email export uses its campaign-specific Steam link.
+- Advance news coverage is welcome: this announcement may be distributed before
+  September 17 without an embargo. Only “play now” messages must wait for the
+  public demo and verified install flow.
 - Do not add the unannounced November 20 full-game release date to this beat.

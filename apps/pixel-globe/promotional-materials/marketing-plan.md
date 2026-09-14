@@ -32,8 +32,8 @@ Last updated: **September 13, 2026**.
   test macOS and Windows today; results and Linux QA remain pending. Start the
   first 10–20 creator outreach messages today using current full-game press
   keys, verified contacts and Garrett's exact reusable wording. Finish and
-  stage the GamesPress release today, but do not publish it before the public
-  demo and its logged-out install flow have been verified on September 17.
+  stage the GamesPress release today. Advance news coverage is welcome; only
+  “play now” announcements wait for verified public availability September 17.
 - **September 14:** Optional Next Fest press-preview review target. This is
   only the date by which a demo build and demo store presence should be
   submitted for Valve review if the developer wants the demo playable when
@@ -379,7 +379,12 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 
 ## Public promotion
 
-- [ ] Prepare the GamesPress demo-launch release in Garrett's own words.
+- [x] Prepare the GamesPress demo-launch email from Garrett's own words.
+  - [Email text](gamespress-demo-launch-email.txt) prepared with September 17
+    in the headline and FOR IMMEDIATE RELEASE.
+  - [Unsent Gmail draft](https://mail.google.com/mail/#drafts/1a09e3ef71400eca)
+    includes Bosporus, broadside and lightning screenshots plus the transparent
+    logo as separate PNG attachments. No email has been sent.
   - The existing
     [gamespress-demo-launch-release.txt](gamespress-demo-launch-release.txt) is
     a legacy agent-written draft. Use it only as an internal factual checklist;
@@ -388,15 +393,15 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
     Garrett's lead, scope and inspiration sentence, verbatim Steam/DevGAMM
     prose and the approved functional press-kit pointer.
   - September 17 is included in the lead with Garrett's authorization.
-    Still needed: final gameplay-claim review and a plain-text export excluding
-    editorial notes. Confirm QA before adding platform availability claims.
+    The email export excludes editorial notes and includes the GamesPress UTM
+    link. Final gameplay-claim review remains; confirm QA before adding
+    platform availability claims.
   - GamesPress accepts free submissions at `inbox@gamespress.com`. Put the
     release in the email body or attach it as plain text, attach publication
     images separately, and link the full press kit. Do not send a PDF.
-  - Send only after the Steam demo is publicly playable and its install flow
-    has been verified.
-  - Attach the five selected English gameplay screenshots and transparent logo
-    listed in the release file.
+  - Advance distribution is allowed without an embargo; send only with Garrett's
+    authorization. The draft explains that the demo launches September 17 and
+    the linked launch trailer ends with “Demo Out Now!”
 
 - [ ] Submit the demo-launch release to GamesPress.
   - Treat publication as useful press infrastructure rather than guaranteed
@@ -408,8 +413,8 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
     subreddit-specific posts, Japanese press update, GamesPress release and
     first creator email batch. Organize and fact-check it without rewriting it.
   - Use the completed demo-specific trailer with its Steam demo call to action.
-  - Publish them only after the Steam demo is live and its install flow has been
-    verified from a logged-out account.
+  - Advance date announcements may run before launch. Publish “play now” copy
+    only after the demo is live and the logged-out install flow is verified.
 
 - [ ] Use campaign-specific UTM links for every external Steam link.
   - Separate at least X, Reddit, Japanese press, the website, festivals and each
