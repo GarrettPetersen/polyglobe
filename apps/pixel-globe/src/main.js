@@ -29571,9 +29571,11 @@ function updateWhales(dt, nowMs) {
     : Math.min(WHALE_SIMULATION_INTERVAL_SECONDS * 2, whaleSimulationAccumulator + dt);
   const simulationDue = huntActive
     ? whaleSimulationAccumulator > 0
-    : whaleSimulationAccumulator >= WHALE_SIMULATION_INTERVAL_SECONDS;
+    : whaleSimulationAccumulator + 1e-12 >= WHALE_SIMULATION_INTERVAL_SECONDS;
   if (simulationDue && !whaleAdvanceJob) {
-    const movementElapsed = takeWhaleSimulationElapsed();
+    const movementElapsed = takeWhaleSimulationElapsed(
+      huntActive ? whaleSimulationAccumulator : WHALE_SIMULATION_INTERVAL_SECONDS
+    );
     whaleAdvanceJob = {
       simulation: beginWhaleAdvance(
         gameState.memory.whales,
@@ -29720,6 +29722,7 @@ function synchronizeWhalePresentations(whaleIds, nowMs) {
 }
 
 function synchronizeWhalePresentation(whale, rawPoint, nowMs) {
+  const immediate = whale.phase === WHALE_PHASE_TETHERED || whale.phase === WHALE_PHASE_EXHAUSTED;
   whaleVisualPresentations.set(whale.id, synchronizeWhaleVisualPresentation(
     whaleVisualPresentations.get(whale.id),
     {
@@ -29730,10 +29733,10 @@ function synchronizeWhalePresentation(whale, rawPoint, nowMs) {
       cameraRight: camera.right,
       cameraUp: camera.up,
       pixelsPerRadian: PIXELS_PER_RADIAN,
-      nowMs,
-      durationMs: whale.phase === WHALE_PHASE_TETHERED || whale.phase === WHALE_PHASE_EXHAUSTED
-        ? 0
-        : WHALE_SIMULATION_INTERVAL_SECONDS * 1000
+      // Interpolate from the simulation boundary, not the frame that happened
+      // to cross it. Otherwise non-divisor frame rates still produce pauses.
+      nowMs: immediate ? nowMs : nowMs - whaleSimulationAccumulator * 1000,
+      durationMs: immediate ? 0 : WHALE_SIMULATION_INTERVAL_SECONDS * 1000
     }
   ));
 }
@@ -29765,9 +29768,11 @@ function responsiveWhaleMovementIds() {
   return [...reconciliation.ids];
 }
 
-function takeWhaleSimulationElapsed() {
-  const elapsed = whaleSimulationAccumulator;
-  whaleSimulationAccumulator = 0;
+function takeWhaleSimulationElapsed(maxElapsedSeconds = whaleSimulationAccumulator) {
+  // Keep the frame's remainder so a 250 ms swim does not repeatedly wait for
+  // a 267 ms tick while its presentation has already reached the endpoint.
+  const elapsed = Math.min(whaleSimulationAccumulator, maxElapsedSeconds);
+  whaleSimulationAccumulator = Math.max(0, whaleSimulationAccumulator - elapsed);
   return elapsed;
 }
 

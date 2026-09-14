@@ -388,6 +388,7 @@ import {
   adjustSovereignAuthority,
   recordColonyAuthority,
   recordCourtMissionAuthority,
+  recordCourtDispatchAuthority,
   recordEnglishReformationAuthority,
   recordNavalAuthorityOutcome,
   recordPapalMissionAuthority,
@@ -1930,6 +1931,12 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
     currentMinute,
     { portCities }
   );
+  const courtAuthorityEvents = courts.actions.map((action) => recordCourtDispatchAuthority(
+    state.relations.authority,
+    action.authorityFactionId,
+    action.simMinute,
+    action.headline
+  ));
   const diplomacyEvents = advanceWorldDiplomacy(
     state.relations.diplomacy,
     currentMinute,
@@ -2011,6 +2018,7 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
     imperialEvents,
     authorityEvents: Object.freeze([
       ...authority.authorityEvents,
+      ...courtAuthorityEvents,
       ...englishReformationAuthorityEvents
     ]),
     conquistadorTransfers: conquistador.transfers,

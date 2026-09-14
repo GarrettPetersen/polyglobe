@@ -14,6 +14,7 @@ import {
   createSovereignAuthority,
   papalAuthorityResponseMultiplier,
   recordEnglishReformationAuthority,
+  recordCourtDispatchAuthority,
   recordNavalAuthorityOutcome,
   recentSovereignAuthorityHeadlines,
   sovereignAuthorityHeadlineNotice,
@@ -37,6 +38,18 @@ test("authority starts with one historically calibrated score per sovereign powe
   assert.equal(sovereignAuthorityScore(authority, "ottoman"), 88);
   assert.equal(sovereignAuthorityScore(authority, "ming"), 68);
   assert.ok(papalAuthorityResponseMultiplier(authority) < 1);
+});
+
+test("automatic court dispatch authority is tiny and respects the score ceiling", () => {
+  const authority = createSovereignAuthority({ seedKey: "dispatch-authority" });
+  authority.scores.ottoman = 99.95;
+  const event = recordCourtDispatchAuthority(authority, "ottoman", 10, "Dispatch returned");
+  assert.equal(event.delta, 0.05);
+  assert.equal(sovereignAuthorityScore(authority, "ottoman"), 100);
+  const capped = recordCourtDispatchAuthority(authority, "ottoman", 20, "Next dispatch returned");
+  assert.equal(capped.delta, 0);
+  assert.equal(sovereignAuthorityScore(authority, "ottoman"), 100);
+  validateSovereignAuthority(authority);
 });
 
 test("the two English Reformation authority changes produce one political headline", () => {

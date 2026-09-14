@@ -248,6 +248,27 @@ test("production tow physics advances every player frame despite a larger backgr
   }
 });
 
+for (const frameRate of [30, 59, 60, 120]) {
+  test(`free-swimming whales do not pause between simulation ticks at ${frameRate} FPS`, () => {
+    const { runtime, whale } = productionWhaleRuntime();
+    runtime.WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT = 32;
+    runtime.WHALE_MOVEMENTS_PER_FRAME = 4;
+    runtime.synchronizeWhalePresentations([whale.id], 0);
+    let previous;
+    const distances = [];
+    for (let frame = 1; frame <= frameRate * 3; frame++) {
+      const nowMs = frame * 1000 / frameRate;
+      runtime.updateWhales(1 / frameRate, nowMs);
+      const displayed = runtime.presentedWhalePoint(whale,
+        runtime.localPointForKnownTileVector(whale.position, whale.tileId), nowMs);
+      if (frame > frameRate) distances.push(Math.hypot(displayed.x - previous.x, displayed.y - previous.y));
+      previous = displayed;
+    }
+    assert.ok(Math.min(...distances) > Math.max(...distances) * 0.8,
+      `steady motion pulsed between ${Math.min(...distances)} and ${Math.max(...distances)} pixels/frame`);
+  });
+}
+
 test("whale sprite placement rounds once and shares submergence across body and outline", () => {
   for (const scale of [0.45, 0.72, 1]) {
     for (const exposure of [0, 0.1, 0.5, 0.9, 1]) {

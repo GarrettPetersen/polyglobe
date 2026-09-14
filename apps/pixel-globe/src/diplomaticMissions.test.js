@@ -40,6 +40,7 @@ import {
 } from "./diplomaticMissions.js";
 import { envoyOfferForCapital } from "./passengerMissions.js";
 import { pendingQuestJourneyDialogue } from "./questJourneyDialogue.js";
+import { sovereignAuthorityScore } from "./sovereignAuthority.js";
 import {
   SUZERAINTY_KIND_TRIBUTARY,
   establishSuzerainty,
@@ -231,6 +232,28 @@ test("status embassies let rulers decide whether constitutional ties change", ()
   }
 });
 
+test("automatic dispatches grant a tiny authority increase once, only upon completion", () => {
+  const state = stateFor("ottoman", 30);
+  const origin = capital(10, "Constantinople", "Turkey", "ottoman", 41, 29);
+  const destination = port(11, "Sao Tome", "Sao Tome and Principe", "ottoman", 0.34, 6.73);
+  const ports = [origin, destination];
+  state.relations.courts.nextActionMinute = 0;
+  const before = sovereignAuthorityScore(state.relations.authority, "ottoman");
+  const opened = advanceGamePolitics(state, 0, { portCities: ports });
+  assert.equal(opened.courtMattersOpened.length, 1);
+  assert.equal(sovereignAuthorityScore(state.relations.authority, "ottoman"), before);
+  const minute = state.relations.courts.pendingMatter.autonomousDecisionMinute;
+  const completed = advanceGamePolitics(state, minute, { portCities: ports });
+  assert.equal(completed.courtActions.length, 1);
+  assert.equal(sovereignAuthorityScore(state.relations.authority, "ottoman"), before + 0.1);
+  const events = completed.authorityEvents.filter((event) => event.source === "court-dispatch-completed");
+  assert.equal(events.length, 1);
+  assert.equal(events[0].simMinute, minute);
+  const repeated = advanceGamePolitics(state, minute, { portCities: ports });
+  assert.equal(repeated.courtActions.length, 0);
+  assert.equal(sovereignAuthorityScore(state.relations.authority, "ottoman"), before + 0.1);
+});
+
 test("Ming court commissions carry the pending imperial policy and suspend its autonomous resolution", () => {
   const state = stateFor("ming", 30);
   const ports = [BEIJING, SEOUL];
@@ -253,7 +276,9 @@ test("Ming court commissions carry the pending imperial policy and suspend its a
   });
   assert.deepEqual(negotiation.events, []);
   assert.equal(negotiation.quest.destinationTileId, BEIJING.tileId);
+  const authorityBefore = sovereignAuthorityScore(state.relations.authority, "ming");
   completeQuest(state, BEIJING, { simMinute: 400, portCities: ports });
+  assert.equal(sovereignAuthorityScore(state.relations.authority, "ming"), authorityBefore + 1.4);
   assert.equal(state.relations.courts.pendingMatter, null);
   assert.equal(state.relations.courts.history[0].source, "player-court-commission");
 });

@@ -428,6 +428,14 @@ export function recordCourtMissionAuthority(memory, factionId, simMinute, detail
   });
 }
 
+export function recordCourtDispatchAuthority(memory, factionId, simMinute, detail) {
+  return adjustSovereignAuthority(memory, factionId, 0.1, {
+    simMinute,
+    source: "court-dispatch-completed",
+    detail
+  });
+}
+
 export function recordPapalMissionAuthority(memory, simMinute, detail) {
   return adjustPapalAuthority(memory, 1.5, {
     simMinute,
