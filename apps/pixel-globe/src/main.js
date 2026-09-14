@@ -19091,9 +19091,12 @@ function applyCurrentPortConquestOwnership({
       new Set(gameState.memory.conquest.collapsedFactionIds),
       new Map(Object.entries(gameState.memory.conquest.factionSuccessors))
     );
+    // Conquest can retire reserve ships. Reconcile before combat or
+    // dialogue can observe their old visual state, and invalidate cached sightings.
+    releaseNpcVisualStatesWithoutStrategicState();
+    npcVisualSnapshotCache.reset();
     for (const state of npcVisualShips.values()) {
-      const strategic = npcSeaRoutes.shipById.get(state.id);
-      if (strategic) state.factionId = strategic.factionId;
+      state.factionId = npcSeaRoutes.shipById.get(state.id).factionId;
     }
   }
   if (ship) {
@@ -26085,9 +26088,9 @@ function completePlayerPortConquest(
   const playerRetainsPort = !conquistadorCapture && capturedCity.factionId === ship.factionId;
   if (playerRetainsPort) {
     const needsLoadout = admitPlayerToPort(capturedCity);
-    openCityDialogue(capturedCity, createPortArrivalDialogueSession(capturedCity, {
-      needsLoadout,
-      recentConquestCityId: capturedCity.cityId
+    openCityDialogue(capturedCity, createPortDialogueSession(capturedCity, {
+      admittedToPort: true,
+      initialNodeId: needsLoadout ? "loadout" : "root"
     }));
   } else {
     closeDialogue();
@@ -42947,6 +42950,8 @@ function releaseNpcVisualState(state) {
 }
 
 function discardNpcVisualState(state) {
+  if (pendingNpcCombatHailId === state.id) pendingNpcCombatHailId = null;
+  shipCombatEntryCollisionGrace.delete(state.id);
   clearCombatForShip(state.id);
   npcCombatProjectiles = npcCombatProjectiles.filter(
     (ball) => ball.ownerId !== state.id && ball.targetId !== state.id
@@ -52981,7 +52986,8 @@ function drawPoliticsCountryCard(entry, view, rect, layout) {
       : 0;
     drawOptionsText(
       fitPixelText(
-        `${uiText("politics.capital")}: ${card.capital.city.toUpperCase()}`,
+        `${uiText(card.portCount === 1 ? "politics.portCountOne" : "politics.portCountMany", { count: card.portCount })}; ` +
+          `${uiText("politics.capital")}: ${card.capital.city.toUpperCase()}`,
         PIXEL_FONT_SMALL_8,
         rect.w - (titleX - rect.x) - authorityWidth - 8
       ),
@@ -53046,7 +53052,8 @@ function buildPoliticsView() {
   return createPoliticsView(
     gameState,
     Math.floor(weatherClockMinutes),
-    [...cityByTileId.values()]
+    [...cityByTileId.values()],
+    portCities
   );
 }
 

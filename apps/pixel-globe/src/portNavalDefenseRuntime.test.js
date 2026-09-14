@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { npcVisualStateIdsWithoutStrategicState } from "./npcVisualNavigation.js";
+import { createPortDialogueSession, createPortArrivalDialogueSession } from "./dialogueSystem.js";
 import { advanceCannonReload, navalWeaponForShip } from "./navalWeapons.js";
 import { createShipCombatState, forceShipEngagement } from "./shipCombat.js";
 import { NPC_PORT_RESPONSE_ATTACK, NPC_PORT_ATTACK_ALERT_MINUTES } from "./npcSeaRoutes.js";
@@ -110,4 +112,71 @@ test("a recalled local ship keeps existing reload work and repeated alerts neith
   order({ cityId: "lisbon" }, "portugal", NPC_PORT_RESPONSE_ATTACK, 1540);
   assert.equal(visual.broadsideCooldowns.port, 2);
   assert.equal(resets, 1);
+});
+
+test("conquest removes retired defenders before another combat frame and preserves surviving ships", () => {
+  const retiredId = "capital-reserve:utrecht:0:sortie:1";
+  const survivorId = "surviving-warship";
+  const city = { cityId: "utrecht", tileId: 1, factionId: "spain" };
+  const combat = createShipCombatState();
+  forceShipEngagement(combat, "player", retiredId);
+  forceShipEngagement(combat, survivorId, retiredId);
+  const survivor = { id: survivorId, factionId: "utrecht" };
+  const context = {
+    gameState: { memory: { conquest: { collapsedFactionIds: [], factionSuccessors: {} }, quests: { conquistador: {} } } },
+    cityByTileId: new Map([[1, city]]), portCities: [city], chart: null, ship: null,
+    reconcileConquistadorSovereignty() {}, applyPortConquestOwnership() {},
+    reconcileColonizationQuestOriginAfterConquest: () => null, reconcileQuestWorldAssumptions() {},
+    npcSeaRoutes: { shipById: new Map([[retiredId, {}], [survivorId, { factionId: "spain" }]]) },
+    applyNpcConquestOwnership(system) { system.shipById.delete(retiredId); },
+    npcVisualShips: new Map([[retiredId, { id: retiredId }], [survivorId, survivor]]),
+    pendingNpcCombatHailId: retiredId, shipCombatState: combat, PLAYER_COMBAT_ID: "player",
+    shipCombatEntryCollisionGrace: new Map([[retiredId, 1], [survivorId, 1]]),
+    npcCombatProjectiles: [{ ownerId: retiredId }, { targetId: retiredId }, { ownerId: survivorId, targetId: "player" }],
+    shoreBatteryStates: new Map(), shoreBatteryUpdateAccumulator: 1,
+    npcVisualSnapshotCache: { reset() { context.snapshotReset = true; } },
+    reconcileForeignSettlementPolitics() {}, refreshHospitallerMaltaQuestState() {},
+    worldSpatialFastEntriesDirty: false, npcVisualStateIdsWithoutStrategicState
+  };
+  for (const name of ["deleteNpcVisualShipState", "clearCombatForShip", "discardNpcVisualState", "releaseNpcVisualState", "releaseNpcVisualStatesWithoutStrategicState"]) {
+    context[name] = runtimeFunction(name, context);
+  }
+  runtimeFunction("applyCurrentPortConquestOwnership", context)();
+  assert.deepEqual([...context.npcVisualShips.keys()], [survivorId]);
+  assert.equal(survivor.factionId, "spain");
+  assert.equal(combat.engagements.size, 0);
+  assert.equal(context.pendingNpcCombatHailId, null);
+  assert.deepEqual([...context.shipCombatEntryCollisionGrace.keys()], [survivorId]);
+  assert.equal(context.npcCombatProjectiles.length, 1);
+  assert.equal(context.npcCombatProjectiles[0].ownerId, survivorId);
+  assert.equal(context.worldSpatialFastEntriesDirty, true);
+  assert.equal(context.snapshotReset, true);
+});
+
+test("conquest opens city services after surrender without an arrival trade greeting, including restoration to its founder", () => {
+  for (const needsLoadout of [false, true]) {
+    for (const foundingFactionId of ["utrecht", "spain"]) {
+      const city = { cityId: "utrecht", tileId: 1, city: "Utrecht", factionId: "spain", foundingFactionId };
+      let opened;
+      const context = {
+        factionById: () => ({ adjective: "Spanish" }),
+        gameState: { memory: { flags: {} } }, ship: { factionId: "spain" },
+        clearPlayerPortAssault() {}, clearPlayerPortRaid() {}, applyCurrentPortConquestOwnership() {},
+        clearCombatForShip() {}, PLAYER_COMBAT_ID: "player", npcCombatProjectiles: [],
+        chartCityCallByLocationId: () => city, NEUTRAL_FACTION_ID: "neutral", PIRATE_FACTION_ID: "pirate",
+        orderPortNavalResponse() {}, NPC_PORT_RESPONSE_LOST: "lost",
+        admitPlayerToPort: () => needsLoadout, createPortDialogueSession, createPortArrivalDialogueSession,
+        openCityDialogue: (port, session) => { opened = session; },
+        playCoinClinkSound() {}, showSurvivalNotice() {}, cityLabelText: port => port.city,
+        openCaptainAlertModal() {}, publishPlatformTimelineEvent() {},
+        PLATFORM_CLIP_PRIORITY: { FEATURED: "featured" }, saveVoyageNow() {}, dirty: false
+      };
+      runtimeFunction("completePlayerPortConquest", context)(city, {
+        portId: city.cityId, cityTileId: city.tileId, previousFactionId: "utrecht", newFactionId: "spain"
+      }, { amount: 100 }, null);
+      assert.equal(opened.admittedToPort, true);
+      assert.equal(opened.nodeId, needsLoadout ? "loadout" : "root");
+      assert.equal(opened.rumorText, null);
+    }
+  }
 });

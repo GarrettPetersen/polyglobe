@@ -380,6 +380,8 @@ export default {
   "politics.group.memberEstates": "{count}個帝國邦",
   "politics.group.japanesePolities": "{count}個日本政權",
   "politics.group.viewMembers": "查看成員",
+  "politics.portCountOne": "{count} 個港口",
+  "politics.portCountMany": "{count} 個港口",
   "politics.capital": "首都",
   "politics.authorityShort": "權威",
   "politics.papalAuthorityShort": "教廷",

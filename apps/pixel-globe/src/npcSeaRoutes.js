@@ -1661,10 +1661,8 @@ function reconcileCapitalNavalReserveShipsWithSnapshot(system, ships) {
       staleShipIds.add(ship.id);
       continue;
     }
-    // Abolishing a reserve demobilizes its finite ships. Detaching the slot
-    // used to create an ordinary warship, even when its hull profile had no
-    // autonomous circuit (the Inca reserve has only one coastal home port).
-    staleShipIds.add(ship.id);
+    if (ship.capitalNavalReserveDocked) staleShipIds.add(ship.id);
+    else detachDisplacedCapitalReserveShip(ship);
   }
   if (staleShipIds.size > 0) {
     system.ships = system.ships.filter((ship) => !staleShipIds.has(ship.id));
@@ -2724,11 +2722,10 @@ function reconcileCapitalNavalReservePortsAfterOwnershipChange(system, collapsed
 
   for (const ship of system.ships) {
     if (!removedSlotIds.has(ship.capitalNavalReserveSlotId)) continue;
-    ship.capitalNavalReserveSlotId = null;
-    ship.capitalNavalReserveDestinationCityId = null;
-    ship.capitalNavalReserveDocked = false;
-    ship.replaceOnSink = false;
-    retiredShipIds.add(ship.id);
+    // Ships already at sea survive the loss of their base as ordinary traffic.
+    // Cancel reserve orders so they cannot later try to return to the lost base.
+    if (ship.capitalNavalReserveDocked) retiredShipIds.add(ship.id);
+    detachDisplacedCapitalReserveShip(ship);
   }
   if (removedSlotIds.size > 0) {
     system.capitalNavalReserveSlots = system.capitalNavalReserveSlots.filter((slot) => (
@@ -2736,6 +2733,21 @@ function reconcileCapitalNavalReservePortsAfterOwnershipChange(system, collapsed
     ));
   }
   retireNpcShipsWithoutReplacement(system, retiredShipIds);
+}
+
+function detachDisplacedCapitalReserveShip(ship) {
+  ship.capitalNavalReserveSlotId = null;
+  ship.capitalNavalReserveDestinationCityId = null;
+  ship.capitalNavalReserveDocked = false;
+  ship.portResponse = null;
+  ship.replaceOnSink = false;
+  ship.finalDestination = null;
+  // Reserve hull profiles can have only one regional port. Once displaced,
+  // patrol the connected sea network instead of requiring that former circuit.
+  ship.encounter = {
+    kind: "displaced-reserve",
+    routePolicy: NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL
+  };
 }
 
 function capitalNavalReserveProfile(origin) {
@@ -4807,7 +4819,9 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
     guard++;
   }
   if (ship.plan && clockMinutes >= ship.plan.endMinute) {
-    if (ship.encounter) {
+    // Displaced reserves are autonomous traffic, with no scripted arrival to
+    // preserve during a large offscreen catch-up.
+    if (ship.encounter && ship.encounter.kind !== "displaced-reserve") {
       throw new Error(`NPC encounter ship ${ship.id} could not settle route updates`);
     }
     rebaseStaleNpcShipPlan(system, ship, clockMinutes);

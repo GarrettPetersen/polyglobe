@@ -380,6 +380,8 @@ export default {
   "politics.group.memberEstates": "{count} STANY RZESZY",
   "politics.group.japanesePolities": "{count} WŁADZTW JAPOŃSKICH",
   "politics.group.viewMembers": "POKAŻ CZŁONKÓW",
+  "politics.portCountOne": "PORTY: {count}",
+  "politics.portCountMany": "PORTY: {count}",
   "politics.capital": "STOLICA",
   "politics.authorityShort": "AUT",
   "politics.papalAuthorityShort": "PAPIEŻ",

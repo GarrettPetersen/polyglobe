@@ -380,6 +380,8 @@ export default {
   "politics.group.memberEstates": "ИМПЕРСКИХ СОСЛОВИЙ: {count}",
   "politics.group.japanesePolities": "ЯПОНСКИХ ВЛАДЕНИЙ: {count}",
   "politics.group.viewMembers": "ПОКАЗАТЬ ЧЛЕНОВ",
+  "politics.portCountOne": "ПОРТЫ: {count}",
+  "politics.portCountMany": "ПОРТЫ: {count}",
   "politics.capital": "СТОЛИЦА",
   "politics.authorityShort": "ВЛАСТЬ",
   "politics.papalAuthorityShort": "ПАПА",

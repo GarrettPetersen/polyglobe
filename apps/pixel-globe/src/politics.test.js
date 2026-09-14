@@ -652,3 +652,22 @@ test("city ownership changes by players and NPCs survive in dated politics histo
   state.memory.conquest = JSON.parse(JSON.stringify(state.memory.conquest));
   assert.deepEqual(read(state), notices);
 });
+
+test("politics counts currently owned ports independently of capitals and dependencies", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const ports = [
+    { cityId: "ragusa", factionId: "ragusa" },
+    { cityId: "lisbon", factionId: "portugal" },
+    { cityId: "goa", factionId: "portugal" }
+  ];
+  let view = createPoliticsView(state, 0, null, ports);
+  assert.equal(politicsCard(view, "ragusa").portCount, 1);
+  assert.equal(politicsCard(view, "portugal").portCount, 2);
+  assert.equal(politicsCard(view, "spain").portCount, 0);
+  ports[1].factionId = "spain";
+  view = createPoliticsView(state, 0, null, ports);
+  assert.equal(politicsCard(view, "portugal").portCount, 1);
+  assert.equal(politicsCard(view, "spain").portCount, 1);
+  assert.equal(politicsCard(createPoliticsView(state), "spain").portCount, null);
+  assert.throws(() => createPoliticsView(state, 0, null, [...ports, ports[0]]), /duplicate city ID/);
+});

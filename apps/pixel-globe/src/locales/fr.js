@@ -380,6 +380,8 @@ export default {
   "politics.group.memberEstates": "{count} ÉTATS IMPÉRIAUX",
   "politics.group.japanesePolities": "{count} SEIGNEURIES JAPONAISES",
   "politics.group.viewMembers": "VOIR LES MEMBRES",
+  "politics.portCountOne": "{count} PORT",
+  "politics.portCountMany": "{count} PORTS",
   "politics.capital": "CAPITALE",
   "politics.authorityShort": "AUT",
   "politics.papalAuthorityShort": "PAPE",

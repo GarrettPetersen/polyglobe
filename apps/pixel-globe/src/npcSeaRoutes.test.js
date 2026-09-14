@@ -867,36 +867,52 @@ test("a surviving realm rebases its reserve response to its navigable capital af
   assert.equal(routes.shipById.get(response.shipId).portResponse.returnCityId, routeCityId(routes, 35));
 });
 
-test("a realm retires its reserve only after losing every navigable port", () => {
-  const economy = createWorldEconomy({ ports: INCA_PORTS, startMinute: 0 });
-  const routes = createNpcSeaRouteSystem({ ports: INCA_PORTS, startMinute: 0, economy });
-  const response = orderNpcPortResponse(routes, {
-    factionId: "inca",
-    targetCityId: routeCityId(routes, 36),
-    reason: NPC_PORT_RESPONSE_BURNING,
-    clockMinutes: 0,
-    threatUntilMinute: 1
+for (const collapsed of [false, true]) {
+  test(`a deployed reserve becomes ordinary traffic after losing every navigable port (collapsed: ${collapsed})`, () => {
+    const economy = createWorldEconomy({ ports: INCA_PORTS, startMinute: 0 });
+    const routes = createNpcSeaRouteSystem({ ports: INCA_PORTS, startMinute: 0, economy });
+    const response = orderNpcPortResponse(routes, {
+      factionId: "inca",
+      targetCityId: routeCityId(routes, 36),
+      reason: NPC_PORT_RESPONSE_BURNING,
+      clockMinutes: 0,
+      threatUntilMinute: 1
+    });
+    assert.ok(response.shipId);
+
+    applyNpcConquestOwnership(
+      routes,
+      new Map(INCA_PORTS.map((entry) => [
+        entry.cityId,
+        entry.factionId === "inca" ? "spain" : entry.factionId
+      ])),
+      new Set(collapsed ? ["inca"] : [])
+    );
+    assert.equal(npcCapitalNavalReserveStatus(routes, "inca").targetCount, 0);
+    assert.equal(routes.shipById.has(response.shipId), true);
+    const survivor = routes.shipById.get(response.shipId);
+    assert.equal(survivor.capitalNavalReserveSlotId, null);
+    assert.equal(survivor.capitalNavalReserveDestinationCityId, null);
+    assert.equal(survivor.capitalNavalReserveDocked, false);
+    assert.equal(survivor.portResponse, null);
+    assert.equal(survivor.factionId, collapsed ? "neutral" : "inca");
+    assert.equal(survivor.replaceOnSink, false);
+
+    const workerSnapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+    applyNpcSeaRouteSimulationSnapshot(routes, workerSnapshot);
+    updateNpcSeaRouteSystem(routes, 1000000);
+
+    assert.equal(routes.shipById.has(response.shipId), true);
+    assert.equal(routes.ships.some((ship) => ship.portResponse?.factionId === "inca"), false);
+    const saved = snapshotNpcSeaRouteSystem(routes);
+    restoreNpcSeaRouteSystem(routes, saved, { economy });
+    assert.equal(routes.shipById.get(response.shipId).encounter.routePolicy, NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL);
+    updateNpcSeaRouteSystem(routes, 2000000);
+    sinkNpcShip(routes, response.shipId, 2000000);
+    assert.equal(routes.replacementQueue.some(entry => entry.shipId === response.shipId), false);
   });
-  assert.ok(response.shipId);
 
-  applyNpcConquestOwnership(
-    routes,
-    new Map(INCA_PORTS.map((entry) => [
-      entry.cityId,
-      entry.factionId === "inca" ? "spain" : entry.factionId
-    ])),
-    new Set()
-  );
-  assert.equal(npcCapitalNavalReserveStatus(routes, "inca").targetCount, 0);
-  assert.equal(routes.shipById.has(response.shipId), false);
-
-  const workerSnapshot = snapshotNpcSeaRouteStrategicSystem(routes);
-  applyNpcSeaRouteSimulationSnapshot(routes, workerSnapshot);
-  updateNpcSeaRouteSystem(routes, 1);
-
-  assert.equal(routes.shipById.has(response.shipId), false);
-  assert.equal(routes.ships.some((ship) => ship.portResponse?.factionId === "inca"), false);
-});
+}
 
 test("a reserve rebases to another compatible naval port after its storehouse is captured", () => {
   const porto = Object.freeze(port(
@@ -2146,7 +2162,7 @@ test("a worker snapshot cannot demobilize the reserve slot of a preserved visibl
   assert.equal(restoredSlot.shipSlug, null);
 });
 
-test("a preserved reserve ship demobilizes when its worker snapshot abolishes the slot", () => {
+test("a preserved reserve ship patrols independently when its worker snapshot abolishes the slot", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const response = orderNpcPortResponse(routes, {
@@ -2168,13 +2184,13 @@ test("a preserved reserve ship demobilizes when its worker snapshot abolishes th
     preserveShipIds: [protectedShip.id]
   });
 
-  assert.equal(routes.shipById.has(protectedShip.id), false);
-  assert.equal(routes.ships.some((ship) => ship.id === protectedShip.id), false);
+  assert.equal(routes.shipById.has(protectedShip.id), true);
+  assert.equal(routes.shipById.get(protectedShip.id).capitalNavalReserveSlotId, null);
   updateNpcSeaRouteEvents(routes, 1000000, [protectedShip.id]);
   assert.equal(routes.replacementQueue.some((entry) => entry.shipId === protectedShip.id), false);
 });
 
-test("a worker snapshot demobilizes any reserve ship whose faction slot was abolished", () => {
+test("a worker snapshot detaches deployed reserve ships whose faction slot was abolished", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const response = orderNpcPortResponse(routes, {
@@ -2192,8 +2208,8 @@ test("a worker snapshot demobilizes any reserve ship whose faction slot was abol
 
   applyNpcSeaRouteSimulationSnapshot(routes, snapshot);
 
-  assert.equal(routes.shipById.has(reserveShip.id), false);
-  assert.equal(routes.ships.some((ship) => ship.id === reserveShip.id), false);
+  assert.equal(routes.shipById.has(reserveShip.id), true);
+  assert.equal(routes.shipById.get(reserveShip.id).capitalNavalReserveSlotId, null);
   updateNpcSeaRouteEvents(routes, 1000000, [reserveShip.id]);
   assert.equal(routes.replacementQueue.some((entry) => entry.shipId === reserveShip.id), false);
 });

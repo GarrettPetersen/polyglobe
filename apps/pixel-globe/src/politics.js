@@ -85,7 +85,8 @@ export const POLITICS_GROUP_JAPAN_ID = "political-group:japan";
 export function createPoliticsView(
   gameState,
   simMinute = gameState?.survival?.lastMinute ?? 0,
-  cities = null
+  cities = null,
+  ports = null
 ) {
   if (!gameState || typeof gameState !== "object") throw new Error("Politics view requires game state");
   if (!Number.isFinite(simMinute) || simMinute < 0) {
@@ -94,6 +95,7 @@ export function createPoliticsView(
   const powers = politicalPowers(gameState);
   const powerById = new Map(powers.map((power) => [power.id, power]));
   const capitalByFactionId = politicsCapitals(gameState, powers, cities);
+  const portCountByFactionId = politicsPortCounts(ports);
   const activeEmbargoes = activeGameTradeEmbargoes(gameState);
   const cards = powers.map((faction) => politicsCard(
     gameState,
@@ -101,6 +103,7 @@ export function createPoliticsView(
     powers,
     powerById,
     capitalByFactionId,
+    portCountByFactionId,
     simMinute,
     activeEmbargoes
   ));
@@ -499,6 +502,7 @@ function politicsCard(
   powers,
   powerById,
   capitalByFactionId,
+  portCountByFactionId,
   simMinute,
   activeEmbargoes
 ) {
@@ -541,6 +545,7 @@ function politicsCard(
     constitutionalConnections: Object.freeze(constitutionalConnections),
     embargoConnections: Object.freeze(embargoConnections),
     capital: capitalByFactionId.get(faction.id) || null,
+    portCount: portCountByFactionId === null ? null : (portCountByFactionId.get(faction.id) || 0),
     authority: faction.id === PIRATE_FACTION_ID
       ? null
       : Object.freeze({
@@ -627,6 +632,23 @@ function politicsConstitutionalConnections(gameState, faction, powers, powerById
       role: "emperor",
       factionId: power.id
     }));
+}
+
+// Count the dockable port catalog, not inland cities or political dependencies.
+// Without a runtime catalog the count is unknown, rather than zero.
+function politicsPortCounts(ports) {
+  if (ports === null) return null;
+  if (!Array.isArray(ports)) throw new Error("Politics port counts require a port list");
+  const seen = new Set();
+  const counts = new Map();
+  for (const port of ports) {
+    const cityId = requireCityId(port, "Politics port count");
+    if (seen.has(cityId)) throw new Error(`Politics port count has duplicate city ID: ${cityId}`);
+    seen.add(cityId);
+    factionById(port.factionId);
+    counts.set(port.factionId, (counts.get(port.factionId) || 0) + 1);
+  }
+  return counts;
 }
 
 function politicsCapitals(gameState, powers, cities) {

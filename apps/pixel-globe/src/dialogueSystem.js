@@ -538,7 +538,6 @@ export function createPortDialogueSession(city, options = {}) {
     tradePassGrantedPolicyId: null,
     captureCommissionPetitionResult: null,
     customsNoticeKey: null,
-    recentConquestCityId: options.recentConquestCityId || null,
     selectedIndex: 0,
     feedback: null
   };
@@ -699,7 +698,6 @@ export function createPortArrivalDialogueSession(city, options = {}) {
     initialNodeId: arrivedDrunk ? "drunk-captain" : initialNodeId,
     admittedToPort: true,
     rumorText: options.rumorText,
-    recentConquestCityId: options.recentConquestCityId,
     nextPortNodeId: options.nextPortNodeId,
     postDrunkNodeId: arrivedDrunk ? initialNodeId : null,
     drunkVariant
@@ -4530,17 +4528,6 @@ function greetingView(session, city, gameState, context) {
     };
   }
   if (city.isPirateHideout) return pirateHideoutGreetingView(city, memory, context);
-  if (session.recentConquestCityId === city.cityId) {
-    const conquestRemark = changedPortSovereigntyLine(city);
-    if (!conquestRemark) throw new Error(`Recent conquest greeting lost sovereignty record: ${city.cityId}`);
-    return {
-      speaker: speakerName(city),
-      expressionId: "stern",
-      text: conquestRemark,
-      feedback: null,
-      options: [option("Continue", { type: "node", nodeId: "root" })]
-    };
-  }
   if (city.playerFoundedColony || city.playerDevelopedPort) {
     const discountPercent = founderPurchaseDiscountPercent();
     const developedPortText = memory.visits > 1

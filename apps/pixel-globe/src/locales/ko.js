@@ -380,6 +380,8 @@ export default {
   "politics.group.memberEstates": "제국 영방 {count}",
   "politics.group.japanesePolities": "일본 세력 {count}",
   "politics.group.viewMembers": "구성국 보기",
+  "politics.portCountOne": "항구 {count}개",
+  "politics.portCountMany": "항구 {count}개",
   "politics.capital": "수도",
   "politics.authorityShort": "권위",
   "politics.papalAuthorityShort": "교황",
