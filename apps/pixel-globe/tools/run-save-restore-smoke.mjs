@@ -1,3 +1,4 @@
+import { browserAdaptedDenseFixture } from "./reachability/dense-save-fixture.mjs";
 import { colonyHistoryChanges } from "./reachability/colony-history.mjs";
 import { exerciseCommissionTroops } from "./reachability/commission-troops.mjs";
 import { verifyDaylightGpu } from "./reachability/daylight.mjs";
@@ -28,7 +29,7 @@ import { cityRecruitableCrewAppearances } from "../city-visualizer/cityPeople.js
 import { RETIRED_CHARACTER_PORTRAITS } from "../src/retiredCharacterPortraits.js";
 import { declareDiplomaticWar } from "../src/worldDiplomacy.js";
 import { createSovereignWarLoanMemory, createSovereignWarLoanOffer } from "../src/sovereignWarLoan.js";
-import { characterWithBiography, correctedCharacterPortraitAge } from "../src/characterBiography.js";
+import { correctedCharacterPortraitAge } from "../src/characterBiography.js";
 import { maybeSpawnChefQuest, prepareChefBanquet, serveChefBanquet, completeChefBanquet } from "../src/chefQuest.js";
 import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 import { colonizationHistoryForTarget } from "../src/colonizationHistory.js";
@@ -39,34 +40,6 @@ import {
 } from "../src/colonizationQuest.js";
 import { gameplayReachabilityScenarioIds } from "../src/gameplayReachabilityScenarios.js";
 
-const DENSE_RUNTIME_PLAYER_CHARACTER = Object.freeze(characterWithBiography({
-  id: "player:dense-save-captain",
-  name: "Jane Smith",
-  givenName: "Jane",
-  familyName: "Smith",
-  gender: "female",
-  sex: "female",
-  region: "northern-europe",
-  sourceId: "blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women",
-  sourceLabel: "Blond Villager Women",
-  sourceRoles: Object.freeze(["factor", "civilian"]),
-  sourceRegions: Object.freeze(["global", "europe", "northern-europe", "mediterranean"]),
-  requiredReligionFamily: null,
-  minAge: 20,
-  maxAge: 34,
-  age: 30,
-  role: "player-captain",
-  nameCulture: "english",
-  nationalityId: "england",
-  nationalityName: "Kingdom of England",
-  nationalityAdjective: "English",
-  homePortCityId: "london|united kingdom",
-  homePortTileId: 1,
-  homePortName: "London",
-  homePortCountry: "United Kingdom",
-  religionId: "roman-catholic",
-  expressions: Object.freeze(["neutral", "happy"])
-}));
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURE_ROOT = path.join(APP_ROOT, "src/test-fixtures/saves");
@@ -900,35 +873,6 @@ async function exerciseChefSaveRoundTrips(page, browserErrors) {
   }
 }
 
-function browserAdaptedDenseFixture(save, name) {
-  const captain = save.payload?.gameState?.playerCharacter;
-  if (captain?.id !== "player:dense-save-captain") {
-    throw new Error(`${name} has lost its dense-fixture captain identity`);
-  }
-  if (
-    captain.name === "Dense Save Captain" &&
-    captain.givenName === "Dense" &&
-    captain.familyName === "Captain" &&
-    captain.nameCulture === "english"
-  ) {
-    save.payload.gameState.playerCharacter = {
-      ...structuredClone(DENSE_RUNTIME_PLAYER_CHARACTER),
-      skillIds: structuredClone(captain.skillIds)
-    };
-  }
-  const runtimeCaptain = save.payload.gameState.playerCharacter;
-  if (
-    runtimeCaptain.name !== "Jane Smith" ||
-    runtimeCaptain.sourceId !==
-      "blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women" ||
-    runtimeCaptain.role !== "player-captain" ||
-    typeof runtimeCaptain.birthDateLabel !== "string" ||
-    typeof runtimeCaptain.nationalityAdjective !== "string"
-  ) {
-    throw new Error(`${name} has an invalid dense-fixture runtime captain`);
-  }
-  return save;
-}
 
 async function assertNoBrowserFailure(page, browserErrors, label) {
   if (!await page.locator("#crash-copy-button").isHidden()) {

@@ -130,7 +130,23 @@ branch manually after upload and verification.
   `marque-profile-v1.json` before importing the game. Saves, achievement
   progress, voyage history, key bindings, language, controller glyphs, and
   audio settings are synchronized after every persistent mutation. Steamworks
-  shares the demo's Cloud storage with full-game App `4516500`.
+  shares the demo's Cloud storage with full-game App `4516500`. Profile schema v3
+  has separate full (`marque-and-reprisal.save`) and demo
+  (`marque-and-reprisal.demo-save`) voyage slots. V1/v2 profiles migrate without
+  deleting existing slots. A first full-game launch copies demo progress only
+  when there is no full voyage; returning to the demo cannot overwrite it.
+  Legacy shared-slot saves with demo scope are copied to the demo slot once.
+  The host also atomically writes an account-specific local profile under
+  Electron userData/profiles/SteamID, including when Steam Cloud is disabled.
+  On load, the newer local/remote profile wins; the renderer validates it.
+- **Desktop menus:** both editions start fullscreen, with a fullscreen toggle
+  still available. Options offers Save and quit during a voyage and Quit game
+  from the title screen or duels. Quit waits for queued saves and the profile
+  write, retains the open game on failure, and never saves a duel over a voyage.
+  Demo owners of the full game are offered a Steam launch/install switch before
+  the renderer starts. Declining uses the independent demo voyage.
+  Run `npm run test:desktop:menus` after building both editions for disposable
+  browser tests of the production menu handlers and profile separation.
 - **Steam Input / Deck:** the host initializes Steam Input, installs
   `steam-input/game_actions.vdf`, polls the native Sailing and Menus action
   sets, and feeds their state into the same controller path used by the web

@@ -1,8 +1,10 @@
+import { prepareDesktopVoyageStorage, DEMO_VOYAGE_STORAGE_KEY } from "./desktopVoyageStorage.js";
 import { BUILD_EDITION_ID } from "./buildEdition.js";
 import { buildDocumentTitle } from "./buildTitle.js";
-import { gameStorage, setGameStorageMutationHandler } from "./gameStorage.js";
+import { profileStorage, setVoyageStorageKey, setGameStorageMutationHandler } from "./gameStorage.js";
 import {
   createPlatformCloudSync,
+  setPlatformCloudSync,
   currentPlatformGameLanguage,
   hydratePlatformCloudStorage,
   platformServicesAdapter,
@@ -17,20 +19,24 @@ export async function startPlatformGame() {
     platformId: bridge?.platformId || "browser"
   });
   if (bridge) {
-    const capabilities = await validatePlatformCapabilities(bridge);
+    await validatePlatformCapabilities(bridge);
     setSteamInterfaceLanguage(await currentPlatformGameLanguage(bridge));
-    if (capabilities.cloud) {
-      const hydration = await hydratePlatformCloudStorage(gameStorage, bridge);
-      const cloudSync = createPlatformCloudSync(gameStorage, bridge);
-      const requestCloudSync = (key) => {
-        void cloudSync.request(key).catch((error) => console.error("[steam] cloud sync failed", error));
-      };
-      setGameStorageMutationHandler(requestCloudSync);
-      if (!hydration.loaded) requestCloudSync("marque-and-reprisal.save");
-      window.addEventListener("pagehide", () => {
-        void cloudSync.flush().catch((error) => console.error("[steam] final cloud sync failed", error));
-      });
-    }
+    // The host always commits a durable local profile and additionally syncs
+    // it to Steam when Cloud is enabled. Its loopback origin is not persistent.
+    const hydration = await hydratePlatformCloudStorage(profileStorage, bridge);
+    const cloudSync = createPlatformCloudSync(profileStorage, bridge);
+    setPlatformCloudSync(cloudSync);
+    const requestCloudSync = (key) => {
+      void cloudSync.request(key).catch((error) => console.error("[steam] cloud sync failed", error));
+    };
+    setGameStorageMutationHandler(requestCloudSync);
+    if (!hydration.loaded) requestCloudSync("marque-and-reprisal.save");
+    window.addEventListener("pagehide", () => {
+      void cloudSync.flush().catch((error) => console.error("[steam] final cloud sync failed", error));
+    });
+    const copiedVoyage = prepareDesktopVoyageStorage(profileStorage, BUILD_EDITION_ID);
+    if (BUILD_EDITION_ID === "demo") setVoyageStorageKey(DEMO_VOYAGE_STORAGE_KEY);
+    if (copiedVoyage) await cloudSync.request("marque-and-reprisal.demo-save");
   }
 
   await import("./main.js");

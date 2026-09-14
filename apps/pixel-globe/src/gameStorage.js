@@ -1,19 +1,35 @@
 let mutationHandler = null;
+let voyageStorageKey = "marque-and-reprisal.save";
+
+export function setVoyageStorageKey(key) {
+  voyageStorageKey = requiredKey(key);
+}
+
+function gameKey(key) {
+  return key === "marque-and-reprisal.save" ? voyageStorageKey : key;
+}
+
+// Cloud profiles contain both editions' slots; gameplay only sees its own slot.
+export const profileStorage = Object.freeze({
+  getItem: (key) => browserStorage().getItem(requiredKey(key)),
+  setItem: (key, value) => browserStorage().setItem(requiredKey(key), String(value)),
+  removeItem: (key) => browserStorage().removeItem(requiredKey(key))
+});
 
 export const gameStorage = Object.freeze({
   getItem(key) {
-    return browserStorage().getItem(requiredKey(key));
+    return browserStorage().getItem(gameKey(requiredKey(key)));
   },
 
   setItem(key, value) {
-    const normalizedKey = requiredKey(key);
+    const normalizedKey = gameKey(requiredKey(key));
     const normalizedValue = String(value);
     browserStorage().setItem(normalizedKey, normalizedValue);
     mutationHandler?.(normalizedKey);
   },
 
   removeItem(key) {
-    const normalizedKey = requiredKey(key);
+    const normalizedKey = gameKey(requiredKey(key));
     browserStorage().removeItem(normalizedKey);
     mutationHandler?.(normalizedKey);
   }

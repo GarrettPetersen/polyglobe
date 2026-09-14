@@ -1532,6 +1532,7 @@ import {
   PLATFORM_TIMELINE_MODE,
   addPlatformTimelineEvent,
   createPlatformActivityPublisher,
+  flushPlatformCloudSaves,
   platformServicesAdapter,
   triggerPlatformScreenshot,
   updatePlatformStats
@@ -3291,7 +3292,7 @@ let wishlistEndgamePrompt = false;
 let wishlistEndgameSelection = 0;
 const wishlistReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const OPTIONS_ROW_H = 22;
-const OPTIONS_ROW_COUNT = 11 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_COUNT = 11 + WISHLIST_ROW_OFFSET + (steamPlatformBridge ? 1 : 0);
 const OPTIONS_ROW_FULLSCREEN = 0 + WISHLIST_ROW_OFFSET;
 const OPTIONS_ROW_MUSIC = 1 + WISHLIST_ROW_OFFSET;
 const OPTIONS_ROW_SFX = 2 + WISHLIST_ROW_OFFSET;
@@ -3303,6 +3304,7 @@ const OPTIONS_ROW_CONTROLS = 7 + WISHLIST_ROW_OFFSET;
 const OPTIONS_ROW_DIAGNOSTIC_MODE = 8 + WISHLIST_ROW_OFFSET;
 const OPTIONS_ROW_TELEMETRY = 9 + WISHLIST_ROW_OFFSET;
 const OPTIONS_ROW_START_MENU = 10 + WISHLIST_ROW_OFFSET;
+const OPTIONS_ROW_QUIT = steamPlatformBridge ? OPTIONS_ROW_START_MENU + 1 : -1;
 const CONTROL_SCHEME_PANEL_W = 342;
 const CONTROL_SCHEME_PANEL_H = 218;
 const TELEMETRY_CONSENT_PANEL_W = 360;
@@ -3913,6 +3915,8 @@ let survivalNoticeRect = null;
 let savePersistenceWarning = null;
 let lastLocalSaveMode = LOCAL_SAVE_MODE_FULL;
 let localSaveWriteActive = false;
+let localSaveWriteCompletion = null;
+let desktopExitPending = false;
 let pendingLocalSaveWrite = null;
 let localSaveAbortController = new AbortController();
 let achievementNotice = null;
@@ -17839,13 +17843,11 @@ async function auditBrowserNpcCollisionBoundary() {
 }
 
 async function waitForSaveRestoreSmokePersistence() {
-  const deadlineMs = performance.now() + 30_000;
-  while (localSaveWriteActive) {
-    if (performance.now() >= deadlineMs) {
-      throw new Error("Continued voyage did not finish its persistence write");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+  await waitForVoyagePersistence();
+}
+
+async function flushVoyageSaveWrites() {
+  while (localSaveWriteCompletion) await localSaveWriteCompletion;
   if (savePersistenceWarning) throw savePersistenceWarning.error;
 }
 
@@ -18790,7 +18792,7 @@ function startLocalSaveWrite(request) {
     materializeSave: request.materializeSave,
     signal
   });
-  void write.then(
+  localSaveWriteCompletion = write.then(
     (result) => completeLocalSaveWrite(result, {
       reason: request.reason,
       includeWorldTraffic: request.includeWorldTraffic,
@@ -18799,6 +18801,7 @@ function startLocalSaveWrite(request) {
     (error) => failLocalSaveWrite(error, request.reason)
   ).finally(() => {
     localSaveWriteActive = false;
+    localSaveWriteCompletion = null;
     if (!pendingLocalSaveWrite) return;
     const next = pendingLocalSaveWrite;
     pendingLocalSaveWrite = null;
@@ -19538,6 +19541,7 @@ function handleNavigationMenuKeyDown(event) {
 }
 
 function closeOptionsMenu() {
+  if (desktopExitPending) return;
   optionsMenu.isOpen = false;
   optionsMenu.view = "settings";
   optionsMenu.activeSliderKey = null;
@@ -19597,11 +19601,47 @@ function returnToStartMenuFromOptions() {
 }
 
 function activateOptionsExitRow() {
-  if (startMenu && steamPlatformBridge) {
-    void steamPlatformBridge.quitGame();
-    return true;
-  }
   return returnToStartMenuFromOptions();
+}
+
+async function waitForVoyagePersistence(timeoutMs = 30_000) {
+  let timeout;
+  try {
+    await Promise.race([
+      (async () => { await flushVoyageSaveWrites(); await flushPlatformCloudSaves(); })(),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("Saving before quit timed out; the game remains open")), timeoutMs);
+      })
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function saveAndQuitDesktop() {
+  if (!steamPlatformBridge) throw new Error("Desktop quit requires a desktop platform");
+  if (desktopExitPending) return false;
+  desktopExitPending = true;
+  optionsMenu.returnError = null;
+  dirty = true;
+  try {
+    // Duels and the prepared start-menu world are disposable. They must never
+    // overwrite the captain's voyage when the player quits from those screens.
+    if (!startMenu && !lakeBattleMode && hasStartedVoyage && !gameOverReason && ship.hitPoints > 0 &&
+        !saveVoyageNow("save and quit", { includeWorldTraffic: true })) {
+      throw savePersistenceWarning?.error || new Error("Could not save the voyage before quitting");
+    }
+    await waitForVoyagePersistence();
+    await steamPlatformBridge.quitGame();
+    return true;
+  } catch (error) {
+    optionsMenu.returnError = uiText("options.saveQuitFailed");
+    gameTelemetry.captureCrash(error, telemetryCrashContext("save-and-quit"));
+    return false;
+  } finally {
+    desktopExitPending = false;
+    dirty = true;
+  }
 }
 
 function resetCaptainChartView() {
@@ -19922,6 +19962,7 @@ function activateCaptainMenuSelection(index) {
 
 function handleOptionsKeyDown(event) {
   event.preventDefault();
+  if (desktopExitPending) return;
   if (optionsMenu.view === "bindings") {
     handleKeyBindingsKeyDown(event);
     return;
@@ -19979,6 +20020,7 @@ function handleOptionsKeyDown(event) {
     }
     if (optionsMenu.selectedIndex === OPTIONS_ROW_TELEMETRY) toggleAnonymousTelemetry();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_START_MENU) activateOptionsExitRow();
+    if (steamPlatformBridge && optionsMenu.selectedIndex === OPTIONS_ROW_QUIT) void saveAndQuitDesktop();
     return;
   }
   if (event.key === "m" || event.key === "M") {
@@ -20678,6 +20720,7 @@ function clearPointerSteering() {
 }
 
 function handleOptionsPointerDown(point) {
+  if (desktopExitPending) return;
   if (SHOW_WISHLIST_CTA && optionsMenu.view === "settings" && pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_WISHLIST])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_WISHLIST;
     openSteamWishlist();
@@ -20753,6 +20796,11 @@ function handleOptionsPointerDown(point) {
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_TELEMETRY])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_TELEMETRY;
     toggleAnonymousTelemetry();
+    return;
+  }
+  if (steamPlatformBridge && pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_QUIT])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_QUIT;
+    void saveAndQuitDesktop();
     return;
   }
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_START_MENU])) {
@@ -55297,6 +55345,7 @@ function drawOptionsSettingsRow(index, rowRect) {
   else if (index === OPTIONS_ROW_DIAGNOSTIC_MODE) drawOptionsDiagnosticModeRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_TELEMETRY) drawOptionsTelemetryRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_START_MENU) drawOptionsStartMenuRow(rowRect, highlighted);
+  else if (steamPlatformBridge && index === OPTIONS_ROW_QUIT) drawOptionsQuitRow(rowRect, highlighted);
   else throw new Error(`Unknown options settings row: ${index}`);
 }
 
@@ -55966,13 +56015,20 @@ function drawOptionsStartMenuRow(rowRect, highlighted) {
   const iconX = rowRect.x + 8;
   const iconY = rowRect.y + Math.floor((rowRect.h - GAME_ICON_SIZE) / 2);
   drawGameIcon("action:start-menu", iconX, iconY, { alpha: optionsMenu.returnError ? 0.5 : 1 });
-  const label = optionsMenu.returnError || uiText(
-    startMenu && steamPlatformBridge ? "options.quitGame" : "options.returnToMainMenu"
-  );
+  const label = optionsMenu.returnError || uiText("options.returnToMainMenu");
   drawOptionsText(fitPixelText(label, PIXEL_FONT_SMALL_8, rowRect.w - 38), rowRect.x + 31, controlTextY(rowRect), {
     font: PIXEL_FONT_SMALL_8,
     color: optionsMenu.returnError ? PIRATE_MENU_DANGER : PIRATE_MENU_INK
   });
+}
+
+function drawOptionsQuitRow(rowRect, highlighted) {
+  drawOptionsRowFrame(rowRect, highlighted);
+  const key = desktopExitPending ? "options.saving" :
+    (startMenu || lakeBattleMode || gameOverReason || !hasStartedVoyage) ? "options.quitGame" : "options.saveAndQuit";
+  drawOptionsText(fitPixelText(optionsMenu.returnError || uiText(key), PIXEL_FONT_SMALL_8, rowRect.w - 16),
+    rowRect.x + 8, controlTextY(rowRect), { font: PIXEL_FONT_SMALL_8,
+      color: optionsMenu.returnError ? PIRATE_MENU_DANGER : PIRATE_MENU_INK });
 }
 
 function drawOptionsArrowButton(rect, label, highlighted) {

@@ -261,7 +261,7 @@ function handleLocalSaveCompressionError(event) {
   localSaveCompressionWorker = null;
 }
 
-function deserializeLocalSave(serialized) {
+export function deserializeLocalSave(serialized) {
   const stored = JSON.parse(serialized);
   if (stored?.version === LEGACY_LOCAL_SAVE_VERSION) {
     validateLocalSave(stored);

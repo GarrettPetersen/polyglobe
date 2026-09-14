@@ -33,7 +33,7 @@ const battleRecordsKey = "marque-and-reprisal.historical-battle-records";
 
 test("frozen legacy Cloud profiles migrate idempotently without erasing local battle history", async () => {
   const migrated = parseCloudEnvelope(legacyCloudProfile);
-  assert.equal(migrated.version, 2);
+  assert.equal(migrated.version, 3);
   assert.equal(migrated.values[battleRecordsKey], null);
   assert.deepEqual(parseCloudEnvelope(JSON.stringify(migrated)), migrated);
   for (const records of [null, "local-battle-history"]) {
@@ -41,7 +41,7 @@ test("frozen legacy Cloud profiles migrate idempotently without erasing local ba
     await hydratePlatformCloudStorage(storage, bridge({ readCloudFile: async () => legacyCloudProfile }));
     assert.equal(storage.getItem(battleRecordsKey), records);
     assert.equal(storage.getItem("marque-and-reprisal.save"), "frozen-save-payload");
-    assert.equal(JSON.parse(serializeCloudEnvelope(storage, 1234)).version, 2);
+    assert.equal(JSON.parse(serializeCloudEnvelope(storage, 1234)).version, 3);
   }
 });
 
@@ -63,7 +63,7 @@ test("Cloud migration rejects malformed profiles before mutating local storage",
     malformed.push(profile);
   }
   malformed.push({ ...JSON.parse(legacyCloudProfile), version: 2 });
-  malformed.push({ ...JSON.parse(legacyCloudProfile), version: 3 });
+  malformed.push({ ...JSON.parse(legacyCloudProfile), version: 4 });
   const invalidRecords = JSON.parse(legacyCloudProfile);
   invalidRecords.values[battleRecordsKey] = 42;
   malformed.push(invalidRecords);
@@ -267,4 +267,33 @@ test("Steam stat updates are validated and browser builds remain inert", async (
     updatePlatformStats(installed, { MAX_VOYAGE_DISCOVERIES: 1.5 }),
     /Invalid Steam stat entry/
   );
+});
+
+test("v2 profiles migrate without deleting the new demo slot", async () => {
+  const profile = JSON.parse(serializeCloudEnvelope(memoryStorage(), 1234));
+  profile.version = 2;
+  delete profile.values["marque-and-reprisal.demo-save"];
+  const store = memoryStorage({ "marque-and-reprisal.demo-save": "demo-voyage" });
+  await hydratePlatformCloudStorage(store, bridge({ readCloudFile: async () => JSON.stringify(profile) }));
+  assert.equal(store.getItem("marque-and-reprisal.demo-save"), "demo-voyage");
+  const migrated = parseCloudEnvelope(JSON.stringify(profile));
+  assert.equal(migrated.version, 3);
+  assert.deepEqual(parseCloudEnvelope(JSON.stringify(migrated)), migrated);
+});
+
+test("quit flush retries failed background cloud writes and fails if still unavailable", async () => {
+  let available = false;
+  let writes = 0;
+  const sync = createPlatformCloudSync(memoryStorage(), bridge({ writeCloudFile: async () => {
+    writes += 1;
+    if (!available) throw new Error("offline");
+  } }));
+  await assert.rejects(sync.request(PLATFORM_CLOUD_STORAGE_KEYS[0]), /offline/);
+  await assert.rejects(sync.flush(), /offline/);
+  assert.equal(writes, 2);
+  available = true;
+  await sync.flush();
+  assert.equal(writes, 3);
+  await sync.flush();
+  assert.equal(writes, 3);
 });

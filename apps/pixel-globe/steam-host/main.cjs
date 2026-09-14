@@ -1,7 +1,9 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const { join } = require("node:path");
 const steamworks = require("steamworks.js");
 
+const { createProfileStore } = require("./profileStore.cjs");
+const { offerFullGameLaunch } = require("./fullGameLaunch.cjs");
 const { startStaticServer } = require("./staticServer.cjs");
 const { createSteamNativeApi } = require("./steamNativeApi.cjs");
 const { initializeSteamInput } = require("./steamInput.cjs");
@@ -26,6 +28,7 @@ let nativeApi = null;
 let steamInput = null;
 let steamInputPump = null;
 let staticServer = null;
+let profileStore = null;
 
 app.whenReady().then(async () => {
   if (desktopConfig.requireRelaunch && steamworks.restartAppIfNecessary(APP_ID)) {
@@ -33,9 +36,19 @@ app.whenReady().then(async () => {
     return;
   }
   client = steamworks.init(APP_ID);
+  if (await offerFullGameLaunch({ edition: desktopConfig.edition, apps: client.apps,
+    language: currentGameLanguage(),
+    showMessageBox: (options) => dialog.showMessageBox(options),
+    openExternal: (url) => shell.openExternal(url) })) {
+    app.quit();
+    return;
+  }
   capabilities = steamCapabilitiesForEdition(desktopConfig.edition, {
     cloudEnabled: steamCloudEnabled(client)
   });
+  profileStore = createProfileStore({ root: app.getPath("userData"),
+    steamId: client.localplayer.getSteamId().steamId64, cloud: client.cloud,
+    cloudEnabled: capabilities.cloud });
   nativeApi = createSteamNativeApi();
   steamInput = initializeSteamInput({ input: client.input, nativeApi, manifestPath: INPUT_MANIFEST });
   installIpcHandlers();
@@ -60,6 +73,7 @@ app.on("before-quit", () => {
 async function createGameWindow(url) {
   const windowTitle = desktopConfig.productName;
   const window = new BrowserWindow({
+    fullscreen: true,
     width: 1280,
     height: 720,
     minWidth: 720,
@@ -152,7 +166,7 @@ function updateStats(values) {
 
 function readCloudFile(name) {
   const fileName = requiredCloudFileName(name);
-  return client.cloud.fileExists(fileName) ? client.cloud.readFile(fileName) : null;
+  return profileStore.read(fileName);
 }
 
 function writeCloudFile(name, contents) {
@@ -160,10 +174,7 @@ function writeCloudFile(name, contents) {
   if (typeof contents !== "string" || contents.length === 0) {
     throw new Error(`Steam Cloud write is empty: ${fileName}`);
   }
-  if (!client.cloud.writeFile(fileName, contents)) {
-    throw new Error(`Steam Cloud rejected ${fileName}`);
-  }
-  return true;
+  return profileStore.write(fileName, contents);
 }
 
 function setRichPresence(presence) {
