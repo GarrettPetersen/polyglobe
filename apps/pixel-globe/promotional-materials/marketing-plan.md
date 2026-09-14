@@ -105,9 +105,9 @@ Garrett confirmed **September 17** as the demo launch target and authorized
 its use in the press release. Platform QA remains a launch gate. Garrett will
 test macOS and Windows September 13; Linux testing still needs coverage. Before launch, obtain Garrett's exact human-authored
 wording for Steam, X, Reddit, press, creators and GamesPress; do not publish the
-legacy agent-written drafts. Send the existing IGN contact a short update with
-the confirmed date, downloadable trailer, Steam page and press-kit links, but
-do not wait for an IGN response before launching.
+legacy agent-written drafts. Garrett sent IGN the demo-launch trailer update
+on September 13 with the confirmed date, downloadable trailer, Steam page and
+press-kit links. Do not wait for an IGN response before launching.
 
 ## Store and build
 
@@ -170,11 +170,15 @@ do not wait for an IGN response before launching.
     draft.
   - Link the public upload from the website and future press pitches.
 
-- [ ] **Send the demo-launch trailer update to IGN**
-  - September 17 is the authorized campaign target. Prepare the reply in the
-    existing thread; send with Garrett's authorization.
-  - Use Garrett's exact human-written wording and include the Steam page,
-    press kit and downloadable full-quality trailer. No exclusivity request.
+- [x] **Send the demo-launch trailer update to IGN**
+  - Sent by Garrett September 13, 2026, at 5:15 p.m. PDT to `trailers@ign.com`
+    and `videowire@ign.com`; verified in Gmail Sent.
+    [Sent email](https://mail.google.com/mail/#all/1a09d451dd90890b).
+  - Subject: **Demo Launch Trailer: Marque & Reprisal, A Sailing Roguelike Set in 1522**.
+    Adapted Garrett's prior wording with his authorization; included the
+    September 17 demo launch date, Steam page, press kit and full-quality MP4.
+    No exclusivity or embargo; the date explains the trailer's “Demo Out Now!”
+    end card. Sending is complete; coverage is not confirmed.
   - Follow up once if useful, but do not make the demo launch contingent on a
     reply or coverage.
 
@@ -339,6 +343,17 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
   SPF, DKIM and DMARC, before the first large creator-outreach batch.
 
 - [ ] Prepare the first creator-outreach wave.
+  - Garrett supplied the core email and authorized the additions saved in the
+    [working outreach template](creator-outreach-template.md). He reports 250
+    full-game keys available; no creator keys were sent in this session.
+  - Prioritize user-reported interest from `@CopperPlaysRetro` after locating
+    the comment and verifying a private contact route. SNESdrunk is a personal
+    inspiration/thank-you contact; do not assume modern-PC review coverage.
+  - September 13: [gameplay research shortlist](creator-gameplay-research-2026-09-13.md)
+    identifies ten candidates with specific Pirates!, Uncharted Waters,
+    Sailing Era, Sailwind or Europa Universalis evidence. Contact and activity
+    checks remain where flagged. The old GamerZakh/Uncharted Waters assumption
+    is unverified; do not use it for personalization.
   - The CSV now contains 2,837 contacts; finding more names is not the current
     bottleneck.
   - Recheck and personalize the first 10–20 priority A and B contacts before
@@ -352,9 +367,10 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
     are internal references only and must not be sent as written.
   - Work through `streamer-outreach.csv` in small batches, starting with priority A and B.
   - Recheck each creator's public email, recent activity and relevant game before sending.
-  - Ask Garrett for one short reusable message in his exact words. Personalize
-    only with verified mechanical substitutions such as the creator name and a
-    relevant game they actually covered.
+  - Use the [working template](creator-outreach-template.md), based on Garrett's
+    supplied message and authorized additions. Personalize only with verified
+    mechanical substitutions such as the creator name and a relevant game
+    they actually covered.
   - Do not pretend to have watched content that we have not actually reviewed.
   - Track send date, response, follow-up and coverage in the CSV. Store raw keys
     and recipient/key assignments privately, outside git.
@@ -757,7 +773,7 @@ Work through these in order; outreach preparation can proceed while testers work
    creator contacts and send the first small batch using Garrett's exact
    human-authored message. Track delivery, replies, redemptions and coverage
    before scaling. Every send still requires Garrett's authorization.
-   Send IGN the confirmed-date update without offering exclusivity.
+   IGN's demo-launch trailer update was sent September 13 without exclusivity.
 5. **Launch execution:** Record wishlist/traffic baseline; release the demo;
    republish the base-game page if needed; verify public install and play flows;
    then send the wishlist notification and publish/send approved campaign copy.
