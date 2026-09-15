@@ -287,13 +287,35 @@ test("quit flush retries failed background cloud writes and fails if still unava
   const sync = createPlatformCloudSync(memoryStorage(), bridge({ writeCloudFile: async () => {
     writes += 1;
     if (!available) throw new Error("offline");
-  } }));
+  } }), { retryDelayMs: 0 });
   await assert.rejects(sync.request(PLATFORM_CLOUD_STORAGE_KEYS[0]), /offline/);
   await assert.rejects(sync.flush(), /offline/);
-  assert.equal(writes, 2);
+  assert.equal(writes, 6);
   available = true;
   await sync.flush();
-  assert.equal(writes, 3);
+  assert.equal(writes, 7);
   await sync.flush();
+  assert.equal(writes, 7);
+});
+
+test("cloud writes retry transient failures with bounded attempts", async () => {
+  let writes = 0;
+  const sync = createPlatformCloudSync(memoryStorage(), bridge({
+    writeCloudFile: async () => {
+      writes += 1;
+      if (writes < 3) throw new Error("offline");
+    }
+  }), { retryDelayMs: 0 });
+  await sync.request(PLATFORM_CLOUD_STORAGE_KEYS[0]);
   assert.equal(writes, 3);
+});
+
+test("cloud timestamps remain strictly increasing when the clock does not advance", async () => {
+  const uploads = [];
+  const sync = createPlatformCloudSync(memoryStorage(), bridge({
+    writeCloudFile: async (_name, serialized) => uploads.push(parseCloudEnvelope(serialized).savedAt)
+  }), { now: () => 1234, retryDelayMs: 0 });
+  await sync.request(PLATFORM_CLOUD_STORAGE_KEYS[0]);
+  await sync.request(PLATFORM_CLOUD_STORAGE_KEYS[0]);
+  assert.deepEqual(uploads, [1234, 1235]);
 });

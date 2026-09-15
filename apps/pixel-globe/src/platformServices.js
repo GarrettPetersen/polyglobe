@@ -106,13 +106,24 @@ export async function hydratePlatformCloudStorage(storage, bridge) {
   return Object.freeze({ loaded: true, source: "steam-cloud", savedAt: envelope.savedAt });
 }
 
-export function createPlatformCloudSync(storage, bridge, { now = Date.now } = {}) {
+export function createPlatformCloudSync(storage, bridge, {
+  now = Date.now,
+  retryAttempts = 3,
+  retryDelayMs = 100
+} = {}) {
   assertStorage(storage);
   if (!bridge) return null;
   if (typeof now !== "function") throw new Error("Platform cloud sync requires a clock");
+  if (!Number.isInteger(retryAttempts) || retryAttempts < 1 || retryAttempts > 5) {
+    throw new Error("Platform cloud sync retry attempts must be between 1 and 5");
+  }
+  if (!Number.isFinite(retryDelayMs) || retryDelayMs < 0 || retryDelayMs > 10_000) {
+    throw new Error("Platform cloud sync retry delay is invalid");
+  }
   let requestedRevision = 0;
   let writtenRevision = 0;
   let activeWrite = null;
+  let lastSavedAt = 0;
 
   function request(key) {
     if (!PLATFORM_CLOUD_STORAGE_KEYS.includes(key)) return Promise.resolve(false);
@@ -128,8 +139,26 @@ export function createPlatformCloudSync(storage, bridge, { now = Date.now } = {}
   async function writeLatest() {
     while (writtenRevision < requestedRevision) {
       const revision = requestedRevision;
-      const serialized = serializeCloudEnvelope(storage, now());
-      await bridge.writeCloudFile(PLATFORM_CLOUD_FILE, serialized);
+      const savedAt = Math.max(Math.floor(now()), lastSavedAt + 1);
+      const serialized = serializeCloudEnvelope(storage, savedAt);
+      // Keep the upload boundary strict: never hand the platform a payload that
+      // cannot be decoded by the same contract used during hydration.
+      parseCloudEnvelope(serialized);
+      let lastError;
+      for (let attempt = 1; attempt <= retryAttempts; attempt += 1) {
+        try {
+          await bridge.writeCloudFile(PLATFORM_CLOUD_FILE, serialized);
+          lastError = null;
+          break;
+        } catch (error) {
+          lastError = error;
+          if (attempt < retryAttempts && retryDelayMs > 0) {
+            await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt));
+          }
+        }
+      }
+      if (lastError) throw lastError;
+      lastSavedAt = savedAt;
       writtenRevision = revision;
     }
   }
