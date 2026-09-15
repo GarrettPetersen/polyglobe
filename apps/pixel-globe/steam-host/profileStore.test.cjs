@@ -33,3 +33,17 @@ test("failed cloud uploads preserve the local voyage; loading chooses the newest
   remote = profile(300, "London");
   assert.equal(store.read(file), remote);
 });
+test("invalid Cloud JSON cannot block a valid local profile", t => {
+  const root = fixture(t);
+  const local = profile(200, "Istanbul");
+  const cloud = { fileExists: () => true, readFile: () => "truncated", writeFile: () => true };
+  const options = { root, steamId: 123n, cloudEnabled: true, cloud };
+  createProfileStore({ ...options, cloudEnabled: false }).write(file, local);
+  assert.equal(createProfileStore(options).read(file), local);
+});
+test("invalid Cloud JSON with no valid local profile initializes fresh", t => {
+  const root = fixture(t);
+  const cloud = { fileExists: () => true, readFile: () => "truncated", writeFile: () => true };
+  const store = createProfileStore({ root, steamId: 123n, cloudEnabled: true, cloud });
+  assert.equal(store.read(file), null);
+});

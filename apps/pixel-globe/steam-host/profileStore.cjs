@@ -16,9 +16,14 @@ function createProfileStore({ root, steamId, cloud, cloudEnabled }) {
     const local = localRead(name);
     const remote = cloudEnabled && cloud.fileExists(name) ? cloud.readFile(name) : null;
     if (remote === null) return local;
-    if (local === null) return remote;
+    // A truncated or otherwise invalid Cloud file must not prevent startup. Prefer a
+    // valid local profile, or initialize a fresh profile when no valid copy exists.
+    const remoteSavedAt = validTimestamp(remote);
+    const localSavedAt = validTimestamp(local);
+    if (remoteSavedAt === null) return localSavedAt === null ? null : local;
+    if (local === null || localSavedAt === null) return remote;
     // A locally committed voyage can be newer after an unsuccessful Cloud sync.
-    return timestamp(local) > timestamp(remote) ? local : remote;
+    return localSavedAt > remoteSavedAt ? local : remote;
   }
   function write(name, contents) {
     const destination = path(name);
@@ -35,5 +40,10 @@ function timestamp(contents) {
   const profile = JSON.parse(contents);
   if (!Number.isFinite(profile.savedAt) || profile.savedAt <= 0) throw new Error("Invalid desktop profile timestamp");
   return profile.savedAt;
+}
+function validTimestamp(contents) {
+  if (typeof contents !== "string" || contents.length === 0) return null;
+  try { return timestamp(contents); }
+  catch { return null; }
 }
 module.exports = { createProfileStore };
