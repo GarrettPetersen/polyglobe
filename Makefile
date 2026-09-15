@@ -5,8 +5,10 @@ PIXEL_GLOBE_TELEMETRY_DIR := apps/pixel-globe-telemetry
 PIXEL_GLOBE_PORT ?= 5184
 PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
 PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
+PIXEL_GLOBE_ITCH_TARGET ?= garrettpetersen/marque-and-reprisal:html5
+PIXEL_GLOBE_BUTLER ?= /private/tmp/polyglobe-butler/tool/butler
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-demo-trailer-clips pixel-globe-demo-trailer pixel-globe-steam-inline-videos pixel-globe-steam-windows pixel-globe-steam-mac pixel-globe-steam-desktop pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-render-demo-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-dashboard-configure pixel-globe-telemetry-dashboard-verify pixel-globe-telemetry-verify pixel-globe-telemetry-report pixel-globe-telemetry-crashes
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-release pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-demo-trailer-clips pixel-globe-demo-trailer pixel-globe-steam-inline-videos pixel-globe-steam-windows pixel-globe-steam-mac pixel-globe-steam-desktop pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-render-demo-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-dashboard-configure pixel-globe-telemetry-dashboard-verify pixel-globe-telemetry-verify pixel-globe-telemetry-report pixel-globe-telemetry-crashes
 
 help:
 	@echo "Targets:"
@@ -26,6 +28,7 @@ help:
 	@echo "  make railways-preview   Preview built Railways app"
 	@echo "  make pixel-globe-dev    Run Pixel Globe locally on PIXEL_GLOBE_PORT (default: 5184)"
 	@echo "  make pixel-globe-demo-itch Build the Mediterranean HTML5 demo ZIP for itch.io"
+	@echo "  make pixel-globe-release   Pull, test, package, and upload Steam full+demo plus itch demo"
 	@echo "  make pixel-globe-capture Run a disposable 9:16 capture scenario"
 	@echo "  make pixel-globe-benchmark Run the deterministic busy-world performance benchmark"
 	@echo "  make pixel-globe-trailer-clips Record all scripted 9:16 trailer clips"
@@ -100,6 +103,25 @@ pixel-globe-dev:
 
 pixel-globe-demo-itch:
 	npm --prefix $(PIXEL_GLOBE_DIR) run package:demo:itch
+
+# Release upload is intentionally separate from Steam branch promotion: Steamworks
+# keeps SetLive in its web UI, where the target branch can be reviewed first.
+# Override PIXEL_GLOBE_ITCH_TARGET and PIXEL_GLOBE_BUTLER for another itch channel.
+pixel-globe-release:
+	@test -z "$$(git status --porcelain)" || (echo "Working tree is dirty; commit or stash changes before releasing" && exit 2)
+	git pull --ff-only
+	npm --prefix $(PIXEL_GLOBE_DIR) run check:source
+	npm --prefix $(PIXEL_GLOBE_DIR) test
+	npm --prefix $(PIXEL_GLOBE_DIR) run build
+	npm --prefix $(PIXEL_GLOBE_DIR) run build:demo
+	MARQUE_MAC_NOTARY_PROFILE=marque-notary MARQUE_MAC_SIGN_IDENTITY='Developer ID Application: Garrett Petersen (33PHJFY66Z)' npm --prefix $(PIXEL_GLOBE_DIR) run steam:package -- --edition=both --platform=darwin --arch=universal --notarize
+	npm --prefix $(PIXEL_GLOBE_DIR) run steam:package -- --edition=both --platform=win32 --arch=x64 --skip-static-build
+	npm --prefix $(PIXEL_GLOBE_DIR) run steam:package -- --edition=both --platform=linux --arch=x64 --skip-static-build
+	npm --prefix $(PIXEL_GLOBE_DIR) run steam:check
+	npm --prefix $(PIXEL_GLOBE_DIR) run test:startup-failure
+	npm --prefix $(PIXEL_GLOBE_DIR) run package:demo:itch
+	$(PIXEL_GLOBE_BUTLER) push $(PIXEL_GLOBE_DIR)/build/marque-and-reprisal-demo-itch.zip $(PIXEL_GLOBE_ITCH_TARGET) --userversion "$$(git rev-parse --short=8 HEAD)"
+	npm --prefix $(PIXEL_GLOBE_DIR) run steam:upload -- --account=jerkpetersen --edition=all --platform=all
 
 pixel-globe-capture:
 	@echo "Capture URL: http://127.0.0.1:$(PIXEL_GLOBE_PORT)/?capture=$(PIXEL_GLOBE_CAPTURE_SCENARIO)"

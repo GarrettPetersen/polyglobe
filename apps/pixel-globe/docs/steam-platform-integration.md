@@ -95,6 +95,21 @@ MARQUE_MAC_NOTARY_PROFILE=marque-notary npm run steam:package:mac:release
 npm run steam:prepare-upload -- --platform=macos
 ```
 
+For the complete repeatable release upload from the signing Mac, use the
+repository target from its root:
+
+```sh
+make pixel-globe-release
+```
+
+It requires a clean working tree, pulls with `--ff-only`, runs source checks and
+the full test suite, builds both editions, creates signed/notarized universal
+macOS packages plus Windows and Linux packages, runs the Steam and startup
+checks, uploads the demo to the configured itch channel, and uploads both Steam
+apps. Set `PIXEL_GLOBE_ITCH_TARGET` or `PIXEL_GLOBE_BUTLER` to override the itch
+destination or Butler path. Steam branch promotion remains a deliberate
+Steamworks web action after reviewing the uploaded Build IDs.
+
 ### SteamPipe depots
 
 Windows, macOS, and Linux are delivered in separate, OS-restricted depots.
