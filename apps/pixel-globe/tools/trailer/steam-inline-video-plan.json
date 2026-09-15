@@ -54,6 +54,18 @@
       ]
     },
     {
+      "heading": "Assault",
+      "output": "assault.webm",
+      "segments": [
+        {
+          "source": "assault/screenshot-assault-kyoto-day.webm",
+          "start": 16.0,
+          "duration": 8.5,
+          "crop": { "x": 45, "y": 140, "width": 390, "height": 90 }
+        }
+      ]
+    },
+    {
       "heading": "Survive",
       "output": "survive.webm",
       "segments": [

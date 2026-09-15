@@ -10,6 +10,31 @@ const WINDOWS_OS = "app[content][sysreqs][windows][min][osversion]";
 const WINDOWS_PROCESSOR = "app[content][sysreqs][windows][min][processor]";
 const WINDOWS_GRAPHICS = "app[content][sysreqs][windows][min][graphics]";
 const WINDOWS_NOTES = "app[content][sysreqs][windows][min][notes]";
+const MAC_OS = "app[content][sysreqs][mac][min][osversion]";
+const MAC_PROCESSOR = "app[content][sysreqs][mac][min][processor]";
+const MAC_GRAPHICS = "app[content][sysreqs][mac][min][graphics]";
+const MAC_NOTES = "app[content][sysreqs][mac][min][notes]";
+const LINUX_OS = "app[content][sysreqs][linux][min][osversion]";
+const LINUX_PROCESSOR = "app[content][sysreqs][linux][min][processor]";
+const LINUX_GRAPHICS = "app[content][sysreqs][linux][min][graphics]";
+const LINUX_NOTES = "app[content][sysreqs][linux][min][notes]";
+const EXTRA_ALT_TEXT_FIELDS = Object.freeze(
+  Array.from({ length: 8 }, (_, index) => `app[assets][extra][${index}][alt_text]`)
+);
+const SYSTEM_REQUIREMENT_FIELDS = Object.freeze([
+  MAC_OS,
+  MAC_PROCESSOR,
+  MAC_GRAPHICS,
+  MAC_NOTES,
+  WINDOWS_OS,
+  WINDOWS_PROCESSOR,
+  WINDOWS_GRAPHICS,
+  WINDOWS_NOTES,
+  LINUX_OS,
+  LINUX_PROCESSOR,
+  LINUX_GRAPHICS,
+  LINUX_NOTES
+]);
 const FEATURE_ORDER = Object.freeze([
   "explore",
   "trade",
@@ -18,6 +43,7 @@ const FEATURE_ORDER = Object.freeze([
   "colonize",
   "fight",
   "pillage",
+  "assault",
   "survive"
 ]);
 const SUPPORTED_STEAM_LANGUAGES = Object.freeze([
@@ -41,7 +67,7 @@ const LOCALIZATIONS = Object.freeze({
     intro:
       "Explorez. Commercez. Pêchez. Chassez la baleine. Colonisez. Combattez. Pillez. Survivez. Vous êtes capitaine en 1522, et le monde entier s'offre à vous dans ce simulateur historique de navigation en bac à sable aux accents roguelike.",
     explore:
-      "Le monde de Marque &amp; Représailles est une représentation complète de la Terre composée de 164 000 hexagones, avec une géographie fidèle, des rivières et des lacs navigables, des montagnes, une simulation météorologique détaillée et de nombreuses merveilles anciennes et naturelles à découvrir.",
+      "Le monde de Marque &amp; Représailles est une représentation complète de la Terre composée de 655 362 cases et 328 villes, avec une géographie fidèle, des rivières et des lacs navigables, des montagnes, une simulation météorologique détaillée et de nombreuses merveilles anciennes et naturelles à découvrir.",
     trade:
       "Les villes et villages du monde achètent et vendent diverses marchandises à des prix différents. L'offre et la demande de biens et de numéraire réagissent de façon dynamique aux actions du joueur et aux centaines de navires PNJ qui sillonnent les routes commerciales en quête de fortune.",
     fish:
@@ -54,6 +80,8 @@ const LOCALIZATIONS = Object.freeze({
       "Affrontez des pirates et des nations hostiles ! Ou devenez vous-même pirate et partez à la recherche de riches navires marchands à capturer.",
     pillage:
       "Avec un navire de guerre suffisamment imposant, vous pouvez bombarder une ville ennemie pour réduire ses batteries côtières au silence, puis débarquer des troupes de marine afin de prendre le port !",
+    assault:
+      "Lorsque vient le moment de prendre un port, votre équipage débarque du navire et affronte la garnison dans un combat automatique.",
     survive:
       "Si vous mourez dans Marque &amp; Représailles, aucun retour en arrière n'est possible. Vous devrez commencer un nouveau voyage avec un autre capitaine. La mort peut venir de bien des façons : faim, soif, tempêtes ou attaques de pirates.",
     systemNotes:
@@ -65,7 +93,7 @@ const LOCALIZATIONS = Object.freeze({
     intro:
       "Erkunde. Handle. Fische. Jage Wale. Gründe Kolonien. Kämpfe. Plündere. Überlebe. Du bist ein Kapitän im Jahr 1522, und in diesem historischen Roguelike-Sandbox-Seefahrtssimulator wartet die ganze Welt darauf, entdeckt zu werden.",
     explore:
-      "Die Welt von Kaperbrief &amp; Vergeltung ist eine vollständig ausgearbeitete Karte der gesamten Erde aus 164.000 Hexfeldern: mit genauer Geografie, schiffbaren Flüssen und Seen, Gebirgen, einer detaillierten Wettersimulation und zahlreichen antiken wie natürlichen Wundern, die es zu entdecken gilt.",
+      "Die Welt von Kaperbrief &amp; Vergeltung ist eine vollständig ausgearbeitete Karte der gesamten Erde aus 655.362 Feldern mit 328 Städten: mit genauer Geografie, schiffbaren Flüssen und Seen, Gebirgen, einer detaillierten Wettersimulation und zahlreichen antiken wie natürlichen Wundern, die es zu entdecken gilt.",
     trade:
       "Die Städte und Dörfer der Welt kaufen und verkaufen unterschiedliche Waren zu verschiedenen Preisen. Angebot und Nachfrage nach Gütern und Münzgeld reagieren dynamisch auf die Handlungen des Spielers und auf Hunderte von NSC-Schiffen, die auf der Suche nach Reichtum die Handelsrouten befahren.",
     fish:
@@ -78,6 +106,8 @@ const LOCALIZATIONS = Object.freeze({
       "Kämpfe gegen Piraten und feindliche Nationen! Oder werde selbst zum Piraten und mache Jagd auf reiche Handelsschiffe, die du als Prise nehmen kannst.",
     pillage:
       "Mit einem ausreichend großen Kriegsschiff kannst du eine feindliche Stadt bombardieren, ihre Küstenbatterien zum Schweigen bringen und anschließend Marinesoldaten anlanden, um den Hafen einzunehmen!",
+    assault:
+      "Wenn es an der Zeit ist, einen Hafen einzunehmen, springt deine Mannschaft vom Schiff und tritt in einem Auto-Battler-Kampf gegen die Garnison an.",
     survive:
       "Wenn du in Kaperbrief &amp; Vergeltung stirbst, gibt es kein Zurück. Du musst eine neue Reise mit einem neuen Kapitän beginnen. Der Tod hat viele Gesichter: Hunger, Durst, stürmische See und Piratenangriffe.",
     systemNotes:
@@ -89,7 +119,7 @@ const LOCALIZATIONS = Object.freeze({
     intro:
       "Explora. Comercia. Pesca. Caza ballenas. Coloniza. Lucha. Saquea. Sobrevive. Eres capitán en el año 1522, y el mundo entero está por descubrir en este simulador histórico de navegación, tipo roguelike y de mundo abierto.",
     explore:
-      "El mundo de Corso &amp; Represalia es un mapa completo de toda la Tierra formado por 164 000 hexágonos, con geografía fiel, ríos y lagos navegables, montañas, una simulación meteorológica detallada y numerosas maravillas naturales y de la Antigüedad por descubrir.",
+      "El mundo de Corso &amp; Represalia es un mapa completo de toda la Tierra con 655 362 casillas y 328 ciudades, con geografía fiel, ríos y lagos navegables, montañas, una simulación meteorológica detallada y numerosas maravillas naturales y de la Antigüedad por descubrir.",
     trade:
       "Las ciudades y aldeas del mundo compran y venden distintas mercancías a precios diferentes. La oferta y la demanda de bienes y moneda reaccionan dinámicamente a las acciones del jugador y a los cientos de barcos PNJ que recorren las rutas comerciales en busca de fortuna.",
     fish:
@@ -102,6 +132,8 @@ const LOCALIZATIONS = Object.freeze({
       "¡Combate contra piratas y naciones hostiles! O conviértete tú en pirata y parte en busca de ricos mercantes que capturar.",
     pillage:
       "Con un navío de guerra lo bastante grande, puedes bombardear una ciudad enemiga para silenciar sus baterías costeras y después desembarcar infantes de marina para capturar el puerto.",
+    assault:
+      "Cuando llega el momento de tomar un puerto, tu tripulación salta del barco y se enfrenta a la guarnición en un combate automático.",
     survive:
       "Si mueres en Corso &amp; Represalia, no hay vuelta atrás. Tendrás que iniciar un nuevo viaje con otro capitán. La muerte puede llegar de muchas formas: hambre, sed, mares embravecidos o ataques piratas.",
     systemNotes:
@@ -113,7 +145,7 @@ const LOCALIZATIONS = Object.freeze({
     intro:
       "Explore. Negocie. Pesque. Cace baleias. Colonize. Lute. Saqueie. Sobreviva. Você é capitão no ano de 1522, e o mundo inteiro está à sua espera neste simulador histórico de navegação em mundo aberto com elementos roguelike.",
     explore:
-      "O mundo de Corso &amp; Represália é um mapa completo de toda a Terra com 164 mil hexágonos, geografia fiel, rios e lagos navegáveis, montanhas, uma simulação climática detalhada e muitas maravilhas naturais e da Antiguidade para descobrir.",
+      "O mundo de Corso &amp; Represália é um mapa completo de toda a Terra com 655.362 células e 328 cidades, geografia fiel, rios e lagos navegáveis, montanhas, uma simulação climática detalhada e muitas maravilhas naturais e da Antiguidade para descobrir.",
     trade:
       "As cidades e aldeias do mundo compram e vendem mercadorias diferentes por preços variados. A oferta e a demanda de bens e moeda reagem dinamicamente às ações do jogador e às centenas de navios PNJ que percorrem as rotas comerciais em busca de riqueza.",
     fish:
@@ -126,6 +158,8 @@ const LOCALIZATIONS = Object.freeze({
       "Enfrente piratas e nações hostis! Ou torne-se um pirata e saia em busca de ricos navios mercantes para capturar.",
     pillage:
       "Com um navio de guerra grande o bastante, você pode bombardear uma cidade inimiga para silenciar suas baterias costeiras e depois desembarcar fuzileiros para tomar o porto!",
+    assault:
+      "Quando chega a hora de tomar um porto, sua tripulação salta do navio e enfrenta a guarnição em um combate automático.",
     survive:
       "Se você morrer em Corso &amp; Represália, não há volta. Será preciso começar uma nova viagem com outro capitão. A morte pode chegar de muitas formas: fome, sede, mares tempestuosos ou ataques de piratas.",
     systemNotes:
@@ -137,7 +171,7 @@ const LOCALIZATIONS = Object.freeze({
     intro:
       "Исследуйте. Торгуйте. Рыбачьте. Охотьтесь на китов. Основывайте колонии. Сражайтесь. Грабьте. Выживайте. Вы — капитан корабля в 1522 году, и в этом историческом морском roguelike-симуляторе с открытым миром вам предстоит открыть всю Землю.",
     explore:
-      "Мир игры «Каперство &amp; Возмездие» — это детально воссозданная карта всей Земли из 164 тысяч шестиугольников: с достоверной географией, судоходными реками и озёрами, горами, подробной симуляцией погоды и множеством древних и природных чудес, ожидающих своего первооткрывателя.",
+      "Мир игры «Каперство &amp; Возмездие» — это детально воссозданная карта всей Земли из 655 362 ячеек с 328 городами: с достоверной географией, судоходными реками и озёрами, горами, подробной симуляцией погоды и множеством древних и природных чудес, ожидающих своего первооткрывателя.",
     trade:
       "Города и деревни мира покупают и продают разные товары по разным ценам. Спрос и предложение товаров и звонкой монеты динамически меняются под влиянием игрока и сотен кораблей под управлением ИИ, которые ходят по торговым путям в погоне за богатством.",
     fish:
@@ -150,6 +184,8 @@ const LOCALIZATIONS = Object.freeze({
       "Сражайтесь с пиратами и враждебными державами! Или сами станьте пиратом и отправляйтесь на охоту за богатыми торговыми судами.",
     pillage:
       "На достаточно крупном военном корабле можно обстрелять вражеский город, подавить его береговые батареи, а затем высадить морскую пехоту и захватить порт!",
+    assault:
+      "Когда приходит время захватить порт, ваша команда сходит с корабля и вступает в автоматический бой с гарнизоном порта.",
     survive:
       "Смерть в игре «Каперство &amp; Возмездие» необратима. Придётся начать новое плавание с новым капитаном. Погибнуть можно от голода и жажды, в штормовом море или при нападении пиратов.",
     systemNotes:
@@ -161,7 +197,7 @@ const LOCALIZATIONS = Object.freeze({
     intro:
       "Eksploruj. Handluj. Łów ryby. Poluj na wieloryby. Zakładaj kolonie. Walcz. Plądruj. Przetrwaj. Jesteś kapitanem w roku 1522, a cały świat czeka na odkrycie w tym historycznym, roguelike'owym symulatorze żeglugi z otwartą piaskownicą.",
     explore:
-      "Świat Kaperstwa &amp; Odwetu to w pełni odwzorowana mapa całej Ziemi złożona ze 164 tysięcy heksów. Znajdziesz na niej wierną geografię, żeglowne rzeki i jeziora, góry, szczegółową symulację pogody oraz liczne starożytne i naturalne cuda do odkrycia.",
+      "Świat Kaperstwa &amp; Odwetu to w pełni odwzorowana mapa całej Ziemi złożona z 655 362 pól i 328 miast. Znajdziesz na niej wierną geografię, żeglowne rzeki i jeziora, góry, szczegółową symulację pogody oraz liczne starożytne i naturalne cuda do odkrycia.",
     trade:
       "Miasta i wioski świata kupują i sprzedają różne towary po odmiennych cenach. Podaż i popyt na dobra oraz kruszec dynamicznie reagują na działania gracza i setek statków NPC przemierzających szlaki handlowe w poszukiwaniu bogactwa.",
     fish:
@@ -174,6 +210,8 @@ const LOCALIZATIONS = Object.freeze({
       "Walcz z piratami i wrogimi państwami! Albo sam zostań piratem i wyrusz na poszukiwanie bogatych statków handlowych, które można zdobyć.",
     pillage:
       "Dostatecznie duży okręt wojenny pozwoli ci ostrzelać wrogie miasto, uciszyć jego baterie nadbrzeżne, a następnie wysadzić piechotę morską i zdobyć port!",
+    assault:
+      "Gdy nadejdzie czas zdobyć port, twoja załoga zeskoczy ze statku i zmierzy się z garnizonem w automatycznej bitwie.",
     survive:
       "Jeśli zginiesz w Kaperstwie &amp; Odwecie, nie ma odwrotu. Musisz rozpocząć nową podróż z nowym kapitanem. Śmierć ma wiele postaci: głód, pragnienie, sztormowe morze i ataki piratów.",
     systemNotes:
@@ -185,7 +223,7 @@ const LOCALIZATIONS = Object.freeze({
     intro:
       "探索、交易、漁、捕鯨、植民、戦闘、略奪、そして生存。時は1522年。船長となり、世界全土を舞台にしたローグライク要素のある歴史航海サンドボックスで、未知の海へ漕ぎ出そう。",
     explore:
-      "『私掠 &amp; 報復』の世界は、16万4千のヘックスで地球全土を再現したマップ。史実に基づく地理、航行可能な河川と湖、山々、緻密な気象シミュレーション、そして発見を待つ数々の古代遺産や自然の驚異が広がっている。",
+      "『私掠 &amp; 報復』の世界は、655,362個のタイルと328都市で地球全土を再現したマップ。史実に基づく地理、航行可能な河川と湖、山々、緻密な気象シミュレーション、そして発見を待つ数々の古代遺産や自然の驚異が広がっている。",
     trade:
       "世界各地の都市や村では、さまざまな商品が異なる価格で取引される。物資と正貨の需要と供給は、プレイヤーの行動や、富を求めて交易路を行き交う数百隻ものNPC船によって刻々と変化する。",
     fish:
@@ -198,6 +236,8 @@ const LOCALIZATIONS = Object.freeze({
       "海賊や敵対国と戦え！ あるいは自ら海賊となり、財宝を積んだ商船を探して拿捕することもできる。",
     pillage:
       "十分に大きな軍船があれば、敵都市を砲撃して沿岸砲台を沈黙させ、海兵隊を上陸させて港を占領できる！",
+    assault:
+      "港を攻略する時が来れば、乗組員が船から飛び降り、港の守備隊とオートバトラー形式の戦闘を繰り広げる。",
     survive:
       "『私掠 &amp; 報復』で死ねば、やり直しは利かない。新たな船長で、次の航海を始めることになる。飢えや渇き、荒れる海、海賊の襲撃など、死はさまざまな形で訪れる。",
     systemNotes:
@@ -209,7 +249,7 @@ const LOCALIZATIONS = Object.freeze({
     intro:
       "探索、贸易、捕鱼、捕鲸、殖民、战斗、劫掠、生存。你是一名生活在1522年的船长，在这款带有Roguelike元素的历史航海沙盒模拟游戏中，整个世界都等待你去发现。",
     explore:
-      "《私掠 &amp; 报复》的世界是一张由16.4万个六边形构成的完整地球地图，拥有准确的地理环境、可航行的河流与湖泊、连绵山脉、细致的天气模拟，以及众多等待发现的古代奇观与自然奇观。",
+      "《私掠 &amp; 报复》的世界是一张由655,362个地块和328座城市构成的完整地球地图，拥有准确的地理环境、可航行的河流与湖泊、连绵山脉、细致的天气模拟，以及众多等待发现的古代奇观与自然奇观。",
     trade:
       "世界各地的城市与村庄会以不同价格买卖不同货物。商品与硬币的供需会根据玩家的行动，以及数百艘为追逐财富而穿梭于贸易航线的NPC船只，实时发生变化。",
     fish:
@@ -222,6 +262,8 @@ const LOCALIZATIONS = Object.freeze({
       "与海盗及敌对国家交战！你也可以亲自成为海盗，出海搜寻并夺取满载财富的商船。",
     pillage:
       "拥有足够庞大的军舰后，你可以炮击敌对城市、摧毁岸防炮台，再派海军陆战队登陆并占领港口！",
+    assault:
+      "当需要攻占港口时，你的船员会跳下船只，与港口守军展开自动战斗。",
     survive:
       "在《私掠 &amp; 报复》中一旦死亡，就无法回头。你必须换一名新船长，重新开始航行。死亡可能来自饥饿、干渴、惊涛骇浪或海盗袭击。",
     systemNotes:
@@ -233,7 +275,7 @@ const LOCALIZATIONS = Object.freeze({
     intro:
       "探索、貿易、捕魚、捕鯨、殖民、戰鬥、劫掠、生存。你是一名身處1522年的船長，在這款帶有Roguelike元素的歷史航海沙盒模擬遊戲中，整個世界都等著你去發現。",
     explore:
-      "《私掠 &amp; 報復》的世界是一張由16.4萬個六角格構成的完整地球地圖，擁有準確的地理環境、可航行的河川與湖泊、連綿山脈、細緻的天氣模擬，以及眾多等待發現的古代奇觀與自然奇觀。",
+      "《私掠 &amp; 報復》的世界是一張由655,362個地塊與328座城市構成的完整地球地圖，擁有準確的地理環境、可航行的河川與湖泊、連綿山脈、細緻的天氣模擬，以及眾多等待發現的古代奇觀與自然奇觀。",
     trade:
       "世界各地的城市與村莊會以不同價格買賣各種貨物。商品與硬幣的供需會依照玩家的行動，以及數百艘為追逐財富而穿梭於貿易航線的NPC船隻，即時發生變化。",
     fish:
@@ -246,6 +288,8 @@ const LOCALIZATIONS = Object.freeze({
       "與海盜及敵對國家交戰！你也可以親自成為海盜，出海搜尋並奪取滿載財富的商船。",
     pillage:
       "擁有足夠龐大的軍艦後，你可以砲擊敵對城市、摧毀岸防砲台，再派海軍陸戰隊登陸並占領港口！",
+    assault:
+      "當需要攻佔港口時，你的船員會跳下船隻，與港口守軍展開自動戰鬥。",
     survive:
       "在《私掠 &amp; 報復》中一旦死亡，就無法回頭。你必須換一名新船長，重新開始航行。死亡可能來自飢餓、乾渴、驚濤駭浪或海盜襲擊。",
     systemNotes:
@@ -257,7 +301,7 @@ const LOCALIZATIONS = Object.freeze({
     intro:
       "탐험하고, 교역하고, 낚시하고, 고래를 사냥하고, 식민지를 세우고, 싸우고, 약탈하고, 살아남으세요. 1522년의 선장이 되어 전 세계를 무대로 한 로그라이크 역사 항해 샌드박스에서 미지의 바다를 누비세요.",
     explore:
-      "『사략 &amp; 보복』의 세계는 16만 4천 개의 육각형으로 지구 전체를 구현한 지도입니다. 정확한 지리, 항해 가능한 강과 호수, 산맥, 세밀한 날씨 시뮬레이션, 그리고 발견을 기다리는 수많은 고대 및 자연의 경이로움이 펼쳐집니다.",
+      "『사략 &amp; 보복』의 세계는 655,362개의 타일과 328개의 도시로 지구 전체를 구현한 지도입니다. 정확한 지리, 항해 가능한 강과 호수, 산맥, 세밀한 날씨 시뮬레이션, 그리고 발견을 기다리는 수많은 고대 및 자연의 경이로움이 펼쳐집니다.",
     trade:
       "세계 곳곳의 도시와 마을은 서로 다른 상품을 각기 다른 가격에 사고팝니다. 상품과 화폐의 수요와 공급은 플레이어의 행동, 그리고 부를 찾아 교역로를 오가는 수백 척의 NPC 선박에 따라 역동적으로 변화합니다.",
     fish:
@@ -270,11 +314,116 @@ const LOCALIZATIONS = Object.freeze({
       "해적과 적대국에 맞서 싸우세요! 혹은 직접 해적이 되어 부유한 상선을 찾아 나포할 수도 있습니다.",
     pillage:
       "충분히 큰 군함이 있다면 적대 도시를 포격해 해안 포대를 무력화한 뒤, 해병대를 상륙시켜 항구를 점령할 수 있습니다!",
+    assault:
+      "항구를 점령할 때가 되면 선원들이 배에서 뛰어내려 항구의 수비대와 오토 배틀러 전투를 벌입니다.",
     survive:
       "『사략 &amp; 보복』에서 죽으면 되돌릴 수 없습니다. 새로운 선장으로 새로운 항해를 시작해야 합니다. 굶주림과 갈증, 폭풍우 치는 바다, 해적의 습격 등 죽음은 여러 모습으로 찾아옵니다.",
     systemNotes:
       "1280×720 디스플레이, 키보드 및 마우스 또는 컨트롤러"
   })
+});
+
+const EXTRA_ALT_TEXTS = Object.freeze({
+  french: [
+    "Chassez la baleine",
+    "Colonisez",
+    "Pêchez",
+    "Pillez",
+    "Commercez",
+    "Explorez",
+    "Combattez",
+    "Survivez"
+  ],
+  german: [
+    "Jage Wale",
+    "Kolonisiere",
+    "Fische",
+    "Plündere",
+    "Handle",
+    "Erkunde",
+    "Kämpfe",
+    "Überlebe"
+  ],
+  spanish: [
+    "Caza ballenas",
+    "Coloniza",
+    "Pesca",
+    "Saquea",
+    "Comercia",
+    "Explora",
+    "Lucha",
+    "Sobrevive"
+  ],
+  brazilian: [
+    "Cace baleias",
+    "Colonize",
+    "Pesque",
+    "Saqueie",
+    "Negocie",
+    "Explore",
+    "Lute",
+    "Sobreviva"
+  ],
+  russian: [
+    "Охоться на китов",
+    "Основывай колонии",
+    "Рыбачь",
+    "Грабь",
+    "Торгуй",
+    "Исследуй",
+    "Сражайся",
+    "Выживай"
+  ],
+  polish: [
+    "Poluj na wieloryby",
+    "Zakładaj kolonie",
+    "Łów ryby",
+    "Plądruj",
+    "Handluj",
+    "Odkrywaj",
+    "Walcz",
+    "Przetrwaj"
+  ],
+  japanese: [
+    "捕鯨",
+    "植民",
+    "漁業",
+    "略奪",
+    "交易",
+    "探検",
+    "戦闘",
+    "生存"
+  ],
+  schinese: [
+    "捕鲸",
+    "殖民",
+    "捕鱼",
+    "劫掠",
+    "贸易",
+    "探索",
+    "战斗",
+    "生存"
+  ],
+  tchinese: [
+    "捕鯨",
+    "殖民",
+    "捕魚",
+    "劫掠",
+    "貿易",
+    "探索",
+    "戰鬥",
+    "生存"
+  ],
+  koreana: [
+    "포경",
+    "식민",
+    "낚시",
+    "약탈",
+    "무역",
+    "탐험",
+    "전투",
+    "생존"
+  ]
 });
 
 function storeLocalization(values) {
@@ -312,10 +461,8 @@ function assertImportReady(document) {
     for (const field of [
       ABOUT,
       SHORT_DESCRIPTION,
-      WINDOWS_OS,
-      WINDOWS_PROCESSOR,
-      WINDOWS_GRAPHICS,
-      WINDOWS_NOTES
+      ...SYSTEM_REQUIREMENT_FIELDS,
+      ...EXTRA_ALT_TEXT_FIELDS
     ]) {
       if (typeof entry[field] !== "string" || entry[field].trim() === "") {
         throw new Error(`${language} is missing Steam field ${field}`);
@@ -358,10 +505,20 @@ async function main() {
     }
     entry[ABOUT] = localizedAbout(localization);
     entry[SHORT_DESCRIPTION] = localization.shortDescription;
-    entry[WINDOWS_OS] = english[WINDOWS_OS];
-    entry[WINDOWS_PROCESSOR] = english[WINDOWS_PROCESSOR];
-    entry[WINDOWS_GRAPHICS] = english[WINDOWS_GRAPHICS];
-    entry[WINDOWS_NOTES] = localization.systemNotes;
+    for (const field of SYSTEM_REQUIREMENT_FIELDS) {
+      if (field.endsWith("[notes]")) {
+        entry[field] = localization.systemNotes;
+      } else {
+        entry[field] = english[field];
+      }
+    }
+    const altTexts = EXTRA_ALT_TEXTS[language];
+    if (!altTexts || altTexts.length !== EXTRA_ALT_TEXT_FIELDS.length) {
+      throw new Error(`Steam store localization is missing alt text for ${language}`);
+    }
+    for (const [index, field] of EXTRA_ALT_TEXT_FIELDS.entries()) {
+      entry[field] = altTexts[index];
+    }
   }
 
   assertImportReady(document);

@@ -25569,7 +25569,11 @@ function playerPortConquestStatus(cityCall) {
     experienceStars: crewMemberExperienceStars(member),
     auxiliary: false
   })));
-  const garrisonCount = portAssaultGarrisonCount(cityCall);
+  const captureGarrisonCount = CAPTURE_SCENARIO?.sequence?.kind === "pillage" &&
+    CAPTURE_SCENARIO.sequence.variant === "assault"
+    ? CAPTURE_SCENARIO.sequence.assaultGarrisonCount
+    : undefined;
+  const garrisonCount = captureGarrisonCount ?? portAssaultGarrisonCount(cityCall);
   const defenders = cityGarrisonAppearanceIds(cityCall, garrisonCount, "port-assault")
     .map((appearanceId, index) => portAssaultCombatant({
       id: `garrison:${cityCall.cityId}:${index + 1}`,

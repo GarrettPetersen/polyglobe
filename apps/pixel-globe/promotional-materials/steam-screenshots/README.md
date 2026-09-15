@@ -1,9 +1,9 @@
 # Steam Screenshots
 
 Localized `1920x1080` gameplay screenshots for the Steam store page. The set deliberately omits
-the main menu and covers exploration, trade, fishing, whaling, combat, port bombardment,
-colonization, storms, a panda encounter, and daylight sailing at the Great Barrier Reef,
-the Spice Islands, the Seto Inland Sea, the Bosporus, and Lake Victoria.
+the main menu and covers exploration, trade, fishing, whaling, naval combat, port bombardment,
+city assault, colonization, storms, a panda encounter, and daylight sailing at the Great Barrier
+Reef, the Spice Islands, the Seto Inland Sea, the Bosporus, and Lake Victoria.
 
 Generate the complete set while the local game server is running at `127.0.0.1:5184`:
 

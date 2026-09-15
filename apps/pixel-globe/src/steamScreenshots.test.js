@@ -41,7 +41,9 @@ test("Steam screenshot catalog covers a broad set of gameplay without the main m
       "sail-spice-islands",
       "sail-seto-inland-sea",
       "sail-bosporus",
-      "sail-lake-victoria"
+      "sail-lake-victoria",
+      "assault-kyoto",
+      "assault-rhodes"
     ]
   );
   for (const shot of STEAM_SCREENSHOT_SHOTS) {
@@ -52,8 +54,20 @@ test("Steam screenshot catalog covers a broad set of gameplay without the main m
   }
 });
 
+test("Kyoto assault screenshot stages Ming-style attackers", () => {
+  const scenario = captureScenarioFromSearch("?capture=screenshot-assault-kyoto-day");
+  assert.equal(scenario.sequence.assaultCrewHomeCityId, "nanjing|china");
+  assert.deepEqual(
+    scenario.sequence.assaultCrewAppearanceIds,
+    ["ming-crossbowman", "ming-swordsman"]
+  );
+  assert.equal(scenario.sequence.assaultGarrisonCount, 24);
+});
+
 test("new Steam sailing screenshots use unobstructed daylight sequences in varied regions", () => {
-  const sailingShots = STEAM_SCREENSHOT_SHOTS.slice(-5);
+  const sailingShots = STEAM_SCREENSHOT_SHOTS.filter(({ scenarioId }) => (
+    captureScenarioFromSearch(`?capture=${scenarioId}`).sequence.kind === "sail"
+  ));
   assert.equal(sailingShots.length, 5);
   assert.equal(new Set(sailingShots.map(({ scenarioId }) => scenarioId)).size, 5);
   for (const shot of sailingShots) {

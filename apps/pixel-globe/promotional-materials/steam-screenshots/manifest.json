@@ -367,6 +367,48 @@
         "tchinese": "14_sail-lake-victoria_tchinese.png",
         "koreana": "14_sail-lake-victoria_koreana.png"
       }
+    },
+    {
+      "order": 15,
+      "id": "assault-kyoto",
+      "title": "Assault Kyoto",
+      "scenarioId": "screenshot-assault-kyoto-day",
+      "atSeconds": 24,
+      "frameIndex": 719,
+      "files": {
+        "english": "15_assault-kyoto_english.png",
+        "schinese": "15_assault-kyoto_schinese.png",
+        "russian": "15_assault-kyoto_russian.png",
+        "spanish": "15_assault-kyoto_spanish.png",
+        "brazilian": "15_assault-kyoto_brazilian.png",
+        "japanese": "15_assault-kyoto_japanese.png",
+        "german": "15_assault-kyoto_german.png",
+        "french": "15_assault-kyoto_french.png",
+        "polish": "15_assault-kyoto_polish.png",
+        "tchinese": "15_assault-kyoto_tchinese.png",
+        "koreana": "15_assault-kyoto_koreana.png"
+      }
+    },
+    {
+      "order": 16,
+      "id": "assault-rhodes",
+      "title": "Assault Rhodes",
+      "scenarioId": "trailer-demo-launch-assault-rhodes",
+      "atSeconds": 20,
+      "frameIndex": 599,
+      "files": {
+        "english": "16_assault-rhodes_english.png",
+        "schinese": "16_assault-rhodes_schinese.png",
+        "russian": "16_assault-rhodes_russian.png",
+        "spanish": "16_assault-rhodes_spanish.png",
+        "brazilian": "16_assault-rhodes_brazilian.png",
+        "japanese": "16_assault-rhodes_japanese.png",
+        "german": "16_assault-rhodes_german.png",
+        "french": "16_assault-rhodes_french.png",
+        "polish": "16_assault-rhodes_polish.png",
+        "tchinese": "16_assault-rhodes_tchinese.png",
+        "koreana": "16_assault-rhodes_koreana.png"
+      }
     }
   ]
 }

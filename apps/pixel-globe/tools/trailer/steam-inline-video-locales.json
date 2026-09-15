@@ -13,6 +13,7 @@
         "colonize": "Colonize",
         "fight": "Fight",
         "pillage": "Pillage",
+        "assault": "Assault",
         "survive": "Survive"
       }
     },
@@ -29,6 +30,7 @@
         "colonize": "殖民",
         "fight": "战斗",
         "pillage": "劫掠",
+        "assault": "攻城",
         "survive": "生存"
       }
     },
@@ -45,6 +47,7 @@
         "colonize": "Основывай колонии",
         "fight": "Сражайся",
         "pillage": "Грабь",
+        "assault": "Штурмуй",
         "survive": "Выживай"
       }
     },
@@ -61,6 +64,7 @@
         "colonize": "Coloniza",
         "fight": "Lucha",
         "pillage": "Saquea",
+        "assault": "Asalta",
         "survive": "Sobrevive"
       }
     },
@@ -77,6 +81,7 @@
         "colonize": "Colonize",
         "fight": "Lute",
         "pillage": "Saqueie",
+        "assault": "Assalte",
         "survive": "Sobreviva"
       }
     },
@@ -93,6 +98,7 @@
         "colonize": "植民",
         "fight": "戦闘",
         "pillage": "略奪",
+        "assault": "攻城",
         "survive": "生存"
       }
     },
@@ -109,6 +115,7 @@
         "colonize": "Kolonisiere",
         "fight": "Kämpfe",
         "pillage": "Plündere",
+        "assault": "Stürme",
         "survive": "Überlebe"
       }
     },
@@ -125,6 +132,7 @@
         "colonize": "Colonisez",
         "fight": "Combattez",
         "pillage": "Pillez",
+        "assault": "Assiégez",
         "survive": "Survivez"
       }
     },
@@ -141,6 +149,7 @@
         "colonize": "Zakładaj kolonie",
         "fight": "Walcz",
         "pillage": "Plądruj",
+        "assault": "Szturmuj",
         "survive": "Przetrwaj"
       }
     },
@@ -157,6 +166,7 @@
         "colonize": "殖民",
         "fight": "戰鬥",
         "pillage": "劫掠",
+        "assault": "攻城",
         "survive": "生存"
       }
     },
@@ -173,6 +183,7 @@
         "colonize": "식민",
         "fight": "전투",
         "pillage": "약탈",
+        "assault": "공격",
         "survive": "생존"
       }
     }

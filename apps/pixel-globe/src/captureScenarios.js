@@ -1147,6 +1147,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
       modalPolicy: "suppress"
     })
   }),
+  "screenshot-assault-kyoto-day": trailerScenario({
+    id: "screenshot-assault-kyoto-day",
+    title: "Japanese city assault",
+    seed: "screenshot-assault-kyoto-day-v1",
+    player: capturePlayer("joseon", "joseon-turtle-ship", 35.01, 135.77, 180),
+    world: captureWorld(148, 2, 20),
+    diplomacy: [{ factionAId: "joseon", factionBId: "japan", relation: "war" }],
+    sequence: trailerSequence("pillage", "assault", {
+      cityId: "kyoto|japan",
+      durationSeconds: 30,
+      assaultCrewHomeCityId: "nanjing|china",
+      assaultCrewAppearanceIds: ["ming-crossbowman", "ming-swordsman"],
+      assaultGarrisonCount: 24,
+      modalPolicy: "suppress"
+    })
+  }),
   "short-city-assault-london": trailerScenario({
     id: "short-city-assault-london",
     title: "Sailing ship",
@@ -2824,6 +2840,9 @@ function validateCaptureSequence(value, encounterIds) {
     if (value.assaultRandomValue !== undefined) {
       numberInRange(value.assaultRandomValue, 0, 0.999999, "capture assault random value");
     }
+    if (value.assaultGarrisonCount !== undefined) {
+      integerInRange(value.assaultGarrisonCount, 5, 35, "capture assault garrison count");
+    }
     if (value.assaultCrewHomeCityId !== undefined) {
       requiredCityId(value.assaultCrewHomeCityId, "capture assault crew home city");
     }
@@ -2838,7 +2857,8 @@ function validateCaptureSequence(value, encounterIds) {
     }
   } else if (value.assaultOpenSeconds !== undefined || value.assaultLandingSeconds !== undefined ||
       value.captureEntireAssault !== undefined || value.assaultRandomValue !== undefined ||
-      value.assaultCrewHomeCityId !== undefined || value.assaultCrewAppearanceIds !== undefined) {
+      value.assaultGarrisonCount !== undefined || value.assaultCrewHomeCityId !== undefined ||
+      value.assaultCrewAppearanceIds !== undefined) {
     throw new Error("Capture assault timing requires a pillage assault sequence");
   }
   if (value.kind === "sail") {

@@ -45,6 +45,7 @@ EXPECTED_HEADING_IDS = (
     "colonize",
     "fight",
     "pillage",
+    "assault",
     "survive",
 )
 EXPECTED_LOCALES = (
@@ -190,12 +191,27 @@ def render_clip(job, dimensions, crop):
             raise RuntimeError(
                 f"Steam inline source must be {SOURCE_WIDTH}x{SOURCE_HEIGHT}: {source}"
             )
+        segment_crop = {
+            key: int(value)
+            for key, value in segment.get("crop", crop).items()
+        }
+        if set(segment_crop) != {"x", "y", "width", "height"}:
+            raise RuntimeError(f"Steam inline crop must define x, y, width, and height: {source}")
+        if (
+            segment_crop["x"] < 0
+            or segment_crop["y"] < 0
+            or segment_crop["width"] <= 0
+            or segment_crop["height"] <= 0
+            or segment_crop["x"] + segment_crop["width"] > SOURCE_WIDTH
+            or segment_crop["y"] + segment_crop["height"] > SOURCE_HEIGHT
+        ):
+            raise RuntimeError(f"Steam inline crop exceeds source bounds: {source}")
         command.extend(["-i", source])
         label = f"clip-{index}"
         clip_labels.append(f"[{label}]")
         filters.append(
             f"[{index}:v]trim=start={start}:duration={duration},setpts=PTS-STARTPTS,"
-            f"fps={FPS},crop={crop['width']}:{crop['height']}:{crop['x']}:{crop['y']},"
+            f"fps={FPS},crop={segment_crop['width']}:{segment_crop['height']}:{segment_crop['x']}:{segment_crop['y']},"
             f"scale={dimensions['width']}:{dimensions['height']}:flags=neighbor,"
             f"setsar=1[{label}]"
         )
@@ -333,7 +349,7 @@ def main():
     if not isinstance(specs, list) or tuple(
         Path(spec.get("output", "")).stem for spec in specs
     ) != EXPECTED_HEADING_IDS:
-        raise RuntimeError("Steam inline plan must define all eight gameplay headings in order")
+        raise RuntimeError("Steam inline plan must define all nine gameplay headings in order")
     if any(not isinstance(spec.get("segments"), list) or not spec["segments"] for spec in specs):
         raise RuntimeError("Every Steam inline video requires at least one source segment")
     output_names = [spec.get("output") for spec in specs]

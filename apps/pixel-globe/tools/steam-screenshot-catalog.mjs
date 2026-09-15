@@ -115,6 +115,20 @@ export const STEAM_SCREENSHOT_SHOTS = Object.freeze([
     title: "Sail Lake Victoria",
     scenarioId: "screenshot-sail-lake-victoria",
     atSeconds: 3.5
+  }),
+  screenshot({
+    order: 15,
+    id: "assault-kyoto",
+    title: "Assault Kyoto",
+    scenarioId: "screenshot-assault-kyoto-day",
+    atSeconds: 24.0
+  }),
+  screenshot({
+    order: 16,
+    id: "assault-rhodes",
+    title: "Assault Rhodes",
+    scenarioId: "trailer-demo-launch-assault-rhodes",
+    atSeconds: 20.0
   })
 ]);
 
