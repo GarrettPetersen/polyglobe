@@ -1,10 +1,10 @@
 # Full-game creator outreach template
 
 Prepared September 13, 2026. Garrett supplied the subject and core message
-verbatim, then authorized drafting additions for the Steam link, coverage
-permission and optional wishlist request. The assembled version below was
-shown in conversation. No creator messages or keys were sent in this session.
-This replaces the August agent-written drafts as the working template.
+verbatim, then authorized drafting additions for the Steam link, press-kit link,
+coverage permission and optional wishlist request. The assembled version below
+was shown in conversation. This replaces the August agent-written drafts as
+the working template.
 
 ## Working email
 
@@ -22,6 +22,9 @@ You’re welcome to stream or publish videos immediately. There’s no embargo o
 
 Marque & Reprisal on Steam:
 https://store.steampowered.com/app/4516500/Marque__Reprisal/?utm_source=creators&utm_medium=outreach&utm_campaign=demo_launch_2026_09&utm_content=batch_01
+
+Press kit:
+https://marque-and-reprisal.com/press/
 
 If you enjoy it, a wishlist would mean a lot!
 
@@ -69,4 +72,6 @@ verifying the channel/contact route. The video/comment URL is still missing;
 the statement is user-reported, not independently verified. No comparable game
 has been established for this creator. Do not use the generic “because you
 played” sentence without evidence, and do not post a Steam key publicly in a
-YouTube comment. No key has been assigned or sent by this session.
+YouTube comment. A press-key slot (`press_batch_2026-09-15_slot_001`) is
+reserved for this warm lead in `streamer-outreach.csv`; the batch is downloaded
+and stored privately, but the key has not been sent.

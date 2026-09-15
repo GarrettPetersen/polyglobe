@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **September 13, 2026**.
+Last updated: **September 15, 2026**.
 
 ## Dated marketing calendar
 
@@ -35,6 +35,10 @@ Last updated: **September 13, 2026**.
   the GamesPress release September 13 (confirmed in conversation). Advance
   news coverage is welcome; only
   “play now” announcements wait for verified public availability September 17.
+- **September 15:** Submitted Marque & Reprisal to the **VGX Steam Event**.
+  Reference: `F12QN0GJ`. Status: awaiting periodic review and selection notice;
+  monitor Garrett's inbox and spam folder. This is separate from the physical
+  Vancouver Game Expo exhibitor application.
 - **September 14:** Optional Next Fest press-preview review target. This is
   only the date by which a demo build and demo store presence should be
   submitted for Valve review if the developer wants the demo playable when
@@ -651,9 +655,11 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
     trusted local industry representative can attend on Iron Pagoda's behalf.
   - Application and rules: https://devgamm.com/awards2026/rules/
 
-- [ ] **Vancouver Games Celebration and Vancouver Game Expo — apply now**
-  - Status: Eligible. Garrett is based in Victoria, and the Steam event accepts
-    games from studios headquartered or primarily based on Vancouver Island.
+- [ ] **Vancouver Games Celebration and Vancouver Game Expo — Steam event submitted; physical expo still open**
+  - Status: VGX Steam Event application submitted September 15, 2026;
+    reference `F12QN0GJ`; selection pending. Garrett is based in Victoria,
+    and the event accepts games from studios headquartered or primarily based
+    on Vancouver Island.
   - Steam event: December 4–13, 2026. Application deadline September 30.
     Participation is free and does not require physical exhibition.
   - Physical expo: December 5–6 at the Vancouver Convention Centre, with move-in
@@ -791,10 +797,12 @@ Work through these in order; outreach preparation can proceed while testers work
    install problems, demo playtime, wishlists, tracked visits and creator replies.
    Record findings and continue outreach in small batches. Fix blocking problems
    before scaling promotion; retain tested build IDs for recovery.
-7. **Next deadlines:** Submit the Vancouver Game Expo booth application by the
-   September 16 internal target; September 24 full-release commitment gate;
-   September 28 remaining Next Fest review items and INDIE Live Expo submission;
-   September 30 Vancouver Games Celebration Steam-event deadline. Continue
-   Mobidictum/DevGAMM Steam-event follow-up; Galaxies and SCHMOOVEMENT are closed.
+7. **Next deadlines:** Decide whether to submit the separate Vancouver Game
+   Expo booth application by the September 16 internal target; September 24
+   full-release commitment gate; September 28 remaining Next Fest review items
+   and INDIE Live Expo submission. The VGX Steam-event application is already
+   submitted (reference `F12QN0GJ`); monitor selection rather than treating the
+   September 30 application deadline as outstanding. Continue Mobidictum/
+   DevGAMM Steam-event follow-up; Galaxies and SCHMOOVEMENT are closed.
 
 Campaign links and measurement fields: [demo-launch-campaign-links.md](demo-launch-campaign-links.md).
