@@ -128,6 +128,10 @@ test("replacement, dialogue and notebook callers use their shared entry operatio
     assert.match(text(name), /performPlayerShipReplacement\(/);
     assert.doesNotMatch(text(name), /loadShipAssetSet\(|applyPlayerShipType\(|syncShipCargoFromGameState\(|saveVoyageNow\(/);
   }
+  assert.match(text("captureSurrenderedShip"), /restoreFailedSurrenderedShipCapture|recoverCaptureFailure/);
+  assert.match(text("captureSurrenderedShip"), /assertSurrenderedNpcPrizeReadyForCapture/);
+  assert.match(text("navigateBackFromDialogue"), /dialogueEscapeReturnsToPortCity/);
+  assert.doesNotMatch(text("navigateBackFromDialogue"), /portCityView\.active/);
   for (const name of ["openShipDialogue", "updateSoundDues", "openShoreBatteryCombatHail", "openDamageSurrenderDecision", "openSurrenderPrizeDecision"]) {
     assert.match(text(name), /activateDialogueSession\(/);
     assert.doesNotMatch(text(name), /dialogueLayout = createDialogueLayoutState\(/);

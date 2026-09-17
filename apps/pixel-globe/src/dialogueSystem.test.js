@@ -830,7 +830,18 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
     action: null
   });
 
-  const prize = shipDialogueView(acceptingSession, ship);
+  const playerHull = createGameState({
+    shipStats: shipStatsForSlug("fishing-lugger"),
+    cargoCapacity: shipStatsForSlug("fishing-lugger").cargoCapacity
+  });
+  initializeProvisionalShipLoadout(playerHull, shipStatsForSlug("fishing-lugger"));
+  setTestCrewCount(playerHull, 1);
+  playerHull.cargo = {};
+  playerHull.accounts.cargoCostBasis = {};
+  playerHull.survival.freshWater = 0;
+  playerHull.ship.cannons = 0;
+
+  const prize = shipDialogueView(acceptingSession, ship, playerHull);
   assert.equal(prize.presentation.kind, "ship-capture");
   assert.equal(prize.presentation.candidateShipSlug, "small-cog");
   assert.equal(prize.presentation.candidateHitPoints, prize.presentation.candidateMaxHitPoints);
@@ -843,16 +854,16 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
   ]);
   assert.equal(prize.options[1].detail, "LEAVE PRIZE AND REMAINING CARGO");
 
-  assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0), {
+  assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0, playerHull), {
     closed: false,
     action: null
   });
-  const confirmation = shipDialogueView(acceptingSession, ship);
+  const confirmation = shipDialogueView(acceptingSession, ship, playerHull);
   assert.match(confirmation.text, /repaired to full hull strength/);
   assert.match(confirmation.text, /permanently replace your current Fishing Barque/);
   assert.match(confirmation.text, /Cinnamon x5 still aboard/);
   assert.equal(confirmation.options[0].detail, "CURRENT SHIP WILL BE REPLACED");
-  assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0), {
+  assert.deepEqual(selectShipDialogueOption(acceptingSession, ship, 0, playerHull), {
     closed: false,
     action: { type: "capture-surrendered-ship" }
   });
@@ -937,25 +948,67 @@ test("a surrendered prize cannot replace the player with a hold that is too smal
     combatGrace: true,
     character: { name: "Salim Reis" }
   };
+  const currentStats = shipStatsForSlug("small-cog");
+  const playerHull = createGameState({ shipStats: currentStats, cargoCapacity: currentStats.cargoCapacity });
+  initializeProvisionalShipLoadout(playerHull, currentStats);
+  setTestCrewCount(playerHull, 1);
+  playerHull.cargo = {};
+  playerHull.accounts.cargoCostBasis = {};
+  playerHull.survival.freshWater = 0;
+  playerHull.ship.cannons = 0;
+  const freeUnits = currentStats.cargoCapacity - cargoUsed(playerHull);
+  playerHull.cargo.amber = freeUnits;
+  playerHull.accounts.cargoCostBasis.amber = freeUnits;
+
   const session = prepareSurrenderPrizeDialogue(null, ship, {
     slug: "small-cog",
     hitPoints: 7,
     maxHitPoints: 7,
-    cargoUsed: 34 / 3
+    cargoUsed: cargoUsed(playerHull)
   });
   const surrender = shipDialogueView(session, ship);
   assert.equal(surrender.speaker, "Salim Reis, merchant captain");
   assert.deepEqual(surrender.options.map((option) => option.label), ["Review the prize"]);
   selectShipDialogueOption(session, ship, 0);
-  const view = shipDialogueView(session, ship);
+  const view = shipDialogueView(session, ship, playerHull);
 
   assert.equal(view.options[0].disabled, true);
-  assert.match(view.options[0].disabledReason, /11 units of cargo/);
-  assert.deepEqual(selectShipDialogueOption(session, ship, 0), {
+  assert.match(view.options[0].disabledReason, /will not fit its \d+-unit hold/);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 0, playerHull), {
     closed: false,
     action: null
   });
-  assert.match(session.feedback, /11 units of cargo/);
+  assert.match(session.feedback, /will not fit its \d+-unit hold/);
+});
+
+test("a surrendered prize cannot replace the player when crew will not fit", () => {
+  const ship = {
+    id: "tiny-crew-prize",
+    slug: "fishing-lugger",
+    hitPoints: 4,
+    maxHitPoints: 4,
+    combatGrace: true,
+    character: { name: "Amina Haddad" }
+  };
+  const currentStats = shipStatsForSlug("galleon");
+  const playerHull = createGameState({ shipStats: currentStats, cargoCapacity: currentStats.cargoCapacity });
+  initializeProvisionalShipLoadout(playerHull, currentStats);
+  setTestCrewCount(playerHull, 40);
+  playerHull.cargo = {};
+  playerHull.accounts.cargoCostBasis = {};
+  playerHull.survival.freshWater = 0;
+  playerHull.ship.cannons = 0;
+
+  const session = prepareSurrenderPrizeDialogue(null, ship, {
+    slug: "galleon",
+    hitPoints: currentStats.hitPoints,
+    maxHitPoints: currentStats.hitPoints,
+    cargoUsed: cargoUsed(playerHull)
+  });
+  selectShipDialogueOption(session, ship, 0);
+  const view = shipDialogueView(session, ship, playerHull);
+  assert.equal(view.options[0].disabled, true);
+  assert.match(view.options[0].disabledReason, /Dismiss .* crew|berths/i);
 });
 
 test("a surrender prize accepts fractional cargo use from daily provisions", () => {
@@ -967,16 +1020,25 @@ test("a surrender prize accepts fractional cargo use from daily provisions", () 
     combatGrace: true,
     character: { name: "Ines de Castro" }
   };
+  const currentStats = shipStatsForSlug("galleon");
+  const playerHull = createGameState({ shipStats: currentStats, cargoCapacity: currentStats.cargoCapacity });
+  initializeProvisionalShipLoadout(playerHull, currentStats);
+  setTestCrewCount(playerHull, 1);
+  playerHull.cargo = {};
+  playerHull.accounts.cargoCostBasis = {};
+  playerHull.survival.freshWater = 0;
+  playerHull.ship.cannons = 0;
+
   const session = prepareSurrenderPrizeDialogue(null, ship, {
     slug: "galleon",
-    hitPoints: 36,
-    maxHitPoints: 36,
+    hitPoints: currentStats.hitPoints,
+    maxHitPoints: currentStats.hitPoints,
     cargoUsed: 116 / 3
   });
 
   assert.equal(session.prize.cargoUsed, 116 / 3);
   selectShipDialogueOption(session, ship, 0);
-  assert.equal(shipDialogueView(session, ship).options[0].disabled, false);
+  assert.equal(shipDialogueView(session, ship, playerHull).options[0].disabled, false);
 });
 
 test("a protected surrendered ship cannot be threatened again", () => {

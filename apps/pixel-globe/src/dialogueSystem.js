@@ -298,6 +298,7 @@ import {
   vikingLongshipQuestState,
   vikingLongshipTradeInPlan
 } from "./vikingLongshipQuest.js";
+import { surrenderedPrizeCaptureDisabledReason } from "./surrenderedShipCapture.js";
 import {
   COLONIZATION_CARGO_RESERVATION_ID,
   COLONIZATION_EXPEDITION_CARGO_UNITS,
@@ -1060,9 +1061,9 @@ export function selectShoreBatteryDialogueOption(session, city, optionIndex = se
   throw new Error(`Unknown shore battery dialogue action: ${selected.action.type}`);
 }
 
-export function shipDialogueView(session, ship) {
+export function shipDialogueView(session, ship, gameState = null) {
   assertShipDialogueSubject(session, ship);
-  const view = shipDialogueContentView(session, ship);
+  const view = shipDialogueContentView(session, ship, gameState);
   if (view.topic !== undefined) {
     throw new Error(`Ship dialogue already defines a topic: ${ship.id}`);
   }
@@ -1072,7 +1073,7 @@ export function shipDialogueView(session, ship) {
   };
 }
 
-function shipDialogueContentView(session, ship) {
+function shipDialogueContentView(session, ship, gameState = null) {
   const manifest = shipCargoManifest(ship.cargo);
   const storm = ship.stormStatus ? ` ${ship.stormStatus}` : "";
   const voyage = ship.destinationName ? ` Bound for ${ship.destinationName}.` : "";
@@ -1203,7 +1204,7 @@ function shipDialogueContentView(session, ship) {
     };
   }
   if (session.nodeId === "prize-choice" || session.nodeId === "capture-confirm") {
-    return surrenderPrizeView(session, ship);
+    return surrenderPrizeView(session, ship, gameState);
   }
   if (session.nodeId === "capture-loading") {
     return {
@@ -1506,15 +1507,15 @@ function bibleInspectionView(session, speaker) {
   };
 }
 
-function surrenderPrizeView(session, ship) {
+function surrenderPrizeView(session, ship, gameState) {
   const presentation = surrenderPrizePresentation(session, ship);
   const candidate = shipLabelForSlug(presentation.candidateShipSlug);
   const current = shipLabelForSlug(presentation.currentShipSlug);
-  const cargoDoesNotFit = presentation.cargoUsed > shipStatsForSlug(presentation.candidateShipSlug).cargoCapacity;
-  const disabledReason = cargoDoesNotFit
-    ? `Your ${cargoSpaceLabel(presentation.cargoUsed)} units of cargo will not fit its ` +
-      `${shipStatsForSlug(presentation.candidateShipSlug).cargoCapacity}-unit hold.`
-    : null;
+  // Match shipyard trades: crew berths and destination loadout, not raw cargoUsed.
+  const disabledReason = surrenderedPrizeCaptureDisabledReason(
+    gameState,
+    presentation.candidateShipSlug
+  );
   if (session.nodeId === "capture-confirm") {
     const remainingCargo = shipCargoManifest(presentation.remainingCargo);
     return {
@@ -1573,8 +1574,8 @@ function surrenderPrizePresentation(session, ship) {
   return Object.freeze({ kind: "ship-capture", ...prize });
 }
 
-export function selectShipDialogueOption(session, ship, optionIndex = session.selectedIndex) {
-  const view = shipDialogueView(session, ship);
+export function selectShipDialogueOption(session, ship, optionIndex = session.selectedIndex, gameState = null) {
+  const view = shipDialogueView(session, ship, gameState);
   const selected = view.options[optionIndex];
   if (!selected) throw new Error(`Invalid ship dialogue option index: ${optionIndex}`);
   if (rejectDisabledDialogueOption(session, selected)) {

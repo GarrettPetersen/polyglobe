@@ -1132,6 +1132,13 @@ import {
   shoreBatteryDialogueView,
   shipDialogueView
 } from "./dialogueSystem.js";
+import {
+  assertSurrenderedNpcPrizeReadyForCapture,
+  assertSurrenderedPrizeCaptureEligible,
+  dialogueEscapeReturnsToPortCity,
+  playerFacingSurrenderedShipCaptureFailure,
+  restoreFailedSurrenderedShipCapture
+} from "./surrenderedShipCapture.js";
 import { PORT_CITY_LOCATION } from "./portCityNavigation.js";
 import { portCityWeatherPresentation } from "./portCityWeather.js";
 import { portInnDialogue } from "./portInnDialogue.js";
@@ -22089,7 +22096,7 @@ function navigateBackFromDialogue() {
     chooseDialogueOption(backIndex);
     return true;
   }
-  if (portCityView.active && dialogueState?.kind === "port") {
+  if (dialogueEscapeReturnsToPortCity(dialogueState, portCityView)) {
     returnPortDialogueToCity(dialogueState);
     invalidateDialogueView();
     invalidateDialogueOptionGeometry();
@@ -27815,7 +27822,7 @@ function performDialogueOption(optionIndex, displayedOption) {
     }
   } else if (dialogueState.kind === "ship") {
     dialogueNpcShipId = dialogueState.npcShipId;
-    result = selectShipDialogueOption(dialogueState, currentDialogueShip(), optionIndex);
+    result = selectShipDialogueOption(dialogueState, currentDialogueShip(), optionIndex, gameState);
   } else if (dialogueState.kind === "shore-battery") {
     const city = currentDialogueCity();
     result = selectShoreBatteryDialogueOption(dialogueState, city, optionIndex, gameState);
@@ -28612,25 +28619,38 @@ async function captureSurrenderedShip(npcShipId) {
   }
   const candidateSlug = session.prize.candidateShipSlug;
   const strategic = npcSeaRoutes.shipById.get(npcShipId);
-  if (!strategic || strategic.slug !== candidateSlug) {
-    throw new Error(`Surrendered prize is no longer available: ${npcShipId}`);
-  }
-  if (
-    strategic.specie !== 0 ||
-    Object.values(strategic.cargo).some((quantity) => quantity !== 0) ||
-    strategic.graceUntilPortVisit <= strategic.portVisits
-  ) {
-    throw new Error(`Surrendered prize is not ready for transfer: ${npcShipId}`);
+  const recoverCaptureFailure = (error, notice = null) => {
+    // Never soft-recover after the player hull has already been replaced.
+    if (gameState?.ship?.slug === candidateSlug) return false;
+    if (!restoreFailedSurrenderedShipCapture(session, error)) return false;
+    showSurvivalNotice(
+      (notice || playerFacingSurrenderedShipCaptureFailure(error)).toUpperCase(),
+      "warn"
+    );
+    invalidateDialogueView();
+    dirty = true;
+    return true;
+  };
+  try {
+    assertSurrenderedNpcPrizeReadyForCapture(strategic, candidateSlug, npcShipId);
+    assertSurrenderedPrizeCaptureEligible(gameState, candidateSlug);
+  } catch (error) {
+    if (recoverCaptureFailure(error)) return;
+    throw error;
   }
   surrenderedShipCapturePendingId = npcShipId;
   session.feedback = "Your prize crew are transferring command.";
   invalidateDialogueView();
   dirty = true;
   try {
-    await performPlayerShipReplacement({
+    const result = await performPlayerShipReplacement({
       slug: candidateSlug, session, saveReason: "captured surrendered ship",
       stillCurrent: () => npcSeaRoutes.shipById.get(npcShipId) === strategic,
       commit: (stats) => {
+        // Re-check after asset load: distant updates may clear grace or remove the hull.
+        const current = npcSeaRoutes.shipById.get(npcShipId);
+        assertSurrenderedNpcPrizeReadyForCapture(current, candidateSlug, npcShipId);
+        assertSurrenderedPrizeCaptureEligible(gameState, candidateSlug);
         const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
         const replacement = awardPlayerShip(
           gameState,
@@ -28680,7 +28700,14 @@ async function captureSurrenderedShip(npcShipId) {
         }
       }
     });
+    if (result.status === "cancelled") {
+      recoverCaptureFailure(
+        { message: "Prize transfer interrupted" },
+        "Prize transfer interrupted"
+      );
+    }
   } catch (error) {
+    if (recoverCaptureFailure(error)) return;
     throw new Error(`Failed to capture surrendered ship ${npcShipId}`, { cause: error });
   } finally {
     surrenderedShipCapturePendingId = null;
@@ -28959,7 +28986,7 @@ function buildCurrentDialogueView() {
     );
   }
   if (dialogueState.kind === "ship") {
-    return shipDialogueView(dialogueState, currentDialogueShip());
+    return shipDialogueView(dialogueState, currentDialogueShip(), gameState);
   }
   if (dialogueState.kind === "shore-battery") {
     return shoreBatteryDialogueView(dialogueState, currentDialogueCity(), gameState);
