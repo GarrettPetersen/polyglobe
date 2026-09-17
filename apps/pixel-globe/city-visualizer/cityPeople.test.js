@@ -18,6 +18,8 @@ import {
   CITY_PERSON_SKIN_RAMP
 } from "./cityPeopleCatalog.js";
 import {
+  CITY_PEOPLE_MANIFEST_FORMAT,
+  CITY_PEOPLE_MANIFEST_VERSION,
   CITY_POPULATION_PROFILES,
   cityCivilianAppearanceIds,
   cityCombatProfileForAppearance,
@@ -409,19 +411,32 @@ test("the packed people atlas contains every appearance with hard pixel alpha", 
 });
 
 test("the people atlas cannot mix image bytes and frame metadata from different exports", () => {
+  assert.equal(manifest.format, CITY_PEOPLE_MANIFEST_FORMAT);
+  assert.equal(manifest.version, CITY_PEOPLE_MANIFEST_VERSION);
   assert.throws(
     () => validateCityPeopleAtlasImage(manifest, { width: 252, height: 1382 }),
     /does not match manifest/
   );
   assert.throws(
     () => validateCityPeopleManifest({ ...manifest, version: 3 }),
-    /Unsupported city people manifest/
+    /Unsupported city people manifest: format=marque-city-people-atlas version=3/
+  );
+  assert.throws(
+    () => validateCityPeopleManifest({}),
+    /Unsupported city people manifest: format=none version=none/
   );
 
   const mainSource = readFileSync(new URL("./main.js", import.meta.url), "utf8");
-  assert.match(mainSource, /minifolks\/manifest\.json`, \{ cache: "no-store" \}/);
+  assert.match(
+    mainSource,
+    /minifolks\/manifest\.json\?v=\$\{CITY_PEOPLE_MANIFEST_VERSION\}/
+  );
+  assert.match(mainSource, /cache: "no-store"/);
   assert.match(mainSource, /cityPeopleAtlasUrl\(state\.peopleManifest\)/);
   assert.match(mainSource, /manifest\.assetRevision/);
+
+  const buildSource = readFileSync(new URL("../tools/build-static-site.mjs", import.meta.url), "utf8");
+  assert.match(buildSource, /\/city-visualizer\/assets\/minifolks\/manifest\.json/);
 });
 
 function city(cityId) {

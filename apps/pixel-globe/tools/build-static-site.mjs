@@ -682,7 +682,9 @@ for (const path of ["index.html", "city-visualizer/index.html"]) {
 }
 const revalidatedPaths = [
   "/", "/index.html", "/src/*", "/city-visualizer", "/city-visualizer/",
-  "/city-visualizer/index.html", "/city-visualizer/bootstrap.js"
+  "/city-visualizer/index.html", "/city-visualizer/bootstrap.js",
+  "/city-visualizer/assets/minifolks/manifest.json",
+  "/city-visualizer/assets/port-parallax/manifest.json"
 ];
 await writeFile(join(distRoot, "_headers"), revalidatedPaths.map((path) => `${path}\n  Cache-Control: no-cache\n`).join(""));
 await writeFile(

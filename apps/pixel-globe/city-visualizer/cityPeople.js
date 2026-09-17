@@ -522,9 +522,16 @@ export function citySuspiciousMerchantAppearanceId(city) {
     : "suspicious-merchant-dark";
 }
 
+export const CITY_PEOPLE_MANIFEST_FORMAT = "marque-city-people-atlas";
+export const CITY_PEOPLE_MANIFEST_VERSION = 4;
+
 export function validateCityPeopleManifest(manifest) {
-  if (!manifest || manifest.format !== "marque-city-people-atlas" || manifest.version !== 4) {
-    throw new Error("Unsupported city people manifest");
+  if (!manifest || manifest.format !== CITY_PEOPLE_MANIFEST_FORMAT ||
+      manifest.version !== CITY_PEOPLE_MANIFEST_VERSION) {
+    throw new Error(
+      `Unsupported city people manifest: format=${manifest?.format ?? "none"} ` +
+        `version=${manifest?.version ?? "none"}`
+    );
   }
   if (typeof manifest.sheet !== "string" || manifest.sheet === "") {
     throw new Error("City people manifest requires an atlas sheet");

@@ -73,7 +73,9 @@ export function createTeaRaceQuest({
   if (!season.open) throw new Error(`Tea race offered outside the spring crop: day ${season.dayIndex}`);
   const id = `tea-race-${season.year}`;
   const competitors = teaRaceCompetitorManifest(id, origin.cityId, destination.cityId);
-  return Object.freeze({
+  // Persisted quest records are identity-reconciled while sailing. Freeze only
+  // catalog templates, not the stored offer or accepted job.
+  return {
     id,
     kind: TEA_RACE_QUEST_KIND,
     stage: "race",
@@ -91,18 +93,16 @@ export function createTeaRaceQuest({
     destinationCountry: destination.country || "",
     distanceKm: Math.round(distanceKm),
     cargoLabel: "ten sealed chests of new spring tea",
-    teaRaceCargoRequirements: Object.freeze([
-      Object.freeze({ goodId: TEA_GOOD_ID, quantity: TEA_RACE_CARGO_QUANTITY })
-    ]),
-    teaRaceCompetitors: competitors,
-    teaRaceRetiredShipIds: Object.freeze([]),
+    teaRaceCargoRequirements: [{ goodId: TEA_GOOD_ID, quantity: TEA_RACE_CARGO_QUANTITY }],
+    teaRaceCompetitors: competitors.map((entry) => ({ ...entry })),
+    teaRaceRetiredShipIds: [],
     reward: TEA_RACE_FINISHER_PRIZE,
     firstPrize: TEA_RACE_FIRST_PRIZE,
     finisherPrize: TEA_RACE_FINISHER_PRIZE,
     offerText: `Five European captains race the first spring tea west. Land these ten sealed chests ` +
       `at London before them for ${TEA_RACE_FIRST_PRIZE} db; finish later for ` +
       `${TEA_RACE_FINISHER_PRIZE} db.`
-  });
+  };
 }
 
 export function teaRaceCompetitorManifest(questId, originCityId, destinationCityId) {

@@ -143,6 +143,7 @@ import {
   validateCityShipyardConstruction
 } from "./cityShipyardConstruction.js";
 import {
+  CITY_PEOPLE_MANIFEST_VERSION,
   cityGarrisonAppearanceIds,
   cityPortStaffAppearanceIds,
   citySuspiciousMerchantAppearanceId,
@@ -447,7 +448,10 @@ async function initialize() {
     ] = await Promise.all([
       loadCitySceneCatalog(),
       fetchJson(`${assetBaseUrl}/port-parallax/manifest.json`, { cache: "no-store" }),
-      fetchJson(`${assetBaseUrl}/minifolks/manifest.json`, { cache: "no-store" }),
+      fetchJson(
+        `${assetBaseUrl}/minifolks/manifest.json?v=${CITY_PEOPLE_MANIFEST_VERSION}`,
+        { cache: "no-store" }
+      ),
       fetchJson("/assets/vehicles/unity-ships/port-assault/manifest.json"),
       fetchJson("/assets/vehicles/unity-ships/side-views/manifest.json"),
       fetchJson(`${assetBaseUrl}/trees/manifest.json`),

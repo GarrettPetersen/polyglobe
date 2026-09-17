@@ -10437,11 +10437,15 @@ function reconcileNpcEncounterManifestPortIds(quest, portCities, legacyPortTileI
         if (!port) {
           throw new Error(`Saved ${field} ${endpoint} does not resolve to a current city`);
         }
-        if (spec[cityIdField] !== port.cityId || spec[legacyPortIdField] !== undefined) {
-          spec[cityIdField] = port.cityId;
+        if (spec[cityIdField] === port.cityId && spec[legacyPortIdField] === undefined) continue;
+        writeQuestRecordField(spec, cityIdField, port.cityId, `${field} ${endpoint}`);
+        if (spec[legacyPortIdField] !== undefined) {
+          if (Object.isFrozen(spec)) {
+            throw new Error(`Cannot reconcile frozen quest ${field} ${endpoint}: ${quest.id}`);
+          }
           delete spec[legacyPortIdField];
-          updates += 1;
         }
+        updates += 1;
       }
     }
   }
@@ -10619,14 +10623,41 @@ function assertLegacyPortTileIds(legacyPortTileIds) {
 }
 
 function updateQuestEndpointIdentity(quest, endpoint, port) {
-  quest[`${endpoint}CityId`] = port.cityId;
-  quest[`${endpoint}TileId`] = port.tileId;
-  quest[`${endpoint}Name`] = cityLabel(port);
-  quest[`${endpoint}Country`] = port.country || "";
-  quest[`${endpoint}Key`] = cityKey(port);
-  if (endpoint === "origin" && quest.kind === "passenger" && !quest.originFactionId) {
-    quest.originFactionId = port.factionId;
+  const cityIdField = `${endpoint}CityId`;
+  const tileField = `${endpoint}TileId`;
+  const nameField = `${endpoint}Name`;
+  const countryField = `${endpoint}Country`;
+  const keyField = `${endpoint}Key`;
+  const nextName = cityLabel(port);
+  const nextCountry = port.country || "";
+  const nextKey = cityKey(port);
+  const needsOriginFaction = endpoint === "origin" && quest.kind === "passenger" && !quest.originFactionId;
+  if (
+    quest[cityIdField] === port.cityId &&
+    quest[tileField] === port.tileId &&
+    quest[nameField] === nextName &&
+    quest[countryField] === nextCountry &&
+    quest[keyField] === nextKey &&
+    !needsOriginFaction
+  ) {
+    return;
   }
+  writeQuestRecordField(quest, cityIdField, port.cityId, `${endpoint} city`);
+  writeQuestRecordField(quest, tileField, port.tileId, `${endpoint} tile`);
+  writeQuestRecordField(quest, nameField, nextName, `${endpoint} name`);
+  writeQuestRecordField(quest, countryField, nextCountry, `${endpoint} country`);
+  writeQuestRecordField(quest, keyField, nextKey, `${endpoint} key`);
+  if (needsOriginFaction) {
+    writeQuestRecordField(quest, "originFactionId", port.factionId, "origin faction");
+  }
+}
+
+function writeQuestRecordField(record, field, value, label) {
+  if (record[field] === value) return;
+  if (Object.isFrozen(record)) {
+    throw new Error(`Cannot reconcile frozen quest ${label}: ${record.id || field}`);
+  }
+  record[field] = value;
 }
 
 function removeInvalidatedQuestOffers(state, portCities, events) {

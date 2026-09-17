@@ -12,6 +12,10 @@ import {
   CITY_PERSON_ARCHETYPES,
   CITY_PERSON_SKIN_RAMP
 } from "../city-visualizer/cityPeopleCatalog.js";
+import {
+  CITY_PEOPLE_MANIFEST_FORMAT,
+  CITY_PEOPLE_MANIFEST_VERSION
+} from "../city-visualizer/cityPeople.js";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 import { validateCityBuildingLayers } from "./cityBuildingExportContract.mjs";
 
@@ -524,8 +528,8 @@ async function exportCityPeopleAssets(privateSourceRoot) {
     const peopleSheetPath = resolve(minifolkOutputRoot, "people.png");
     await writeFile(peopleSheetPath, atlas.toBuffer("image/png"));
     await writeFile(resolve(minifolkOutputRoot, "manifest.json"), `${JSON.stringify({
-      format: "marque-city-people-atlas",
-      version: 4,
+      format: CITY_PEOPLE_MANIFEST_FORMAT,
+      version: CITY_PEOPLE_MANIFEST_VERSION,
       assetRevision: await cityViewAssetRevision([peopleSheetPath]),
       palette: "Resurrect 64",
       sheet: "people.png",

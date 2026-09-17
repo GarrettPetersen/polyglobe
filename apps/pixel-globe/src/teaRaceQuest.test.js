@@ -14,6 +14,8 @@ import {
   recordTeaRaceCompetitorRemoved,
   recordTeaRacePlayerArrival,
   recordTeaRaceTheft,
+  reconcileQuestPortTiles,
+  reconcileQuestWorldAssumptions,
   teaRaceOfferForCity
 } from "./gameState.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
@@ -93,6 +95,60 @@ test("the race carries entrusted tea and pays first and later finishers differen
   const laterBefore = laterState.doubloons;
   completeQuest(laterState, LONDON, { simMinute: spring + 102 });
   assert.equal(laterState.doubloons, laterBefore + TEA_RACE_FINISHER_PRIZE);
+});
+
+test("a stored tea-race offer remains writable during sailing identity reconciliation", () => {
+  const state = raceStateWithOpenTrade();
+  const spring = gameMinuteForDate(1522, 4, 15);
+  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, {
+    sailingDistanceKm: testSailingDistanceKm,
+    simMinute: spring
+  });
+
+  assert.equal(isTeaRaceQuest(offer), true);
+  assert.equal(Object.isFrozen(offer), false);
+  assert.equal(Object.isFrozen(offer.teaRaceCompetitors), false);
+  assert.doesNotThrow(() => reconcileQuestWorldAssumptions(state, PORTS));
+  assert.equal(state.memory.quests.deliveryOffers[offer.originKey].originCityId, GUANGZHOU.cityId);
+});
+
+test("a frozen pending tea-race offer does not crash unchanged sailing identity reconciliation", () => {
+  const state = raceStateWithOpenTrade();
+  const spring = gameMinuteForDate(1522, 4, 15);
+  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, {
+    sailingDistanceKm: testSailingDistanceKm,
+    simMinute: spring
+  });
+  Object.freeze(offer);
+  assert.doesNotThrow(() => reconcileQuestWorldAssumptions(state, PORTS));
+});
+
+test("quest identity reconciliation does not write unchanged frozen endpoints", () => {
+  const state = raceStateWithOpenTrade();
+  const spring = gameMinuteForDate(1522, 4, 15);
+  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, {
+    sailingDistanceKm: testSailingDistanceKm,
+    simMinute: spring
+  });
+  acceptQuest(state, offer, { simMinute: spring });
+  Object.freeze(state.memory.quests.active);
+  assert.doesNotThrow(() => reconcileQuestPortTiles(state, PORTS));
+});
+
+test("quest identity reconciliation fails loudly when a frozen endpoint must move", () => {
+  const state = raceStateWithOpenTrade();
+  const spring = gameMinuteForDate(1522, 4, 15);
+  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, {
+    sailingDistanceKm: testSailingDistanceKm,
+    simMinute: spring
+  });
+  acceptQuest(state, offer, { simMinute: spring });
+  Object.freeze(state.memory.quests.active);
+  const relocated = { ...GUANGZHOU, tileId: 99 };
+  assert.throws(
+    () => reconcileQuestPortTiles(state, [relocated, FUZHOU, LONDON]),
+    /Cannot reconcile frozen quest origin tile: tea-race-1522/
+  );
 });
 
 test("a stored tea-race offer becomes disabled if later cargo fills its hold", () => {
