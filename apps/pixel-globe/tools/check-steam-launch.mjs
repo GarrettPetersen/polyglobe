@@ -25,7 +25,9 @@ try {
     args: [...args, `--user-data-dir=${profile}`],
     env: { ...launchEnvironment, SteamAppId: appId, SteamGameId: appId,
       MARQUE_STEAM_APP_ID: appId, MARQUE_STEAM_EDITION: appId === "5029880" ? "demo" : "full",
-      MARQUE_STEAM_REQUIRE_RELAUNCH: "0" },
+      MARQUE_STEAM_REQUIRE_RELAUNCH: "0",
+      // Owning the full game shows a switch dialog whose default quits the demo.
+      MARQUE_STEAM_SKIP_FULL_GAME_OFFER: "1" },
     timeout: 90_000
   });
   if (requirePackaged) {

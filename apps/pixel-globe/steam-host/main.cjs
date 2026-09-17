@@ -52,6 +52,7 @@ app.whenReady().then(async () => {
   // block launch/quit. Offer the switch as a sheet on the actual game window.
   if (await offerFullGameLaunch({ edition: desktopConfig.edition, apps: client.apps,
     language: currentGameLanguage(),
+    skip: process.env.MARQUE_STEAM_SKIP_FULL_GAME_OFFER === "1",
     showMessageBox: (options) => dialog.showMessageBox(window, options),
     openExternal: (url) => shell.openExternal(url) })) app.quit();
 }).catch((error) => {

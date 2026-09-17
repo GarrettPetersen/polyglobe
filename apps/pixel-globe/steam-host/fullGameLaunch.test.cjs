@@ -32,6 +32,19 @@ test("Steam launch failure leaves the demo available and explains the failure", 
   assert.match(prompts[1].detail, /Steam launch failed/);
 });
 
+test("packaged launch gates can skip the full-game switch without removing player offers", async () => {
+  const prompts = [];
+  const result = await offerFullGameLaunch({
+    edition: "demo",
+    skip: true,
+    apps: { isSubscribedApp: () => true, isAppInstalled: () => true },
+    showMessageBox: async options => { prompts.push(options); return { response: 0 }; },
+    openExternal: async () => assert.fail("skipped offers must not launch Steam")
+  });
+  assert.equal(result, false);
+  assert.deepEqual(prompts, []);
+});
+
 test("the production window starts fullscreen in either edition", async () => {
   const source = readFileSync(require.resolve("./main.cjs"), "utf8");
   const fn = source.slice(source.indexOf("async function createGameWindow("), source.indexOf("function installIpcHandlers("));
@@ -123,9 +136,13 @@ test("the owner switch is parented to an existing game window rather than blocki
     startStaticServer: async () => ({ url: "http://localhost/" }),
     createGameWindow: async () => { events.push("window"); return window; },
     currentGameLanguage: () => "english",
-    offerFullGameLaunch: async ({ showMessageBox }) => { await showMessageBox({ type: "question" }); return false; },
+    offerFullGameLaunch: async ({ showMessageBox, skip }) => {
+      assert.equal(skip, false);
+      await showMessageBox({ type: "question" });
+      return false;
+    },
     dialog: { showMessageBox: async parent => { assert.equal(parent, window); events.push("prompt"); return { response: 1 }; } },
-    shell: {}, console
+    shell: {}, console, process
   });
   assert.deepEqual(events, ["window", "prompt"]);
 });

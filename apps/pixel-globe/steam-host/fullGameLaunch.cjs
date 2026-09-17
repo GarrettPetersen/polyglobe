@@ -1,9 +1,13 @@
 const { fullGameLaunchText } = require("./fullGameLaunchText.cjs");
 const { FULL_GAME_APP_ID } = require("./desktopConfig.cjs");
 
-async function offerFullGameLaunch({ edition, apps, showMessageBox, openExternal, language = "english" }) {
+async function offerFullGameLaunch({
+  edition, apps, showMessageBox, openExternal, language = "english", skip = false
+}) {
   if (edition !== "full" && edition !== "demo") throw new Error(`Invalid launch edition: ${edition}`);
-  if (edition === "full" || !apps.isSubscribedApp(FULL_GAME_APP_ID)) return false;
+  // Launch-gate automation must keep the demo process alive. Choosing the default
+  // "play full game" button quits the demo and fails packaged startup checks.
+  if (skip || edition === "full" || !apps.isSubscribedApp(FULL_GAME_APP_ID)) return false;
   const text = fullGameLaunchText(language);
   const installed = apps.isAppInstalled(FULL_GAME_APP_ID);
   const { response } = await showMessageBox({

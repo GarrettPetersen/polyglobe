@@ -161,8 +161,11 @@ branch manually after upload and verification.
   still available. Options offers Save and quit during a voyage and Quit game
   from the title screen or duels. Quit waits for queued saves and the profile
   write, retains the open game on failure, and never saves a duel over a voyage.
-  Demo owners of the full game are offered a Steam launch/install switch before
-  the renderer starts. Declining uses the independent demo voyage.
+  Demo owners of the full game are offered a Steam launch/install switch after
+  the game window opens. Declining keeps the independent demo voyage. Choosing
+  the default play/install action can quit the demo process, so packaged launch
+  gates set `MARQUE_STEAM_SKIP_FULL_GAME_OFFER=1` and leave the player-facing
+  prompt enabled for ordinary Steam launches.
   Run `npm run test:desktop:menus` after building both editions for disposable
   browser tests of the production menu handlers and profile separation.
 - **Steam Input / Deck:** the host initializes Steam Input, installs
