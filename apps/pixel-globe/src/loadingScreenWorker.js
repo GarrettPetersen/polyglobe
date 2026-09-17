@@ -295,7 +295,7 @@ async function loadLoadingStatusFont() {
   await loadFontFaceAsset({
     family: "Loading Silkscreen",
     src: new URL("../assets/fonts/Silkscreen-Regular.ttf", import.meta.url).toString(),
-    label: "capsule status",
+    label: "capsule-status",
     fontFaceSet: self.fonts
   });
 }
