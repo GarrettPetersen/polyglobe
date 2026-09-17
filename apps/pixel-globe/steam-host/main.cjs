@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const { join } = require("node:path");
 const steamworks = require("steamworks.js");
 
+const { isDesktopQuitInput } = require("./desktopQuitShortcut.cjs");
 const { createProfileStore } = require("./profileStore.cjs");
 const { offerFullGameLaunch } = require("./fullGameLaunch.cjs");
 const { startStaticServer } = require("./staticServer.cjs");
@@ -89,6 +90,11 @@ async function createGameWindow(url) {
     }
   });
   window.setMenuBarVisibility(false);
+  window.webContents.on("before-input-event", (event, input) => {
+    if (!isDesktopQuitInput(input)) return;
+    event.preventDefault();
+    if (!window.isDestroyed()) window.close();
+  });
   window.on("page-title-updated", (event) => {
     event.preventDefault();
     window.setTitle(windowTitle);

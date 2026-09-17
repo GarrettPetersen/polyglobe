@@ -12,6 +12,7 @@ import {
   pixelTextScratchRasterLayout
 } from "./pixelText.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
+import { loadFontFaceAsset } from "./fontAssetLoader.js";
 
 const SCENE_SCALE = 2;
 const LOADING_STATUS_FONT = '8px "Loading Silkscreen"';
@@ -291,18 +292,12 @@ function drawLoadingWakeDiamond(x, y, color) {
 }
 
 async function loadLoadingStatusFont() {
-  if (typeof FontFace !== "function" || !self.fonts) {
-    throw new Error("Capsule loading worker requires worker font support");
-  }
-  const url = new URL("../assets/fonts/Silkscreen-Regular.ttf", import.meta.url).toString();
-  const assetKind = "capsule status font";
-  const response = await fetchStaticAsset(url, { label: assetKind });
-  if (!response.ok) {
-    throw new Error(`Failed to load capsule status font: HTTP ${response.status} at ${url}`);
-  }
-  const face = new FontFace("Loading Silkscreen", await response.arrayBuffer());
-  await face.load();
-  self.fonts.add(face);
+  await loadFontFaceAsset({
+    family: "Loading Silkscreen",
+    src: new URL("../assets/fonts/Silkscreen-Regular.ttf", import.meta.url).toString(),
+    label: "capsule status",
+    fontFaceSet: self.fonts
+  });
 }
 
 function createLoadingStatusRaster(text) {

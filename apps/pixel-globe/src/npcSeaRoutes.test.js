@@ -914,6 +914,67 @@ for (const collapsed of [false, true]) {
 
 }
 
+test("an orphaned reserve sortie demotes to ordinary traffic instead of blocking save restore", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const response = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetCityId: routeCityId(routes, 2),
+    reason: NPC_PORT_RESPONSE_LOST,
+    clockMinutes: 100
+  });
+  const orphan = routes.shipById.get(response.shipId);
+  const slotId = orphan.capitalNavalReserveSlotId;
+  const slot = routes.capitalNavalReserveSlots.find((entry) => entry.id === slotId);
+  assert.equal(slot.activeShipId, orphan.id);
+
+  // A superseded or partially migrated save can keep the old sortie while the
+  // finite slot ledger has already forgotten it.
+  slot.activeShipId = null;
+  slot.shipSlug = orphan.slug;
+  slot.stockedMinute = 101;
+
+  const ownership = new Map(PORTS.map((entry) => [entry.cityId, entry.factionId]));
+  assert.doesNotThrow(() => applyNpcConquestOwnership(routes, ownership, new Set()));
+  assert.equal(routes.shipById.has(orphan.id), true);
+  assert.equal(orphan.capitalNavalReserveSlotId, null);
+  assert.equal(orphan.portResponse, null);
+  assert.equal(orphan.replaceOnSink, false);
+  assert.equal(orphan.encounter?.routePolicy, NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL);
+  assert.equal(
+    routes.capitalNavalReserveSlots.find((entry) => entry.id === slotId).activeShipId,
+    null
+  );
+
+  const saved = snapshotNpcSeaRouteSystem(routes);
+  const restoredSlot = saved.capitalNavalReserveSlots.find((entry) => entry.id === slotId);
+  const restoredOrphan = saved.ships.find((ship) => ship.id === orphan.id);
+  restoredOrphan.capitalNavalReserveSlotId = slotId;
+  restoredOrphan.capitalNavalReserveDocked = false;
+  restoredOrphan.portResponse = {
+    factionId: "portugal",
+    targetCityId: routeCityId(routes, 2),
+    returnCityId: PORTS[0].cityId,
+    reason: NPC_PORT_RESPONSE_LOST,
+    phase: "responding",
+    orderedMinute: 100,
+    threatUntilMinute: null
+  };
+  restoredSlot.activeShipId = null;
+  restoredSlot.shipSlug = orphan.slug;
+  restoredSlot.stockedMinute = 101;
+
+  assert.doesNotThrow(() => restoreNpcSeaRouteSystem(routes, saved, { economy }));
+  const survivor = routes.shipById.get(orphan.id);
+  assert.equal(survivor.capitalNavalReserveSlotId, null);
+  assert.equal(survivor.portResponse, null);
+  assert.equal(survivor.encounter.routePolicy, NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL);
+  assert.equal(
+    routes.capitalNavalReserveSlots.find((entry) => entry.id === slotId).activeShipId,
+    null
+  );
+});
+
 test("a reserve rebases to another compatible naval port after its storehouse is captured", () => {
   const porto = Object.freeze(port(
     37,

@@ -13,6 +13,7 @@ import {
   keyActionForEvent,
   keyBindingLabel,
   keyboardBindingToken,
+  isDesktopQuitShortcut,
   isFullscreenToggleKey,
   loadKeyBindings,
   rebindKey,
@@ -74,6 +75,32 @@ test("bindings serialize strictly and persist through Web Storage", () => {
   assert.deepEqual(deserializeKeyBindings(serializeKeyBindings(rebound)), rebound);
   assert.throws(() => deserializeKeyBindings("not-json"), /not valid JSON/);
   assert.throws(() => validateKeyBindings({ version: 999, actions: {} }), /Unsupported/);
+});
+
+test("desktop quit chords are recognized independently of action bindings", () => {
+  assert.equal(isDesktopQuitShortcut(event("F4", { altKey: true })), true);
+  assert.equal(isDesktopQuitShortcut(event("KeyQ", { metaKey: true })), true);
+  assert.equal(isDesktopQuitShortcut(event("KeyQ", { ctrlKey: true })), true);
+  assert.equal(isDesktopQuitShortcut(event("F4")), false);
+  assert.equal(isDesktopQuitShortcut(event("KeyQ")), false);
+  assert.equal(isDesktopQuitShortcut(event("F4", { altKey: true, repeat: true })), false);
+  assert.equal(isDesktopQuitShortcut({
+    type: "keyDown",
+    code: "F4",
+    alt: true,
+    control: false,
+    meta: false
+  }), true);
+  assert.equal(isDesktopQuitShortcut({
+    type: "keyUp",
+    code: "F4",
+    alt: true
+  }), false);
+  assert.throws(() => isDesktopQuitShortcut(null), /requires a keyboard event/);
+
+  const bindings = createDefaultKeyBindings();
+  assert.equal(keyActionForEvent(bindings, event("F4", { altKey: true })), null);
+  assert.equal(keyActionForEvent(bindings, event("KeyQ", { ctrlKey: true })), KEY_ACTION.FIRE_PORT);
 });
 
 test("F11 is reserved for fullscreen and removed from legacy custom bindings", () => {

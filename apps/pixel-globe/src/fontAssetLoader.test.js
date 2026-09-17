@@ -6,7 +6,7 @@ import { loadFontFaceAsset } from "./fontAssetLoader.js";
 test("required fonts are fetched with a useful label and installed", async () => {
   const requests = [];
   const installed = [];
-  const bytes = new ArrayBuffer(4);
+  const bytes = fontBytes("wOF2");
   class FakeFontFace {
     constructor(family, source) {
       this.family = family;
@@ -41,7 +41,7 @@ test("required fonts are fetched with a useful label and installed", async () =>
   assert.deepEqual(installed, [face]);
 });
 
-test("required font decoding errors identify the font", async () => {
+test("required font decoding errors identify the font and the rejected bytes", async () => {
   class BrokenFontFace {
     async load() {
       throw new DOMException("Invalid font data", "SyntaxError");
@@ -58,10 +58,71 @@ test("required font decoding errors identify the font", async () => {
       fetchAsset: async () => ({
         ok: true,
         status: 200,
-        arrayBuffer: async () => new ArrayBuffer(4)
+        arrayBuffer: async () => fontBytes("wOF2", 8)
       })
     }),
-    /Failed to decode Pixel Pirate font: Invalid font data/
+    /Failed to decode Pixel Pirate font: Invalid font data \(8 bytes starting 77 4f 46 32/
+  );
+});
+
+test("empty or HTML font payloads retry once with a cache bypass", async () => {
+  const requests = [];
+  const installed = [];
+  const html = new TextEncoder().encode("<!DOCTYPE html>").buffer;
+  const font = fontBytes("wOF2");
+  class FakeFontFace {
+    constructor(family, source) {
+      this.family = family;
+      this.source = source;
+    }
+
+    async load() {
+      return this;
+    }
+  }
+
+  const face = await loadFontFaceAsset({
+    family: "Pixel Pirate",
+    src: "assets/fonts/pixel_pirate.woff2?v=r-kern-2",
+    label: "Pixel Pirate",
+    fontFaceSet: { add: (loadedFace) => installed.push(loadedFace) },
+    FontFaceConstructor: FakeFontFace,
+    fetchAsset: async (src, options) => {
+      requests.push({ src, options });
+      return {
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => options.cache === "reload" ? font : html
+      };
+    }
+  });
+
+  assert.deepEqual(requests, [
+    { src: "assets/fonts/pixel_pirate.woff2?v=r-kern-2", options: { label: "Pixel Pirate font" } },
+    {
+      src: "assets/fonts/pixel_pirate.woff2?v=r-kern-2",
+      options: { label: "Pixel Pirate font", cache: "reload" }
+    }
+  ]);
+  assert.equal(face.source, font);
+  assert.deepEqual(installed, [face]);
+});
+
+test("empty font payloads that stay empty after a cache bypass fail with the buffer size", async () => {
+  await assert.rejects(
+    loadFontFaceAsset({
+      family: "Pixel Pirate",
+      src: "assets/fonts/pixel_pirate.woff2",
+      label: "Pixel Pirate",
+      fontFaceSet: { add: () => {} },
+      FontFaceConstructor: class {},
+      fetchAsset: async () => ({
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => new ArrayBuffer(0)
+      })
+    }),
+    /Failed to decode Pixel Pirate font: Invalid source buffer \(empty, 0 bytes\)/
   );
 });
 
@@ -78,3 +139,11 @@ test("required font HTTP errors identify the font", async () => {
     /Failed to load zpix font: HTTP 404/
   );
 });
+
+function fontBytes(signature, byteLength = 8) {
+  const bytes = new Uint8Array(byteLength);
+  for (let index = 0; index < signature.length; index += 1) {
+    bytes[index] = signature.charCodeAt(index);
+  }
+  return bytes.buffer;
+}

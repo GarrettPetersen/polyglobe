@@ -1546,6 +1546,7 @@ import {
   clearKeyBinding,
   createDefaultKeyBindings,
   createHeldKeyActions,
+  isDesktopQuitShortcut,
   isFullscreenToggleKey,
   isSteeringKeyAction,
   keyActionDefinition,
@@ -4427,6 +4428,7 @@ steamPlatformBridge?.onPauseRequested(handleSteamPlatformPauseRequest);
 
 window.addEventListener("keydown", (event) => {
   noteCurrentSessionActivity();
+  if (isDesktopQuitShortcut(event)) return;
   if (isFullscreenToggleKey(event)) {
     event.preventDefault();
     if (!event.repeat) void toggleFullscreenMode();
@@ -4488,11 +4490,6 @@ window.addEventListener("keydown", (event) => {
   }
   if (dispatchWorldOverlayKey(event, keyAction)) return;
   if (keyAction === KEY_ACTION.CAPTAIN_MENU && captainMenuButtonIsAvailable()) {
-    event.preventDefault();
-    openCaptainMenu();
-    return;
-  }
-  if (keyAction === KEY_ACTION.CAPTAIN_MENU) {
     event.preventDefault();
     openCaptainMenu();
     return;
@@ -19742,7 +19739,7 @@ function recenterCaptainChartMap() {
 }
 
 function openCaptainMenu() {
-  if (startMenu || gameOverReason || playerIntroModal || captainAlertModal) return;
+  if (!gameState || startMenu || gameOverReason || playerIntroModal || captainAlertModal) return;
   switchNotebookPage(null);
   capturePausedView(captainMenu.viewCache, gameState, buildCaptainChartView);
   captainMenu.isOpen = true;
@@ -48072,7 +48069,7 @@ function drawCaptainMenuButton() {
 }
 
 function captainMenuButtonIsAvailable() {
-  return captainMenuShortcutAvailable({
+  return Boolean(gameState) && captainMenuShortcutAvailable({
     blockingMenu: menusAreOpen(),
     blockingModal: Boolean(startMenu || gameOverReason || playerIntroModal || captainAlertModal),
     dialogueActive: Boolean(dialogueState) && !portCityRootPresentationIsOwned()

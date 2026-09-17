@@ -4081,10 +4081,32 @@ function requiredCapitalNavalReserveSlot(system, slotId) {
   return slot;
 }
 
+function repairCapitalNavalReserveAssignments(system) {
+  // Saves, worker races, and ownership changes can leave a sortie that still
+  // claims a reserve slot the ledger no longer treats as active. Demote those
+  // hulls to ordinary traffic instead of failing restore or conquest updates.
+  const slotById = new Map(system.capitalNavalReserveSlots.map((slot) => [slot.id, slot]));
+  for (const ship of system.ships) {
+    if (ship.capitalNavalReserveSlotId === null) continue;
+    const slot = slotById.get(ship.capitalNavalReserveSlotId);
+    if (slot?.activeShipId === ship.id && ship.factionId === slot.factionId) continue;
+    detachDisplacedCapitalReserveShip(ship);
+  }
+  for (const slot of system.capitalNavalReserveSlots) {
+    if (slot.activeShipId === null) continue;
+    const ship = system.shipById.get(slot.activeShipId);
+    if (ship && ship.capitalNavalReserveSlotId === slot.id && ship.factionId === slot.factionId) {
+      continue;
+    }
+    slot.activeShipId = null;
+  }
+}
+
 function validateCapitalNavalReserveAssignments(system) {
   if (!Array.isArray(system.capitalNavalReserveSlots)) {
     throw new Error("NPC routes require capital naval reserve slots");
   }
+  repairCapitalNavalReserveAssignments(system);
   const slotIds = new Set();
   const activeShipIds = new Set();
   for (const slot of system.capitalNavalReserveSlots) {

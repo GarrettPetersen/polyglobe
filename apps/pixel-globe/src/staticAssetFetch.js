@@ -1,6 +1,14 @@
 const DEFAULT_ATTEMPTS = 5;
 const DEFAULT_RETRY_DELAY_MS = 200;
 const RETRYABLE_STATUS_CODES = new Set([408, 425, 429]);
+const FETCH_CACHE_MODES = new Set([
+  "default",
+  "no-store",
+  "reload",
+  "no-cache",
+  "force-cache",
+  "only-if-cached"
+]);
 
 export class StaticAssetNetworkError extends Error {
   constructor(message, { cause = null, status = null } = {}) {
@@ -29,7 +37,8 @@ export async function fetchStaticAsset(resource, {
   fetchImpl = globalThis.fetch,
   attempts = DEFAULT_ATTEMPTS,
   retryDelayMs = DEFAULT_RETRY_DELAY_MS,
-  sleep = wait
+  sleep = wait,
+  cache
 } = {}) {
   if (typeof label !== "string" || label.length === 0) {
     throw new Error("Static asset fetch requires a label");
@@ -46,11 +55,17 @@ export async function fetchStaticAsset(resource, {
   if (typeof sleep !== "function") {
     throw new Error("Static asset fetch requires a sleep function");
   }
+  if (cache !== undefined && !FETCH_CACHE_MODES.has(cache)) {
+    throw new Error(`Static asset fetch has an unknown cache mode: ${cache}`);
+  }
+  const requestInit = cache === undefined ? undefined : { cache };
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
     let response;
     try {
-      response = await fetchImpl(resource);
+      response = requestInit === undefined
+        ? await fetchImpl(resource)
+        : await fetchImpl(resource, requestInit);
     } catch (error) {
       if (attempt === attempts) {
         throw new StaticAssetNetworkError(

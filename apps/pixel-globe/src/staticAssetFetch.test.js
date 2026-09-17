@@ -94,6 +94,41 @@ test("exhausted network and server failures remain identifiable through wrapped 
   assert.equal(serverError.status, 503);
 });
 
+test("static asset fetch can bypass HTTP cache when requested", async () => {
+  const calls = [];
+  const loaded = await fetchStaticAsset("/assets/fonts/pixel_pirate.woff2", {
+    label: "Pixel Pirate font",
+    cache: "reload",
+    fetchImpl: async (resource, init) => {
+      calls.push({ resource, init });
+      return response(200);
+    },
+    retryDelayMs: 0
+  });
+
+  assert.equal(loaded.status, 200);
+  assert.deepEqual(calls, [{
+    resource: "/assets/fonts/pixel_pirate.woff2",
+    init: { cache: "reload" }
+  }]);
+});
+
+test("unknown static asset cache modes fail before fetching", async () => {
+  let calls = 0;
+  await assert.rejects(
+    fetchStaticAsset("/broken", {
+      label: "broken",
+      cache: "stale",
+      fetchImpl: async () => {
+        calls += 1;
+        return response(200);
+      }
+    }),
+    /unknown cache mode: stale/
+  );
+  assert.equal(calls, 0);
+});
+
 test("invalid fetch responses fail immediately and are not classified as connection failures", async () => {
   let calls = 0;
   await assert.rejects(fetchStaticAsset("/broken", {label: "broken", fetchImpl: async () => {

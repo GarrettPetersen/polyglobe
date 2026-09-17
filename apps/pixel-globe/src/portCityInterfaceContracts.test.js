@@ -38,6 +38,29 @@ test("city wipes require the selected city's projected map coordinates", () => {
   assert.doesNotMatch(center, /SCREEN_W \/ 2|SCREEN_H \/ 2/);
 });
 
+test("the captain chart cannot open before a voyage exists", () => {
+  const open = functionSource("openCaptainMenu", "openAboardMenu");
+  assert.match(
+    open,
+    /if \(!gameState \|\| startMenu \|\| gameOverReason \|\| playerIntroModal \|\| captainAlertModal\) return;/
+  );
+  const availability = functionSource("captainMenuButtonIsAvailable", "drawCaptainMenu");
+  assert.match(availability, /Boolean\(gameState\) && captainMenuShortcutAvailable/);
+  assert.doesNotMatch(
+    MAIN_SOURCE,
+    /if \(keyAction === KEY_ACTION\.CAPTAIN_MENU\) \{\s*event\.preventDefault\(\);\s*openCaptainMenu\(\);/
+  );
+});
+
+test("desktop quit shortcuts leave the renderer before overlay handlers can swallow them", () => {
+  const keydownStart = MAIN_SOURCE.indexOf('window.addEventListener("keydown"');
+  const quit = MAIN_SOURCE.indexOf("isDesktopQuitShortcut(event)", keydownStart);
+  const prevent = MAIN_SOURCE.indexOf("event.preventDefault()", keydownStart);
+  assert.ok(keydownStart >= 0, "Missing window keydown listener");
+  assert.ok(quit > keydownStart, "Missing desktop quit shortcut guard");
+  assert.ok(prevent > quit, "Desktop quit shortcut must run before preventDefault");
+});
+
 test("city Escape activates Set Sail and the normal captain menu remains available", () => {
   const keys = functionSource("handlePortCityKeyDown", "beginPortCityPointer");
   assert.match(keys, /keyAction === KEY_ACTION\.CAPTAIN_MENU[\s\S]*openCaptainMenu\(\)/);

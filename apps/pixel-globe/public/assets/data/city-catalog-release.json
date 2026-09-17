@@ -94,7 +94,7 @@
     "src/settlementTypes.js": "a3a7f05405d6db7a4c15e81f45365eaf30c935e583d9309c6441f4472a3f3942",
     "src/shipStats.js": "c8cadff6ddd156f4983d56dfa65bb8e10fada9db4c1990dc636ecfd3143a4de7",
     "src/shipyardListingPresentation.js": "a8800d5d045975ad9c8d646df259bd863bb081244eb69b2368e32455543300ba",
-    "src/staticAssetFetch.js": "368f22ecf029ca5e01d3be484445085ea51c52aa0f7f06fe70f2fb60fb88947f",
+    "src/staticAssetFetch.js": "9652669439f2927dd8b59455199dc1e3a876b3f37d6352185c3f76d2e998cd92",
     "src/subdivisionEightMapData.js": "06d2ddf65a5fc2bf024c503dbd2ae3da9b8618a61a84cc441dc4b3e4f42ae368",
     "src/subdivisionSevenPortMigration.js": "ae5be5d13647b5eef8d43d1a14e485b22a07ad2811533c95861254daa8e159d8",
     "src/terrainMetadata.js": "caedd99411b0f38f90fc0f8f0bc414ecfcde780b02129f37514ff19a745e5838",

@@ -39,12 +39,70 @@ test("the production window starts fullscreen in either edition", async () => {
     let options;
     await runInNewContext(`${fn}; createGameWindow("http://localhost/");`, {
       desktopConfig: { edition, productName: "Marque & Reprisal" },
-      BrowserWindow: class { constructor(value) { options = value; } setMenuBarVisibility() {} on() {} once() {} async loadURL() {} },
-      join: (...parts) => parts.join("/"), __dirname: "/host", createSteamInputPump: () => ({ start() {} }), steamInputPump: null
+      BrowserWindow: class {
+        constructor(value) {
+          options = value;
+          this.webContents = { on() {} };
+        }
+        setMenuBarVisibility() {}
+        on() {}
+        once() {}
+        async loadURL() {}
+      },
+      join: (...parts) => parts.join("/"),
+      __dirname: "/host",
+      createSteamInputPump: () => ({ start() {} }),
+      steamInputPump: null,
+      isDesktopQuitInput: () => false
     });
     assert.equal(options.fullscreen, true);
     assert.equal(options.webPreferences.contextIsolation, true);
   }
+});
+
+test("Alt+F4 closes the fullscreen Steam window before the renderer can swallow it", async () => {
+  const source = readFileSync(require.resolve("./main.cjs"), "utf8");
+  const fn = source.slice(source.indexOf("async function createGameWindow("), source.indexOf("function installIpcHandlers("));
+  const { isDesktopQuitInput } = require("./desktopQuitShortcut.cjs");
+  const closes = [];
+  const prevented = [];
+  let beforeInput;
+  const window = {
+    setMenuBarVisibility() {},
+    on() {},
+    once() {},
+    async loadURL() {},
+    isDestroyed: () => false,
+    close() { closes.push("close"); },
+    webContents: {
+      on(name, handler) {
+        if (name === "before-input-event") beforeInput = handler;
+      }
+    }
+  };
+  await runInNewContext(`${fn}; createGameWindow("http://localhost/");`, {
+    desktopConfig: { edition: "demo", productName: "Marque & Reprisal Demo" },
+    BrowserWindow: class { constructor() { return window; } },
+    join: (...parts) => parts.join("/"),
+    __dirname: "/host",
+    createSteamInputPump: () => ({ start() {} }),
+    steamInputPump: null,
+    isDesktopQuitInput
+  });
+  assert.equal(typeof beforeInput, "function");
+  beforeInput({ preventDefault() { prevented.push("prevent"); } }, {
+    type: "keyDown",
+    code: "F4",
+    alt: true,
+    control: false,
+    meta: false
+  });
+  beforeInput({ preventDefault() { prevented.push("ignored"); } }, {
+    type: "keyDown",
+    code: "Escape"
+  });
+  assert.deepEqual(prevented, ["prevent"]);
+  assert.deepEqual(closes, ["close"]);
 });
 
 test("the owner switch is parented to an existing game window rather than blocking window creation", async () => {

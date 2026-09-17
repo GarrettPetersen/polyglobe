@@ -62,4 +62,6 @@ test("Steam renderer bridge includes controller-safe fullscreen and quit operati
   assert.match(preload, /quitGame:\s*\(\)\s*=>\s*ipcRenderer\.invoke\("steam:quit"\)/);
   assert.match(host, /ipcMain\.handle\("steam:toggle-fullscreen"/);
   assert.match(host, /ipcMain\.handle\("steam:quit"/);
+  assert.match(host, /webContents\.on\("before-input-event"/);
+  assert.match(host, /isDesktopQuitInput\(input\)/);
 });

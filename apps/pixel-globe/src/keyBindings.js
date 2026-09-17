@@ -217,6 +217,24 @@ export function isFullscreenToggleKey(event) {
   return Boolean(event && (event.code === FULLSCREEN_TOGGLE_KEY_CODE || event.key === FULLSCREEN_TOGGLE_KEY_CODE));
 }
 
+export function isDesktopQuitShortcut(event) {
+  if (!event || typeof event !== "object") {
+    throw new Error("Desktop quit shortcut requires a keyboard event");
+  }
+  const type = event.type;
+  if (typeof type === "string" && type.toLowerCase() !== "keydown") return false;
+  if (event.repeat === true || event.isAutoRepeat === true) return false;
+  const code = typeof event.code === "string" ? event.code : "";
+  if (code.length === 0) return false;
+  const alt = event.altKey === true || event.alt === true;
+  const ctrl = event.ctrlKey === true || event.control === true;
+  const meta = event.metaKey === true || event.meta === true;
+  if (alt && !ctrl && !meta && code === "F4") return true;
+  if (meta && !alt && !ctrl && code === "KeyQ") return true;
+  if (ctrl && !alt && !meta && code === "KeyQ") return true;
+  return false;
+}
+
 export function keyActionForToken(bindings, token) {
   const current = validateKeyBindings(bindings);
   validateBindingToken(token);

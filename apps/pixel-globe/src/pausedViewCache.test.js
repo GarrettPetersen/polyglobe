@@ -40,4 +40,8 @@ test("paused views fail loudly when missing or paired with another source", () =
   capturePausedView(cache, source, () => ({ roster: [] }));
   assert.throws(() => currentPausedView(cache, {}), /stale or missing/);
   assert.throws(() => capturePausedView(cache, source, () => null), /returned no value/);
+  assert.throws(
+    () => capturePausedView(createPausedViewCache("Captain chart"), null, () => ({})),
+    /Captain chart paused view requires a source/
+  );
 });
