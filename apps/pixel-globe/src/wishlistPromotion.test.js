@@ -70,11 +70,24 @@ test("start wishlist floats below the title and outside regular menu rows", asyn
     assert.ok(rect.x >= panel.x && rect.x + rect.w <= panel.x + panel.w);
   }
   const context = vm.createContext({ localSaveResult: {status:"missing"}, startMenu: {},
+    steamPlatformBridge:null,
     uiText:key=>key, START_MENU_ACTION_NEW_GAME:"new", START_MENU_ACTION_LAKE_BATTLE:"battle",
     START_MENU_ACTION_HISTORICAL_BATTLE:"history", START_MENU_ACTION_PAST_VOYAGES:"past",
-    START_MENU_ACTION_OPTIONS:"options", START_MENU_ACTION_CREDITS:"credits", START_MENU_ACTION_ACHIEVEMENTS:"achievements" });
+    START_MENU_ACTION_OPTIONS:"options", START_MENU_ACTION_CREDITS:"credits",
+    START_MENU_ACTION_QUIT:"quit", START_MENU_ACTION_ACHIEVEMENTS:"achievements" });
   load("startMenuActions", context);
   assert.ok(context.startMenuActions().every(action=>action.id!=="wishlist"));
+});
+
+test("desktop start menu puts quit at the bottom", () => {
+  const context = vm.createContext({ localSaveResult: {status:"missing"}, startMenu: {},
+    steamPlatformBridge:{platformId:"steam"},
+    uiText:key=>key, START_MENU_ACTION_NEW_GAME:"new", START_MENU_ACTION_LAKE_BATTLE:"battle",
+    START_MENU_ACTION_HISTORICAL_BATTLE:"history", START_MENU_ACTION_PAST_VOYAGES:"past",
+    START_MENU_ACTION_OPTIONS:"options", START_MENU_ACTION_CREDITS:"credits",
+    START_MENU_ACTION_QUIT:"quit", START_MENU_ACTION_ACHIEVEMENTS:"achievements" });
+  load("startMenuActions", context);
+  assert.equal(context.startMenuActions().at(-1).id, "quit");
 });
 
 test("floating wishlist remains keyboard accessible without changing the menu action list", () => {

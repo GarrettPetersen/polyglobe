@@ -59,7 +59,8 @@ test("every current dialogue and start-menu action resolves to an icon", async (
     "past-voyages",
     "achievements",
     "options",
-    "credits"
+    "credits",
+    "quit"
   ]) {
     assert.ok(GAME_ICON_SOURCES[startMenuIconId(actionId)], actionId);
   }

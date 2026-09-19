@@ -1,6 +1,7 @@
 import {
   CONTROL_SCHEME_ABSOLUTE,
   CONTROL_SCHEME_RELATIVE,
+  DEFAULT_CONTROL_SCHEME,
   normalizeControlScheme
 } from "./controlScheme.js";
 import { TERRAIN_WEATHER_MODE_STATIC } from "./terrainWeatherPolicy.js";
@@ -132,23 +133,39 @@ export function sailingTutorialTravelIsEligible({ anchored, combatEngaged, whale
   return !anchored && !combatEngaged && !whaleTowActive;
 }
 
-export function sailingHelpPages(inputMode, controlScheme = CONTROL_SCHEME_ABSOLUTE) {
+export function sailingHelpPages(inputMode, controlScheme = DEFAULT_CONTROL_SCHEME) {
   if (!SAILING_HELP_INPUT_MODES.has(inputMode)) {
     throw new Error(`Unknown sailing help input mode: ${inputMode}`);
   }
   const normalizedControlScheme = normalizeControlScheme(controlScheme);
-  const steeringCopy = {
+  const absoluteSteeringCopy = {
     touch: "Touch and hold anywhere around your ship. The bow turns toward your finger. Keep holding while it sails.",
     mouse: "Click and hold anywhere around your ship. The bow turns toward the pointer. Keep holding while it sails.",
     keyboard: "Press and hold WASD or an arrow key. The bow turns toward that direction. Keep holding while it sails.",
     controller: "Tilt and hold the left stick. The bow turns toward that direction. Keep holding while it sails."
   };
-  const haulingCopy = {
+  const relativeSteeringCopy = {
+    ...absoluteSteeringCopy,
+    keyboard: "Use left and right to turn port and starboard. Hold forward to sail or row on the current heading.",
+    controller: "Tilt the left stick left and right to turn port and starboard. Hold it forward to sail or row on the current heading."
+  };
+  const absoluteHaulingCopy = {
     touch: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly.",
     mouse: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly.",
     keyboard: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly.",
     controller: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly."
   };
+  const relativeHaulingCopy = {
+    ...absoluteHaulingCopy,
+    keyboard: "If wind pins you against a riverbank or coast, hold forward. Your crew begins to haul along the shore, very slowly.",
+    controller: "If wind pins you against a riverbank or coast, hold forward. Your crew begins to haul along the shore, very slowly."
+  };
+  const steeringCopy = normalizedControlScheme === CONTROL_SCHEME_RELATIVE
+    ? relativeSteeringCopy
+    : absoluteSteeringCopy;
+  const haulingCopy = normalizedControlScheme === CONTROL_SCHEME_RELATIVE
+    ? relativeHaulingCopy
+    : absoluteHaulingCopy;
   return [
     {
       title: "TURN AND SAIL",
@@ -173,7 +190,7 @@ export function sailingHelpPages(inputMode, controlScheme = CONTROL_SCHEME_ABSOL
   ];
 }
 
-export function rowingTutorialMessage(inputMode, controlScheme = CONTROL_SCHEME_ABSOLUTE) {
+export function rowingTutorialMessage(inputMode, controlScheme = DEFAULT_CONTROL_SCHEME) {
   if (!SAILING_HELP_INPUT_MODES.has(inputMode)) {
     throw new Error(`Unknown sailing help input mode: ${inputMode}`);
   }

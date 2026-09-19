@@ -1634,6 +1634,42 @@ function reviewedPlaytesterPolishOverrides() {
       "戦力評価：有利", "KAMPF: GÜNSTIG", "COMBAT : FAVORABLE", "WALKA: KORZYSTNA",
       "交戰評估：有利", "교전 평가: 유리"
     ]],
+    ["If wind pins you against a riverbank or coast, hold forward. Your crew begins to haul along the shore, very slowly.", [
+      "如果风把你困在河岸或海岸边，按住前进。船员会开始沿岸缓慢拖船。",
+      "Если ветер прижал вас к берегу реки или моря, удерживайте движение вперёд. Команда начнёт очень медленно тянуть судно вдоль берега.",
+      "Si el viento te inmoviliza contra la ribera o la costa, mantén pulsado avanzar. La tripulación empezará a remolcar el barco muy despacio por la orilla.",
+      "Se o vento prender você contra uma margem ou costa, mantenha avançar pressionado. A tripulação começará a puxar o navio bem devagar ao longo da costa.",
+      "風で川岸や海岸に押し付けられたら、前進を押し続けてください。乗組員が岸沿いにゆっくり船を曳き始めます。",
+      "Wenn der Wind dich an einem Flussufer oder an der Küste festsetzt, halte Vorwärts gedrückt. Deine Mannschaft beginnt, das Schiff sehr langsam am Ufer entlangzuziehen.",
+      "Si le vent vous plaque contre une rive ou la côte, maintenez l’avance. Votre équipage commencera à haler très lentement le navire le long du rivage.",
+      "Jeśli wiatr przyciśnie cię do brzegu rzeki lub wybrzeża, przytrzymaj ruch naprzód. Załoga zacznie bardzo powoli holować statek wzdłuż brzegu.",
+      "如果風把你困在河岸或海岸邊，按住前進。船員會開始沿岸緩慢拖船。",
+      "바람 때문에 강둑이나 해안에 갇히면 전진을 누르고 계십시오. 선원들이 해안을 따라 배를 아주 천천히 끌기 시작합니다."
+    ]],
+    ["Tilt the left stick left and right to turn port and starboard. Hold it forward to sail or row on the current heading.", [
+      "左右推动左摇杆可向左舷或右舷转向。向前推住可按当前航向航行或划行。",
+      "Наклоняйте левый стик влево и вправо, чтобы поворачивать на левый и правый борт. Удерживайте его вперёд, чтобы идти под парусом или на вёслах прежним курсом.",
+      "Inclina el stick izquierdo a izquierda y derecha para virar a babor y estribor. Mantenlo hacia delante para navegar o remar con el rumbo actual.",
+      "Incline o analógico esquerdo para a esquerda e a direita para virar a bombordo e estibordo. Mantenha-o para a frente para velejar ou remar no rumo atual.",
+      "左スティックを左右に倒すと、取舵・面舵に旋回します。前に倒し続けると、現在の針路で帆走または漕走します。",
+      "Bewege den linken Stick nach links und rechts, um nach Backbord und Steuerbord zu drehen. Halte ihn nach vorn, um auf dem aktuellen Kurs zu segeln oder zu rudern.",
+      "Inclinez le stick gauche à gauche ou à droite pour virer à bâbord ou à tribord. Maintenez-le vers l’avant pour naviguer ou ramer sur le cap actuel.",
+      "Wychylaj le lewy drążek w lewo i prawo, aby skręcać na bakburtę i sterburtę. Przytrzymaj go do przodu, aby żeglować lub wiosłować obecnym kursem.",
+      "左右推動左搖桿可向左舷或右舷轉向。向前推住可按目前航向航行或划行。",
+      "왼쪽 스틱을 좌우로 기울여 좌현과 우현으로 선회합니다. 앞으로 유지하면 현재 침로로 항해하거나 노를 젓습니다."
+    ]],
+    ["Use left and right to turn port and starboard. Hold forward to sail or row on the current heading.", [
+      "使用左键和右键向左舷或右舷转向。按住前进可按当前航向航行或划行。",
+      "Используйте влево и вправо, чтобы поворачивать на левый и правый борт. Удерживайте вперёд, чтобы идти под парусом или на вёслах прежним курсом.",
+      "Usa izquierda y derecha para virar a babor y estribor. Mantén avanzar para navegar o remar con el rumbo actual.",
+      "Use esquerda e direita para virar a bombordo e estibordo. Mantenha avançar para velejar ou remar no rumo atual.",
+      "左右入力で取舵・面舵に旋回します。前進を押し続けると、現在の針路で帆走または漕走します。",
+      "Steuere mit links und rechts nach Backbord und Steuerbord. Halte Vorwärts, um auf dem aktuellen Kurs zu segeln oder zu rudern.",
+      "Utilisez gauche et droite pour virer à bâbord et à tribord. Maintenez l’avance pour naviguer ou ramer sur le cap actuel.",
+      "Używaj lewo i prawo, aby skręcać na bakburtę i sterburtę. Przytrzymaj ruch naprzód, aby żeglować lub wiosłować obecnym kursem.",
+      "使用左鍵和右鍵向左舷或右舷轉向。按住前進可按目前航向航行或划行。",
+      "왼쪽과 오른쪽으로 좌현과 우현 선회를 합니다. 전진을 누르고 있으면 현재 침로로 항해하거나 노를 젓습니다."
+    ]],
     ["VESSEL: {0} / {1}", [
       "船只：{0} / {1}", "СУДНО: {0} / {1}", "NAVÍO: {0} / {1}", "EMBARCAÇÃO: {0} / {1}",
       "船：{0} / {1}", "SCHIFF: {0} / {1}", "NAVIRE : {0} / {1}", "STATEK: {0} / {1}",

@@ -306,7 +306,8 @@ const START_MENU_ICON_IDS = Object.freeze({
   "past-voyages": "menu:past-voyages",
   achievements: "menu:achievements",
   options: "menu:options",
-  credits: "menu:credits"
+  credits: "menu:credits",
+  quit: "action:leave"
 });
 
 const MENU_LABEL_ICON_IDS = Object.freeze({

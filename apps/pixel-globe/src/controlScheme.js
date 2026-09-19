@@ -1,5 +1,6 @@
 export const CONTROL_SCHEME_ABSOLUTE = "absolute";
 export const CONTROL_SCHEME_RELATIVE = "relative";
+export const DEFAULT_CONTROL_SCHEME = CONTROL_SCHEME_RELATIVE;
 
 export const CONTROL_SCHEMES = Object.freeze([
   CONTROL_SCHEME_ABSOLUTE,
@@ -8,7 +9,7 @@ export const CONTROL_SCHEMES = Object.freeze([
 
 export function normalizeControlScheme(value) {
   if (value === null || value === undefined || value === "") {
-    return CONTROL_SCHEME_ABSOLUTE;
+    return DEFAULT_CONTROL_SCHEME;
   }
   if (!CONTROL_SCHEMES.includes(value)) {
     throw new Error(`Unknown control scheme: ${value}`);

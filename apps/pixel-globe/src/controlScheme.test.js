@@ -4,14 +4,16 @@ import test from "node:test";
 import {
   CONTROL_SCHEME_ABSOLUTE,
   CONTROL_SCHEME_RELATIVE,
+  DEFAULT_CONTROL_SCHEME,
   nextControlScheme,
   normalizeControlScheme,
   relativeHeadingAngle,
   steeringIntentForScheme
 } from "./controlScheme.js";
 
-test("control scheme defaults to absolute and rejects corrupt stored values", () => {
-  assert.equal(normalizeControlScheme(null), CONTROL_SCHEME_ABSOLUTE);
+test("control scheme defaults to relative and rejects corrupt stored values", () => {
+  assert.equal(DEFAULT_CONTROL_SCHEME, CONTROL_SCHEME_RELATIVE);
+  assert.equal(normalizeControlScheme(null), CONTROL_SCHEME_RELATIVE);
   assert.equal(normalizeControlScheme(CONTROL_SCHEME_RELATIVE), CONTROL_SCHEME_RELATIVE);
   assert.throws(() => normalizeControlScheme("tank-ish"), /Unknown control scheme/);
 });

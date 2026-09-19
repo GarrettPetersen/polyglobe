@@ -135,13 +135,14 @@ test("sailing help uses the active device's control language", () => {
   assert.equal(touch.length, 4);
   assert.match(touch[0].body, /Touch and hold/);
   assert.match(mouse[0].body, /Click and hold/);
-  assert.match(keyboard[0].body, /WASD or an arrow key/);
-  assert.match(controller[0].body, /left stick/);
+  assert.match(keyboard[0].body, /left and right to turn port and starboard/i);
+  assert.match(controller[0].body, /left stick left and right/i);
   assert.match(mouse[1].body, /zigzag.*tacking/i);
-  assert.match(keyboard[2].body, /toward the bow to row/i);
+  assert.match(keyboard[2].body, /hold forward to row/i);
   assert.match(keyboard[2].body, /eat more/i);
-  assert.match(keyboard[2].body, /behind it to reverse/i);
+  assert.match(keyboard[2].body, /back to reverse/i);
   assert.match(keyboard[3].body, /wind pins you/i);
+  assert.match(keyboard[3].body, /hold forward/i);
   assert.match(keyboard[3].body, /haul along the shore/i);
 });
 
@@ -155,6 +156,8 @@ test("relative rowing uses forward while pointer rowing remains directional", ()
   assert.match(controller[2].body, /hold the left stick forward to row/i);
   assert.match(touch[2].body, /hold ahead to row/i);
   assert.match(absoluteKeyboard[2].body, /toward the bow to row/i);
+  assert.match(absoluteKeyboard[0].body, /WASD or an arrow key/i);
+  assert.match(absoluteKeyboard[3].body, /steer toward open water/i);
 });
 
 test("ordinary sailing diagrams remain open water", () => {

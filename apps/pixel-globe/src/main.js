@@ -1573,11 +1573,17 @@ import {
 import {
   CONTROL_SCHEME_ABSOLUTE,
   CONTROL_SCHEME_RELATIVE,
+  DEFAULT_CONTROL_SCHEME,
   nextControlScheme,
   normalizeControlScheme,
   relativeHeadingAngle,
   steeringIntentForScheme
 } from "./controlScheme.js";
+import {
+  OPTIONS_MENU_ROW,
+  optionsMenuRowIndex,
+  optionsMenuRowOrder
+} from "./menuOrdering.js";
 import {
   MINIMAP_LONGITUDE_BIN_COUNT,
   exploredMinimapViewport,
@@ -3196,6 +3202,7 @@ const START_MENU_ACTION_PAST_VOYAGES = "past-voyages";
 const START_MENU_ACTION_ACHIEVEMENTS = "achievements";
 const START_MENU_ACTION_OPTIONS = "options";
 const START_MENU_ACTION_CREDITS = "credits";
+const START_MENU_ACTION_QUIT = "quit";
 const START_MENU_EDITION_LABEL = startMenuEditionLabel(BUILD_EDITION_ID);
 const LAKE_BATTLE_SCREEN_SETUP = "setup";
 const LAKE_BATTLE_SCREEN_ACTIVE = "active";
@@ -3307,25 +3314,38 @@ const OPTIONS_PANEL_H = 282;
 const steamPlatformBridge = platformServicesAdapter(window);
 const SHOW_WISHLIST_CTA = wishlistPromotionEnabled({ editionId: BUILD_EDITION_ID,
   platformId: steamPlatformBridge?.platformId || "browser" });
-const WISHLIST_ROW_OFFSET = SHOW_WISHLIST_CTA ? 1 : 0;
-const OPTIONS_ROW_WISHLIST = SHOW_WISHLIST_CTA ? 0 : -1;
+const OPTIONS_ROW_ORDER = optionsMenuRowOrder({
+  showWishlist: SHOW_WISHLIST_CTA,
+  desktop: Boolean(steamPlatformBridge)
+});
 let wishlistEndgamePrompt = false;
 let wishlistEndgameSelection = 0;
 const wishlistReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const OPTIONS_ROW_H = 22;
-const OPTIONS_ROW_COUNT = 11 + WISHLIST_ROW_OFFSET + (steamPlatformBridge ? 1 : 0);
-const OPTIONS_ROW_FULLSCREEN = 0 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_MUSIC = 1 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_SFX = 2 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_MUTE = 3 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_LANGUAGE = 4 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_CONTROL_SCHEME = 5 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_CONTROLLER_ICONS = 6 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_CONTROLS = 7 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_DIAGNOSTIC_MODE = 8 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_TELEMETRY = 9 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_START_MENU = 10 + WISHLIST_ROW_OFFSET;
-const OPTIONS_ROW_QUIT = steamPlatformBridge ? OPTIONS_ROW_START_MENU + 1 : -1;
+const OPTIONS_ROW_COUNT = OPTIONS_ROW_ORDER.length;
+const OPTIONS_ROW_QUIT = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.QUIT, { optional: true });
+const OPTIONS_ROW_WISHLIST = optionsMenuRowIndex(
+  OPTIONS_ROW_ORDER,
+  OPTIONS_MENU_ROW.WISHLIST,
+  { optional: true }
+);
+const OPTIONS_ROW_FULLSCREEN = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.FULLSCREEN);
+const OPTIONS_ROW_MUSIC = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.MUSIC);
+const OPTIONS_ROW_SFX = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.SFX);
+const OPTIONS_ROW_MUTE = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.MUTE);
+const OPTIONS_ROW_LANGUAGE = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.LANGUAGE);
+const OPTIONS_ROW_CONTROL_SCHEME = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.CONTROL_SCHEME);
+const OPTIONS_ROW_CONTROLLER_ICONS = optionsMenuRowIndex(
+  OPTIONS_ROW_ORDER,
+  OPTIONS_MENU_ROW.CONTROLLER_ICONS
+);
+const OPTIONS_ROW_CONTROLS = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.CONTROLS);
+const OPTIONS_ROW_DIAGNOSTIC_MODE = optionsMenuRowIndex(
+  OPTIONS_ROW_ORDER,
+  OPTIONS_MENU_ROW.DIAGNOSTIC_MODE
+);
+const OPTIONS_ROW_TELEMETRY = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.TELEMETRY);
+const OPTIONS_ROW_START_MENU = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.START_MENU);
 const CONTROL_SCHEME_PANEL_W = 342;
 const CONTROL_SCHEME_PANEL_H = 218;
 const TELEMETRY_CONSENT_PANEL_W = 360;
@@ -7663,6 +7683,9 @@ function startMenuActions() {
   actions.push({ id: START_MENU_ACTION_ACHIEVEMENTS, label: uiText("start.achievements") });
   actions.push({ id: START_MENU_ACTION_OPTIONS, label: uiText("options.title") });
   actions.push({ id: START_MENU_ACTION_CREDITS, label: uiText("start.credits") });
+  if (steamPlatformBridge) {
+    actions.push({ id: START_MENU_ACTION_QUIT, label: uiText("options.quitGame") });
+  }
   return actions;
 }
 
@@ -11293,7 +11316,7 @@ function loadStoredControlScheme() {
     return normalizeControlScheme(raw);
   } catch (error) {
     console.warn("[pixel-globe] discarded invalid stored control scheme", error);
-    return CONTROL_SCHEME_ABSOLUTE;
+    return DEFAULT_CONTROL_SCHEME;
   }
 }
 
@@ -20524,7 +20547,11 @@ function activateStartMenuSelection() {
     openOptionsMenu();
     return;
   }
-  if (action.id === START_MENU_ACTION_CREDITS) openCreditsMenu();
+  if (action.id === START_MENU_ACTION_CREDITS) {
+    openCreditsMenu();
+    return;
+  }
+  if (action.id === START_MENU_ACTION_QUIT) void saveAndQuitDesktop();
 }
 
 function handlePointerDown(event) {
@@ -56049,7 +56076,8 @@ function drawOptionsMenu() {
 
 function drawOptionsSettingsRow(index, rowRect) {
   const highlighted = optionsMenu.selectedIndex === index;
-  if (SHOW_WISHLIST_CTA && index === OPTIONS_ROW_WISHLIST) drawWishlistButton(rowRect, highlighted, lastFrameMs);
+  if (steamPlatformBridge && index === OPTIONS_ROW_QUIT) drawOptionsQuitRow(rowRect, highlighted);
+  else if (SHOW_WISHLIST_CTA && index === OPTIONS_ROW_WISHLIST) drawWishlistButton(rowRect, highlighted, lastFrameMs);
   else if (index === OPTIONS_ROW_FULLSCREEN) drawOptionsFullscreenRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_MUSIC) {
     drawOptionsVolumeRow(rowRect, uiText("options.music"), "music", optionsMenu.musicVolume, highlighted);
@@ -56063,7 +56091,6 @@ function drawOptionsSettingsRow(index, rowRect) {
   else if (index === OPTIONS_ROW_DIAGNOSTIC_MODE) drawOptionsDiagnosticModeRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_TELEMETRY) drawOptionsTelemetryRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_START_MENU) drawOptionsStartMenuRow(rowRect, highlighted);
-  else if (steamPlatformBridge && index === OPTIONS_ROW_QUIT) drawOptionsQuitRow(rowRect, highlighted);
   else throw new Error(`Unknown options settings row: ${index}`);
 }
 
