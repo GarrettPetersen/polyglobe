@@ -127,6 +127,7 @@ test("conquest removes retired defenders before another combat frame and preserv
     cityByTileId: new Map([[1, city]]), portCities: [city], chart: null, ship: null,
     reconcileConquistadorSovereignty() {}, applyPortConquestOwnership() {},
     reconcileColonizationQuestOriginAfterConquest: () => null, reconcileQuestWorldAssumptions() {},
+    sailingDistanceBetweenPorts: () => 0,
     npcSeaRoutes: { shipById: new Map([[retiredId, {}], [survivorId, { factionId: "spain" }]]) },
     applyNpcConquestOwnership(system) { system.shipById.delete(retiredId); },
     npcVisualShips: new Map([[retiredId, { id: retiredId }], [survivorId, survivor]]),

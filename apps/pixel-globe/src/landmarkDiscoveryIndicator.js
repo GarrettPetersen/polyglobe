@@ -6,13 +6,14 @@ export const LANDMARK_DISCOVERY_ICON_GAP_PX = 3;
 export const LANDMARK_DISCOVERY_BOB_PX = 2;
 export const LANDMARK_DISCOVERY_BOB_PERIOD_MS = 1800;
 
-const WORLD_DISCOVERY_KINDS = new Set(["mountain", "landmark", "legend"]);
-
 export function discoveryHasLandmarkIndicator(discovery) {
   if (!discovery || typeof discovery !== "object") {
     throw new Error("Landmark indicator requires a discovery");
   }
-  return WORLD_DISCOVERY_KINDS.has(discovery.kind);
+  if (discovery.kind === "mountain") return true;
+  if (discovery.kind !== "landmark" && discovery.kind !== "legend") return false;
+  return (typeof discovery.spriteKey === "string" && discovery.spriteKey.trim() !== "") ||
+    discovery.worldFeatureKind === "water";
 }
 
 export function landmarkDiscoveryIndicatorRect({

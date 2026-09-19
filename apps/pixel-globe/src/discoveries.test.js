@@ -17,6 +17,7 @@ import {
   GREAT_PYRAMID_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_ID,
   LAKE_VICTORIA_DISCOVERY_RADIUS_PX,
+  MAX_WORLD_DISCOVERY_ART_PLACEMENT_DISTANCE_KM,
   MOUNT_SHASTA_DISCOVERY_RADIUS_PX,
   MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY,
   MOAI_DISCOVERY_ID,
@@ -73,6 +74,10 @@ test("world wonders map onto globe tiles and visual landmarks get dedicated art 
   assert.ok(discoveries.every((item) => Number.isInteger(item.tileId)));
   assert.ok(discoveries.every((item) =>
     item.spriteKey ? Number.isInteger(item.spriteTileId) : item.spriteTileId === null
+  ));
+  assert.ok(discoveries.every((item) => item.spriteKey
+    ? item.spritePlacementDistanceKm <= MAX_WORLD_DISCOVERY_ART_PLACEMENT_DISTANCE_KM
+    : item.spritePlacementDistanceKm === null
   ));
   const pyramid = discoveries.find((item) => item.id === GREAT_PYRAMID_DISCOVERY_ID);
   assert.ok(pyramid);
@@ -258,8 +263,12 @@ test("world discovery registry is unique, complete, and explicit about historici
   assert.ok(WORLD_DISCOVERY_SPECS
     .filter((item) => waterFeatures.has(item.id))
     .every((item) =>
-      item.spriteKey === null && item.menuTerrainSpriteKey === WATER_DISCOVERY_MENU_SPRITE_KEY
+      item.spriteKey === null && item.worldFeatureKind === "water" &&
+      item.menuTerrainSpriteKey === WATER_DISCOVERY_MENU_SPRITE_KEY
     ));
+  assert.ok(WORLD_DISCOVERY_SPECS.every((item) =>
+    Boolean(item.spriteKey) || item.worldFeatureKind === "water"
+  ));
   assert.equal(
     mountainDiscovery({ id: "mountain-fuji", displayName: "Mount Fuji", elevationM: 3776, tileId: 42 })
       .menuTerrainSpriteKey,

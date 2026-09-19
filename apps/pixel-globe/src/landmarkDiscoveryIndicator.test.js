@@ -10,10 +10,12 @@ import {
 } from "./landmarkDiscoveryIndicator.js";
 import { itemAcquisitionEffectFrame } from "./itemAcquisitionEffect.js";
 
-test("physical discoveries receive eye indicators but voyage feats do not", () => {
+test("only authored art, mountains, and water features receive eye indicators", () => {
   assert.equal(discoveryHasLandmarkIndicator({ kind: "mountain" }), true);
-  assert.equal(discoveryHasLandmarkIndicator({ kind: "landmark" }), true);
-  assert.equal(discoveryHasLandmarkIndicator({ kind: "legend" }), true);
+  assert.equal(discoveryHasLandmarkIndicator({ kind: "landmark", spriteKey: "moai" }), true);
+  assert.equal(discoveryHasLandmarkIndicator({ kind: "legend", spriteKey: "el_dorado" }), true);
+  assert.equal(discoveryHasLandmarkIndicator({ kind: "landmark", worldFeatureKind: "water" }), true);
+  assert.equal(discoveryHasLandmarkIndicator({ kind: "landmark" }), false);
   assert.equal(discoveryHasLandmarkIndicator({ kind: "achievement" }), false);
 });
 

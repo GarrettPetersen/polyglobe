@@ -9,7 +9,10 @@ import {
   recordDiscovery,
   updateCircumnavigationProgress
 } from "./gameState.js";
-import { buildMountainLandmarks } from "./mountainLandmarks.js";
+import {
+  MAX_FAMOUS_MOUNTAIN_PLACEMENT_DISTANCE_KM,
+  buildMountainLandmarks
+} from "./mountainLandmarks.js";
 import {
   AUTHORED_MOUNTAIN_REPORT_IDS,
   explorerReportDialogueForDiscovery,
@@ -45,6 +48,9 @@ test("full named mountain data aligns with cached peak tiles", async () => {
   assert.ok(mountOlympus);
   assert.ok(mountOlympus.legacyDiscoveryIds.includes("mountain-24808-mount-olympus"));
   assert.equal(registry.famous.some((mountain) => mountain.displayName === "Cero Raya"), false);
+  assert.ok(registry.famous.every(
+    (mountain) => mountain.placementDistanceKm <= MAX_FAMOUS_MOUNTAIN_PLACEMENT_DISTANCE_KM
+  ));
   assert.deepEqual(
     new Set(AUTHORED_MOUNTAIN_REPORT_IDS),
     new Set(registry.famous.map((mountain) => mountain.id))

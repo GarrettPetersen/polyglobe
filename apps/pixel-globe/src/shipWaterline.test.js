@@ -4,8 +4,11 @@ import test from "node:test";
 import {
   SHIP_MAX_RASTER_WATERLINE_DEPTH,
   SHIP_REFRACTION_BAND_HEIGHT,
+  SHIP_SUBMERGED_ALPHA,
+  SHIP_SUBMERGED_REFRACTION_ALPHA,
   SHIP_WATERLINE_LEVEL,
   encodedShipWaterlineY,
+  floatingShipSubmergedRenderPasses,
   floatingShipSubmergedPixelKeys,
   floatingShipSubmergedPixelKeysForDimensions,
   liveShipRefractionOffset,
@@ -165,6 +168,27 @@ test("live refraction is pixel-snapped, subtle, and changes over time", () => {
   ));
   assert.ok(offsets.every((offset) => Number.isInteger(offset) && Math.abs(offset) <= 1));
   assert.ok(new Set(offsets).size > 1);
+});
+
+test("the stable submerged hull remains stronger than its moving refraction", () => {
+  assert.ok(SHIP_SUBMERGED_ALPHA > 0.5);
+  assert.ok(SHIP_SUBMERGED_REFRACTION_ALPHA > 0);
+  assert.ok(SHIP_SUBMERGED_REFRACTION_ALPHA < SHIP_SUBMERGED_ALPHA);
+  assert.ok(
+    1 - (1 - SHIP_SUBMERGED_ALPHA) * (1 - SHIP_SUBMERGED_REFRACTION_ALPHA) < 0.75,
+    "overlapping passes should not make the underwater hull look opaque"
+  );
+  assert.deepEqual(floatingShipSubmergedRenderPasses({ refraction: true }), [
+    { kind: "underpaint", alpha: SHIP_SUBMERGED_ALPHA, refractionPx: 0 },
+    { kind: "refraction", alpha: SHIP_SUBMERGED_REFRACTION_ALPHA, refractionPx: 1 }
+  ]);
+  assert.deepEqual(floatingShipSubmergedRenderPasses({ refraction: false }), [
+    { kind: "underpaint", alpha: SHIP_SUBMERGED_ALPHA, refractionPx: 0 }
+  ]);
+  assert.throws(
+    () => floatingShipSubmergedRenderPasses({ refraction: "yes" }),
+    /refraction choice/
+  );
 });
 
 test("adjacent refraction bands do not all move in lockstep", () => {

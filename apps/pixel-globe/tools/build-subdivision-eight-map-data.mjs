@@ -577,16 +577,20 @@ const rapaVillageTileId = findNearestTileId(
   fineDirectionIndex,
   latLonToDirection(rapaVillage.lat, rapaVillage.lon)
 );
-const moaiDirection = latLonToDirection(-27.1258, -109.2767);
-const moaiTileId = [...fineGraph.neighbors[rapaVillageTileId]].sort((a, b) => (
-  directionDot(b, moaiDirection) - directionDot(a, moaiDirection)
-))[0];
-if (!landOverrideByTileId.has(moaiTileId)) {
-  const source = earth.tiles[moaiTileId];
-  const template = nearestInheritedLandOverride(moaiTileId, inheritedLandOverrides);
-  landOverrideByTileId.set(moaiTileId, {
+// Preserve the first edge of the authored subdivision-seven Rapa Nui chain.
+// A single neighboring land tile is not sufficient: landmark art is kept at
+// least one tile clear of settlements, so the placement search otherwise
+// crosses the Pacific and puts the Moai on Pitcairn.
+const rapaNuiLandTileIds = refineChain([141773, 141771]);
+if (rapaNuiLandTileIds[0] !== rapaVillageTileId) {
+  throw new Error(`Rapa Nui village moved from its authored tile: ${rapaVillageTileId}`);
+}
+for (const tileId of rapaNuiLandTileIds.slice(1)) {
+  const source = earth.tiles[tileId];
+  const template = nearestInheritedLandOverride(tileId, inheritedLandOverrides);
+  landOverrideByTileId.set(tileId, {
     ...template,
-    tileId: moaiTileId,
+    tileId,
     sourceTerrain: source.t,
     terrainType: "tropical_savanna",
     landmassId: reviewedSettlementLandmassId(rapaVillage)
@@ -818,11 +822,6 @@ function cityPlacementDirection(city) {
     hasPlacementLat ? city.placementLat : city.lat,
     hasPlacementLon ? city.placementLon : city.lon
   );
-}
-
-function directionDot(tileId, direction) {
-  const center = graphCenter(fineGraph, tileId);
-  return center[0] * direction[0] + center[1] * direction[1] + center[2] * direction[2];
 }
 
 function greatCircleDistanceKm(a, b) {

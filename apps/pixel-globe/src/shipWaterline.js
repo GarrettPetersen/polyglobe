@@ -2,11 +2,29 @@ import { underwaterRefractionPhase } from "./underwaterRefraction.js";
 
 export const SHIP_WATERLINE_DEPTH_BYTE = 128;
 export const SHIP_WATERLINE_LEVEL = SHIP_WATERLINE_DEPTH_BYTE / 255;
-export const SHIP_SUBMERGED_ALPHA = 0.38;
+// Keep an unshifted hull impression beneath the animated refraction. Moving the
+// only submerged copy exposes ocean-colored seams along the waterline.
+export const SHIP_SUBMERGED_ALPHA = 0.62;
+export const SHIP_SUBMERGED_REFRACTION_ALPHA = 0.18;
 export const SHIP_REFRACTION_BAND_HEIGHT = 3;
 export const SHIP_DECK_NORMAL_Y = 0.35;
 export const SHIP_MIN_RASTER_WATERLINE_DEPTH = 1;
 export const SHIP_MAX_RASTER_WATERLINE_DEPTH = 5;
+const SHIP_SUBMERGED_UNDERPAINT_PASS = Object.freeze({
+  kind: "underpaint",
+  alpha: SHIP_SUBMERGED_ALPHA,
+  refractionPx: 0
+});
+const SHIP_SUBMERGED_REFRACTION_PASS = Object.freeze({
+  kind: "refraction",
+  alpha: SHIP_SUBMERGED_REFRACTION_ALPHA,
+  refractionPx: 1
+});
+const SHIP_SUBMERGED_STABLE_PASSES = Object.freeze([SHIP_SUBMERGED_UNDERPAINT_PASS]);
+const SHIP_SUBMERGED_ANIMATED_PASSES = Object.freeze([
+  SHIP_SUBMERGED_UNDERPAINT_PASS,
+  SHIP_SUBMERGED_REFRACTION_PASS
+]);
 const MAX_UNSUPPORTED_SUBMERGED_COLUMN_HEIGHT = 2;
 const SHIP_DEEP_DRAFT_RASTER_DEPTH = Object.freeze({
   "japanese-atakebune": 6,
@@ -19,6 +37,13 @@ export function shipMaxRasterWaterlineDepth(slug) {
     throw new Error(`Ship raster waterline depth requires a slug: ${slug}`);
   }
   return SHIP_DEEP_DRAFT_RASTER_DEPTH[slug] ?? SHIP_MAX_RASTER_WATERLINE_DEPTH;
+}
+
+export function floatingShipSubmergedRenderPasses({ refraction }) {
+  if (typeof refraction !== "boolean") {
+    throw new Error(`Floating ship render passes require a refraction choice: ${refraction}`);
+  }
+  return refraction ? SHIP_SUBMERGED_ANIMATED_PASSES : SHIP_SUBMERGED_STABLE_PASSES;
 }
 
 export function shipPixelIsAboveWater(sinkHeight) {

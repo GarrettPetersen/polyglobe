@@ -214,6 +214,7 @@ test("restored city catalogs rebuild sea capitals before applying saved conquest
       calls.push("capitals"); ports[0].capitalOfFactionId = "england";
       return new Map([["england", ports[0]]]);
     }, colonizationSettlementMemories: () => [], colonizationWorldRecord: () => null,
+    sailingDistanceBetweenPorts: () => 0,
     applyPortConquestOwnership: (_memory, cities) => {
       assert.equal(cities[0].capitalOfFactionId, "england"); calls.push("conquest");
     }, reconcileConquistadorSovereignty() {}, reconcileColonizationQuestOriginAfterConquest() {}, reconcileQuestWorldAssumptions() {}

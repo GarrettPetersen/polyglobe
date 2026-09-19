@@ -1323,8 +1323,8 @@ import {
 } from "./shipSinking.js";
 import {
   SHIP_REFRACTION_BAND_HEIGHT,
-  SHIP_SUBMERGED_ALPHA,
   SHIP_WATERLINE_LEVEL,
+  floatingShipSubmergedRenderPasses,
   liveShipRefractionOffset
 } from "./shipWaterline.js";
 import {
@@ -61309,20 +61309,22 @@ function shipWaterlineFrameCanvas(layers, kind) {
 }
 
 function drawFloatingShipSprite(call, layers, nowMs) {
-  const refractionTime = reducedMotionPreferred ? 0 : nowMs;
+  const refractionTime = nowMs;
   const firstBandY = Math.floor(layers.submergedMinY / SHIP_REFRACTION_BAND_HEIGHT) *
     SHIP_REFRACTION_BAND_HEIGHT;
   const bands = [];
-  for (
-    let y = firstBandY;
-    y <= layers.submergedMaxY;
-    y += SHIP_REFRACTION_BAND_HEIGHT
-  ) {
-    bands.push({
-      y,
-      height: Math.min(SHIP_REFRACTION_BAND_HEIGHT, SHIP_SHEET_FRAME_SIZE - y),
-      offset: liveShipRefractionOffset(y, refractionTime, call.bobSeed)
-    });
+  if (!reducedMotionPreferred) {
+    for (
+      let y = firstBandY;
+      y <= layers.submergedMaxY;
+      y += SHIP_REFRACTION_BAND_HEIGHT
+    ) {
+      bands.push({
+        y,
+        height: Math.min(SHIP_REFRACTION_BAND_HEIGHT, SHIP_SHEET_FRAME_SIZE - y),
+        offset: liveShipRefractionOffset(y, refractionTime, call.bobSeed)
+      });
+    }
   }
   const frame = cachedFloatingShipFrame(layers, bands);
   ctx.drawImage(
@@ -61363,19 +61365,26 @@ function cachedFloatingShipFrame(layers, bands) {
   }
 
   atlas.ctx.clearRect(slot.x, slot.y, slot.width, slot.height);
-  atlas.ctx.globalAlpha = SHIP_SUBMERGED_ALPHA;
-  for (const band of bands) {
-    atlas.ctx.drawImage(
-      shipWaterlineFrameCanvas(layers, "submerged"),
-      0,
-      band.y,
-      SHIP_SHEET_FRAME_SIZE,
-      band.height,
-      slot.x + 1 + band.offset,
-      slot.y + band.y,
-      SHIP_SHEET_FRAME_SIZE,
-      band.height
-    );
+  const [underpaintPass, refractionPass] = floatingShipSubmergedRenderPasses({
+    refraction: bands.length > 0
+  });
+  atlas.ctx.globalAlpha = underpaintPass.alpha;
+  atlas.ctx.drawImage(shipWaterlineFrameCanvas(layers, "submerged"), slot.x + 1, slot.y);
+  if (refractionPass) {
+    atlas.ctx.globalAlpha = refractionPass.alpha;
+    for (const band of bands) {
+      atlas.ctx.drawImage(
+        shipWaterlineFrameCanvas(layers, "submerged"),
+        0,
+        band.y,
+        SHIP_SHEET_FRAME_SIZE,
+        band.height,
+        slot.x + 1 + band.offset,
+        slot.y + band.y,
+        SHIP_SHEET_FRAME_SIZE,
+        band.height
+      );
+    }
   }
   atlas.ctx.globalAlpha = 1;
   atlas.ctx.drawImage(shipWaterlineFrameCanvas(layers, "above"), slot.x + 1, slot.y);
@@ -61595,18 +61604,22 @@ function drawGpuShipCommand(command) {
   if (command.kind !== "ship") throw new Error(`Unknown GPU ship command kind: ${command.kind}`);
   const { drawCall, layers, foreground, nowMs } = command;
   if (layers.submergedMaxY >= layers.submergedMinY) {
-    worldRenderer.drawAtlasSprite({
-      source: layers.submergedSource,
-      sourceRect: layers.submergedSourceRect,
-      destinationRect: {
-        x: drawCall.x,
-        y: drawCall.y,
-        width: SHIP_SHEET_FRAME_SIZE,
-        height: SHIP_SHEET_FRAME_SIZE
-      },
-      alpha: SHIP_SUBMERGED_ALPHA,
-      refractionPx: 1
-    });
+    for (const pass of floatingShipSubmergedRenderPasses({
+      refraction: !reducedMotionPreferred
+    })) {
+      worldRenderer.drawAtlasSprite({
+        source: layers.submergedSource,
+        sourceRect: layers.submergedSourceRect,
+        destinationRect: {
+          x: drawCall.x,
+          y: drawCall.y,
+          width: SHIP_SHEET_FRAME_SIZE,
+          height: SHIP_SHEET_FRAME_SIZE
+        },
+        alpha: pass.alpha,
+        refractionPx: pass.refractionPx
+      });
+    }
   }
   worldRenderer.drawAtlasSprite({
     source: layers.aboveSource,

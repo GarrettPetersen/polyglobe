@@ -1,4 +1,5 @@
 import { findNearestTileId } from "./geodesic.js";
+import { greatCircleDistanceKm } from "./worldDistance.js";
 
 export const GREAT_PYRAMID_DISCOVERY_ID = "landmark-great-pyramid";
 export const GREAT_BARRIER_REEF_DISCOVERY_ID = "landmark-great-barrier-reef";
@@ -23,6 +24,7 @@ export const MAX_MOUNTAIN_DISCOVERY_RADIUS_PX = Math.max(
   MOUNT_SHASTA_DISCOVERY_RADIUS_PX
 );
 export const WATER_DISCOVERY_MENU_SPRITE_KEY = "water_shallow_01";
+export const MAX_WORLD_DISCOVERY_ART_PLACEMENT_DISTANCE_KM = 160;
 
 const MOUNTAIN_DISCOVERY_RADIUS_OVERRIDES = new Map([
   ["mountain-mount-shasta", MOUNT_SHASTA_DISCOVERY_RADIUS_PX]
@@ -175,7 +177,7 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
       fillRemainingHold: true
     })
   }
-].map((spec) => Object.freeze(spec)));
+].map((spec) => Object.freeze(validateWorldDiscoverySpec(spec))));
 
 export const WORLD_DISCOVERY_SPRITE_KEYS = Object.freeze([
   ...new Set(WORLD_DISCOVERY_SPECS.map((spec) => spec.spriteKey).filter(Boolean))
@@ -242,12 +244,25 @@ export function buildWorldDiscoveries(graph, directionIndex, placement) {
         ? findNearestNavigableTile(direction, graph, reusablePlacement)
         : findDedicatedLandmarkTile(spec, tileId, graph, reusablePlacement)
       : null;
+    const spritePlacementDistanceKm = spriteTileId === null
+      ? null
+      : greatCircleDistanceKm(spec, {
+        lat: graph.latDeg[spriteTileId],
+        lon: graph.lonDeg[spriteTileId]
+      });
+    if (spritePlacementDistanceKm > MAX_WORLD_DISCOVERY_ART_PLACEMENT_DISTANCE_KM) {
+      throw new Error(
+        `World discovery art is too far from ${spec.displayName}: ` +
+        `${spritePlacementDistanceKm.toFixed(1)} km on tile ${spriteTileId}`
+      );
+    }
     return Object.freeze({
       ...spec,
       direction,
       routeDirections: routeDirections.length > 0 ? Object.freeze(routeDirections) : undefined,
       tileId,
       spriteTileId,
+      spritePlacementDistanceKm,
       navigationDistancePx
     });
   });
@@ -408,8 +423,19 @@ function waterFeature(slug, displayName, detail, lat, lon, radiusPx, options = {
   return {
     ...landmark(slug, displayName, detail, lat, lon, radiusPx, options),
     spriteKey: null,
+    worldFeatureKind: "water",
     menuTerrainSpriteKey: WATER_DISCOVERY_MENU_SPRITE_KEY
   };
+}
+
+function validateWorldDiscoverySpec(spec) {
+  const hasAuthoredArt = typeof spec?.spriteKey === "string" && spec.spriteKey.trim() !== "";
+  if (!hasAuthoredArt && spec?.worldFeatureKind !== "water") {
+    throw new Error(
+      `World discovery ${spec?.id || "(missing id)"} requires authored art or an explicit water feature`
+    );
+  }
+  return spec;
 }
 
 export function restrictMountainsToNavigableView(registry, graph, navigableMask, maxDistanceRad) {

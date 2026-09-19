@@ -25,6 +25,8 @@ import {
 } from "./demoVoyage.js";
 import {
   MAX_MOUNTAIN_DISCOVERY_RADIUS_PX,
+  MAX_WORLD_DISCOVERY_ART_PLACEMENT_DISTANCE_KM,
+  MOAI_DISCOVERY_ID,
   buildWorldDiscoveries,
   mountainDiscoveryCatalog,
   restrictMountainsToNavigableView
@@ -475,7 +477,34 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
       discovery.navigationDistancePx <= WORLD_LANDMARK_VIEWPORT_RADIUS_PX,
       `${discovery.displayName} must fit between its approach and the viewport edge`
     );
+    if (discovery.spriteKey) {
+      assert.ok(
+        discovery.spritePlacementDistanceKm <= MAX_WORLD_DISCOVERY_ART_PLACEMENT_DISTANCE_KM,
+        `${discovery.displayName} art must remain near its authored location`
+      );
+    }
   }
+  const rapaNui = [...placedByTileId.values()].find(
+    (city) => city.cityId === "rapa nui village|rapa nui"
+  );
+  const moai = discoveries.find((discovery) => discovery.id === MOAI_DISCOVERY_ID);
+  const pitcairnTileId = findNearestTileId(
+    graph,
+    directionIndex,
+    latLonToDirection(-25.066, -130.1)
+  );
+  assert.ok(rapaNui, "Rapa Nui Village must be placed");
+  assert.ok(moai, "the Moai discovery must exist");
+  assert.equal(
+    earthRows[moai.spriteTileId].m,
+    rapaNui.landmassId,
+    "the Moai art and eye must stay on Rapa Nui"
+  );
+  assert.notEqual(
+    earthRows[moai.spriteTileId].m,
+    earthRows[pitcairnTileId].m,
+    "the Moai discovery must never fall back to Pitcairn"
+  );
 
   const namedMountains = JSON.parse(await readFile(new URL(
     "examples/globe-demo/public/mountains.json",

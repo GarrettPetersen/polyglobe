@@ -1,8 +1,10 @@
 import { findNearestTileId } from "./geodesic.js";
 import { requireCanonicalDiscoveryId } from "./discoveryIdentity.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
+import { greatCircleDistanceKm } from "./worldDistance.js";
 
 export const NAMED_MOUNTAINS_URL = "shared/mountains.json";
+export const MAX_FAMOUS_MOUNTAIN_PLACEMENT_DISTANCE_KM = 50;
 
 const ICONIC_MOUNTAIN_NAMES = new Set([
   "aconcagua",
@@ -117,11 +119,22 @@ export function buildMountainLandmarks(mountains, graph, directionIndex, cachePe
       ? directTileId
       : nearestCachePeakTileId(graph, direction, cachePeakIdsByElevation.get(mountain.elevationM) || allCachedPeakTileIds);
     const displayName = displayNames[index];
+    const famous = isFamousMountain(mountain);
+    const placementDistanceKm = greatCircleDistanceKm(mountain, {
+      lat: graph.latDeg[tileId],
+      lon: graph.lonDeg[tileId]
+    });
+    if (famous && placementDistanceKm > MAX_FAMOUS_MOUNTAIN_PLACEMENT_DISTANCE_KM) {
+      throw new Error(
+        `Famous mountain ${displayName} is ${placementDistanceKm.toFixed(1)} km from tile ${tileId}`
+      );
+    }
     return {
       ...mountain,
       tileId,
       displayName,
-      famous: isFamousMountain(mountain)
+      famous,
+      placementDistanceKm
     };
   });
 
