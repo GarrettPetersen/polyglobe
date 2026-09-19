@@ -24,6 +24,7 @@ test("repeated market context refreshes do not search worldwide shipyard listing
     weatherParts: { dayIndex: 0 }, graph: { lonDeg: [0, 30] }, ship: null,
     portArrivalNavigationByCityId: new Map(), STORM_ACTIVE_INTENSITY: 1, WEATHER_MINUTES_PER_DAY: 1440,
     playerAccessiblePortCities: () => [city], pendingPassengerOffersForCity: () => [],
+    portTradeInformationPorts: (_memory, _sourceCity, legitimatePorts) => legitimatePorts,
     nearestShipyardListingForPort: () => { searches++; return { portId: "basra|iraq" }; },
     shipyardRumorForPort: () => { searches++; return { portId: "basra|iraq" }; }
   };

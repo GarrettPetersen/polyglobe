@@ -2505,6 +2505,10 @@ export function selectPortDialogueAction(
     if (session.nodeId !== "market") {
       throw new Error(`Cannot leave the market from ${session.nodeId}`);
     }
+    const tradeInformationPorts = context.tradeInformationPorts ?? portCities;
+    if (!Array.isArray(tradeInformationPorts)) {
+      throw new Error("Market advice requires a port information catalog");
+    }
     const madePurchase = Object.keys(session.marketPurchases).length > 0;
     const tip = madePurchase
       ? bestPurchasedTradeRoute({
@@ -2512,7 +2516,7 @@ export function selectPortDialogueAction(
           originCity: city,
           gameState,
           economy,
-          portCities,
+          portCities: tradeInformationPorts,
           simMinute: context.simMinute ?? 0,
           sailingDistanceKm: context.sailingDistanceKm
         })
@@ -2522,7 +2526,7 @@ export function selectPortDialogueAction(
           originCity: city,
           gameState,
           economy,
-          portCities,
+          portCities: tradeInformationPorts,
           simMinute: context.simMinute ?? 0,
           sailingDistanceKm: context.sailingDistanceKm
         })
@@ -2533,7 +2537,7 @@ export function selectPortDialogueAction(
       originCity: city,
       gameState,
       economy,
-      portCities,
+      portCities: tradeInformationPorts,
       simMinute: context.simMinute ?? 0,
       sailingDistanceKm: context.sailingDistanceKm,
       random: context.random || Math.random
@@ -7016,7 +7020,7 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
           originCity: city,
           gameState,
           economy,
-          portCities: context.portCities,
+          portCities: context.tradeInformationPorts ?? context.portCities,
           simMinute: context.simMinute ?? 0,
           sailingDistanceKm: context.sailingDistanceKm,
           materials: ledger.currentBuild.materials

@@ -57,6 +57,42 @@ export function pirateHavenIsVisible(memory, cityId, simMinute, piratesReveal) {
   return piratesReveal || pirateHavenIsRuined(memory, cityId, simMinute) ||
     (memory.suppression?.havenCityId === cityId && !memory.suppression.ready);
 }
+
+// Player discovery does not grant legitimate factors knowledge of outlaw
+// markets. Pirate-haven contacts, by contrast, trade in both worlds.
+export function portTradeInformationPorts(memory, sourceCity, legitimatePorts, pirateHavens, simMinute) {
+  minute(simMinute);
+  if (!sourceCity || typeof sourceCity.cityId !== "string" || sourceCity.cityId === "") {
+    throw new Error("Port information requires a canonical source city");
+  }
+  if (!Array.isArray(legitimatePorts) || !Array.isArray(pirateHavens)) {
+    throw new Error("Port information requires legitimate-port and pirate-haven catalogs");
+  }
+  const portsById = new Map();
+  const addPort = (port, expectedPirateHaven) => {
+    if (!port || typeof port.cityId !== "string" || port.cityId === "") {
+      throw new Error("Port information catalog contains a city without a canonical ID");
+    }
+    if ((port.isPirateHideout === true) !== expectedPirateHaven) {
+      throw new Error(`Port information catalog misclassifies ${port.cityId}`);
+    }
+    if (portsById.has(port.cityId)) {
+      throw new Error(`Port information catalog repeats ${port.cityId}`);
+    }
+    portsById.set(port.cityId, port);
+  };
+  for (const port of legitimatePorts) addPort(port, false);
+  if (sourceCity.isPirateHideout !== true) return Object.freeze([...portsById.values()]);
+
+  havenId(sourceCity.cityId);
+  for (const haven of pirateHavens) {
+    havenId(haven?.cityId);
+    if (pirateHavenIsRuined(memory, haven.cityId, simMinute)) continue;
+    addPort(haven, true);
+  }
+  return Object.freeze([...portsById.values()]);
+}
+
 export function ruinPirateHaven(memory, cityId, simMinute) {
   havenId(cityId); minute(simMinute);
   if (pirateHavenIsRuined(memory, cityId, simMinute)) throw new Error(`Pirate haven is already ruined: ${cityId}`);

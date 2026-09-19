@@ -4,7 +4,7 @@ import { createGameState, migrateGameState, receiveQuestPayment } from "./gameSt
 import { createPirateHavenMemory, validatePirateHavenMemory, pirateHavenQuestOffer,
  acceptPirateHavenQuest, completePirateHavenQuest, seizePirateRevengeItem,
  pirateQuestInventory, pirateHavenIsRuined, pirateHavenIsVisible, ruinPirateHaven,
- pirateHavenSuppressionReward, settlePirateHavenSuppressionBounty,
+ pirateHavenSuppressionReward, portTradeInformationPorts, settlePirateHavenSuppressionBounty,
  PIRATE_HAVEN_REBUILD_MINUTES } from "./pirateHavens.js";
 const haven={cityId:"pirate-haven-1",city:"Black Gull Cove",isPirateHideout:true};
 const port={cityId:"lisbon|portugal",city:"Lisbon"};
@@ -64,6 +64,38 @@ test("suppression reveals one haven, ruins persist six months, then ordinary vis
  assert.equal(pirateHavenIsVisible(restored,haven.cityId,deadline,false),false);
  assert.equal(pirateHavenIsVisible(restored,haven.cityId,deadline,true),true);
  assert.ok(pirateHavenQuestOffer(restored,port,{...context,simMinute:deadline}));
+});
+test("legitimate ports know no pirate commerce while active havens know both kinds of port", () => {
+ const state=createGameState({cargoCapacity:20});
+ const secondHaven={cityId:"pirate-haven-2",city:"Lanternless Quay",isPirateHideout:true};
+ const legitimatePorts=[port,{cityId:"porto|portugal",city:"Porto"}];
+ const havens=[haven,secondHaven];
+ acceptPirateHavenQuest(state.memory.pirateHavens,pirateHavenQuestOffer(state.memory.pirateHavens,port,context));
+ assert.equal(pirateHavenIsVisible(state.memory.pirateHavens,haven.cityId,0,false),true,
+   "a suppression contract reveals its target to the player");
+ assert.deepEqual(
+   portTradeInformationPorts(state.memory.pirateHavens,port,legitimatePorts,havens,0)
+     .map(({cityId})=>cityId),
+   legitimatePorts.map(({cityId})=>cityId),
+   "legitimate NPCs still do not gain commercial knowledge of the revealed haven"
+ );
+ assert.deepEqual(
+   portTradeInformationPorts(state.memory.pirateHavens,haven,legitimatePorts,havens,0)
+     .map(({cityId})=>cityId),
+   [...legitimatePorts,...havens].map(({cityId})=>cityId),
+   "pirate NPCs know active legitimate ports and havens whether or not the player discovered them"
+ );
+ ruinPirateHaven(state.memory.pirateHavens,secondHaven.cityId,1);
+ assert.deepEqual(
+   portTradeInformationPorts(state.memory.pirateHavens,haven,legitimatePorts,havens,1)
+     .map(({cityId})=>cityId),
+   [...legitimatePorts,haven].map(({cityId})=>cityId),
+   "ruined havens never remain a source of trade intelligence"
+ );
+ assert.throws(
+   ()=>portTradeInformationPorts(state.memory.pirateHavens,port,[haven],havens,1),
+   /misclassifies pirate-haven-1/
+ );
 });
 test("suppression rewards fit issuer capacity and settle once into the ledger at destruction", () => {
  const village={...port,population:1200};

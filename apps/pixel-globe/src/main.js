@@ -11,7 +11,7 @@ import { shipTargetRumorEligible, recordShipTargetRumor, shipTargetRumorText } f
 import { patrolWokouHuntAtPort } from "./npcSeaRoutes.js";
 import { pirateHavenNavigationReasonText } from "./pirateHavenDialogue.js";
 import { shipItemRows } from "./gameState.js";
-import { pirateQuestAtIssuer, pirateHavenIsRuined, pirateRevengeTargetPresent, pirateHavenIsVisible, pirateHavenQuestOffer, ruinPirateHaven, seizePirateRevengeItem, settlePirateHavenSuppressionBounty } from "./pirateHavens.js";
+import { pirateQuestAtIssuer, pirateHavenIsRuined, pirateRevengeTargetPresent, pirateHavenIsVisible, pirateHavenQuestOffer, portTradeInformationPorts, ruinPirateHaven, seizePirateRevengeItem, settlePirateHavenSuppressionBounty } from "./pirateHavens.js";
 import { portApproachReachable } from "./portApproach.js";
 import { cityPortApproachOverride } from "./cityGeographyCorrections.js";
 import { chartCityLocationId, indexChartCityLocations } from "./chartCityLocations.js";
@@ -29316,22 +29316,19 @@ function portDialogueContext() {
   const shipyard = city && !questOnlyColony ? shipyardAtPort(worldEconomy.shipyards, city) : null;
   const simMinute = Math.floor(weatherClockMinutes);
   const accessiblePorts = playerAccessiblePortCities();
-  const shipyardNoticeEligiblePortIds = new Set([
-    ...accessiblePorts.map((port) => port.cityId),
-    ...npcSeaRoutes.pirateHideouts
-      .filter((haven) => pirateHavenIsVisible(
+  let tradeInformationPorts = city
+    ? portTradeInformationPorts(
         gameState.memory.pirateHavens,
-        haven.cityId,
-        simMinute,
-        pirateHideoutsVisibleToPlayer(gameState)
-      ) && !pirateHavenIsRuined(gameState.memory.pirateHavens, haven.cityId, simMinute))
-      .map((haven) => haven.cityId)
-  ]);
+        city,
+        accessiblePorts,
+        npcSeaRoutes.pirateHideouts,
+        simMinute
+      )
+    : accessiblePorts;
   if (mediterraneanDemoVoyageIsActive()) {
-    for (const cityId of shipyardNoticeEligiblePortIds) {
-      if (!demoAccessiblePortIds.has(cityId)) shipyardNoticeEligiblePortIds.delete(cityId);
-    }
+    tradeInformationPorts = tradeInformationPorts.filter((port) => demoAccessiblePortIds.has(port.cityId));
   }
+  const tradeInformationPortIds = new Set(tradeInformationPorts.map((port) => port.cityId));
   const passengerOffers = city && dialogueState?.kind === "port"
     ? pendingPassengerOffersForCity(gameState, city)
     : [];
@@ -29358,6 +29355,7 @@ function portDialogueContext() {
     missionGiftRandom: Math.random,
     chefFeastGuestsGathered: !chefFeastInputBlocked(),
     portCities: accessiblePorts,
+    tradeInformationPorts,
     cities: [...cityByTileId.values()],
     simMinute,
     dayIndex: weatherParts.dayIndex,
@@ -29383,7 +29381,7 @@ function portDialogueContext() {
         worldEconomy.shipyards,
         city,
         sailingDistanceBetweenPorts,
-        shipyardNoticeEligiblePortIds
+        tradeInformationPortIds
       )
       : null; },
     portEntryStatus: city ? portEntryStatus(gameState, city, simMinute) : null,
@@ -29398,7 +29396,7 @@ function portDialogueContext() {
         city,
         sailingDistanceBetweenPorts,
         undefined,
-        shipyardNoticeEligiblePortIds
+        tradeInformationPortIds
       )
       : null; },
     passengerOffer: passengerOffers[0] || null,
