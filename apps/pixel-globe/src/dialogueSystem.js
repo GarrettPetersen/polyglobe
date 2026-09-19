@@ -141,7 +141,7 @@ import {
   portEconomySummary,
   portGoodSupply,
   portMarket,
-  procureWorldEconomyShipyardMaterials,
+  procureWorldEconomyShipyardMaterial,
   quotePortPurchase,
   quoteRepeatedPortPurchase,
   quotePortSale,
@@ -2407,7 +2407,18 @@ export function selectPortDialogueAction(
       action.quantity,
       tradeContext(session, context)
     );
-    procureWorldEconomyShipyardMaterials(economy, city);
+    const procurement = procureWorldEconomyShipyardMaterial(
+      economy,
+      city,
+      action.goodId,
+      marketSale.quantity
+    );
+    if (procurement.transferred[action.goodId] !== marketSale.quantity) {
+      throw new Error(
+        `Shipyard failed to receive sold ${action.goodId}: ` +
+        `${procurement.transferred[action.goodId]}/${marketSale.quantity}`
+      );
+    }
     session.feedback = `${marketSale.good.label} x${marketSale.quantity} moved straight to the yard stores.`;
     session.selectedIndex = 0;
     return { closed: false, marketSale, shipyardMaterialSale: marketSale };

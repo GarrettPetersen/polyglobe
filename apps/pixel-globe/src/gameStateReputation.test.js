@@ -26,7 +26,10 @@ import {
   SHIP_MERCY_REPUTATION_GAIN,
   SHIP_ATTACK_REPUTATION_PENALTY,
   TRADE_PASS_REPUTATION_REQUIRED,
+  TRADE_REPUTATION_DOUBLOONS_PER_POINT,
   TRADE_REPUTATION_GAIN,
+  TRADE_REPUTATION_PERIOD_CAP,
+  TRADE_REPUTATION_PERIOD_MINUTES,
   adjustFactionReputation,
   attemptPortDisguise,
   buyGood,
@@ -66,6 +69,7 @@ import {
   recordPirateLoss,
   recordSelfDefenseAgainstFaction,
   recordShipMercyForFaction,
+  recordTradeWithFaction,
   validateGameState
 } from "./gameState.js";
 import {
@@ -630,14 +634,41 @@ test("version 47 voyages from before Rhodes recover without losing their save", 
   validateGameState(restored);
 });
 
-test("successful trade gives only a tiny faction reputation gain", () => {
+test("legal trade standing scales with transaction value", () => {
   const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
   const before = factionReputation(state, "england");
 
-  buyGood(state, economy, LONDON, "wool", 1, { simMinute: 100 });
+  const purchase = buyGood(state, economy, LONDON, "wool", 1, { simMinute: 100 });
 
-  assert.equal(factionReputation(state, "england"), before + TRADE_REPUTATION_GAIN);
+  assert.equal(
+    factionReputation(state, "england"),
+    before + purchase.price / TRADE_REPUTATION_DOUBLOONS_PER_POINT
+  );
+});
+
+test("legal trade standing is capped per faction and period", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const before = factionReputation(state, "england");
+  for (let index = 0; index < 20; index += 1) {
+    recordTradeWithFaction(state, "england", 1000, { simMinute: 100 });
+  }
+  assert.equal(factionReputation(state, "england"), before + TRADE_REPUTATION_PERIOD_CAP);
+
+  recordTradeWithFaction(state, "england", 1000, {
+    simMinute: TRADE_REPUTATION_PERIOD_MINUTES + 100
+  });
+  assert.equal(factionReputation(state, "england"), before + TRADE_REPUTATION_PERIOD_CAP + 1);
+});
+
+test("illicit trade is standing-neutral unless its enforcement path catches the captain", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const before = factionReputation(state, "england");
+
+  recordTradeWithFaction(state, "england", 100000, { simMinute: 100, illicit: true });
+
+  assert.equal(factionReputation(state, "england"), before);
+  assert.equal(state.memory.decisions["reputation.trade.england"], undefined);
 });
 
 test("failed trade does not change faction reputation", () => {

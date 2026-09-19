@@ -1506,6 +1506,7 @@ test("Colombo offers cartaz papers before opening its official cinnamon market",
   });
   const context = { simMinute: 100, random: () => 0.1, shipStats: shipStatsForSlug("brigantine") };
   const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  const portugalStandingBefore = factionReputation(gameState, "portugal");
 
   let view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.ok(view.options.some((entry) => entry.label === "Portuguese cartaz"));
@@ -1745,6 +1746,7 @@ test("Colombo smugglers sell cinnamon under the existing illicit-trade enforceme
   assert.equal(purchase.marketPurchase.tradeTerms.accessPolicyId, PORTUGUESE_CROWN_SPICE_POLICY_ID);
   assert.equal(session.illicitTradeVisit.enforcementFactionId, "portugal");
   assert.equal(session.illicitTradeVisit.purchasedCargo.cinnamon, 1);
+  assert.equal(factionReputation(gameState, "portugal"), portugalStandingBefore);
 });
 
 test("buying the final unit disables its stable market row instead of moving later goods", () => {

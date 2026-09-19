@@ -2063,6 +2063,7 @@ import {
   shipyardListings,
   shipyardListingById,
   shipyardMaterialStatus,
+  shipyardMaterialStockTone,
   shipyardPurchaseTerms,
   shipConstructionPrice,
   shipyardRumorForPort
@@ -3634,6 +3635,9 @@ const CAPTURE_AUTOMATIC_MODE = automaticCaptureMode(window.location.search);
 const CAPTURE_AUTOMATIC = CAPTURE_AUTOMATIC_MODE !== null;
 const CAPTURE_FRAME_PASS = CAPTURE_AUTOMATIC_MODE === AUTOMATIC_CAPTURE_FRAME_PASS;
 const CAPTURE_VIEWPORT = captureViewportFromSearch(window.location.search);
+const START_QUERY = new URLSearchParams(window.location.search);
+const CAPTAIN_SELECTION_REQUESTED = START_QUERY.get("chooseCaptain") === "1";
+const CAPTAIN_SELECTED_FOR_START = START_QUERY.get("selectedCaptain") === "1";
 if (CAPTURE_AUTOMATIC && !CAPTURE_SCENARIO) {
   throw new Error("Automatic capture requires a named capture scenario");
 }
@@ -4194,6 +4198,7 @@ const dialogueViewCache = createPausedViewCache("Dialogue");
 let dialogueShipMotionPause = null;
 let dialogueLayout = createDialogueLayoutState();
 let startMenu = null;
+let newVoyageCaptainChoices = [];
 let lakeBattleMode = null;
 let lakeBattleTerrainChart = null;
 let lakeBattleTerrainChartKey = "";
@@ -4960,6 +4965,21 @@ async function main() {
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
+  if (!CAPTURE_SCENARIO && !CAPTAIN_SELECTED_FOR_START) {
+    const alternate = generateAlternatePlayerStartingProfile({
+      primaryIdentityKey: voyageSeed,
+      primaryProfile: playerProfile,
+      ports: BUILD_EDITION_ID === "demo" ? eligiblePlayerStartPorts : portCities,
+      portWeights: npcFleetOriginWeightsForPorts(
+        BUILD_EDITION_ID === "demo" ? eligiblePlayerStartPorts : portCities
+      ),
+      manifest: characterPortraitManifest
+    });
+    newVoyageCaptainChoices = Object.freeze([
+      Object.freeze({ identityKey: voyageSeed, profile: playerProfile }),
+      alternate
+    ]);
+  }
   const playerCharacter = CAPTURE_SCENARIO
     ? capturePlayerCharacter(playerProfile.character, CAPTURE_SCENARIO)
     : playerProfile.character;
@@ -5173,6 +5193,9 @@ async function main() {
   console.info(`[pixel-globe] named characters: ${usedCharacterNames.size} unique people`);
   playerIntroModal = CAPTURE_SCENARIO ? null : createPlayerIntroModal(playerCharacter);
   startMenu = CAPTURE_SCENARIO ? null : createStartMenuState();
+  if (startMenu && CAPTAIN_SELECTION_REQUESTED && localSaveResult.status !== "ready") {
+    startMenu.captainSelection = createCaptainSelectionState();
+  }
   hasStartedVoyage = Boolean(CAPTURE_SCENARIO);
   if (SAVE_RESTORE_SMOKE_ENABLED) {
     setupThemeMusic();
@@ -5194,7 +5217,10 @@ async function main() {
       return;
     }
   } else {
-    await ensureCharacterPortraitLoaded(playerCharacter, characterExpression(playerCharacter));
+    await Promise.all((newVoyageCaptainChoices.length > 0
+      ? newVoyageCaptainChoices.map(({ profile }) => profile.character)
+      : [playerCharacter]
+    ).map(character => ensureCharacterPortraitLoaded(character, characterExpression(character))));
     syncShipCargoFromGameState();
     camera = northUpCamera(ship.position);
     centerTileId = ship.tileId;
@@ -5202,6 +5228,10 @@ async function main() {
     chart = buildChart(camera);
     reframeWorldNorthUp("new game setup", { allowUncovered: true });
     await loadInitialNearbyWorldAssets();
+  }
+  if (!CAPTURE_SCENARIO && CAPTAIN_SELECTED_FOR_START && localSaveResult.status !== "ready") {
+    clearCaptainSelectionQueryParameters();
+    startNewVoyage();
   }
   if (!CAPTURE_SCENARIO && !CAPTURE_FRAME_PASS) {
     // Compile and cache the first complete world frame while the dedicated
@@ -7586,7 +7616,22 @@ function createStartMenuState() {
     isLoading: false,
     message: localSaveResult.status === "invalid" ? "SAVE COULD NOT BE READ" : "",
     newGameConfirmation: null,
+    captainSelection: null,
     preparedVoyage: null
+  };
+}
+
+function createCaptainSelectionState() {
+  if (newVoyageCaptainChoices.length !== 2) {
+    throw new Error(`Captain selection requires exactly two candidates: ${newVoyageCaptainChoices.length}`);
+  }
+  return {
+    selectedIndex: 0,
+    hoveredCardIndex: null,
+    cardRects: [],
+    confirmRect: null,
+    cancelRect: null,
+    error: ""
   };
 }
 
@@ -9033,17 +9078,21 @@ function initializeTreasureCampaignWorld() {
 
 function ensureTreasureCampaignEncounters({
   assignCaptains = true,
-  respawnAtHideouts = false
+  respawnAtHideouts = false,
+  avoidPosition = null
 } = {}) {
   const goal = activeTreasureCampaignGoal();
   if (!goal || !npcSeaRoutes || goal.mapPirates.length === 0) return [];
   const added = [];
   if (goal.treasureRecovered) {
     const defeated = new Set(goal.ambushDefeatedPirateIds);
-    const points = treasureAmbushSpawnPoints(goal.mapPirates.length);
+    const points = treasureAmbushSpawnPoints(goal.mapPirates.length, avoidPosition);
     for (const [index, pirate] of goal.mapPirates.entries()) {
-      if (defeated.has(pirate.id)) continue;
       const existing = npcSeaRoutes.shipById.get(pirate.shipId);
+      if (defeated.has(pirate.id)) {
+        if (existing) removeTreasurePirateShip(existing.id);
+        continue;
+      }
       if (existing?.encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND &&
           existing.encounter.stage === TREASURE_PIRATE_STAGE_AMBUSH) {
         continue;
@@ -9073,6 +9122,7 @@ function ensureTreasureCampaignEncounters({
         }
       }, weatherClockMinutes));
     }
+    assertTreasureAmbushFleet(goal);
   } else if (treasureCampaignPhase(goal) === "map-hunt") {
     const acquired = new Set(goal.acquiredMapPiecePirateIds);
     for (const pirate of goal.mapPirates) {
@@ -9099,6 +9149,24 @@ function ensureTreasureCampaignEncounters({
     synchronizeTreasurePirateCaptains();
   }
   return added;
+}
+
+function assertTreasureAmbushFleet(goal) {
+  const defeated = new Set(goal.ambushDefeatedPirateIds);
+  for (const pirate of goal.mapPirates) {
+    const strategic = npcSeaRoutes.shipById.get(pirate.shipId);
+    if (defeated.has(pirate.id)) {
+      if (strategic) throw new Error(`Defeated treasure pirate remains active: ${pirate.shipId}`);
+      continue;
+    }
+    if (!strategic || strategic.hitPoints <= 0 || strategic.hiddenAtHideout === true ||
+        strategic.encounter?.kind !== TREASURE_PIRATE_ENCOUNTER_KIND ||
+        strategic.encounter.stage !== TREASURE_PIRATE_STAGE_AMBUSH ||
+        strategic.encounter.pirateId !== pirate.id) {
+      throw new Error(`Treasure ambush fleet is incomplete: ${pirate.shipId}`);
+    }
+  }
+  return true;
 }
 
 function synchronizeTreasurePirateCaptains() {
@@ -9217,9 +9285,9 @@ function retireResolvedTreasurePirate(shipId) {
   return true;
 }
 
-function treasureAmbushSpawnPoints(count) {
+function treasureAmbushSpawnPoints(count, avoidPosition = null) {
   const home = campaignGoalHomeCity();
-  const candidates = [];
+  let candidates = [];
   const nearbyTiles = worldTilesWithinArcRadius({
     graph,
     originTileId: home.tileId,
@@ -9233,6 +9301,17 @@ function treasureAmbushSpawnPoints(count) {
   }
   if (candidates.length < count) {
     throw new Error(`Home port has only ${candidates.length} navigable pirate ambush positions`);
+  }
+  if (avoidPosition) {
+    const safeCandidates = candidates.filter(tileId => {
+      const separationKm = EARTH_RADIUS_KM * Math.acos(clamp(
+        dot3(tileCenterVector(tileId), avoidPosition),
+        -1,
+        1
+      ));
+      return separationKm >= 120;
+    });
+    if (safeCandidates.length >= count) candidates = safeCandidates;
   }
   candidates.sort((a, b) => {
     const bearingA = initialBearingDeg(home, { lat: graph.latDeg[a], lon: graph.lonDeg[a] });
@@ -10050,7 +10129,8 @@ function dispatchWorldOverlayPointerMove(event, point) {
     if (optionsMenu.activeSliderKey) setOptionsVolumeFromPoint(optionsMenu.activeSliderKey, point);
     else dirty = true;
   } else if (owner === INTERACTION_INPUT.START_MENU) {
-    if (startMenu.newGameConfirmation) updateNewGameConfirmationSelectionFromPoint(point);
+    if (startMenu.captainSelection) updateCaptainSelectionHover(point);
+    else if (startMenu.newGameConfirmation) updateNewGameConfirmationSelectionFromPoint(point);
     else updateStartMenuSelectionFromPoint(point);
   } else if (owner === INTERACTION_INPUT.CAPTAIN_ALERT) {
     if (captainAlertModal.kind === "choice") {
@@ -14698,6 +14778,48 @@ function randomPlayerCharacterIdentitySeed() {
   return Array.from(values, (value) => value.toString(36)).join("-");
 }
 
+function generateAlternatePlayerStartingProfile({
+  primaryIdentityKey,
+  primaryProfile,
+  ports,
+  portWeights,
+  manifest
+}) {
+  if (!primaryIdentityKey) {
+    throw new Error("Alternate captain generation requires the primary identity key");
+  }
+  if (!primaryProfile?.character?.id || !primaryProfile?.homePort?.cityId) {
+    throw new Error("Alternate captain generation requires a complete primary profile");
+  }
+  const differentAreaAvailable = ports.some(port => {
+    const area = playerStartAreaForPort(port);
+    return area !== null && area !== primaryProfile.startArea;
+  });
+  for (let attempt = 0; attempt < 64; attempt += 1) {
+    const identityKey = randomPlayerCharacterIdentitySeed();
+    if (identityKey === primaryIdentityKey) continue;
+    const profile = generatePlayerStartingProfile({
+      identityKey,
+      ports,
+      portWeights,
+      manifest,
+      usedNames: new Set([primaryProfile.character.name])
+    });
+    if (differentAreaAvailable && profile.startArea === primaryProfile.startArea) continue;
+    if (profile.homePort.cityId === primaryProfile.homePort.cityId) continue;
+    if (profile.character.sourceId === primaryProfile.character.sourceId) continue;
+    return Object.freeze({ identityKey, profile });
+  }
+  throw new Error("Could not generate two distinct starting captains");
+}
+
+function clearCaptainSelectionQueryParameters() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("chooseCaptain");
+  url.searchParams.delete("selectedCaptain");
+  window.history.replaceState(null, "", url);
+}
+
 function setMusicVolume(value) {
   optionsMenu.musicVolume = Math.round(clamp(value, 0, 1) * 100) / 100;
   writeLocalStorage(MUSIC_VOLUME_STORAGE_KEY, String(optionsMenu.musicVolume));
@@ -16928,7 +17050,11 @@ function startNewVoyage() {
       hasStartedVoyage = voyageWasStarted;
       throw error;
     }
-    window.location.reload();
+    const url = new URL(window.location.href);
+    url.searchParams.delete("captainSeed");
+    url.searchParams.delete("selectedCaptain");
+    url.searchParams.set("chooseCaptain", "1");
+    window.location.replace(url);
     return;
   }
   sailingTutorialState = createSailingTutorialState();
@@ -18090,7 +18216,6 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   }
 
   ensureColonizationDefenseEncounter({ assignCaptains: false });
-  ensureTreasureCampaignEncounters({ assignCaptains: false });
   pendingWineCaptainDialogues.length = 0;
   pendingFetchQuestCaptainDialogues.length = 0;
   initializeFetchQuestReadiness();
@@ -18278,6 +18403,9 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   ensureNaturalistCharacter(gameState);
   for (const character of pirateHideoutCharacters.values()) usedCharacterNames.add(character.name);
   campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
+  // A missing legacy ambusher may be reconstructed during restore, but never
+  // directly on top of the restored player ship.
+  ensureTreasureCampaignEncounters({ assignCaptains: false, avoidPosition: ship.position });
   const repairedLegacyCaptainHomes = repairLegacyPointEncounterCaptainHomes();
   if (repairedLegacyCaptainHomes > 0) {
     recoveredDerivedSystems = addDerivedSaveRecoveryLabel(
@@ -20280,6 +20408,10 @@ function persistKeyBindings(nextBindings) {
 function handleStartMenuKeyDown(event) {
   event.preventDefault();
   if (startMenu.isLoading) return;
+  if (startMenu.captainSelection) {
+    handleCaptainSelectionKeyDown(event.key);
+    return;
+  }
   if (startMenu.newGameConfirmation) {
     handleNewGameConfirmationKeyDown(event.key);
     return;
@@ -20345,7 +20477,7 @@ function activateStartMenuSelection() {
   }
   if (action.id === START_MENU_ACTION_NEW_GAME) {
     if (localSaveResult.status === "ready") openNewGameConfirmation();
-    else startNewVoyage();
+    else openCaptainSelection();
     return;
   }
   if (action.id === START_MENU_ACTION_LAKE_BATTLE) {
@@ -20897,6 +21029,10 @@ function handleKeyBindingsPointerDown(point) {
 
 function handleStartMenuPointerDown(point) {
   if (startMenu.isLoading) return;
+  if (startMenu.captainSelection) {
+    handleCaptainSelectionPointerDown(point);
+    return;
+  }
   if (startMenu.newGameConfirmation) {
     handleNewGameConfirmationPointerDown(point);
     return;
@@ -20925,6 +21061,100 @@ function handleStartMenuPointerDown(point) {
     activateStartMenuSelection();
     return;
   }
+}
+
+function openCaptainSelection() {
+  if (!startMenu || localSaveResult.status === "ready") {
+    throw new Error("Captain selection requires an unsaved new voyage");
+  }
+  startMenu.captainSelection = createCaptainSelectionState();
+  startMenu.message = "";
+  previewCaptainSelection(0);
+  keys.clear();
+  clearPointerSteering();
+  dirty = true;
+}
+
+function closeCaptainSelection() {
+  if (!startMenu?.captainSelection) return;
+  startMenu.captainSelection = null;
+  camera = northUpCamera(ship.position);
+  centerTileId = ship.tileId;
+  localLayout = createNorthUpLocalLayout(centerTileId, camera);
+  chart = buildChart(camera);
+  dirty = true;
+}
+
+function previewCaptainSelection(index) {
+  const selection = startMenu?.captainSelection;
+  const choice = newVoyageCaptainChoices[index];
+  if (!selection || !choice) throw new Error(`Unknown captain selection: ${index}`);
+  selection.selectedIndex = index;
+  const home = choice.profile.homePort;
+  const position = latLonToDirection(home.lat, home.lon);
+  camera = northUpCamera(position);
+  centerTileId = home.tileId;
+  localLayout = createNorthUpLocalLayout(centerTileId, camera);
+  chart = buildChart(camera);
+  void loadInitialNearbyWorldAssets().catch(error => {
+    selection.error = uiText("historical.couldNotStart");
+    if (!pendingWorldAssetError) pendingWorldAssetError = error instanceof Error ? error : new Error(String(error));
+    dirty = true;
+  });
+  dirty = true;
+}
+
+function handleCaptainSelectionKeyDown(key) {
+  const selection = startMenu?.captainSelection;
+  if (!selection) throw new Error("Captain selection keyboard input requires an open selection");
+  if (key === "Escape") {
+    closeCaptainSelection();
+    return;
+  }
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key)) {
+    previewCaptainSelection(selection.selectedIndex === 0 ? 1 : 0);
+    return;
+  }
+  if (key === "Enter" || key === " ") confirmCaptainSelection();
+}
+
+function handleCaptainSelectionPointerDown(point) {
+  const selection = startMenu?.captainSelection;
+  if (!selection) throw new Error("Captain selection pointer input requires an open selection");
+  const index = selection.cardRects.findIndex(rect => pointInRect(point, rect));
+  if (index >= 0) {
+    previewCaptainSelection(index);
+    return;
+  }
+  if (pointInRect(point, selection.confirmRect)) {
+    confirmCaptainSelection();
+    return;
+  }
+  if (pointInRect(point, selection.cancelRect)) closeCaptainSelection();
+}
+
+function updateCaptainSelectionHover(point) {
+  const selection = startMenu?.captainSelection;
+  if (!selection) throw new Error("Captain selection hover requires an open selection");
+  const index = selection.cardRects.findIndex(rect => pointInRect(point, rect));
+  selection.hoveredCardIndex = index >= 0 ? index : null;
+  dirty = true;
+}
+
+function confirmCaptainSelection() {
+  const selection = startMenu?.captainSelection;
+  const choice = selection ? newVoyageCaptainChoices[selection.selectedIndex] : null;
+  if (!choice) throw new Error("Cannot confirm a closed captain selection");
+  if (choice.identityKey === newVoyageCaptainChoices[0].identityKey) {
+    clearCaptainSelectionQueryParameters();
+    startNewVoyage();
+    return;
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.delete("chooseCaptain");
+  url.searchParams.set("captainSeed", choice.identityKey);
+  url.searchParams.set("selectedCaptain", "1");
+  window.location.replace(url);
 }
 
 function openNewGameConfirmation() {
@@ -22343,7 +22573,8 @@ function handleCanvasWheel(event) {
     stepKeyBindingSelection(event.deltaY > 0 ? 1 : -1);
     return;
   }
-  if (owner === INTERACTION_INPUT.START_MENU && !startMenu.newGameConfirmation) {
+  if (owner === INTERACTION_INPUT.START_MENU &&
+      !startMenu.newGameConfirmation && !startMenu.captainSelection) {
     event.preventDefault();
     startMenu.selectedIndex = stepMenuIndex(
       startMenu.selectedIndex,
@@ -25659,6 +25890,9 @@ async function attemptPlayerPortConquest(cityCall, random = Math.random, {signal
     throw new Error("Port assault requires a ready city scene");
   }
   if (portAssaultState) throw new Error("A port assault is already active");
+  // Constructing the manifest validates that every carried envoy and other
+  // traveler has a named individual before the raid can become active.
+  currentAboardRoster();
   portAssaultForecastClient.clear();
   portCityView.feast = null;
   portCityRuntime.setFeastPresentation(null);
@@ -38866,9 +39100,12 @@ function updateNpcCombat(dt) {
         engagement.aId === PLAYER_COMBAT_ID || engagement.bId === PLAYER_COMBAT_ID
       ))
     : null;
-  const initiatingNpcId = colonizationDefenseInitiator || (firstPlayerEngagement
+  const initiatingNpcCandidateId = colonizationDefenseInitiator || (firstPlayerEngagement
     ? (firstPlayerEngagement.aId === PLAYER_COMBAT_ID ? firstPlayerEngagement.bId : firstPlayerEngagement.aId)
     : null);
+  const initiatingNpcId = initiatingNpcCandidateId && automaticNpcCombatHailAllowed(initiatingNpcCandidateId)
+    ? initiatingNpcCandidateId
+    : null;
   if (initiatingNpcId && !pendingNpcCombatHailId) {
     pendingNpcCombatHailId = initiatingNpcId;
     const attacker = npcVisualShips.get(initiatingNpcId);
@@ -39419,6 +39656,12 @@ function openNpcCombatHail(npcShipId) {
   if (attemptEnvoyIntercession(state.factionId, character)) return true;
   openShipDialogue({ id: npcShipId, character }, { attackReason: npcCombatAttackReason(state) });
   return true;
+}
+
+function automaticNpcCombatHailAllowed(npcShipId) {
+  const encounter = npcSeaRoutes?.shipById.get(npcShipId)?.encounter;
+  return encounter?.kind !== TREASURE_PIRATE_ENCOUNTER_KIND ||
+    encounter.stage !== TREASURE_PIRATE_STAGE_AMBUSH;
 }
 
 function retainSupplyCaptainIdentity(npcShipId, character) {
@@ -54750,6 +54993,10 @@ function lakeBattleActionLabel(action) {
 }
 
 function drawStartMenu(nowMs) {
+  if (startMenu.captainSelection) {
+    drawCaptainSelection();
+    return;
+  }
   const actions = startMenuActions();
   startMenu.selectedIndex = clampMenuIndex(startMenu.selectedIndex, actions.length);
   const denseActions = actions.length >= 5;
@@ -54866,6 +55113,144 @@ function drawStartMenu(nowMs) {
   }
   ctx.restore();
   if (startMenu.newGameConfirmation) drawNewGameConfirmation();
+}
+
+function drawCaptainSelection() {
+  const selection = startMenu?.captainSelection;
+  if (!selection || newVoyageCaptainChoices.length !== 2) {
+    throw new Error("Captain selection cannot be drawn without two candidates");
+  }
+  const panelHeight = Math.min(270, SCREEN_H - 16);
+  const panel = {
+    x: Math.floor((SCREEN_W - Math.min(446, SCREEN_W - 12)) / 2),
+    y: Math.floor((SCREEN_H - panelHeight) / 2),
+    w: Math.min(446, SCREEN_W - 12),
+    h: panelHeight
+  };
+  const gap = 8;
+  const cardsY = panel.y + 31;
+  const footerH = 35;
+  const cardH = panel.h - 31 - footerH - 7;
+  const cardW = Math.floor((panel.w - 20 - gap) / 2);
+  selection.cardRects = [0, 1].map(index => ({
+    x: panel.x + 10 + index * (cardW + gap),
+    y: cardsY,
+    w: cardW,
+    h: cardH
+  }));
+  const buttonY = panel.y + panel.h - 35;
+  selection.cancelRect = { x: panel.x + 10, y: buttonY, w: 62, h: 27 };
+  selection.confirmRect = {
+    x: panel.x + 80,
+    y: buttonY,
+    w: panel.w - 90,
+    h: 27
+  };
+
+  ctx.save();
+  drawPiratePaperModal(panel, 0.48);
+  ctx.fillStyle = PIRATE_MENU_INK;
+  drawPixelText(uiText("historical.chooseCommander"), panel.x + panel.w / 2, panel.y + 10, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center"
+  });
+
+  newVoyageCaptainChoices.forEach(({ profile }, index) => {
+    const character = profile.character;
+    const baseRect = selection.cardRects[index];
+    const hovered = selection.hoveredCardIndex === index;
+    const selected = selection.selectedIndex === index;
+    const lift = hovered ? -2 : 0;
+    const rect = { ...baseRect, y: baseRect.y + lift };
+    if (hovered) {
+      ctx.fillStyle = "rgba(242, 212, 146, 0.28)";
+      ctx.fillRect(rect.x - 3, rect.y - 3, rect.w + 6, rect.h + 6);
+      ctx.fillStyle = "rgba(25, 31, 36, 0.34)";
+      ctx.fillRect(rect.x + 3, rect.y + rect.h + 1, rect.w, 3);
+    }
+    ctx.fillStyle = selected ? PIRATE_MENU_PAPER_SELECTED : PIRATE_MENU_PAPER_BUTTON;
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.strokeStyle = selected || hovered ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
+    ctx.lineWidth = selected ? 2 : 1;
+    ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+    ctx.lineWidth = 1;
+    if (selected) {
+      ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+      ctx.fillRect(rect.x + 4, rect.y + 4, 5, 2);
+      ctx.fillRect(rect.x + 4, rect.y + 4, 2, 5);
+      ctx.fillRect(rect.x + rect.w - 9, rect.y + 4, 5, 2);
+      ctx.fillRect(rect.x + rect.w - 6, rect.y + 4, 2, 5);
+    }
+    ctx.fillStyle = PIRATE_MENU_INK;
+    drawPixelText(
+      fitPixelText(character.name.toUpperCase(), PIXEL_FONT_SMALL_8, rect.w - 12),
+      rect.x + rect.w / 2,
+      rect.y + 8,
+      { font: PIXEL_FONT_SMALL_8, align: "center" }
+    );
+    const portraitX = Math.round(rect.x + (rect.w - DIALOGUE_PORTRAIT_SIZE) / 2);
+    const portraitY = rect.y + 20;
+    ctx.fillStyle = "#191f24";
+    ctx.fillRect(portraitX - 2, portraitY - 2, DIALOGUE_PORTRAIT_SIZE + 4, DIALOGUE_PORTRAIT_SIZE + 4);
+    ctx.strokeStyle = hovered ? "#f2d492" : "#8ac0b4";
+    ctx.strokeRect(portraitX - 1.5, portraitY - 1.5, DIALOGUE_PORTRAIT_SIZE + 3, DIALOGUE_PORTRAIT_SIZE + 3);
+    drawDialoguePortrait(character, null, portraitX, portraitY);
+    const homeY = portraitY + DIALOGUE_PORTRAIT_SIZE + 7;
+    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    drawPixelText("HOME PORT", rect.x + rect.w / 2, homeY, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+    ctx.fillStyle = PIRATE_MENU_INK;
+    drawPixelText(
+      fitPixelText(character.homePortName.toUpperCase(), PIXEL_FONT_SMALL_8, rect.w - 10),
+      rect.x + rect.w / 2,
+      homeY + 9,
+      { font: PIXEL_FONT_SMALL_8, align: "center" }
+    );
+    const skill = characterSkillSummary(characterSkills(character)[0].id);
+    ctx.fillStyle = "#f2d492";
+    const skillRect = { x: rect.x + 7, y: rect.y + rect.h - 27, w: rect.w - 14, h: 20 };
+    ctx.fillRect(skillRect.x, skillRect.y, skillRect.w, skillRect.h);
+    ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+    ctx.strokeRect(skillRect.x + 0.5, skillRect.y + 0.5, skillRect.w - 1, skillRect.h - 1);
+    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    drawPixelText("SKILL", skillRect.x + skillRect.w / 2, skillRect.y + 2, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+    ctx.fillStyle = PIRATE_MENU_INK;
+    drawPixelText(
+      fitPixelText(renderedUiText(skill.label).toUpperCase(), PIXEL_FONT_SMALL_8, skillRect.w - 6),
+      skillRect.x + skillRect.w / 2,
+      skillRect.y + 10,
+      { font: PIXEL_FONT_SMALL_8, align: "center" }
+    );
+  });
+
+  drawStartMenuButton(selection.cancelRect, uiText("common.back"), false);
+  const selectedName = newVoyageCaptainChoices[selection.selectedIndex].profile.character.name;
+  drawPiratePaperInset(selection.confirmRect, true);
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  drawPixelText(uiText("historical.takeCommand"), selection.confirmRect.x + selection.confirmRect.w / 2, selection.confirmRect.y + 3, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "center"
+  });
+  ctx.fillStyle = PIRATE_MENU_INK;
+  drawPixelText(
+    fitPixelText(selectedName.toUpperCase(), PIXEL_FONT_SMALL_8, selection.confirmRect.w - 12),
+    selection.confirmRect.x + selection.confirmRect.w / 2,
+    selection.confirmRect.y + 14,
+    { font: PIXEL_FONT_SMALL_8, align: "center" }
+  );
+  if (selection.error) {
+    ctx.fillStyle = "#f68181";
+    drawPixelText(selection.error, panel.x + panel.w / 2, buttonY - 8, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+  }
+  ctx.restore();
 }
 
 function drawNewGameConfirmation() {
@@ -67288,12 +67673,10 @@ function drawShipyardMaterialBar(rect, material) {
 }
 
 function shipyardMaterialBarColor(material) {
-  if (!material || !Number.isFinite(material.ratio) || material.ratio < 0 || material.ratio > 1) {
-    throw new Error(`Invalid shipyard material ratio: ${material?.ratio}`);
-  }
-  if (material.missing > 0) return "#b65050";
-  if (material.stockpileMissing > 0) return "#b58a37";
-  return "#4f7d43";
+  const tone = shipyardMaterialStockTone(material);
+  if (tone === "full") return "#4f7d43";
+  if (tone === "shortage") return "#b65050";
+  return "#b58a37";
 }
 
 function drawShipyardProgressBar(rect, progress) {

@@ -890,6 +890,17 @@ export function shipyardMaterialStatus(yard, shipSlug = null) {
     }));
 }
 
+export function shipyardMaterialStockTone(material) {
+  if (!material || !Number.isFinite(material.ratio) || material.ratio < 0 || material.ratio > 1 ||
+      !Number.isFinite(material.missing) || material.missing < 0 ||
+      !Number.isFinite(material.stockpileMissing) || material.stockpileMissing < 0) {
+    throw new Error("Invalid shipyard material status");
+  }
+  if (material.stockpileMissing <= 0) return "full";
+  if (material.missing > 0) return "shortage";
+  return "low";
+}
+
 export function shipyardMaterialStockTargets(yard) {
   if (!yard || !Number.isInteger(yard.buildNumber) || !Number.isFinite(yard.nextBuildMinute)) {
     throw new Error("Shipyard material targets require a valid yard");
@@ -1185,6 +1196,25 @@ function representativeShipyardHull(yard) {
 }
 
 export function procureShipyardMaterials(yard, materialMarket) {
+  return procureSelectedShipyardMaterials(
+    yard,
+    materialMarket,
+    SHIPBUILDING_MATERIAL_GOOD_IDS,
+    Infinity
+  );
+}
+
+export function procureShipyardMaterial(yard, materialMarket, goodId, maximumQuantity) {
+  if (!SHIPBUILDING_MATERIAL_GOOD_IDS.includes(goodId)) {
+    throw new Error(`Unknown shipyard material: ${goodId}`);
+  }
+  if (!Number.isFinite(maximumQuantity) || maximumQuantity <= 0) {
+    throw new Error(`Invalid shipyard material procurement quantity: ${maximumQuantity}`);
+  }
+  return procureSelectedShipyardMaterials(yard, materialMarket, [goodId], maximumQuantity);
+}
+
+function procureSelectedShipyardMaterials(yard, materialMarket, goodIds, maximumQuantity) {
   if (!materialMarket) return Object.freeze({ transferred: emptyMaterialInventory() });
   if (typeof materialMarket.available !== "function" || typeof materialMarket.consume !== "function") {
     throw new Error("Shipyard material market requires available and consume functions");
@@ -1196,14 +1226,14 @@ export function procureShipyardMaterials(yard, materialMarket) {
   const plannedListing = generateShipyardListing(yard, yard.buildNumber + 1, yard.nextBuildMinute);
   const stockTargets = shipyardMaterialStockTargets(yard);
   const transferred = emptyMaterialInventory();
-  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+  for (const goodId of goodIds) {
     const shortage = Math.max(0, stockTargets[goodId] - yard.materialInventory[goodId]);
     const marketAvailable = materialMarket.available(yard.portId, goodId);
     if (!Number.isFinite(marketAvailable) || marketAvailable < 0) {
       throw new Error(`Invalid shipyard market stock at ${yard.portId}: ${goodId}=${marketAvailable}`);
     }
     const available = marketAvailable;
-    const quantity = Math.min(shortage, available);
+    const quantity = Math.min(shortage, available, maximumQuantity);
     if (quantity <= 0) continue;
     materialMarket.consume(yard.portId, goodId, quantity);
     yard.materialInventory[goodId] += quantity;

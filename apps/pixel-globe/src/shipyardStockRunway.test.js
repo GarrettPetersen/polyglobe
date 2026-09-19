@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { createWorldShipyards, fundPlayerShipyard, advanceWorldShipyards,
   shipyardCurrentBuild, shipyardMaterialStockTargets, shipyardMaterialStatus,
+  shipyardMaterialStockTone,
   generateShipyardListing, snapshotWorldShipyards, restoreWorldShipyards,
   replaceWorldShipyardPort, shipyardHasAdvancedFacilities } from "./shipyards.js";
 
@@ -116,4 +117,10 @@ test("grandfathered surplus survives restore and purchases stop above warehouse 
     assert.ok(material.stocked > material.stockTarget);
     assert.equal(material.stockpileMissing, 0);
   }
+});
+
+test("material stock tones agree with warehouse capacity and current-hull shortages", () => {
+  assert.equal(shipyardMaterialStockTone({ ratio: 1, missing: 3, stockpileMissing: 0 }), "full");
+  assert.equal(shipyardMaterialStockTone({ ratio: 0.2, missing: 3, stockpileMissing: 8 }), "shortage");
+  assert.equal(shipyardMaterialStockTone({ ratio: 0.8, missing: 0, stockpileMissing: 2 }), "low");
 });

@@ -194,6 +194,22 @@ test("all twelve map pieces unlock the treasure and all twelve ambushers gate ho
   assert.equal(goal.status, "complete");
 });
 
+test("spawned and defeated ambush identities survive a save-shaped JSON round trip", () => {
+  const goal = initializedGoal();
+  bindCaptains(goal);
+  for (const pirate of goal.mapPirates) acquireTreasureMapPiece(goal, pirate.id, 100);
+  recoverTreasure(goal, 500);
+  recordTreasureAmbushDefeat(goal, goal.mapPirates[0].id);
+
+  const restored = JSON.parse(JSON.stringify(goal));
+  validateTreasureCampaignFields(restored);
+
+  assert.equal(restored.treasureRecovered, true);
+  assert.equal(restored.ambushStarted, true);
+  assert.deepEqual(restored.ambushDefeatedPirateIds, [goal.mapPirates[0].id]);
+  assert.equal(treasureCampaignPhase(restored), "return-home");
+});
+
 test("recovering the treasure names home and marks the return course before the blockade", () => {
   const goal = initializedGoal();
   bindCaptains(goal);

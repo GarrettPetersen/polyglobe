@@ -49,6 +49,19 @@ test("a two-person Treaty of Madrid delegation has a complete manifest after acc
   assert.deepEqual(JSON.parse(JSON.stringify(makePeople(JSON.parse(JSON.stringify(state))))), JSON.parse(JSON.stringify(people)));
 });
 
+test("an envoy delegation cannot construct a raid manifest with an unnamed companion", () => {
+  assert.throws(() => createEnvoyCompanionPeople({
+    quest: {
+      id: "treaty-delegation",
+      originCityId: "paris|france",
+      envoyCount: 2,
+      passenger: { id: "lead-envoy" }
+    },
+    appearanceIds: ["man"],
+    identityForPerson: ({ id }) => ({ id, givenName: "", name: "" })
+  }), /has no first name: treaty-delegation:envoy:1/);
+});
+
 function navigationHarness(placement) {
   const state = { id: "atlantic-coast-2", x: 0, y: 0, tileId: 1, vector: [1, 0, 0], heading: [0, 1, 0], slug: "galleon", stats: { mass: 1 }, collisionVelocityX: 0, collisionVelocityY: 0 };
   let released = false;

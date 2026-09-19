@@ -585,6 +585,9 @@ export const PIRATE_START_REPUTATION = REPUTATION_MIN;
 export const PIRATE_REPUTATION_GAIN_PER_PIRACY = 8;
 export const PIRATE_HIDEOUT_REPUTATION_REQUIRED = -25;
 export const TRADE_REPUTATION_GAIN = 0.2;
+export const TRADE_REPUTATION_DOUBLOONS_PER_POINT = 1000;
+export const TRADE_REPUTATION_PERIOD_CAP = 2;
+export const TRADE_REPUTATION_PERIOD_MINUTES = 90 * 24 * 60;
 export const DELIVERY_REPUTATION_GAIN = 2;
 export const DELIVERY_SPAWN_CHANCE = questOfferPolicy("delivery").spawnChance;
 export const DELIVERY_ROLL_PERIOD_MINUTES = questOfferPolicy("delivery").rollPeriodMinutes;
@@ -5550,14 +5553,46 @@ export function playerPortDisguiseSuccessChance(state) {
   );
 }
 
-export function recordTradeWithFaction(state, factionId, quantity = 1) {
-  assertQuantity(quantity, "trade reputation quantity");
+export function recordTradeWithFaction(
+  state,
+  factionId,
+  transactionValue = TRADE_REPUTATION_GAIN * TRADE_REPUTATION_DOUBLOONS_PER_POINT,
+  {
+    simMinute = state?.survival?.lastMinute,
+    illicit = false
+  } = {}
+) {
+  if (!Number.isFinite(transactionValue) || transactionValue <= 0) {
+    throw new Error(`Invalid trade reputation value: ${transactionValue}`);
+  }
+  assertSimulationMinute(simMinute);
+  if (typeof illicit !== "boolean") throw new Error(`Invalid illicit trade flag: ${illicit}`);
   assertGameState(state);
   const id = assertFactionId(factionId);
-  if (id === NEUTRAL_FACTION_ID) return factionReputation(state, id);
+  if (id === NEUTRAL_FACTION_ID || illicit) return factionReputation(state, id);
+  const period = Math.floor(simMinute / TRADE_REPUTATION_PERIOD_MINUTES);
+  const periodPrefix = `reputation.trade-period.${id}.`;
+  const periodKey = `${periodPrefix}${period}`;
+  for (const key of Object.keys(state.memory.decisions)) {
+    if (key.startsWith(periodPrefix) && key !== periodKey) delete state.memory.decisions[key];
+  }
+  const alreadyAwarded = state.memory.decisions[periodKey] || 0;
+  if (!Number.isFinite(alreadyAwarded) || alreadyAwarded < 0) {
+    throw new Error(`Invalid trade reputation period balance for ${id}: ${alreadyAwarded}`);
+  }
+  const available = Math.max(0, TRADE_REPUTATION_PERIOD_CAP - alreadyAwarded);
+  const intendedDelta = Math.min(
+    available,
+    transactionValue / TRADE_REPUTATION_DOUBLOONS_PER_POINT
+  );
+  if (intendedDelta <= 0) return factionReputation(state, id);
   const before = factionReputation(state, id);
-  const after = adjustFactionReputation(state, id, TRADE_REPUTATION_GAIN * quantity, { reason: "trade" });
-  if (after !== before) recordDecision(state, `reputation.trade.${id}`, quantity);
+  const after = adjustFactionReputation(state, id, intendedDelta, { reason: "trade", simMinute });
+  const awarded = after - before;
+  if (awarded > 0) {
+    recordDecision(state, periodKey, awarded);
+    recordDecision(state, `reputation.trade.${id}`, awarded / TRADE_REPUTATION_GAIN);
+  }
   return after;
 }
 
@@ -5965,7 +6000,10 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
     costBasis: total,
     pnl: null
   });
-  if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId, quantity);
+  if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId, total, {
+    simMinute: context.simMinute ?? state.survival.lastMinute,
+    illicit: terms.illicit
+  });
   if (embargoOrders.length > 0) {
     recordTradeEmbargoPurchase(state.memory.tradeEmbargoEnforcement, embargoOrders, {
       port: city,
@@ -6097,7 +6135,10 @@ function sellGoodWithPricing(state, economy, city, goodId, quantity, context, pr
     costBasis: soldCost,
     pnl
   });
-  if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId, quantity);
+  if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId, total, {
+    simMinute: context.simMinute ?? state.survival.lastMinute,
+    illicit: terms.illicit
+  });
   consumeTrackedEmbargoCargo(state.memory.tradeEmbargoEnforcement, row.good.id, quantity);
   const embargoReputationChanges = recordTradeEmbargoDeliveryConsequences(state, embargoOrders);
   return {

@@ -80,7 +80,7 @@ test("upgrading a released save preserves its recorded last reputation action", 
 test("trade reputation is independent of transaction batching", () => {
   const bulk = createPlayerTestGameState({ cargoCapacity: 30 });
   const singles = structuredClone(bulk);
-  recordTradeWithFaction(bulk, "spain", 8);
+  recordTradeWithFaction(bulk, "spain", 1600);
   for (let i = 0; i < 8; i++) recordTradeWithFaction(singles, "spain");
   assert.ok(Math.abs(bulk.relations.factionReputation.spain - singles.relations.factionReputation.spain) < 1e-8);
 });

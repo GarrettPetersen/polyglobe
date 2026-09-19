@@ -22,6 +22,7 @@ import {
   fundPlayerShipyard,
   nearestShipyardListingForPort,
   playerShipyardLedger,
+  procureShipyardMaterial,
   registerShipyardTradeIn,
   restoreWorldShipyards,
   SHIPBUILDING_MATERIAL_GOOD_IDS,
@@ -52,6 +53,50 @@ const TEST_CITY_IDS = new Map([
   ["Malacca", "malacca|malaysia"], ["Goa", "goa|india"],
   ["Chanchan", "chanchan|peru"], ["Lahore", "lahore|pakistan"]
 ]);
+
+test("single-material procurement never refills a different shipyard store", () => {
+  for (const soldGoodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    for (const stockedGoodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+      const system = createWorldShipyards({ ports: [SMALL_PORT], startMinute: 0, seedKey: `sale-${soldGoodId}-${stockedGoodId}` });
+      const yard = fundPlayerShipyard(system, SMALL_PORT, {
+        investedMinute: 0,
+        seedCapital: 100000,
+        materialContributions: { timber: 1, iron: 1, "naval-stores": 1 }
+      });
+      yard.materialInventory = Object.fromEntries(SHIPBUILDING_MATERIAL_GOOD_IDS.map(id => [id, 0]));
+      const consumed = [];
+      const market = {
+        available: (_portId, goodId) => goodId === stockedGoodId ? 5 : 0,
+        consume: (_portId, goodId, quantity) => consumed.push([goodId, quantity])
+      };
+
+      procureShipyardMaterial(yard, market, soldGoodId, 3);
+
+      const expected = soldGoodId === stockedGoodId ? [[soldGoodId, 3]] : [];
+      assert.deepEqual(consumed, expected, `${soldGoodId} sale with ${stockedGoodId} market stock`);
+      for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+        assert.equal(yard.materialInventory[goodId], goodId === soldGoodId && goodId === stockedGoodId ? 3 : 0);
+      }
+    }
+  }
+});
+
+test("single-material procurement refuses to consume stock when that store is full", () => {
+  const system = createWorldShipyards({ ports: [SMALL_PORT], startMinute: 0, seedKey: "full-store-sale" });
+  const yard = fundPlayerShipyard(system, SMALL_PORT, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 1, iron: 1, "naval-stores": 1 }
+  });
+  const targets = shipyardMaterialStockTargets(yard);
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    yard.materialInventory[goodId] = targets[goodId];
+    procureShipyardMaterial(yard, {
+      available: () => 5,
+      consume: () => assert.fail(`${goodId} full store consumed market stock`)
+    }, goodId, 3);
+  }
+});
 
 const LISBON = port(1, "Lisbon", "mediterranean", 100000, 38.72, -9.14, "portugal");
 const PORTO = port(2, "Porto", "northern-european", 65000, 41.15, -8.61);

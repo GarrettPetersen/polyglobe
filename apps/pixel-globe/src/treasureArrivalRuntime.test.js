@@ -59,6 +59,41 @@ function treasureGoal() {
   return goal;
 }
 
+test("treasure home ambushers do not repeat individual automatic hails", () => {
+  const ships = new Map([
+    ["ambusher", { encounter: { kind: "treasure-pirate", stage: "home-ambush" } }],
+    ["hunter", { encounter: { kind: "treasure-pirate", stage: "map-hunt" } }],
+    ["patrol", { encounter: { kind: "patrol" } }]
+  ]);
+  const context = runtime(["automaticNpcCombatHailAllowed"], {
+    npcSeaRoutes: { shipById: ships },
+    TREASURE_PIRATE_ENCOUNTER_KIND: "treasure-pirate",
+    TREASURE_PIRATE_STAGE_AMBUSH: "home-ambush"
+  });
+  assert.equal(context.automaticNpcCombatHailAllowed("ambusher"), false);
+  assert.equal(context.automaticNpcCombatHailAllowed("hunter"), true);
+  assert.equal(context.automaticNpcCombatHailAllowed("patrol"), true);
+});
+
+test("treasure ambush construction requires every unresolved ship to be active and visible", () => {
+  const goal = treasureGoal();
+  goal.ambushDefeatedPirateIds = [goal.mapPirates[0].id];
+  const ships = new Map(goal.mapPirates.slice(1).map(pirate => [pirate.shipId, {
+    id: pirate.shipId,
+    hitPoints: 1,
+    hiddenAtHideout: false,
+    encounter: { kind: "treasure-pirate", stage: "home-ambush", pirateId: pirate.id }
+  }]));
+  const context = runtime(["assertTreasureAmbushFleet"], {
+    npcSeaRoutes: { shipById: ships },
+    TREASURE_PIRATE_ENCOUNTER_KIND: "treasure-pirate",
+    TREASURE_PIRATE_STAGE_AMBUSH: "home-ambush"
+  });
+  assert.equal(context.assertTreasureAmbushFleet(goal), true);
+  ships.delete(goal.mapPirates[1].shipId);
+  assert.throws(() => context.assertTreasureAmbushFleet(goal), /fleet is incomplete/);
+});
+
 for (const alreadyAnchored of [false, true]) {
   test(`treasure recovery accepts its nearby island despite a closer shore (restored anchor: ${alreadyAnchored})`, () => {
     const goal = JSON.parse(JSON.stringify(treasureGoal()));

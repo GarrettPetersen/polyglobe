@@ -128,6 +128,7 @@ test("starting a real assault cancels the forecast before simulating combat", as
     portCityView: { sceneReady: true }, portAssaultState: null,
     portCityRuntime: { setFeastPresentation() {} },
     portAssaultForecastClient: { clear: () => calls.push("cancel") },
+    currentAboardRoster: () => calls.push("manifest"),
     playBladeReadySound() {}, startCombatMusicForThreat() {},
     measurePerformanceBenchmarkStage: (_name, run) => run(),
     dialogueState: {}, URL,
@@ -136,7 +137,7 @@ test("starting a real assault cancels the forecast before simulating combat", as
   vm.runInContext(source.slice(start, end).replaceAll("import.meta.url", JSON.stringify(import.meta.url)), context);
   await assert.rejects(() => context.attemptPlayerPortConquest({ cityId: "test" }, () => .5),
     error => error === stopAfterSimulationBegins);
-  assert.deepEqual(calls, ["cancel", "combat"]);
+  assert.deepEqual(calls, ["manifest", "cancel", "combat"]);
 });
 
 test("an immediate assault click waits for cold city assets once and cancels if the captain leaves", async () => {

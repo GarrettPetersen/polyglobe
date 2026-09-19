@@ -5,6 +5,7 @@ import {
   advanceWorldShipyards,
   createWorldShipyards,
   fundPlayerShipyard,
+  procureShipyardMaterial,
   procureShipyardMaterials,
   replaceWorldShipyardPort,
   restoreWorldShipyards,
@@ -1342,6 +1343,19 @@ export function procureWorldEconomyShipyardMaterials(economy, port) {
   assertEconomy(economy);
   const yard = shipyardAtPort(economy.shipyards, port);
   const result = procureShipyardMaterials(yard, shipyardMaterialMarket(economy));
+  invalidateWorldMarketMedianCache(economy);
+  return result;
+}
+
+export function procureWorldEconomyShipyardMaterial(economy, port, goodId, maximumQuantity) {
+  assertEconomy(economy);
+  const yard = shipyardAtPort(economy.shipyards, port);
+  const result = procureShipyardMaterial(
+    yard,
+    shipyardMaterialMarket(economy),
+    goodId,
+    maximumQuantity
+  );
   invalidateWorldMarketMedianCache(economy);
   return result;
 }
