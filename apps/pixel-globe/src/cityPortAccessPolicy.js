@@ -15,6 +15,7 @@ export const INLAND_CITY_IDS_1522 = Object.freeze([
   "mecca|saudi arabia",
   "merida|mexico",
   "nimes|france",
+  "ohrid|bulgaria",
   "soest|germany"
 ]);
 
@@ -30,6 +31,10 @@ export const INLAND_CITY_SAILING_GATEWAYS_1522 = Object.freeze([
   gateway("mecca|saudi arabia", "jeddah|saudi arabia"),
   gateway("merida|mexico", "chakan putum|mexico"),
   gateway("nimes|france", "arles|france"),
+  // Lake Ohrid has no navigable outlet to the sea. Released voyages that
+  // treated the mis-geocoded city as a river port recover at the nearest
+  // major Ottoman seaport rather than retaining an impossible destination.
+  gateway("ohrid|bulgaria", "thessaloniki|greece"),
   gateway("leipzig|germany", "dresden|germany"),
   gateway("soest|germany", "wesel|germany"),
   // Recovery for released saves only: the erroneous Kazan dock was on the

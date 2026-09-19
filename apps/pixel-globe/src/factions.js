@@ -521,6 +521,7 @@ const TERRITORY_FACTIONS = uniqueMap([
   ["greece", "ottoman"],
   ["bulgaria", "ottoman"],
   ["serbia", "ottoman"],
+  ["north macedonia", "ottoman"],
   ["albania", "ottoman"],
   ["israel", "ottoman"],
   ["lebanon", "ottoman"],

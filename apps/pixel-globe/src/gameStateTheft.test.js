@@ -38,11 +38,24 @@ test("ship theft can take ordinary equipment but not reward or capacity items", 
     "zamzam-flask": 1
   };
   state.cargoCapacity += 3;
+  state.memory.specialEquipmentOffers.byPort["lisbon|portugal"] = {
+    itemId: "longsword",
+    timesOffered: 1,
+    purchased: true
+  };
 
   const stolen = stealNonQuestShipPossession(state, { selectionRoll: 0.75 });
 
-  assert.deepEqual(stolen, { kind: "item", id: "longsword", label: "Longsword", quantity: 1 });
+  assert.deepEqual(stolen, { kind: "item", id: "longsword", label: "Longsword", quantity: 1,
+    replacementPortCityId: "lisbon|portugal" });
   assert.equal(state.inventory.items.longsword, undefined);
   assert.equal(state.inventory.items["sturdy-barrels"], 1);
   assert.equal(state.inventory.items["zamzam-flask"], 1);
+});
+
+test("ship theft never removes equipment without a replacement factor", () => {
+  const state = game();
+  state.inventory.items = { longsword: 1 };
+  assert.equal(stealNonQuestShipPossession(state, { selectionRoll: 0 }), null);
+  assert.equal(state.inventory.items.longsword, 1);
 });

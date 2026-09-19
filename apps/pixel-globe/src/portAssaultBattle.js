@@ -887,6 +887,16 @@ export function portAssaultShipHitPointsAt(battle, elapsedMs) {
   return hitPoints;
 }
 
+export function committedPortAssaultShipHitPoints(battle) {
+  if (!battle || !Number.isFinite(battle.initialShipHitPoints) ||
+      !Number.isFinite(battle.finalShipHitPoints) || battle.initialShipHitPoints < 0 ||
+      battle.finalShipHitPoints < 0 || battle.finalShipHitPoints > battle.initialShipHitPoints) {
+    throw new Error("Port assault resolution requires valid ship hit points");
+  }
+  const wholeDamage = Math.floor(battle.initialShipHitPoints - battle.finalShipHitPoints);
+  return Math.max(0, Math.floor(battle.initialShipHitPoints - wholeDamage));
+}
+
 export function portAssaultShipImpactShakeAt(battle, elapsedMs, { reducedMotion = false } = {}) {
   validateRecordedBattleTime(battle, elapsedMs);
   if (typeof reducedMotion !== "boolean") {

@@ -1421,6 +1421,16 @@ export function portEconomySummary(economy, city) {
   };
 }
 
+export function creditPortMarketSpecie(economy, city, amount) {
+  const port = requiredPortState(economy, city);
+  if (!Number.isInteger(amount) || amount < 0) {
+    throw new Error(`Invalid market specie credit for ${port.name}: ${amount}`);
+  }
+  port.specie += amount;
+  invalidateWorldMarketMedianCache(economy, port.id);
+  return Object.freeze({ amount, specie: Math.floor(port.specie) });
+}
+
 export function plunderPortSpecie(economy, city, amount) {
   const port = requiredPortState(economy, city);
   if (!Number.isInteger(amount) || amount < 0) {

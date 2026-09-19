@@ -69,11 +69,29 @@ test("Exeter remains inland and Topsham is its distinct English outport", () => 
 test("English river ports and the future Exeter canal have river scene assets", () => {
   const sceneCatalog = JSON.parse(readFileSync(new URL("../city-visualizer/data/cities.json", import.meta.url)));
   assert.equal(sceneCatalog.cities.find(({ id }) => id === "exeter|united kingdom").approach, "river");
-  for (const id of ["norwich|united kingdom", "topsham|united kingdom"]) {
+  for (const id of ["newcastle upon tyne|united kingdom", "norwich|united kingdom", "topsham|united kingdom"]) {
     const city = sceneCatalog.cities.find((entry) => entry.id === id);
     assert.equal(city.approach, "river");
     assert.equal(city.factionId, "england");
   }
+});
+
+test("Korean river cities are not presented as coastal approaches", () => {
+  const sceneCatalog = JSON.parse(readFileSync(new URL("../city-visualizer/data/cities.json", import.meta.url)));
+  for (const id of ["seoul|republic of korea", "kaesong|dem. people's republic of korea"]) {
+    assert.equal(sceneCatalog.cities.find((entry) => entry.id === id).approach, "river");
+  }
+});
+
+test("Ohrid uses its Lake Ohrid geography and cannot enter maritime quests", () => {
+  const ohrid = cities.find(({ cityId }) => cityId === "ohrid|bulgaria");
+  assert.equal(ohrid.country, "North Macedonia");
+  assert.ok(ohrid.lat > 41 && ohrid.lat < 41.3);
+  assert.ok(ohrid.lon > 20.7 && ohrid.lon < 20.9);
+  assert.equal(cityMustRemainInland(ohrid), true);
+  assert.equal(cityRequiresPortAccess(ohrid), false);
+  const sceneCatalog = JSON.parse(readFileSync(new URL("../city-visualizer/data/cities.json", import.meta.url)));
+  assert.equal(sceneCatalog.cities.some((entry) => entry.id === ohrid.cityId), false);
 });
 
 test("Chillicothe remains at its Scioto location and has a river scene", () => {

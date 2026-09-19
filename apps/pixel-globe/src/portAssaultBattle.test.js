@@ -8,6 +8,7 @@ import {
   PORT_ASSAULT_MIN_GARRISON,
   PORT_ASSAULT_PROFILE_ID,
   createPortAssaultScenario,
+  committedPortAssaultShipHitPoints,
   forecastPortAssault,
   portAssaultAttackProfileAtDistance,
   portAssaultDamageAfterMitigation,
@@ -21,6 +22,21 @@ import {
   resolvePortAssaultCrewFates,
   simulatePortAssault
 } from "./portAssaultBattle.js";
+
+test("assault resolution commits only whole hull damage", () => {
+  assert.equal(committedPortAssaultShipHitPoints({
+    initialShipHitPoints: 20,
+    finalShipHitPoints: 18.7
+  }), 19);
+  assert.equal(committedPortAssaultShipHitPoints({
+    initialShipHitPoints: 20,
+    finalShipHitPoints: 18
+  }), 18);
+  assert.throws(() => committedPortAssaultShipHitPoints({
+    initialShipHitPoints: 10,
+    finalShipHitPoints: 11
+  }), /valid ship hit points/);
+});
 import { shipStatsForSlug } from "./shipStats.js";
 import {
   PORT_ASSAULT_LANE_COUNT,

@@ -24,12 +24,9 @@ export function openSpecialEquipmentOffer(
   memory,
   economy,
   city,
-  { ownedItemIds = [], seedKey = null } = {}
+  options = {}
 ) {
-  const item = ensureSpecialEquipmentOffer(memory, economy, city, {
-    ownedItemIds,
-    seedKey
-  });
+  const item = ensureSpecialEquipmentOffer(memory, economy, city, options);
   if (!item) return null;
   return presentSpecialEquipmentOffer(memory, city, item.id);
 }
@@ -38,8 +35,11 @@ export function ensureSpecialEquipmentOffer(
   memory,
   economy,
   city,
-  { ownedItemIds = [], seedKey = null } = {}
+  options = {}
 ) {
+  const { ownedItemIds: suppliedOwnedItemIds = null, seedKey = null } = options;
+  const ownershipSnapshotProvided = suppliedOwnedItemIds !== null;
+  const ownedItemIds = suppliedOwnedItemIds ?? [];
   validateSpecialEquipmentOfferMemory(memory);
   if (!Array.isArray(ownedItemIds) || ownedItemIds.some((id) => typeof id !== "string")) {
     throw new Error("Special equipment offer requires owned item ids");
@@ -60,11 +60,31 @@ export function ensureSpecialEquipmentOffer(
     };
     memory.byPort[key] = entry;
   }
-  if (entry.purchased || ownedItemIds.includes(entry.itemId)) {
+  if (ownedItemIds.includes(entry.itemId)) {
     entry.purchased = true;
     return null;
   }
+  // Purchased equipment can only disappear through an explicit loss event.
+  // Reopen its original factor's offer so every stealable item has a stable,
+  // communicated replacement path.
+  if (entry.purchased) {
+    if (!ownershipSnapshotProvided) return null;
+    entry.purchased = false;
+  }
   return perkItemById(entry.itemId);
+}
+
+export function specialEquipmentReplacementPortId(memory, itemId) {
+  validateSpecialEquipmentOfferMemory(memory);
+  perkItemById(itemId);
+  const matches = Object.entries(memory.byPort)
+    .filter(([, entry]) => entry.itemId === itemId && entry.purchased)
+    .map(([cityId]) => cityId)
+    .sort();
+  if (matches.length > 1) {
+    throw new Error(`Special equipment ${itemId} has multiple purchase origins`);
+  }
+  return matches[0] || null;
 }
 
 export function presentSpecialEquipmentOffer(memory, city, itemId) {

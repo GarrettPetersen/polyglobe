@@ -42,7 +42,9 @@ export function selectPirateHavenCommission(state, city, action, context) {
     }
     acceptPirateHavenQuest(memory, current);
   } else if (action.type === "complete-pirate-haven-quest") {
-    completePirateHavenQuest(state, city.cityId, action.kind, context.simMinute);
+    completePirateHavenQuest(state, city.cityId, action.kind, context.simMinute, {
+      recordPayment: context.recordPirateCommissionPayment || null
+    });
   } else if (action.type === "abandon-pirate-haven-quest") {
     if (!["revenge", "suppression", "smuggling"].includes(action.kind) || !memory[action.kind]) throw new Error("No pirate commission to abandon");
     if (pirateQuestAtIssuer(memory, city)?.kind !== action.kind) {

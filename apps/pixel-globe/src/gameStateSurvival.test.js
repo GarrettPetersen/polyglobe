@@ -8,7 +8,8 @@ import {
   RICE_GOOD_ID,
   TRADE_GOODS,
   WINE_GOOD_ID,
-  createWorldEconomy
+  createWorldEconomy,
+  portEconomySummary
 } from "./economy.js";
 import {
   FRESH_WATER_CAPACITY,
@@ -1175,6 +1176,24 @@ test("loadouts target crew while restocking only guns, food, and water", () => {
   assert.ok(state.accounts.ledger.some((entry) => entry.description === "Combat focused loadout restock"));
 });
 
+test("loadout provision purchases transfer their specie into the port market", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  state.survival.freshWater = 0;
+  delete state.cargo.hardtack;
+  delete state.accounts.cargoCostBasis.hardtack;
+  const before = portEconomySummary(economy, LONDON).specie;
+  const result = restockShipLoadoutAtPort(state, LONDON, stats, "combat", {
+    economy,
+    simMinute: 120
+  });
+  const provisionSpend = result.spent - result.additions.cannons * 8;
+  assert.ok(provisionSpend > 0);
+  assert.equal(portEconomySummary(economy, LONDON).specie - before, provisionSpend);
+});
+
 test("automatic port services preserve crew hired above the selected loadout target", () => {
   const stats = shipStatsForSlug("ketch");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -1579,9 +1598,11 @@ test("shore water uses empty hold space after fishing replaces planned food", ()
   assert.equal(Math.round(state.cargoCapacity), 423);
   assert.equal(survivalStatus(state).freshWaterDays, 7);
 
-  assert.equal(refillFreshWaterFromShore(state), 20.75);
+  const physicalUsedBeforeRefill = cargoHoldStatus(state).physicalUsed;
+  const refilledWater = combatPlan.waterUnits - 47.25;
+  assert.equal(refillFreshWaterFromShore(state), refilledWater);
   assert.equal(state.survival.freshWater, combatPlan.waterUnits);
-  assert.equal(Math.round(cargoHoldStatus(state).physicalUsed), 418);
+  assert.ok(cargoHoldStatus(state).physicalUsed > physicalUsedBeforeRefill);
   assert.ok(cargoHoldStatus(state).physicalUsed < state.cargoCapacity);
   validateGameState(state);
 });

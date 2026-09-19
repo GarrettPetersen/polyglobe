@@ -2,6 +2,7 @@ import { citySceneLandwardAxis, citySceneRiverLandwardAxis } from "../city-visua
 import { sampledCityTerrain } from "../city-visualizer/cityTerrainSampling.js";
 import { exeterCanalNavigation } from "../src/exeterCanalNavigation.js";
 import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "../src/manualRiverHexChains.js";
+import { cityPortApproachOverride } from "../src/cityGeographyCorrections.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -197,9 +198,11 @@ function visualizerCityRecord({
   const authoredRiverApproach = endpoint.kind === "project" || Boolean(
     MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[sailingGraph.subdivisions]?.[city.cityId]
   );
-  const approach = authoredRiverApproach
-    ? approachKind(sailingAccess.tileId, sailingEarthRows, sailingNavigation)
-    : approachKind(access.tileId, earthRows, navigation);
+  const sailingApproach = approachKind(sailingAccess.tileId, sailingEarthRows, sailingNavigation);
+  const approach = cityPortApproachOverride(city) ||
+    (authoredRiverApproach || sailingApproach === "river"
+      ? sailingApproach
+      : approachKind(access.tileId, earthRows, navigation));
   const landwardAxis = access.tileId === cityTileId
     ? citySceneRiverLandwardAxis(
       graphCenter(graph, cityTileId),

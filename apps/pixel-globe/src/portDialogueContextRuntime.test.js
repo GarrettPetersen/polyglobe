@@ -13,8 +13,13 @@ test("repeated market context refreshes do not search worldwide shipyard listing
   const context = {
     portCityView: null,
     dialogueState: { kind: "port", cityId: city.cityId, nodeId: "market" },
-    gameState: { playerCharacter: { homePortCityId: city.cityId, name: "Captain" } },
+    gameState: {
+      playerCharacter: { homePortCityId: city.cityId, name: "Captain" },
+      memory: { pirateHavens: {} },
+      ship: {}
+    },
     cityById: new Map([[city.cityId, city]]), cityByTileId: new Map([[1, city]]),
+    npcSeaRoutes: { pirateHideouts: [], shipById: new Map() },
     worldEconomy: { shipyards: {} }, weatherClockMinutes: 100,
     weatherParts: { dayIndex: 0 }, graph: { lonDeg: [0, 30] }, ship: null,
     portArrivalNavigationByCityId: new Map(), STORM_ACTIVE_INTENSITY: 1, WEATHER_MINUTES_PER_DAY: 1440,

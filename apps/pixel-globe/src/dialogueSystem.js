@@ -7470,7 +7470,9 @@ function buyView(session, city, gameState, economy, context) {
       ];
     });
   if (context.shipStats) rows.push(option("Change ship loadout", { type: "leave-market", nodeId: "loadout" }));
-  rows.push(option("Back", { type: "leave-market", nodeId: "root" }));
+  rows.push(option("Back", { type: "leave-market", nodeId: "root" }, {
+    placement: "port-exit"
+  }));
   rows.push(option("Undo all trades", { type: "undo-market" }, {
     disabled: !marketUndoAvailable(session),
     placement: "port-exit"
@@ -8151,7 +8153,7 @@ function distanceAdjustedTradeProfit(expectedPnl, distanceKm) {
 function loadoutView(session, city, gameState, context) {
   if (!context.shipStats) throw new Error("Loadout view requires player ship stats");
   const currentId = gameState.ship?.loadoutId || null;
-  const rows = SHIP_LOADOUT_PRESETS.map((preset) => {
+  const rows = SHIP_LOADOUT_PRESETS.map((preset, index) => {
     const plan = shipLoadoutPlan(context.shipStats, preset.id, {
       minimumCrew: permanentCrewFloor(gameState)
     });
@@ -8162,7 +8164,8 @@ function loadoutView(session, city, gameState, context) {
       loadoutId: preset.id
     }, {
       detail: `CREW ${plan.crew}  GUNS ${plan.cannons}  FOOD ${Math.floor(plan.foodDays)}D  WATER ${Math.floor(plan.waterDays)}D`,
-      detailTone: dismissal.canApply ? undefined : "danger"
+      detailTone: dismissal.canApply ? undefined : "danger",
+      rowId: `loadout-presets-${Math.floor(index / 2)}`
     });
   });
   const customSelected = currentId === CUSTOM_LOADOUT_ID;
@@ -8176,7 +8179,9 @@ function loadoutView(session, city, gameState, context) {
       ? `CREW ${customPlan.crew}  GUNS ${customPlan.cannons}  FOOD ${Math.floor(customPlan.foodDays)}D  WATER ${Math.floor(customPlan.waterDays)}D`
       : "SET CREW, GUNS, FOOD, AND WATER"
   }));
-  if (currentId) rows.push(option("Back", { type: "node", nodeId: "root" }));
+  if (currentId) rows.push(option("Back", { type: "node", nodeId: "root" }, {
+    placement: "port-exit"
+  }));
   return {
     speaker: speakerName(city),
     expressionId: "attentive",
@@ -8185,6 +8190,7 @@ function loadoutView(session, city, gameState, context) {
       : "Before I provision your ship, choose how you intend to use her.",
     feedback: session.feedback,
     optionHeight: 34,
+    optionColumns: 2,
     options: rows
   };
 }
@@ -8330,7 +8336,9 @@ function sellView(session, city, gameState, economy, context) {
       disabledReason: "The hold has no cargo buyers will take."
     }));
   }
-  rows.push(option("Back", { type: "leave-market", nodeId: "root" }));
+  rows.push(option("Back", { type: "leave-market", nodeId: "root" }, {
+    placement: "port-exit"
+  }));
   rows.push(option("Undo all trades", { type: "undo-market" }, {
     disabled: !marketUndoAvailable(session),
     placement: "port-exit"

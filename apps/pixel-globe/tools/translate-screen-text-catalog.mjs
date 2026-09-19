@@ -124,6 +124,18 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "PIRATE BOUNTY +{0} DB": Object.freeze({
+    "zh-Hans": "海盗赏金 +{0} DB",
+    ru: "НАГРАДА ЗА ПИРАТОВ +{0} DB",
+    es: "RECOMPENSA POR PIRATAS +{0} DB",
+    "pt-BR": "RECOMPENSA POR PIRATAS +{0} DB",
+    ja: "海賊討伐報奨金 +{0} DB",
+    de: "PIRATENKOPFGELD +{0} DB",
+    fr: "PRIME AUX PIRATES +{0} DB",
+    pl: "NAGRODA ZA PIRATÓW +{0} DB",
+    "zh-Hant": "海盜賞金 +{0} DB",
+    ko: "해적 현상금 +{0} DB"
+  }),
   // Retain or transliterate the regional fish name instead of translating it
   // as an unrelated word when the translation service lacks this species.
   "Shabout": Object.freeze({

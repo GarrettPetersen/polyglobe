@@ -6,6 +6,8 @@ export const PIRATE_OFFER_PERIOD_MINUTES = questOfferPolicy("pirate-contract").r
 const QUEST_KINDS = ["revenge", "suppression", "smuggling"];
 
 export const PIRATE_HAVEN_REBUILD_MINUTES = 180 * 24 * 60;
+const PIRATE_SUPPRESSION_REWARD_MIN = 500;
+const PIRATE_SUPPRESSION_REWARD_MAX = 5000;
 const havenIds = new Set(PIRATE_HAVEN_SPECS.map(({ id }) => id));
 function havenId(id) {
   if (!havenIds.has(id)) throw new Error(`Unknown pirate haven: ${id}`);
@@ -63,6 +65,31 @@ export function ruinPirateHaven(memory, cityId, simMinute) {
   return memory.ruinedUntil[cityId];
 }
 
+export function pirateHavenSuppressionReward(city, issuerEconomy = null) {
+  const population = Number(city?.population || 0);
+  const targetSpecie = Number(issuerEconomy?.targetSpecie ?? Math.max(500, population * 0.2));
+  if (!Number.isFinite(population) || population < 0 || !Number.isFinite(targetSpecie) || targetSpecie <= 0) {
+    throw new Error(`Invalid pirate bounty capacity for ${city?.cityId || "unknown settlement"}`);
+  }
+  // Suppression contracts are promises backed by the issuing settlement's
+  // people and normal money supply. The square roots keep great capitals from
+  // dwarfing every other reward while preventing a village from pledging a
+  // treasury it could not plausibly possess.
+  const capacity = 250 + Math.sqrt(population) * 8 + Math.sqrt(targetSpecie) * 18;
+  return Math.max(
+    PIRATE_SUPPRESSION_REWARD_MIN,
+    Math.min(PIRATE_SUPPRESSION_REWARD_MAX, Math.round(capacity / 100) * 100)
+  );
+}
+
+export function settlePirateHavenSuppressionBounty(memory, havenCityId) {
+  havenId(havenCityId);
+  const quest = memory.suppression;
+  if (!quest || quest.havenCityId !== havenCityId || !quest.ready) return null;
+  memory.suppression = null;
+  return quest;
+}
+
 // The named item is owned by exactly one persistent quest: aboard its target
 // ship until seized, then aboard the player until delivered. It is not trade cargo.
 export function pirateRevengeTargetPresent(memory, shipsById) {
@@ -98,7 +125,7 @@ function offerHash(text) {
 }
 export function pirateHavenQuestOffer(memory, city, {
   havens, merchants, ports = [], sailingDistanceKm, simMinute, voyageSeed = "pirate-business",
-  offerRoll, contractKind, contactForPort
+  offerRoll, contractKind, contactForPort, issuerEconomy = null
 }) {
   minute(simMinute);
   if (pirateQuestsForPortType(memory, city).length > 0) return null;
@@ -134,7 +161,9 @@ export function pirateHavenQuestOffer(memory, city, {
   if (kind === "smuggling" && (!contact?.id || !contact?.name)) throw new Error("Pirate pickup requires its named port merchant");
   return { id, kind, offeredMinute: simMinute, originCityId: city.cityId, originName: city.displayCity || city.city,
     havenCityId: haven.cityId, havenName: haven.displayCity || haven.city,
-    distanceKm: Math.round(target.distanceKm), reward: kind === "suppression" ? 5000 : kind === "revenge" ? 2500 : 1800,
+    distanceKm: Math.round(target.distanceKm), reward: kind === "suppression"
+      ? pirateHavenSuppressionReward(city, issuerEconomy)
+      : kind === "revenge" ? 2500 : 1800,
     ready: false, ...(kind === "revenge" ? {
       targetShipId: target.ship.id, targetShipSeed: target.ship.seed, targetShipName: target.ship.name || `${target.ship.captainName}’s ${(target.ship.slug || "merchant ship").replaceAll("-", " ")}`,
       targetCaptainName: target.ship.captainName, targetPortName: target.port.displayCity || target.port.city,
@@ -173,14 +202,18 @@ export function acceptPirateHavenQuest(memory, offer) {
   memory[offer.kind] = next[offer.kind]; memory.nextQuestId = next.nextQuestId;
   memory.nextOfferMinuteByKind[offer.kind] = offer.offeredMinute + questOfferPolicy("pirate-contract").cooldownMinutes;
 }
-export function completePirateHavenQuest(state, cityId, kind, simMinute) {
+export function completePirateHavenQuest(state, cityId, kind, simMinute, { recordPayment = null } = {}) {
   const memory = state.memory.pirateHavens;
   const quest = memory[kind];
   if (!quest || !quest.ready || quest.originCityId !== cityId ||
       (kind !== "suppression" && pirateHavenIsRuined(memory, cityId, simMinute))) {
     throw new Error(`Pirate ${kind} commission cannot be delivered at ${cityId}`);
   }
-  state.doubloons += quest.reward;
+  if (recordPayment !== null && typeof recordPayment !== "function") {
+    throw new Error("Pirate commission payment recorder must be a function");
+  }
+  if (recordPayment) recordPayment(quest);
+  else state.doubloons += quest.reward;
   memory[kind] = null;
   return quest;
 }

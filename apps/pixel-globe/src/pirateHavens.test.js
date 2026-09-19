@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGameState, migrateGameState } from "./gameState.js";
+import { createGameState, migrateGameState, receiveQuestPayment } from "./gameState.js";
 import { createPirateHavenMemory, validatePirateHavenMemory, pirateHavenQuestOffer,
  acceptPirateHavenQuest, completePirateHavenQuest, seizePirateRevengeItem,
  pirateQuestInventory, pirateHavenIsRuined, pirateHavenIsVisible, ruinPirateHaven,
+ pirateHavenSuppressionReward, settlePirateHavenSuppressionBounty,
  PIRATE_HAVEN_REBUILD_MINUTES } from "./pirateHavens.js";
 const haven={cityId:"pirate-haven-1",city:"Black Gull Cove",isPirateHideout:true};
 const port={cityId:"lisbon|portugal",city:"Lisbon"};
@@ -63,6 +64,24 @@ test("suppression reveals one haven, ruins persist six months, then ordinary vis
  assert.equal(pirateHavenIsVisible(restored,haven.cityId,deadline,false),false);
  assert.equal(pirateHavenIsVisible(restored,haven.cityId,deadline,true),true);
  assert.ok(pirateHavenQuestOffer(restored,port,{...context,simMinute:deadline}));
+});
+test("suppression rewards fit issuer capacity and settle once into the ledger at destruction", () => {
+ const village={...port,population:1200};
+ const capital={...port,population:200000};
+ assert.ok(pirateHavenSuppressionReward(village,{targetSpecie:800}) < 5000);
+ assert.ok(pirateHavenSuppressionReward(capital,{targetSpecie:50000}) >
+   pirateHavenSuppressionReward(village,{targetSpecie:800}));
+ const state=createGameState({cargoCapacity:20});
+ const offer=pirateHavenQuestOffer(state.memory.pirateHavens,village,{...context,
+   issuerEconomy:{targetSpecie:800}});
+ acceptPirateHavenQuest(state.memory.pirateHavens,offer);
+ ruinPirateHaven(state.memory.pirateHavens,haven.cityId,5);
+ const bounty=settlePirateHavenSuppressionBounty(state.memory.pirateHavens,haven.cityId);
+ receiveQuestPayment(state,village,bounty.reward,`Destroyed ${bounty.havenName} pirate haven`,{simMinute:5});
+ assert.equal(state.memory.pirateHavens.suppression,null);
+ assert.equal(settlePirateHavenSuppressionBounty(state.memory.pirateHavens,haven.cityId),null);
+ assert.equal(state.accounts.ledger.at(-1).amount,bounty.reward);
+ assert.match(state.accounts.ledger.at(-1).description,/Destroyed Black Gull Cove/);
 });
 test("no merchants or all havens ruined yields no offer; corrupt references and stale acceptance fail",()=>{
  const m=createPirateHavenMemory();

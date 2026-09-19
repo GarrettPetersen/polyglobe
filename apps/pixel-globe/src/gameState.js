@@ -20,6 +20,7 @@ import {
   WHALE_BLUBBER_GOOD_ID,
   TEA_GOOD_ID,
   TRADE_GOODS,
+  creditPortMarketSpecie,
   executePortPurchase,
   fulfillWorkshopSupplyOrder,
   executeRepeatedPortPurchase,
@@ -477,6 +478,7 @@ import {
   createSpecialEquipmentOfferMemory,
   migrateSpecialEquipmentOfferMemory,
   openSpecialEquipmentOffer,
+  specialEquipmentReplacementPortId,
   specialEquipmentOfferEntry,
   validateSpecialEquipmentOfferMemory
 } from "./specialEquipmentOffers.js";
@@ -3586,6 +3588,7 @@ function restockShipLoadoutPlanAtPort(
   state.survival.freshWater = Math.min(state.survival.freshWater, plan.waterUnits);
 
   let spent = 0;
+  let provisionSpent = 0;
   const additions = { crew: 0, cannons: 0, food: 0, water: 0 };
   const priorities = plan.id === "combat"
     ? ["cannons", "provisions"]
@@ -3594,6 +3597,7 @@ function restockShipLoadoutPlanAtPort(
     if (kind === "provisions") {
       const result = restockBalancedProvisions(state, plan, hardtack);
       spent += result.spent;
+      provisionSpent += result.spent;
       additions.food += result.food;
       additions.water += result.water;
     } else {
@@ -3601,6 +3605,10 @@ function restockShipLoadoutPlanAtPort(
       spent += result.spent;
       additions[kind] += result.quantity;
     }
+  }
+
+  if (provisionSpent > 0 && context.economy) {
+    creditPortMarketSpecie(context.economy, city, provisionSpent);
   }
 
   if (spent > 0) {
@@ -4138,7 +4146,18 @@ export function stealNonQuestShipPossession(state, {
     if (count <= 0 || protectedItems.has(itemId)) continue;
     const item = perkItemById(itemId);
     if (item.rewardOnly || item.perks.cargoCapacityFlat) continue;
-    candidates.push(Object.freeze({ kind: "item", id: item.id, label: item.label, quantity: 1 }));
+    const replacementPortCityId = specialEquipmentReplacementPortId(
+      state.memory.specialEquipmentOffers,
+      itemId
+    );
+    if (!replacementPortCityId) continue;
+    candidates.push(Object.freeze({
+      kind: "item",
+      id: item.id,
+      label: item.label,
+      quantity: 1,
+      replacementPortCityId
+    }));
   }
   if (candidates.length === 0) return null;
   const stolen = candidates[Math.min(candidates.length - 1, Math.floor(selectionRoll * candidates.length))];
@@ -8190,11 +8209,15 @@ export function reconcileQuestPortTiles(state, portCities, {
       tileId: waypoint.destinationTileId,
       name: waypoint.destinationName
     }, legacyPortTileIds);
-    if (destination && (
+    if (!destination) {
+      updates += 1;
+      continue;
+    }
+    if (
       destination.cityId !== waypoint.destinationCityId ||
       destination.tileId !== waypoint.destinationTileId ||
       cityLabel(destination) !== waypoint.destinationName
-    )) {
+    ) {
       waypoint.destinationCityId = destination.cityId;
       waypoint.destinationTileId = destination.tileId;
       waypoint.destinationName = cityLabel(destination);
@@ -8942,7 +8965,7 @@ export function reconcileQuestWorldAssumptions(state, portCities, options = {}) 
   // Maritime endpoints use the sailing catalog. Conquest ownership, history,
   // and overland campaign transfers use the full city identity catalog without
   // admitting inland destinations into maritime routing.
-  const endpointUpdates = reconcileQuestPortTiles(state, portCities, {
+  let endpointUpdates = reconcileQuestPortTiles(state, portCities, {
     ...options,
     identityCities
   });
@@ -8952,6 +8975,7 @@ export function reconcileQuestWorldAssumptions(state, portCities, options = {}) 
 
   removeInvalidatedQuestOffers(state, portCities, events);
   const active = quests.active;
+  endpointUpdates += relocateInaccessibleDelivery(active, portCities, options, events);
   if (quests.captureActive) reconcileActiveCaptureCommission(state, quests.captureActive, portCities, events);
   if (isEnvoyQuest(active)) {
     throw new Error("Envoy mission occupies the ordinary quest slot");
@@ -8961,6 +8985,45 @@ export function reconcileQuestWorldAssumptions(state, portCities, options = {}) 
 
   if (quests.envoyActive) reconcileActiveEnvoyMission(quests.envoyActive, portCities, events);
   return Object.freeze({ endpointUpdates, events: Object.freeze(events) });
+}
+
+function relocateInaccessibleDelivery(quest, portCities, options, events) {
+  if (quest?.kind !== "delivery") return 0;
+  const portsByCityId = new Map(portCities.map((port) => [port.cityId, port]));
+  if (portsByCityId.has(quest.destinationCityId)) return 0;
+  const origin = portsByCityId.get(quest.originCityId);
+  if (!origin) {
+    throw new Error(`Active delivery origin is not player-accessible: ${quest.id}/${quest.originCityId}`);
+  }
+  if (typeof options.sailingDistanceKm !== "function") {
+    throw new Error(`Active delivery destination is inaccessible and recovery needs sailing distances: ${quest.id}`);
+  }
+  const routePolicyId = quest.procurement
+    ? DELIVERY_ROUTE_POLICY.REGIONAL
+    : deliveryRoutePolicyForScenarioId(quest.scenarioId);
+  const candidates = portCities
+    .filter((port) => deliveryRouteAllowsDestination(origin, port, routePolicyId))
+    .map((port) => ({ port, distanceKm: options.sailingDistanceKm(origin, port) }))
+    .filter(({ distanceKm }) => Number.isFinite(distanceKm) && distanceKm >= 0)
+    .sort((left, right) => left.distanceKm - right.distanceKm ||
+      cityKey(left.port).localeCompare(cityKey(right.port)));
+  if (candidates.length === 0) {
+    throw new Error(`Active delivery has no accessible replacement destination: ${quest.id}`);
+  }
+  const previousName = quest.destinationName;
+  const replacement = candidates[0];
+  updateQuestEndpointIdentity(quest, "destination", replacement.port);
+  quest.distanceKm = Math.round(replacement.distanceKm);
+  if (typeof quest.offerText === "string" && previousName) {
+    quest.offerText = quest.offerText.replaceAll(previousName, cityLabel(replacement.port));
+  }
+  events.push(Object.freeze({
+    type: "delivery-destination-relocated",
+    questId: quest.id,
+    destinationCityId: replacement.port.cityId,
+    destinationTileId: replacement.port.tileId
+  }));
+  return 1;
 }
 
 export function questStateForCity(state, city, portCities) {

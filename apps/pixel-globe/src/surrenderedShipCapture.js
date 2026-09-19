@@ -57,7 +57,7 @@ export function assertSurrenderedPrizeCaptureEligible(gameState, candidateShipSl
 export class RecoverableSurrenderedShipCaptureError extends Error {
   constructor(message, playerFacingMessage) {
     super(message);
-    this.name = "RecoverableSurrenderedShipCaptureError";
+    this.name = this.constructor.name;
     if (typeof playerFacingMessage !== "string" || playerFacingMessage.trim() === "") {
       throw new Error("Recoverable capture failure requires player-facing feedback");
     }
@@ -67,7 +67,7 @@ export class RecoverableSurrenderedShipCaptureError extends Error {
 
 export function isRecoverableSurrenderedShipCaptureError(error) {
   return error instanceof RecoverableSurrenderedShipCaptureError ||
-    error?.name === "RecoverableSurrenderedShipCaptureError";
+    error?.name === RecoverableSurrenderedShipCaptureError.name;
 }
 
 export function playerFacingSurrenderedShipCaptureFailure(error) {

@@ -7,7 +7,7 @@ import { decodeGeodesicGraphBake } from "./geodesicBake.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import { createDirectionIndex } from "./geodesic.js";
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
-import { placeCityCatalogOnWorld, portCitiesOnWorld } from "./worldPortPlacement.js";
+import { placeCityCatalogOnWorld, portAccessTileIds, portCitiesOnWorld } from "./worldPortPlacement.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 
 test("coastal boarding does not require a river mouth or make inland shortcuts navigable", () => {
@@ -41,6 +41,14 @@ test("real-map Gelibolu and every coastal river port accept their adjacent open-
   const options = { graph, earthRows, ...navigation, directionIndex: createDirectionIndex(graph) };
   const placed = placeCityCatalogOnWorld({ ...options, cities: loadCityCatalogFromCsv(csv, CITY_DATA_YEAR) });
   const ports = portCitiesOnWorld(placed, options);
+  for (const port of ports) {
+    const approachTiles = portAccessTileIds(options, port.tileId);
+    assert.ok(approachTiles.some((shipTileId) => portApproachReachable({
+      ...options,
+      shipTileId,
+      portTileId: port.tileId
+    })), `${port.cityId} is catalogued as a port but cannot be entered from its access tiles`);
+  }
   const gelibolu = ports.find(port => port.cityId === "gelibolu|turkey");
   assert.ok(gelibolu);
   const northWater = graph.neighbors[gelibolu.tileId].filter(id =>

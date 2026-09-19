@@ -9,6 +9,7 @@ import {
   PRE_DJENNE_CORRECTION_TILE_IDS,
   PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS,
   PRE_EXACT_NEAREST_PORT_TILE_IDS,
+  PRE_OHRID_INLAND_TILE_IDS,
   portReferenceMigrationForSavedVoyage,
   sameTopologyPortMigrationForSavedVoyage
 } from "./portCatalogMigration.js";
@@ -172,5 +173,23 @@ test("version-seven ports migrate only the later Exeter and Connecticut placemen
   const migration = sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 7 }, {
     savedSubdivisions: 8, currentSubdivisions: 8
   });
-  assert.deepEqual([...migration], [[298724, 18749], [18749, 298710], [644452, 161147]]);
+  assert.deepEqual([...migration], [
+    [394384, 394865],
+    [298724, 18749],
+    [18749, 298710],
+    [644452, 161147]
+  ]);
+});
+
+test("released Ohrid voyages recover through Thessaloniki after the inland correction", () => {
+  const topology = { savedSubdivisions: 8, currentSubdivisions: 8 };
+  assert.deepEqual([...PRE_OHRID_INLAND_TILE_IDS], [[394384, 394865]]);
+  assert.equal(
+    sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 13 }, topology).get(394384),
+    394865
+  );
+  assert.equal(
+    sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: PORT_CATALOG_VERSION }, topology),
+    null
+  );
 });

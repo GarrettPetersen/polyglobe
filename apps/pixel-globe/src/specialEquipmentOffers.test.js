@@ -7,6 +7,7 @@ import {
   createSpecialEquipmentOfferMemory,
   ensureSpecialEquipmentOffer,
   openSpecialEquipmentOffer,
+  specialEquipmentReplacementPortId,
   specialEquipmentOfferEntry,
   validateSpecialEquipmentOfferMemory
 } from "./specialEquipmentOffers.js";
@@ -58,6 +59,20 @@ test("a purchased special item cannot be offered or completed twice", () => {
     /No active special equipment offer/
   );
   assert.equal(validateSpecialEquipmentOfferMemory(memory), memory);
+});
+
+test("lost purchased equipment reopens at its original factor", () => {
+  const economy = createWorldEconomy({ ports: [CITY], startMinute: 0, seedKey: OFFER_SEED });
+  const memory = createSpecialEquipmentOfferMemory();
+  const offer = openSpecialEquipmentOffer(memory, economy, CITY, { seedKey: OFFER_SEED });
+  completeSpecialEquipmentOfferPurchase(memory, CITY, offer.item.id);
+  assert.equal(specialEquipmentReplacementPortId(memory, offer.item.id), CITY.cityId);
+  const replacement = openSpecialEquipmentOffer(memory, economy, CITY, {
+    ownedItemIds: [],
+    seedKey: OFFER_SEED
+  });
+  assert.equal(replacement.item.id, offer.item.id);
+  assert.equal(replacement.reconsidered, true);
 });
 
 test("an obsolete small-arms offer is retired after the player acquires better arms", () => {

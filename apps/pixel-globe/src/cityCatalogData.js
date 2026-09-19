@@ -101,7 +101,7 @@ const POLYNESIAN = territoryIds([
 const ANDEAN = territoryIds(["Bolivia", "Columbia", "Ecuador", "Peru"]);
 const MESOAMERICAN = territoryIds(["Guatemala", "Mexico", "United States of America"]);
 const MEDITERRANEAN = territoryIds([
-  "Albania", "Bulgaria", "Cyprus", "Greece", "Italy", "Portugal", "Romania", "Serbia", "Spain"
+  "Albania", "Bulgaria", "Cyprus", "Greece", "Italy", "North Macedonia", "Portugal", "Romania", "Serbia", "Spain"
 ]);
 const NORTHERN_EUROPEAN = territoryIds([
   "Austria", "Belgium", "Denmark", "England", "France", "Germany", "Hungary", "Iceland", "Ireland", "Lithuania",

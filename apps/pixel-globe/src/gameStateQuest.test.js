@@ -192,6 +192,30 @@ test("ports without any regional destination offer no delivery quest", () => {
   });
 });
 
+test("save recovery relocates an active delivery away from an inaccessible city", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const ports = [LISBON, PORTO, CADIZ];
+  const quest = deliveryQuestForCity(LISBON, ports, {
+    sailingDistanceKm: testSailingDistanceKm,
+    offerPeriod: 0
+  });
+  acceptQuest(state, quest);
+  const inaccessible = port(99, "Inland Test City", "Portugal", "mediterranean", "portugal", 39, -8);
+  state.memory.quests.active.destinationCityId = inaccessible.cityId;
+  state.memory.quests.active.destinationTileId = inaccessible.tileId;
+  state.memory.quests.active.destinationName = inaccessible.city;
+  state.memory.quests.active.destinationKey = inaccessible.cityId;
+
+  const result = reconcileQuestWorldAssumptions(state, ports, {
+    identityCities: [...ports, inaccessible],
+    sailingDistanceKm: testSailingDistanceKm
+  });
+
+  assert.ok(ports.some((candidate) => candidate.cityId === state.memory.quests.active.destinationCityId));
+  assert.notEqual(state.memory.quests.active.destinationCityId, inaccessible.cityId);
+  assert.equal(result.events[0].type, "delivery-destination-relocated");
+});
+
 test("delivery work must spawn before the factor can offer it", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const ports = [LISBON, PORTO, GOA, CADIZ];

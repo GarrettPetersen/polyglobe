@@ -3,7 +3,7 @@ import {
   subdivisionSevenPortMigrationForWorld
 } from "./subdivisionSevenPortMigration.js";
 
-export const PORT_CATALOG_VERSION = 13;
+export const PORT_CATALOG_VERSION = 14;
 const EARLIEST_SUPPORTED_PORT_CATALOG_VERSION = 1;
 
 // The first subdivision-eight release placed North Maluku's three ports on an
@@ -85,6 +85,10 @@ export const PRE_EXETER_INLAND_TILE_IDS = new Map([[644452, 161147]]);
 // Hartford moves onto the Connecticut; New Haven takes its former coastal tile.
 // Apply these simultaneously so old Hartford references do not become New Haven.
 const PRE_CONNECTICUT_PORT_TILE_IDS = new Map([[298724, 18749], [18749, 298710]]);
+// Ohrid was erroneously placed on the Danube and released as a navigable river
+// port. It is inland at the corrected Lake Ohrid coordinates, so existing
+// sailing references recover to the authored Thessaloniki gateway.
+export const PRE_OHRID_INLAND_TILE_IDS = new Map([[394384, 394865]]);
 const UNVERSIONED_PORT_TILE_IDS = composePortTileMigrations(composePortTileMigrations(composePortTileMigrations(new Map([
   ...PRE_NORTH_MALUKU_PORT_TILE_IDS,
   ...PRE_RIVER_OUTLET_PORT_TILE_IDS,
@@ -105,7 +109,10 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
     );
   }
   if (payload.portCatalogVersion === undefined) {
-    return composePortTileMigrations(UNVERSIONED_PORT_TILE_IDS, PRE_CONNECTICUT_PORT_TILE_IDS);
+    return composePortTileMigrations(
+      composePortTileMigrations(UNVERSIONED_PORT_TILE_IDS, PRE_CONNECTICUT_PORT_TILE_IDS),
+      PRE_OHRID_INLAND_TILE_IDS
+    );
   }
   if (!Number.isInteger(payload.portCatalogVersion) ||
       payload.portCatalogVersion < EARLIEST_SUPPORTED_PORT_CATALOG_VERSION ||
@@ -123,7 +130,14 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
   payload.portCatalogVersion < 6 ? PRE_EXACT_NEAREST_PORT_TILE_IDS : new Map()),
   payload.portCatalogVersion < 7 ? PRE_EXETER_OUTPORT_TILE_IDS : new Map()),
   PRE_EXETER_INLAND_TILE_IDS);
-  return composePortTileMigrations(earlier, payload.portCatalogVersion < 11 ? PRE_CONNECTICUT_PORT_TILE_IDS : new Map());
+  const throughConnecticut = composePortTileMigrations(
+    earlier,
+    payload.portCatalogVersion < 11 ? PRE_CONNECTICUT_PORT_TILE_IDS : new Map()
+  );
+  return composePortTileMigrations(
+    throughConnecticut,
+    payload.portCatalogVersion < 14 ? PRE_OHRID_INLAND_TILE_IDS : new Map()
+  );
 }
 
 export function portReferenceMigrationForSavedVoyage(payload, topology, currentPlacements) {

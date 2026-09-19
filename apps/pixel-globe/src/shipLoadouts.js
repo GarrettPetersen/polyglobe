@@ -58,7 +58,12 @@ export function shipLoadoutPlan(stats, loadoutId, options = {}) {
   const availableStoreSpace = Math.max(0, stats.cargoCapacity - operationalSpace - reserveSpace);
   const consumers = crew;
   const desiredFood = Math.ceil(consumers * selected.targetDays / FOOD_RATIONS_PER_HOLD_UNIT);
-  const desiredWater = Math.ceil(consumers * selected.targetDays / WATER_PERSON_DAYS_PER_UNIT);
+  // The HUD rounds remaining supply time up to whole days. Flooring the hold
+  // units keeps a nominal ten-day combat loadout from being presented as an
+  // eleven-day loadout when the crew count does not divide evenly.
+  const desiredWater = selected.id === "combat"
+    ? Math.floor(consumers * selected.targetDays / WATER_PERSON_DAYS_PER_UNIT)
+    : Math.ceil(consumers * selected.targetDays / WATER_PERSON_DAYS_PER_UNIT);
   const stores = fitStores(desiredFood, desiredWater, availableStoreSpace);
   const foodDays = stores.foodUnits * FOOD_RATIONS_PER_HOLD_UNIT / consumers;
   const waterDays = stores.waterUnits * WATER_PERSON_DAYS_PER_UNIT / consumers;

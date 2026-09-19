@@ -14,6 +14,7 @@ import {
   shipMinimumCrew
 } from "./shipLoadouts.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { remainingSupplyDayCount } from "./statusIconRow.js";
 
 test("every loadout fits small and large ship holds", () => {
   for (const slug of ["fishing-lugger", "brigantine", "ship-of-the-line"]) {
@@ -40,6 +41,12 @@ test("preset priorities produce distinct useful ship plans", () => {
   assert.equal(combat.crew, combat.crewCapacity);
   assert.ok(shortHaul.reserveSpace > balanced.reserveSpace);
   assert.ok(balanced.cannons > longHaul.cannons);
+});
+
+test("a fully crewed galleon combat loadout displays ten days of water", () => {
+  const combat = shipLoadoutPlan(shipStatsForSlug("galleon"), "combat");
+  assert.equal(combat.crew, combat.crewCapacity);
+  assert.equal(remainingSupplyDayCount(combat.waterDays), 10);
 });
 
 test("four crew share one unit of berth and equipment space", () => {

@@ -1691,6 +1691,7 @@ test("Colombo smugglers sell cinnamon under the existing illicit-trade enforceme
       expressions: ["neutral", "happy"]
     }
   });
+  const portugalStandingBefore = factionReputation(gameState, "portugal");
   const context = { simMinute: 100, random: () => 0.1, shipStats: shipStatsForSlug("brigantine") };
   const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
 
@@ -2151,6 +2152,10 @@ test("market rows put unit and bulk actions together and undo every purchase on 
   assert.ok(initialUndoIndex >= 0);
   assert.equal(initial.options[initialUndoIndex].disabled, true);
   assert.equal(initial.options[initialUndoIndex].placement, "port-exit");
+  assert.deepEqual(
+    dialogueOptionGroups(initial.options).exits.map((entry) => entry.option.label),
+    ["Back to city", "Undo all trades"]
+  );
   const port = economy.portStates.get(city.cityId);
   const before = {
     doubloons: gameState.doubloons,
@@ -3762,6 +3767,7 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
 
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(view.optionHeight, 34);
+  assert.equal(view.optionColumns, 2);
   assert.deepEqual(view.options.map((option) => option.label), [
     "LONG HAUL",
     "SHORT HAUL",
@@ -3773,6 +3779,15 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
     (option) => /CREW \d+  GUNS \d+  FOOD \d+D  WATER \d+D/.test(option.detail)
   ));
   assert.equal(view.options[4].detail, "SET CREW, GUNS, FOOD, AND WATER");
+  assert.deepEqual(
+    dialogueRegularOptionRows(view, dialogueOptionGroups(view.options).regular)
+      .map((row) => row.map((entry) => entry.option.label)),
+    [
+      ["LONG HAUL", "SHORT HAUL"],
+      ["COMBAT FOCUSED", "BALANCED"],
+      ["CUSTOM"]
+    ]
+  );
 
   const before = gameState.doubloons;
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], 3, context);
