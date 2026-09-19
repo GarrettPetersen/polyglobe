@@ -1,4 +1,5 @@
 import { captureCommissionTroopOfferText } from "./captureCommissionTroops.js";
+import { SHIP_ATTACK_BASIS } from "./shipAttackEligibility.js";
 import { pirateQuestAtIssuer, pirateGoodsPickupStatus, collectPirateGoods } from "./pirateHavens.js";
 import { PIRATE_FACTION_ID } from "./factions.js";
 import { pirateHavenCommissionView, selectPirateHavenCommission, pirateGoodsPickupView } from "./pirateHavenDialogue.js";
@@ -1222,6 +1223,7 @@ function shipDialogueContentView(session, ship, gameState = null) {
     };
   }
   if (session.nodeId === "defiance") {
+    const attackEligibility = shipAttackEligibilityForDialogue(ship);
     const attackLegality = shipAttackLegalityNotice(ship);
     return {
       speaker,
@@ -1230,7 +1232,7 @@ function shipDialogueContentView(session, ship, gameState = null) {
       feedback: attackLegality?.text || null,
       feedbackTone: attackLegality?.tone,
       options: [
-        option("Attack", { type: "attack" }),
+        option("Attack", { type: "attack" }, shipAttackOptionAvailability(attackEligibility)),
         option("Back down", { type: "close" })
       ]
     };
@@ -1249,6 +1251,7 @@ function shipDialogueContentView(session, ship, gameState = null) {
   }
   if (session.nodeId !== "root") throw new Error(`Unknown ship dialogue node: ${session.nodeId}`);
   if (session.hostileHail) {
+    const attackEligibility = shipAttackEligibilityForDialogue(ship);
     const attackLegality = shipAttackLegalityNotice(ship);
     return {
       speaker,
@@ -1261,7 +1264,7 @@ function shipDialogueContentView(session, ship, gameState = null) {
       feedback: attackLegality?.text || null,
       feedbackTone: attackLegality?.tone,
       options: [
-        option("Attack", { type: "attack" }),
+        option("Attack", { type: "attack" }, shipAttackOptionAvailability(attackEligibility)),
         option("Leave", { type: "close" })
       ]
     };
@@ -1296,7 +1299,8 @@ function shipDialogueContentView(session, ship, gameState = null) {
       : role === "Warship"
         ? "attentive"
         : "neutral";
-  const attackLegality = !ship.combatGrace && !ship.inCombatWithPlayer
+  const attackEligibility = shipAttackEligibilityForDialogue(ship);
+  const attackLegality = attackEligibility.available && !ship.inCombatWithPlayer
     ? shipAttackLegalityNotice(ship)
     : null;
   return {
@@ -1309,7 +1313,7 @@ function shipDialogueContentView(session, ship, gameState = null) {
       ...(ship.canOfferEmergencyAid
         ? [option("Ask for provisions", { type: "receive-aid" })]
         : []),
-      ...(ship.tradeRestrictionViolation && !ship.combatGrace && !ship.inCombatWithPlayer
+      ...(ship.tradeRestrictionViolation && attackEligibility.available && !ship.inCombatWithPlayer
         ? [option(`You are in violation of ${ship.tradeRestrictionViolation.regimeLabel}`, {
           type: "enforce-trade-restriction"
         }, {
@@ -1317,7 +1321,7 @@ function shipDialogueContentView(session, ship, gameState = null) {
           detailTone: "success"
         })]
         : []),
-      ...(!ship.tradeRestrictionViolation && !ship.combatGrace && !ship.inCombatWithPlayer
+      ...(!ship.tradeRestrictionViolation && attackEligibility.available && !ship.inCombatWithPlayer
         ? [option("Demand surrender", { type: "threaten" })]
         : []),
       option("Leave", { type: "close" })
@@ -1326,36 +1330,68 @@ function shipDialogueContentView(session, ship, gameState = null) {
 }
 
 function shipAttackLegalityNotice(ship) {
-  return attackLegalityNotice({
-    piracy: ship.playerAttackIsPiracy === true,
-    issuerAdjective: shipPrivateeringIssuer(ship),
-    subjectId: ship.id
-  });
+  const eligibility = shipAttackEligibilityForDialogue(ship);
+  const issuer = eligibility.issuerAdjective;
+  if (eligibility.basis === SHIP_ATTACK_BASIS.EMBARGO) {
+    return {
+      text: `An attack would be lawful under your ${issuer} embargo commission.`,
+      detail: `Attack would be lawful - ${issuer} embargo commission`,
+      tone: "success"
+    };
+  }
+  if (eligibility.basis === SHIP_ATTACK_BASIS.LETTER_OF_MARQUE) {
+    return {
+      text: `Your ${issuer} letter of marque would authorize an attack.`,
+      detail: `Attack would be lawful - ${issuer} letter of marque`,
+      tone: "success"
+    };
+  }
+  if (eligibility.basis === SHIP_ATTACK_BASIS.WAR) {
+    return { text: "Your flags are at war; an attack would be lawful.", detail: "Lawful wartime attack", tone: "success" };
+  }
+  if (eligibility.basis === SHIP_ATTACK_BASIS.PIRATE) {
+    return { text: "Attacking this pirate vessel would be lawful.", detail: "Lawful anti-piracy action", tone: "success" };
+  }
+  if (eligibility.basis === SHIP_ATTACK_BASIS.ENCOUNTER) {
+    return { text: "Your active commission would authorize an attack.", detail: "Lawful commissioned attack", tone: "success" };
+  }
+  if (eligibility.basis === SHIP_ATTACK_BASIS.SELF_DEFENSE) {
+    return { text: "You may lawfully defend your ship if attacked.", detail: "Lawful self-defense", tone: "success" };
+  }
+  return {
+    text: "Without wartime authority, an attack would be illegal piracy.",
+    detail: "Piracy if attacked",
+    tone: "danger"
+  };
+}
+
+function shipAttackOptionAvailability(eligibility) {
+  return eligibility.available
+    ? {}
+    : { disabled: true, disabledReason: "This ship is protected after surrendering." };
+}
+
+function shipAttackEligibilityForDialogue(ship) {
+  const eligibility = ship.attackEligibility;
+  if (!eligibility || typeof eligibility.available !== "boolean" ||
+      typeof eligibility.legal !== "boolean" || typeof eligibility.piracy !== "boolean") {
+    throw new Error(`Ship dialogue requires evaluated attack eligibility: ${ship.id}`);
+  }
+  if (eligibility.legal === eligibility.piracy) {
+    throw new Error(`Ship dialogue has contradictory attack eligibility: ${ship.id}`);
+  }
+  return eligibility;
 }
 
 function attackLegalityNotice({ piracy, issuerAdjective, subjectId }) {
   if (piracy && issuerAdjective) {
     throw new Error(`Attack cannot be piracy and authorized by ${issuerAdjective}: ${subjectId}`);
   }
-  if (issuerAdjective) {
-    return {
-      text: `Your ${issuerAdjective} letter of marque makes this attack legal.`,
-      detail: `Legal - ${issuerAdjective} letter of marque`,
-      tone: "success"
-    };
-  }
-  if (piracy) {
-    return {
-      text: "Without a letter of marque, this attack would be illegal piracy.",
-      detail: "Piracy",
-      tone: "danger"
-    };
-  }
-  return {
-    text: null,
-    detail: "Legal attack",
-    tone: "success"
-  };
+  return issuerAdjective
+    ? { detail: `Legal - ${issuerAdjective} letter of marque`, tone: "success" }
+    : piracy
+      ? { detail: "Piracy", tone: "danger" }
+      : { detail: "Legal attack", tone: "success" };
 }
 
 function shipPrizeLegalityNotice(session, ship) {
@@ -1373,37 +1409,32 @@ function shipPrizeLegalityNotice(session, ship) {
       tone: "success"
     };
   }
-  const issuer = shipPrivateeringIssuer(ship);
-  if (ship.playerAttackIsPiracy === true && issuer) {
-    throw new Error(`Ship prize cannot be piracy and authorized by ${issuer}: ${ship.id}`);
-  }
-  if (issuer) {
+  const eligibility = shipAttackEligibilityForDialogue(ship);
+  if (eligibility.basis === SHIP_ATTACK_BASIS.LETTER_OF_MARQUE) {
     return {
-      text: `Your ${issuer} letter of marque makes this a lawful prize.`,
+      text: `Your ${eligibility.issuerAdjective} letter of marque makes this a lawful prize.`,
       tone: "success"
     };
   }
-  if (ship.playerAttackIsPiracy === true) {
+  if (eligibility.basis === SHIP_ATTACK_BASIS.EMBARGO) {
+    return {
+      text: `Your ${eligibility.issuerAdjective} commission makes this a lawful embargo prize.`,
+      tone: "success"
+    };
+  }
+  if (eligibility.piracy) {
     return {
       text: "Taking this vessel as a prize would be piracy.",
       tone: "danger"
     };
   }
-  if (ship.playerAttackIsPiracy === false) {
+  if (eligibility.legal) {
     return {
       text: "Taking this vessel as a prize is lawful.",
       tone: "success"
     };
   }
   return null;
-}
-
-function shipPrivateeringIssuer(ship) {
-  const issuer = ship.privateeringIssuerAdjective;
-  if (issuer !== null && issuer !== undefined && (typeof issuer !== "string" || issuer.trim() === "")) {
-    throw new Error(`Invalid privateering authority issuer for ship: ${ship.id}`);
-  }
-  return issuer || null;
 }
 
 function shipDialogueVesselLabel(ship) {
@@ -1605,6 +1636,11 @@ function assertShipDialogueSubject(session, ship) {
 }
 
 function applyShipDialogueAction(session, ship, action) {
+  if (isHostileShipAction(action.type) &&
+      action.type !== "accept-damage-surrender" &&
+      !shipAttackEligibilityForDialogue(ship).available) {
+    throw new Error(`Hostile action is unavailable against protected ship: ${ship.id}`);
+  }
   if (["surrender-bible-contraband", "evade-bible-inspection"].includes(action.type)) {
     if (session.nodeId !== "bible-inspection" || session.bibleInspection?.outcome !== "caught") {
       throw new Error(`Bible enforcement action outside a caught inspection: ${action.type}`);
@@ -1726,7 +1762,7 @@ function shipHostileActionNeedsPiracyWarning(session, ship, action) {
   if (session.tradeRestrictionEnforcementActive) return false;
   if (action.type === "accept-damage-surrender" && session.surrenderCause !== "accidental") return false;
   return isHostileShipAction(action.type) &&
-    ship.playerAttackIsPiracy === true &&
+    shipAttackEligibilityForDialogue(ship).piracy &&
     session.piracyWarningAccepted !== true;
 }
 

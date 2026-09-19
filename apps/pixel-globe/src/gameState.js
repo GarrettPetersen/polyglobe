@@ -5805,6 +5805,45 @@ export function recordPlayerNavalVictory(state, { pirate = false } = {}) {
   });
 }
 
+export function recordPortDefenseVictory(state, {
+  npcShipId,
+  portCityId,
+  portFactionId,
+  simMinute = state?.survival?.lastMinute
+}) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (typeof npcShipId !== "string" || npcShipId.trim() === "") {
+    throw new Error(`Invalid port-defense attacker id: ${npcShipId}`);
+  }
+  if (typeof portCityId !== "string" || portCityId.trim() === "") {
+    throw new Error(`Invalid defended port id: ${portCityId}`);
+  }
+  const factionId = assertFactionId(portFactionId);
+  if (factionId === NEUTRAL_FACTION_ID || factionId === PIRATE_FACTION_ID) {
+    return Object.freeze({ awarded: false, delta: 0, reason: "ineligible-faction" });
+  }
+  // Ship IDs are stable across save/load and replacement cycles. One award per
+  // attacker identity prevents repeatedly releasing and re-engaging the same
+  // ship, or dragging it between nearby batteries, from farming standing.
+  const decisionKey = `combat.port-defense.${npcShipId}`;
+  if (positiveDecisionCount(state.memory.decisions[decisionKey]) > 0) {
+    return Object.freeze({ awarded: false, delta: 0, reason: "already-recognized" });
+  }
+  recordDecision(state, decisionKey, 1);
+  recordDecision(state, `combat.port-defense.port.${portCityId}`, 1);
+  const before = factionReputation(state, factionId);
+  const after = adjustFactionReputation(state, factionId, 3, { reason: "mission", simMinute });
+  return Object.freeze({
+    awarded: after !== before,
+    factionId,
+    before,
+    after,
+    delta: after - before,
+    reason: after === before ? "maximum-standing" : null
+  });
+}
+
 function piracyReputationPenalty(state, observerFactionId, victimFactionId) {
   if (observerFactionId === victimFactionId) return SHIP_ATTACK_REPUTATION_PENALTY;
 
@@ -7241,7 +7280,11 @@ export function captureCommissionPetitionEligibility(state, city) {
   } else if (pendingCapturePortMissionOfferForCity(state, city)) {
     reason = "pending-offer";
   }
-  return Object.freeze({ visible: holdsCommission, eligible: reason === null, reason,
+  // Petitions are heard only by the sovereign council. Do not advertise a
+  // dead-end action in every provincial port; active commissions still return
+  // to their stable issuing port identity after the target is captured.
+  const visible = holdsCommission && reason !== "not-capital";
+  return Object.freeze({ visible, eligible: reason === null, reason,
     blockingQuest: reason === "active-voyage" ? blockingQuest : null });
 }
 

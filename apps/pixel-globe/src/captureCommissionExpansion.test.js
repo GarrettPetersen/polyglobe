@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createGameState, capturePortMissionOfferForCity, captureCommissionPetitionOptionsForCity } from "./gameState.js";
+import { createGameState, captureCommissionPetitionEligibility, capturePortMissionOfferForCity, captureCommissionPetitionOptionsForCity } from "./gameState.js";
 import { parsePortSailingDistances, portSailingDistanceKm } from "./portSailingDistances.js";
 
 const catalog = JSON.parse(readFileSync(new URL("../city-visualizer/data/cities.json", import.meta.url))).cities;
@@ -49,6 +49,21 @@ test("Tidore can commission Lisbon beyond the former range limit", () => {
   const isolated = [...ports.filter(c => c.factionId === "tidore"), lisbon];
   const options = captureCommissionPetitionOptionsForCity(state, origin, isolated, { simMinute: 0, sailingDistanceKm });
   assert.equal(options.some(o => o.targetFactionId === "portugal"), true);
+});
+
+test("capture-warrant petitions are hidden outside the issuing faction's capital", () => {
+  const { state, origin } = scenario(false);
+  const provincialPort = {
+    ...origin,
+    cityId: "tidore-province|indonesia",
+    city: "Tidore Province",
+    isFactionCapital: false,
+    capitalOfFactionId: null
+  };
+  const eligibility = captureCommissionPetitionEligibility(state, provincialPort);
+  assert.equal(eligibility.reason, "not-capital");
+  assert.equal(eligibility.eligible, false);
+  assert.equal(eligibility.visible, false);
 });
 
 test("an intact rival's capital remains eligible and disconnected ports do not", () => {

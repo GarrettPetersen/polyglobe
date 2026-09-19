@@ -7,10 +7,34 @@ import {
   chooseNpcRouteFollowingDirection,
   chooseNpcSailingDirection,
   findNpcVisualPlacement,
+  npcHeldSnapshotShouldRelease,
   npcProgressWatchShouldDetour,
+  npcStuckRecoveryMode,
   npcVisualStateIdsWithoutStrategicState,
   rankNpcEscapeDirections
 } from "./npcVisualNavigation.js";
+
+test("strategically held visuals retire unless local combat still owns them", () => {
+  assert.equal(npcHeldSnapshotShouldRelease({
+    routeKey: "held:1200",
+    requiresLocalPhysics: false
+  }), true);
+  assert.equal(npcHeldSnapshotShouldRelease({
+    routeKey: "held:1200",
+    requiresLocalPhysics: true
+  }), false);
+  assert.equal(npcHeldSnapshotShouldRelease({
+    routeKey: "london->channel@1200",
+    requiresLocalPhysics: false
+  }), false);
+});
+
+test("stuck recovery deterministically escalates from detours to a strategic replan", () => {
+  assert.equal(npcStuckRecoveryMode({ attempt: 0, detourAvailable: true }), "detour");
+  assert.equal(npcStuckRecoveryMode({ attempt: 2, detourAvailable: true }), "detour");
+  assert.equal(npcStuckRecoveryMode({ attempt: 3, detourAvailable: true }), "replan");
+  assert.equal(npcStuckRecoveryMode({ attempt: 0, detourAvailable: false }), "replan");
+});
 
 test("visual ships orphaned by a strategic update are identified immediately", () => {
   const visualStates = new Map([

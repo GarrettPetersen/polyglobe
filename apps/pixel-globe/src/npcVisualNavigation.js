@@ -128,6 +128,29 @@ export function npcProgressWatchShouldDetour({
   );
 }
 
+export function npcHeldSnapshotShouldRelease({ routeKey, requiresLocalPhysics }) {
+  if (typeof routeKey !== "string" || routeKey.length === 0) {
+    throw new Error("NPC snapshot release policy requires a route key");
+  }
+  if (typeof requiresLocalPhysics !== "boolean") {
+    throw new Error(`Invalid NPC local-physics state: ${requiresLocalPhysics}`);
+  }
+  return routeKey.startsWith("held:") && !requiresLocalPhysics;
+}
+
+export function npcStuckRecoveryMode({ attempt, detourAvailable, maximumDetourAttempts = 3 }) {
+  if (!Number.isInteger(attempt) || attempt < 0) {
+    throw new Error(`Invalid NPC stuck-recovery attempt: ${attempt}`);
+  }
+  if (typeof detourAvailable !== "boolean") {
+    throw new Error(`Invalid NPC stuck-recovery detour state: ${detourAvailable}`);
+  }
+  if (!Number.isInteger(maximumDetourAttempts) || maximumDetourAttempts <= 0) {
+    throw new Error(`Invalid NPC stuck-recovery limit: ${maximumDetourAttempts}`);
+  }
+  return !detourAvailable || attempt >= maximumDetourAttempts ? "replan" : "detour";
+}
+
 export function chooseNpcStuckDetourCandidate({
   identity,
   attempt,

@@ -67,6 +67,7 @@ import {
   recordPiracyAgainstFaction,
   recordPlayerNavalVictory,
   recordPirateLoss,
+  recordPortDefenseVictory,
   recordSelfDefenseAgainstFaction,
   recordShipMercyForFaction,
   recordTradeWithFaction,
@@ -146,6 +147,29 @@ test("naval victories distinguish pirate hunting from other combat", () => {
   assert.deepEqual(recordPlayerNavalVictory(state), { ships: 1, pirates: 0 });
   assert.deepEqual(recordPlayerNavalVictory(state, { pirate: true }), { ships: 2, pirates: 1 });
   assert.deepEqual(recordPlayerNavalVictory(state, { pirate: true }), { ships: 3, pirates: 2 });
+});
+
+test("defending a port grants standing only once for each stable attacker identity", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const before = factionReputation(state, "portugal");
+  const first = recordPortDefenseVictory(state, {
+    npcShipId: "moroccan-raider-4",
+    portCityId: "lisbon|portugal",
+    portFactionId: "portugal",
+    simMinute: 120
+  });
+  const repeated = recordPortDefenseVictory(state, {
+    npcShipId: "moroccan-raider-4",
+    portCityId: "porto|portugal",
+    portFactionId: "portugal",
+    simMinute: 180
+  });
+
+  assert.equal(first.awarded, true);
+  assert.equal(first.delta, 3);
+  assert.equal(factionReputation(state, "portugal"), before + 3);
+  assert.deepEqual(repeated, { awarded: false, delta: 0, reason: "already-recognized" });
+  assert.equal(state.memory.decisions["combat.port-defense.moroccan-raider-4"], 1);
 });
 
 test("port attacks distinguish capture commissions, wartime raids, privateering, and piracy", () => {

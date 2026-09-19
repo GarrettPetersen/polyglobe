@@ -544,7 +544,6 @@ import {
   grantGuaranteedMissionPerkItem,
   hasShipItem,
   hasLetterOfMarqueFrom,
-  hasPrivateeringAuthorityAgainst,
   issueSovereignWarLoanForState,
   acceptSovereignWarLoanSecurityForState,
   advanceSovereignWarLoanCreditForState,
@@ -583,6 +582,7 @@ import {
   recordPortCaptureAuthorityForState,
   recordPlayerNavalVictory,
   recordPirateLoss,
+  recordPortDefenseVictory,
   reconcileCharacterForPapalAuthority,
   resolveCatholicBibleInspection,
   payPortugueseCartazFine,
@@ -1295,11 +1295,14 @@ import {
   chooseNpcRouteFollowingDirection,
   chooseNpcSailingDirection,
   findNpcVisualPlacement,
+  npcHeldSnapshotShouldRelease,
   npcProgressWatchShouldDetour,
+  npcStuckRecoveryMode,
   npcVisualStateIdsWithoutStrategicState,
   rankNpcEscapeDirections,
   rankNpcObstacleAvoidanceDirections
 } from "./npcVisualNavigation.js";
+import { shipAttackEligibility } from "./shipAttackEligibility.js";
 import { compareShipDrawCalls } from "./shipDrawOrder.js";
 import {
   SHIP_MINIMUM_RUDDER_AUTHORITY,
@@ -28985,10 +28988,13 @@ async function captureSurrenderedShip(npcShipId) {
 function beginPlayerInitiatedCombat(npcShipId) {
   const state = npcVisualShips.get(npcShipId);
   if (!state) throw new Error(`Cannot attack NPC ship that is no longer visible: ${npcShipId}`);
-  if (state.combatGrace) throw new Error(`Cannot attack protected NPC ship: ${npcShipId}`);
+  const eligibility = playerNpcAttackEligibility(npcShipId);
+  if (!eligibility.available) {
+    throw new Error(eligibility.reason || `Cannot attack NPC ship: ${npcShipId}`);
+  }
   if (pendingNpcCombatHailId === npcShipId) pendingNpcCombatHailId = null;
   if (!forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, npcShipId)) return;
-  recordPlayerAttackConsequences(npcShipId);
+  recordPlayerAttackConsequences(npcShipId, null, eligibility);
   shipCombatEntryCollisionGrace.set(PLAYER_COMBAT_ID, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
   shipCombatEntryCollisionGrace.set(npcShipId, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
   const cannons = state.stats.cannons;
@@ -29015,7 +29021,7 @@ function forceIllicitTradeEnforcementCombat(npcShipId) {
   forceNearbyTradeEnforcementEngagements(Math.floor(weatherClockMinutes));
 }
 
-function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
+function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null, eligibility = null) {
   if (!gameState) return;
   if (npcSeaRoutes?.shipById?.get(npcShipId)?.encounter?.kind === "colonization-defense") return;
   const ningboQuest = activeNingboMissionQuest();
@@ -29023,8 +29029,8 @@ function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
   const state = npcVisualShips.get(npcShipId);
   const factionId = state?.factionId || npcSeaRoutes?.shipById?.get(npcShipId)?.factionId || fallbackFactionId;
   if (!factionId) return;
-  const lawfulWartimeAction = hasPrivateeringAuthorityAgainst(gameState, factionId) ||
-    state?.playerTradeRestrictionEnforcementActive === true;
+  const attackEligibility = eligibility || playerNpcAttackEligibility(npcShipId);
+  const lawfulWartimeAction = attackEligibility.legal;
   if (!state?.playerAttackRecorded) {
     recordAttackAgainstFaction(gameState, factionId, { lawfulWartimeAction });
     if (state) state.playerAttackRecorded = true;
@@ -29560,36 +29566,8 @@ function dialogueShipForId(npcShipId) {
   const emergencyAid = shipEmergencyAidNeed(gameState, npcShip.id, {
     allied: alliedToPlayer
   });
-  const privateeringIssuerIds = privateeringAuthorityIssuerIdsAgainst(gameState, npcShip.factionId);
-  const playerCommissionFactionIds = Object.keys(gameState.relations.lettersOfMarque)
-    .filter((factionId) => hasLetterOfMarqueFrom(gameState, factionId));
-  const currentTradeRestrictionViolation = npcTradeEmbargoViolations(
-    npcShip,
-    gameState.relations.tradeEmbargoes,
-    playerCommissionFactionIds
-  )[0] || null;
-  const activeTradeRestrictionViolation = visualState.playerTradeRestrictionEnforcementActive
-    ? visualState.playerTradeRestrictionViolation
-    : null;
-  const tradeRestrictionViolation = activeTradeRestrictionViolation ||
-    (currentTradeRestrictionViolation ? (() => {
-      const order = tradeEmbargoOrderById(
-        gameState.relations.tradeEmbargoes,
-        currentTradeRestrictionViolation.orderId
-      );
-      return Object.freeze({
-        ...currentTradeRestrictionViolation,
-        regimeLabel: tradeEmbargoRegimeLabel(order),
-        issuerAdjective: factionById(currentTradeRestrictionViolation.enforcingFactionId).adjective
-      });
-    })() : null);
-  const effectivePrivateeringFactionId = activeTradeRestrictionViolation?.enforcingFactionId ||
-    privateeringIssuerIds[0] || null;
-  const privateeringIssuerAdjective = effectivePrivateeringFactionId
-    ? factionById(effectivePrivateeringFactionId).adjective
-    : null;
-  const playerAttackIsPiracy = !encounter && npcShip.factionId !== PIRATE_FACTION_ID &&
-    privateeringIssuerIds.length === 0 && !activeTradeRestrictionViolation;
+  const attackEligibility = playerNpcAttackEligibility(npcShipId);
+  const tradeRestrictionViolation = attackEligibility.tradeRestrictionViolation;
   const stormStatus = visualState?.stormMode === "anchored"
     ? "We are anchored until the storm passes."
     : visualState?.stormMode === "seeking"
@@ -29619,12 +29597,53 @@ function dialogueShipForId(npcShipId) {
     inCombatWithPlayer,
     alliedToPlayer,
     canOfferEmergencyAid: !enemy && emergencyAid.available,
-    playerAttackIsPiracy,
-    privateeringIssuerAdjective,
+    attackEligibility,
     tradeRestrictionViolation,
     willOfferSurrender: npcShouldOfferSurrender(npcCombatEntity(visualState), playerCombatEntity()),
     character
   };
+}
+
+function playerNpcAttackEligibility(npcShipId) {
+  const npcShip = npcSeaRoutes?.shipById?.get(npcShipId);
+  const visualState = npcVisualShips.get(npcShipId);
+  if (!npcShip || !visualState) {
+    throw new Error(`Cannot evaluate attack eligibility for missing NPC ship: ${npcShipId}`);
+  }
+  const privateeringIssuerIds = privateeringAuthorityIssuerIdsAgainst(gameState, npcShip.factionId);
+  const playerCommissionFactionIds = Object.keys(gameState.relations.lettersOfMarque)
+    .filter((factionId) => hasLetterOfMarqueFrom(gameState, factionId));
+  const currentViolation = npcTradeEmbargoViolations(
+    npcShip,
+    gameState.relations.tradeEmbargoes,
+    playerCommissionFactionIds
+  )[0] || null;
+  const activeViolation = visualState.playerTradeRestrictionEnforcementActive
+    ? visualState.playerTradeRestrictionViolation
+    : null;
+  const violation = activeViolation || (currentViolation ? (() => {
+    const order = tradeEmbargoOrderById(
+      gameState.relations.tradeEmbargoes,
+      currentViolation.orderId
+    );
+    return Object.freeze({
+      ...currentViolation,
+      regimeLabel: tradeEmbargoRegimeLabel(order),
+      issuerAdjective: factionById(currentViolation.enforcingFactionId).adjective
+    });
+  })() : null);
+  const authority = shipAttackEligibility({
+    shipId: npcShipId,
+    combatGrace: npcShip.graceUntilPortVisit > npcShip.portVisits,
+    targetIsPirate: npcShip.factionId === PIRATE_FACTION_ID,
+    encounterAuthorized: npcShip.encounter?.kind === "colonization-defense",
+    ownNationAtWar: currentDiplomacyBetween(ship.factionId, npcShip.factionId) === DIPLOMACY_WAR,
+    privateeringIssuerAdjective: privateeringIssuerIds[0]
+      ? factionById(privateeringIssuerIds[0]).adjective
+      : null,
+    tradeRestrictionViolation: violation
+  });
+  return Object.freeze({ ...authority, tradeRestrictionViolation: violation });
 }
 
 function playerTreatsFactionAsGreenAlly(factionId) {
@@ -38731,6 +38750,17 @@ function updateNpcVisualShips(dt) {
       state = null;
       changed = true;
     }
+    if (state && npcHeldSnapshotShouldRelease({
+      routeKey: snapshot.routeKey,
+      requiresLocalPhysics: npcVisualStateRequiresLocalPhysics(state)
+    })) {
+      // A held snapshot means the strategic voyage has reached a wait/port
+      // phase. Keeping its transient visual position produced inert ships that
+      // vanished on reload because visual navigation is deliberately not saved.
+      releaseNpcVisualState(state);
+      changed = true;
+      continue;
+    }
     if (state) state.visualMovementDebtSeconds += dt;
     if (state && npcVisualStateRequiresLocalPhysics(state)) {
       activeSnapshots.push(snapshot);
@@ -41016,6 +41046,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     throw new Error("Accidental player surrender must be damage-induced");
   }
   const playerWon = winnerId === PLAYER_COMBAT_ID;
+  const defendedPort = playerWon ? npcPortDefenseBeneficiary(loserId) : null;
   recordCombatAuthorityOutcome(strategicBeforeSurrender.factionId, winnerId, false);
   const playerAttackRecorded = npcVisualShips.get(loserId)?.playerAttackRecorded === true;
   const surrenderCause = !playerWon || !damageInduced
@@ -41029,6 +41060,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
     ? recordPlayerSelfDefenseConsequences(loserId, strategicBeforeSurrender.factionId)
     : null;
   if (playerWon) recordPlayerShipVictory({ pirate: loserWasPirate });
+  if (defendedPort) recognizePlayerPortDefense(loserId, defendedPort);
   if (npcSeaRoutes.shipById.get(loserId)?.encounter?.kind === "colonization-defense") {
     surrenderNpcShip(npcSeaRoutes, loserId, null, { preserveHull: true });
     resolveColonizationDefenseAttacker(loserId, "CANOE DRIVEN OFF");
@@ -41232,11 +41264,13 @@ function handleNpcSinking(loserId, winnerId, {
   const wokouEncounter = strategic.encounter?.kind === "wokou-hunt";
   const escapedCaptiveEncounter = strategic.encounter?.kind === PIRATE_CAPTIVE_REVENGE_ENCOUNTER_KIND;
   const playerVictory = winnerId === PLAYER_COMBAT_ID && !accidentalPlayerCollision;
+  const defendedPort = playerVictory ? npcPortDefenseBeneficiary(loserId) : null;
   const selfDefenseResult = playerVictory
     ? recordPlayerSelfDefenseConsequences(loserId, strategic.factionId)
     : null;
   let accidentalCollisionRecorded = false;
   if (playerVictory) recordPlayerShipVictory({ pirate: loserWasPirate });
+  if (defendedPort) recognizePlayerPortDefense(loserId, defendedPort);
   const visualState = npcVisualShips.get(loserId);
   if (visualState) spawnNpcShipSinkEffect(visualState, lastFrameMs);
   if (strategic.encounter?.kind === "colonization-defense") {
@@ -41301,6 +41335,46 @@ function handleNpcSinking(loserId, winnerId, {
   }
   if (playerVictory && loserWasPirate) maybeOpenPirateCaptiveQuest(loserId);
   return true;
+}
+
+function npcPortDefenseBeneficiary(npcShipId) {
+  const visual = npcVisualShips.get(npcShipId);
+  const strategic = npcSeaRoutes?.shipById.get(npcShipId);
+  if (!visual || !strategic) return null;
+  const candidates = [...shoreBatteryStates.values()]
+    .filter((battery) => (
+      battery.factionId !== NEUTRAL_FACTION_ID &&
+      battery.factionId !== PIRATE_FACTION_ID &&
+      battery.factionId !== strategic.factionId &&
+      (visual.combatTargetId === battery.id || battery.engagedTargetIds.has(npcShipId))
+    ))
+    .sort((left, right) => {
+      const leftIsTarget = visual.combatTargetId === left.id ? 0 : 1;
+      const rightIsTarget = visual.combatTargetId === right.id ? 0 : 1;
+      return leftIsTarget - rightIsTarget || left.id.localeCompare(right.id);
+    });
+  const battery = candidates[0];
+  if (!battery) return null;
+  return Object.freeze({
+    cityId: battery.portId,
+    cityName: battery.cityName,
+    factionId: battery.factionId
+  });
+}
+
+function recognizePlayerPortDefense(npcShipId, port) {
+  const result = recordPortDefenseVictory(gameState, {
+    npcShipId,
+    portCityId: port.cityId,
+    portFactionId: port.factionId,
+    simMinute: Math.max(0, Math.floor(weatherClockMinutes))
+  });
+  if (!result.awarded) return result;
+  showSurvivalNotice(
+    `${port.cityName.toUpperCase()} DEFENDED  ${factionById(port.factionId).name.toUpperCase()} STANDING +${result.delta}`,
+    "good"
+  );
+  return result;
 }
 
 function resolveTreasurePiratePlayerDefeat(loserId, encounter, {
@@ -42372,7 +42446,11 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     localNavigationActive
   });
   if (stepDistance <= 1e-4) {
-    updateNpcStuckRecovery(state, dt, direction, collisionHeading, startNav, distance, !tack?.tacking);
+    updateNpcStuckRecovery(state, dt, direction, collisionHeading, startNav, distance, !tack?.tacking, {
+      allowReplan: !localNavigationActive,
+      routePoint,
+      routeHeading: snapshot.routeHeading
+    });
     return collisionChanged;
   }
   const movementDirection = localNavigationActive && startNav.kind !== "river"
@@ -42383,7 +42461,11 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     () => moveNpcVisualShip(state, movementDirection, stepDistance, collisionHeading, dt, startNav)
   );
   if (!move) {
-    updateNpcStuckRecovery(state, dt, direction, collisionHeading, startNav, distance, !tack?.tacking);
+    updateNpcStuckRecovery(state, dt, direction, collisionHeading, startNav, distance, !tack?.tacking, {
+      allowReplan: !localNavigationActive,
+      routePoint,
+      routeHeading: snapshot.routeHeading
+    });
     return collisionChanged;
   }
 
@@ -42402,7 +42484,12 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     collisionHeading,
     null,
     Math.hypot(navigationPoint.x - state.x, navigationPoint.y - state.y),
-    !tack?.tacking
+    !tack?.tacking,
+    {
+      allowReplan: !localNavigationActive,
+      routePoint,
+      routeHeading: snapshot.routeHeading
+    }
   );
   return true;
 }
@@ -42419,7 +42506,8 @@ function updateNpcStuckRecovery(
   heading,
   startNav = null,
   targetDistance = null,
-  measureTargetApproach = true
+  measureTargetApproach = true,
+  recovery = null
 ) {
   if (!Number.isFinite(dt) || dt <= 0) return;
   if (targetDistance !== null && (!Number.isFinite(targetDistance) || targetDistance < 0)) {
@@ -42452,10 +42540,10 @@ function updateNpcStuckRecovery(
     if (!state.stuckDetourVector) state.stuckDetourAttempts = 0;
     return;
   }
-  startNpcStuckDetour(state, desiredDirection, heading, startNav);
+  startNpcStuckDetour(state, desiredDirection, heading, startNav, recovery);
 }
 
-function startNpcStuckDetour(state, desiredDirection, heading, startNav = null) {
+function startNpcStuckDetour(state, desiredDirection, heading, startNav = null, recovery = null) {
   const navigation = startNav ||
     shipNavigabilityAtLocalPoint(state.x, state.y, state.tileId, state.vector);
   if (!navigation.ok) return false;
@@ -42474,7 +42562,14 @@ function startNpcStuckDetour(state, desiredDirection, heading, startNav = null) 
     minimumClearDistancePx: NPC_VISUAL_STUCK_MIN_DETOUR_PX,
     maximumDetourDistancePx: NPC_VISUAL_STUCK_MAX_DETOUR_PX
   });
+  const mode = npcStuckRecoveryMode({
+    attempt: state.stuckDetourAttempts,
+    detourAvailable: Boolean(candidate)
+  });
   state.stuckDetourAttempts++;
+  if (mode === "replan" && recovery?.allowReplan === true) {
+    return replanNpcVisualState(state, recovery.routePoint, recovery.routeHeading);
+  }
   if (!candidate) return false;
   const trace = traceNpcVisualStep(
     state,
@@ -42488,7 +42583,26 @@ function startNpcStuckDetour(state, desiredDirection, heading, startNav = null) 
   state.stuckDetourTileId = trace.placement.tileId;
   clearNpcEscapeManeuver(state, true);
   clearNpcTackManeuver(state);
+  clearNpcRiverRail(state, { preserveCompletedPaths: true });
+  return true;
+}
+
+function replanNpcVisualState(state, routePoint, routeHeading) {
+  if (!routePoint || !Number.isFinite(routePoint.x) || !Number.isFinite(routePoint.y)) return false;
+  const placement = nearestNpcNavigableVisualPoint(
+    routePoint,
+    routeHeading || state.heading,
+    NPC_VISUAL_RECOVERY_SEARCH_PX,
+    state.slug
+  );
+  if (!placement) return false;
+  applyNpcVisualPlacement(state, placement);
+  resetVisualPresentation(state, { x: state.x, y: state.y }, lastFrameMs);
+  clearNpcEscapeManeuver(state, true);
+  clearNpcTackManeuver(state);
   clearNpcRiverRail(state);
+  clearNpcStuckRecovery(state, { clearDetour: true, resetAttempts: true });
+  setNpcShipVisualNavigation(npcSeaRoutes, state.id, state.vector, state.heading);
   return true;
 }
 
@@ -42805,10 +42919,10 @@ function npcRiverRailPlacement(state, x, y, movementDirection) {
   };
 }
 
-function clearNpcRiverRail(state) {
+function clearNpcRiverRail(state, { preserveCompletedPaths = false } = {}) {
   state.riverRailPathKey = null;
   state.riverRailDirectionSign = 0;
-  state.riverRailCompletedPathKeys = [];
+  if (!preserveCompletedPaths) state.riverRailCompletedPathKeys = [];
 }
 
 function npcEscapeClearDistance(state, direction, heading, startNav = null) {
@@ -43029,7 +43143,9 @@ function npcRiverEntranceApproach(state, desiredDirection) {
     state.riverRailPathKey = selection.probe.pathKey;
     state.riverRailDirectionSign = selection.directionSign;
   }
-  return gateway;
+  // Do not steer back into a mouth when every nearby rail was recently
+  // completed. That was the Thames-style sea/river oscillation loop.
+  return selection ? gateway : null;
 }
 
 function attemptNpcVisualStep(state, direction, distance, heading, knownStartNav = null) {

@@ -75,7 +75,7 @@ test("repeated combat callbacks penalize a pirate attack once without rewarding 
   const context = {
     gameState: {}, npcSeaRoutes: { shipById: new Map() }, activeNingboMissionQuest: () => null,
     npcVisualShips: new Map([["pirate-ship", ship]]), PIRATE_FACTION_ID: "pirate",
-    hasPrivateeringAuthorityAgainst: () => false,
+    playerNpcAttackEligibility: () => ({ legal: true }),
     recordAttackAgainstFaction: () => { attacks++; },
     recordPiracyAgainstFaction: () => assert.fail("Attacking pirates is not piracy")
   };
@@ -98,6 +98,7 @@ test("only a deliberate player sinking records a pirate hull loss, once", () => 
       gameState: {}, weatherClockMinutes: 100, lastFrameMs: 1, NOTICE_DURATION_MS: { combat: 100 },
       recordCombatAuthorityOutcome() {}, combatEntityPoint: () => ({}),
       recordPlayerSelfDefenseConsequences: () => null, recordPlayerShipVictory() {},
+      npcPortDefenseBeneficiary: () => null, recognizePlayerPortDefense() {},
       factionById: () => ({ adjective: "Pirate" }), shipLabelForSlug: () => "Galleon",
       maybeGrantDefeatedShipPerkItem: () => null,
       sinkNpcShip: (_routes, id) => ships.delete(id),

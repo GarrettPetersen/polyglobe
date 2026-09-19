@@ -256,6 +256,19 @@ test("NPC river approaches do not invent a rail away from a mouth", () => {
   }), null);
 });
 
+test("NPC river approaches cannot reacquire the mouth segment they just completed", () => {
+  assert.equal(selectRiverEntranceRailPath({
+    probes: [{
+      pathKey: "connector:thames:sea",
+      centerlineDistance: 0,
+      tangent: { x: 1, y: 0 },
+      mouth: true
+    }],
+    desiredDirection: { x: -1, y: 0 },
+    excludedPathKeys: ["connector:thames:sea"]
+  }), null);
+});
+
 test("river rail excludes a completed segment and takes the best outgoing branch", () => {
   const probes = [
     { pathKey: "incoming", centerlineDistance: 0, tangent: { x: 1, y: 0 } },

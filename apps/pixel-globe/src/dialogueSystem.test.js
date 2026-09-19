@@ -137,6 +137,7 @@ import {
   grantColonizationApproval,
   landColonists
 } from "./colonizationQuest.js";
+import { shipAttackEligibility } from "./shipAttackEligibility.js";
 
 function createWorldEconomy(options) {
   const canonicalByTileId = new Map();
@@ -205,7 +206,8 @@ test("a port dialogue fallback retains the admitted port's visit memory identity
 });
 
 test("hailing an NPC ship identifies the captain by name", () => {
-  const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" } };
+  const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" },
+    attackEligibility: shipAttackEligibility({ shipId: "mediterranean-4" }) };
   const session = createShipDialogueSession(ship);
   const view = shipDialogueView(session, ship);
 
@@ -222,22 +224,23 @@ test("ship hails preview whether an attack is legal under a letter of marque", (
     id: "french-prize",
     label: "Caravel",
     character: { name: "Claude Martin" },
-    playerAttackIsPiracy: false,
-    privateeringIssuerAdjective: "Spanish"
+    attackEligibility: shipAttackEligibility({
+      shipId: "french-prize",
+      privateeringIssuerAdjective: "Spanish"
+    })
   };
   const authorized = shipDialogueView(createShipDialogueSession(authorizedShip), authorizedShip);
-  assert.equal(authorized.feedback, "Your Spanish letter of marque makes this attack legal.");
+  assert.equal(authorized.feedback, "Your Spanish letter of marque would authorize an attack.");
   assert.equal(authorized.feedbackTone, "success");
 
   const unlicensedShip = {
     id: "illegal-prize",
     label: "Caravel",
     character: { name: "Claude Martin" },
-    playerAttackIsPiracy: true,
-    privateeringIssuerAdjective: null
+    attackEligibility: shipAttackEligibility({ shipId: "illegal-prize" })
   };
   const unlicensed = shipDialogueView(createShipDialogueSession(unlicensedShip), unlicensedShip);
-  assert.equal(unlicensed.feedback, "Without a letter of marque, this attack would be illegal piracy.");
+  assert.equal(unlicensed.feedback, "Without wartime authority, an attack would be illegal piracy.");
   assert.equal(unlicensed.feedbackTone, "danger");
 });
 
@@ -261,8 +264,10 @@ test("a commissioned captain can cite an NPC ship's exact trade violation as a l
     roleLabel: "Merchant",
     faction: { adjective: "Ottoman" },
     character: { name: "Kemal Celebi" },
-    playerAttackIsPiracy: true,
-    privateeringIssuerAdjective: null,
+    attackEligibility: shipAttackEligibility({
+      shipId: "ottoman-smuggler",
+      tradeRestrictionViolation: violation
+    }),
     tradeRestrictionViolation: violation,
     willOfferSurrender: true
   };
@@ -290,7 +295,7 @@ test("hailing a hostile pirate offers combat without friendly gossip", () => {
     roleLabel: "Pirate",
     faction: { adjective: "Pirate" },
     character: { name: "Anne Flint" },
-    playerAttackIsPiracy: false
+    attackEligibility: shipAttackEligibility({ shipId: "pirate-felucca", targetIsPirate: true })
   };
   const session = createShipDialogueSession(ship, {
     hostileHail: true,
@@ -334,7 +339,8 @@ test("two Zoroastrian captains recognize one another when they hail", () => {
       id: "captain-ardashir",
       name: "Ardashir Yazdi",
       religionId: "zoroastrianism"
-    }
+    },
+    attackEligibility: shipAttackEligibility({ shipId: "hormuz-merchant" })
   };
   const session = createShipDialogueSession(ship, {
     listenerReligionId: "zoroastrianism"
@@ -458,7 +464,8 @@ test("a non-enemy ship offers emergency provisions once the player is depleted",
     id: "relief-ship",
     label: "Caravel",
     character: { name: "Marco Doria" },
-    canOfferEmergencyAid: true
+    canOfferEmergencyAid: true,
+    attackEligibility: shipAttackEligibility({ shipId: "relief-ship" })
   };
   const session = createShipDialogueSession(ship);
   const view = shipDialogueView(session, ship);
@@ -607,7 +614,8 @@ test("merchant captains report their destination and visible cargo", () => {
     label: "Dhow",
     character: { name: "Yusuf al-Masri" },
     destinationName: "Hormuz",
-    cargo: { pepper: 18, cotton: 9 }
+    cargo: { pepper: 18, cotton: 9 },
+    attackEligibility: shipAttackEligibility({ shipId: "indian-ocean-7" })
   };
   const view = shipDialogueView(createShipDialogueSession(ship), ship);
   assert.equal(view.text, "Fair winds, captain. Bound for Hormuz. We carry Pepper x18 and Cotton x9.");
@@ -618,7 +626,8 @@ test("ship cargo manifests describe edible goods as commercial trade lots", () =
     id: "provision-tender-1",
     label: "Dhow",
     character: { name: "Yusuf al-Masri" },
-    cargo: { fish: 4, grain: 3 }
+    cargo: { fish: 4, grain: 3 },
+    attackEligibility: shipAttackEligibility({ shipId: "provision-tender-1" })
   };
   const view = shipDialogueView(createShipDialogueSession(ship), ship);
 
@@ -645,7 +654,8 @@ test("merchant captains report when they are anchored for a storm", () => {
     id: "atlantic-coast-2",
     label: "Caravel",
     character: { name: "Beatriz Lopes" },
-    stormStatus: "We are anchored until the storm passes."
+    stormStatus: "We are anchored until the storm passes.",
+    attackEligibility: shipAttackEligibility({ shipId: "atlantic-coast-2" })
   };
   const view = shipDialogueView(createShipDialogueSession(ship), ship);
   assert.equal(
@@ -661,7 +671,8 @@ test("fishermen identify the net fitted to their ship", () => {
     label: "Fishing lugger",
     roleLabel: "Fisherman",
     fishingNetLabel: "Weighted cast net",
-    character: { name: "Pieter Vos" }
+    character: { name: "Pieter Vos" },
+    attackEligibility: shipAttackEligibility({ shipId: "north-sea-fisher-2" })
   };
   const session = createShipDialogueSession(fisher);
   const view = shipDialogueView(session, fisher);
@@ -675,7 +686,8 @@ test("whalers identify their profession and blubber cargo", () => {
     label: "Fishing lugger",
     roleLabel: "Whaler",
     cargo: { "whale-blubber": 12 },
-    character: { name: "Martin Etxeberria" }
+    character: { name: "Martin Etxeberria" },
+    attackEligibility: shipAttackEligibility({ shipId: "north-atlantic-whalers-1" })
   };
   const view = shipDialogueView(createShipDialogueSession(whaler), whaler);
 
@@ -690,7 +702,8 @@ test("warship and pirate captains identify their role and allegiance", () => {
     label: "Portuguese Carrack",
     roleLabel: "Warship",
     faction: { adjective: "Portuguese" },
-    character: { name: "Ines Vaz" }
+    character: { name: "Ines Vaz" },
+    attackEligibility: shipAttackEligibility({ shipId: "warship" })
   };
   const warView = shipDialogueView(createShipDialogueSession(warship), warship);
   assert.equal(warView.speaker, "Ines Vaz, Portuguese warship captain");
@@ -702,7 +715,8 @@ test("warship and pirate captains identify their role and allegiance", () => {
     label: "Pirate Brig",
     roleLabel: "Pirate",
     faction: { adjective: "Pirate" },
-    character: { name: "Anne Flint" }
+    character: { name: "Anne Flint" },
+    attackEligibility: shipAttackEligibility({ shipId: "pirate", targetIsPirate: true })
   };
   const pirateView = shipDialogueView(createShipDialogueSession(pirate), pirate);
   assert.equal(pirateView.speaker, "Anne Flint, pirate captain");
@@ -786,7 +800,8 @@ test("an outmatched ship offers surrender and the player may refuse it", () => {
     roleLabel: "Merchant",
     faction: { adjective: "Spanish" },
     character: { name: "Teresa de la Vega" },
-    willOfferSurrender: true
+    willOfferSurrender: true,
+    attackEligibility: shipAttackEligibility({ shipId: "outmatched", ownNationAtWar: true })
   };
   const session = createShipDialogueSession(ship);
 
@@ -880,7 +895,7 @@ test("a damage-induced surrender can be accepted or mercifully released", () => 
     faction: { adjective: "French" },
     character: { name: "Jeanne Martin" },
     combatGrace: true,
-    playerAttackIsPiracy: true
+    attackEligibility: shipAttackEligibility({ shipId: "damaged-merchant", combatGrace: true })
   };
   const accidental = prepareDamageSurrenderDialogue(null, ship, { cause: "accidental" });
   const choice = shipDialogueView(accidental, ship);
@@ -929,8 +944,11 @@ test("a letter of marque identifies a lawful surrendered prize", () => {
     faction: { adjective: "French" },
     character: { name: "Jeanne Martin" },
     combatGrace: true,
-    playerAttackIsPiracy: false,
-    privateeringIssuerAdjective: "Spanish"
+    attackEligibility: shipAttackEligibility({
+      shipId: "french-privateer-prize",
+      combatGrace: true,
+      privateeringIssuerAdjective: "Spanish"
+    })
   };
   const session = prepareDamageSurrenderDialogue(null, ship, { cause: "deliberate" });
   const choice = shipDialogueView(session, ship);
@@ -1046,7 +1064,8 @@ test("a protected surrendered ship cannot be threatened again", () => {
     id: "protected",
     label: "Caravel",
     character: { name: "Marco Doria" },
-    combatGrace: true
+    combatGrace: true,
+    attackEligibility: shipAttackEligibility({ shipId: "protected", combatGrace: true })
   };
   const view = shipDialogueView(createShipDialogueSession(ship), ship);
   assert.deepEqual(view.options.map((option) => option.label), ["Leave"]);
@@ -1060,7 +1079,7 @@ test("piracy warning lets the player back out before a hostile demand", () => {
     faction: { adjective: "French" },
     character: { name: "Claude Martin" },
     willOfferSurrender: false,
-    playerAttackIsPiracy: true
+    attackEligibility: shipAttackEligibility({ shipId: "merchant" })
   };
   const backingOutSession = createShipDialogueSession(ship);
 
@@ -1104,7 +1123,8 @@ test("a capable ship defies the threat but can still be attacked", () => {
     roleLabel: "Warship",
     faction: { adjective: "Portuguese" },
     character: { name: "Ines Vaz" },
-    willOfferSurrender: false
+    willOfferSurrender: false,
+    attackEligibility: shipAttackEligibility({ shipId: "capable", ownNationAtWar: true })
   };
   const session = createShipDialogueSession(ship);
 
@@ -8842,7 +8862,7 @@ function testSailingDistances(entries) {
   };
 }
 
-test("a marque holder can find capture petitions at port authority even away from court", () => {
+test("capture petitions stay hidden away from the sovereign court", () => {
   const city = { cityId: "bristol|united kingdom", tileId: 803, city: "Bristol", country: "United Kingdom",
     factionId: "england", cityType: "northern-european", population: 12000,
     character: { name: "Thomas Ward", role: "harbour-master" } };
@@ -8855,23 +8875,19 @@ test("a marque holder can find capture petitions at port authority even away fro
   session.cityMenuLocationId = "authority";
   const view = portDialogueView(session, city, state, economy, ports);
   const index = view.options.findIndex(({ action }) => action.nodeId === "capture-petition");
-  assert.ok(index >= 0);
-  assert.equal(view.options[index].disabled, true);
-  assert.match(view.options[index].disabledReason, /London/);
+  assert.equal(index, -1);
   const before = structuredClone(state);
-  selectPortDialogueOption(session, city, state, economy, ports, index);
   assert.equal(session.nodeId, "city-menu");
   assert.deepEqual(state, before);
   capital.isFactionCapital = false;
   capital.capitalOfFactionId = null;
   const displacedView = portDialogueView(session, city, state, economy, ports);
   const displacedPetition = displacedView.options.find(({ action }) => action.nodeId === "capture-petition");
-  assert.equal(displacedPetition.disabled, true);
-  assert.match(displacedPetition.disabledReason, /No court/);
+  assert.equal(displacedPetition, undefined);
   const relocated = { ...capital, cityId: "york|united kingdom", city: "York", tileId: 805,
     isFactionCapital: true, capitalOfFactionId: "england" };
   const relocatedView = portDialogueView(session, city, state, economy, [city, relocated]);
-  assert.match(relocatedView.options.find(({ action }) => action.nodeId === "capture-petition").disabledReason, /York/);
+  assert.equal(relocatedView.options.find(({ action }) => action.nodeId === "capture-petition"), undefined);
 });
 
 test("Spanish colonist embarkation warns unlicensed foreigners without warning licensed or domestic captains", () => {
