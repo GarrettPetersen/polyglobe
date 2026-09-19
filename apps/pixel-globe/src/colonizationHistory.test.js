@@ -21,7 +21,7 @@ const HISTORICAL_MARKERS = Object.freeze({
   Salvador: /governor-general|Bay of All Saints|capital/,
   Concepcion: /Penco|Mapuche|frontier/,
   "Rio de Janeiro": /France Antarctique|Guanabara|Sao Sebastiao/,
-  "St. Augustine": /Menendez|Fort Caroline|San Agustin/,
+  "St. Augustine": /Menendez|Fort Caroline|St\. Augustine/,
   Caracas: /Diego de Losada|Caracas valley|Santiago de Leon/,
   Manila: /Maynila|Tagalog|Chinese merchants/,
   Nagasaki: /Omura Sumitada|six streets|China ship/,

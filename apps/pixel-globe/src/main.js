@@ -225,6 +225,7 @@ import {
 } from "./contentSizedTextLayout.js";
 import { playerShipyardUsesCompactYardLayout } from "./playerShipyardLayout.js";
 import {
+  aboardCharacterBiography,
   aboardCrewExperienceLevelKey,
   aboardCrewMemberDetail,
   crewWoundNoticeText
@@ -1701,6 +1702,7 @@ import {
   PLAYER_COMBAT_ID,
   attemptCombatBroadside,
   clearShipCombatState,
+  combatPower,
   combatantsShareEnemy,
   createShipCombatState,
   engagementKey,
@@ -2044,6 +2046,9 @@ import {
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
+  shipCargoManifestLayout,
+  shipCargoHeaderLayout,
+  shipCargoRowTextWidth,
   shipCargoRowsPerPageForPanel,
   shipComparisonArmamentRow,
   shipComparisonDifferenceLabel,
@@ -28456,7 +28461,7 @@ function presentMissionItemGift(gift, character, origin) {
   if (character) {
     openCharacterAlertModal(
       character,
-      `You have done me a great service. Please take this ${gift.item.label}; it may serve you as well as you served me.`,
+      `You have done me a great service. Please accept ${gift.item.label}; it may serve you as well as you served me.`,
       "happy"
     );
   }
@@ -29566,6 +29571,8 @@ function dialogueShipForId(npcShipId) {
   });
   const attackEligibility = playerNpcAttackEligibility(npcShipId);
   const tradeRestrictionViolation = attackEligibility.tradeRestrictionViolation;
+  const npcEntity = npcCombatEntity(visualState);
+  const playerEntity = playerCombatEntity();
   const stormStatus = visualState?.stormMode === "anchored"
     ? "We are anchored until the storm passes."
     : visualState?.stormMode === "seeking"
@@ -29597,7 +29604,11 @@ function dialogueShipForId(npcShipId) {
     canOfferEmergencyAid: !enemy && emergencyAid.available,
     attackEligibility,
     tradeRestrictionViolation,
-    willOfferSurrender: npcShouldOfferSurrender(npcCombatEntity(visualState), playerCombatEntity()),
+    combatStrength: Object.freeze({
+      playerPower: combatPower(playerEntity),
+      targetPower: combatPower(npcEntity)
+    }),
+    willOfferSurrender: npcShouldOfferSurrender(npcEntity, playerEntity),
     character
   };
 }
@@ -50352,20 +50363,41 @@ function drawShipInfoMenu() {
   const cargoY = panel.y + (showDedicatedPayrollRow ? 168 : 155);
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, cargoY - 3, panel.w - 20, 1);
-  drawOptionsText("CARGO HOLD", panel.x + 12, cargoY + 1, { color: PIRATE_MENU_INK });
-  drawOptionsText(`${view.cargoUsedLabel}/${view.cargoCapacity}`, panel.x + 105, cargoY + 1, {
-    align: "right",
-    color: PIRATE_MENU_INK
-  });
-  drawShipInfoBar(panel.x + 116, cargoY + 2, 150, view.cargoUsed / view.cargoCapacity, "#fbb954");
   const cargoHeaderBalance = showDedicatedPayrollRow
     ? renderedUiText(`${view.doubloons} DOUBLOONS`)
     : `${uiText("crew.salary")} ${uiText("crew.salaryPerMonth", {
         amount: view.monthlyCrewSalaryDoubloons
       })}`;
+  const cargoBalanceText = fitPixelText(
+    cargoHeaderBalance,
+    PIXEL_FONT_SMALL_8,
+    Math.floor(panel.w * 0.35)
+  );
+  const cargoHeaderText = `${uiText("ship.cargoHold")} ${view.cargoUsedLabel}/${view.cargoCapacity}`;
+  const cargoHeaderLeft = panel.x + 12;
+  const cargoHeaderRight = panel.x + panel.w - 12;
+  const cargoHeaderLayout = shipCargoHeaderLayout({
+    left: cargoHeaderLeft,
+    right: cargoHeaderRight,
+    labelWidth: measurePixelTextWidth(cargoHeaderText, PIXEL_FONT_SMALL_8),
+    balanceWidth: measurePixelTextWidth(cargoBalanceText, PIXEL_FONT_SMALL_8)
+  });
   drawOptionsText(
-    fitPixelText(cargoHeaderBalance, PIXEL_FONT_SMALL_8, Math.max(80, panel.w - 285)),
-    panel.x + panel.w - 12,
+    fitPixelText(cargoHeaderText, PIXEL_FONT_SMALL_8, cargoHeaderLayout.renderedLabelWidth),
+    cargoHeaderLeft,
+    cargoY + 1,
+    { color: PIRATE_MENU_INK }
+  );
+  drawShipInfoBar(
+    cargoHeaderLayout.barX,
+    cargoY + 2,
+    cargoHeaderLayout.barWidth,
+    view.cargoUsed / view.cargoCapacity,
+    "#fbb954"
+  );
+  drawOptionsText(
+    cargoBalanceText,
+    cargoHeaderRight,
     cargoY + 1,
     {
       align: "right",
@@ -50376,20 +50408,34 @@ function drawShipInfoMenu() {
   if (cargoPage.rows.length === 0) {
     drawOptionsText("THE HOLD IS EMPTY", panel.x + 12, cargoY + 24, { color: PIRATE_MENU_INK_MUTED });
   } else {
+    const manifestLayout = shipCargoManifestLayout({
+      width: panel.w,
+      height: panel.h,
+      pagerHeight: UI_PAGER_BUTTON_H
+    });
+    const contentWidth = panel.w - 24;
+    const columnWidth = contentWidth / manifestLayout.columns;
     cargoPage.rows.forEach((row, index) => {
-      const column = Math.floor(index / 4);
-      const rowIndex = index % 4;
-      const x = panel.x + 12 + column * 207;
-      const y = cargoY + 19 + rowIndex * 17;
+      const column = Math.floor(index / manifestLayout.rowsPerColumn);
+      const rowIndex = index % manifestLayout.rowsPerColumn;
+      const x = panel.x + 12 + column * columnWidth;
+      const y = cargoY + 19 + rowIndex * manifestLayout.rowHeight;
       drawGameIcon(tradeGoodIconId(row.id), x, y - 4);
+      const basisLabel = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)}`;
+      const basisRight = x + columnWidth - 8;
+      const basisWidth = measurePixelTextWidth(basisLabel, PIXEL_FONT_SMALL_8);
+      const textX = x + GAME_ICON_SIZE + 4;
       drawOptionsText(
-        fitPixelText(`${row.label} ${row.quantityLabel}`, PIXEL_FONT_SMALL_8, 130),
-        x + GAME_ICON_SIZE + 4,
+        fitPixelText(
+          `${row.label} ${row.quantityLabel}`,
+          PIXEL_FONT_SMALL_8,
+          shipCargoRowTextWidth({ textX, basisRight, basisWidth })
+        ),
+        textX,
         y,
         { color: PIRATE_MENU_INK }
       );
-      const basisLabel = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)} DB`;
-      drawOptionsText(basisLabel, x + 194, y, { align: "right", color: PIRATE_MENU_INK_MUTED });
+      drawOptionsText(basisLabel, basisRight, y, { align: "right", color: PIRATE_MENU_INK_MUTED });
     });
   }
 
@@ -50512,13 +50558,19 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
   cargoPage.rows.forEach((row, index) => {
     const rowY = cargoY + 23 + index * 17;
     drawGameIcon(tradeGoodIconId(row.id), panel.x + 12, rowY - 4);
+    const basis = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)}`;
+    const basisWidth = measurePixelTextWidth(basis, PIXEL_FONT_SMALL_8);
+    const textX = panel.x + 12 + GAME_ICON_SIZE + 4;
     drawOptionsText(
-      fitPixelText(`${row.label} ${row.quantityLabel}`, PIXEL_FONT_SMALL_8, panel.w - 108),
-      panel.x + 12 + GAME_ICON_SIZE + 4,
+      fitPixelText(
+        `${row.label} ${row.quantityLabel}`,
+        PIXEL_FONT_SMALL_8,
+        shipCargoRowTextWidth({ textX, basisRight: valueX, basisWidth })
+      ),
+      textX,
       rowY,
       { color: PIRATE_MENU_INK }
     );
-    const basis = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)} DB`;
     drawOptionsText(basis, valueX, rowY, { align: "right", color: PIRATE_MENU_INK_MUTED });
   });
   if (cargoPage.rows.length === 0) {
@@ -50633,13 +50685,19 @@ function drawCompactShipVessel(panel, view, cargoPage) {
     cargoPage.rows.forEach((row, index) => {
       const rowY = y + index * 17;
       drawGameIcon(tradeGoodIconId(row.id), labelX, rowY - 4);
+      const basis = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)}`;
+      const basisWidth = measurePixelTextWidth(basis, PIXEL_FONT_SMALL_8);
+      const textX = labelX + GAME_ICON_SIZE + 4;
       drawOptionsText(
-        fitPixelText(`${row.label} ${row.quantityLabel}`, PIXEL_FONT_SMALL_8, panel.w - 108),
-        labelX + GAME_ICON_SIZE + 4,
+        fitPixelText(
+          `${row.label} ${row.quantityLabel}`,
+          PIXEL_FONT_SMALL_8,
+          shipCargoRowTextWidth({ textX, basisRight: valueX, basisWidth })
+        ),
+        textX,
         rowY,
         { color: PIRATE_MENU_INK }
       );
-      const basis = row.averageCost === null ? "AVG --" : `AVG ${Math.round(row.averageCost)} DB`;
       drawOptionsText(basis, valueX, rowY, { align: "right", color: PIRATE_MENU_INK_MUTED });
     });
   }
@@ -52348,14 +52406,15 @@ function drawAboardCharacterDetail(entry, panel) {
   const detailsX = portraitFrame.x + portraitFrame.w + 12;
   const detailsW = panel.x + panel.w - 14 - detailsX;
   const religion = characterReligionProfile(character);
-  const detailRows = [
-    ["ROLE", aboardRoleLabel(entry.role)],
-    ["NATIONALITY", characterNationalityLabel(character)],
-    [uiText("intro.homePort"), entry.homePortName],
-    ["SEX", character.sex === "female" ? "FEMALE" : "MALE"],
-    ...(!compact ? [["BORN", character.birthDateLabel]] : []),
-    ["AGE", String(age)]
-  ];
+  const detailRows = aboardCharacterBiography({
+    roleLabel: aboardRoleLabel(entry.role),
+    nationalityLabel: characterNationalityLabel(character),
+    homePortLabel: uiText("intro.homePort"),
+    homePortName: entry.homePortName,
+    sexLabel: character.sex === "female" ? "FEMALE" : "MALE",
+    birthDateLabel: character.birthDateLabel,
+    age
+  });
   const rowStep = compact ? 13 : 16;
   detailRows.forEach(([label, value, iconId], index) => {
     const y = contentY + index * rowStep;
@@ -66722,6 +66781,18 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
       : [];
   }
 
+  drawPiratePaperPanel(panel);
+  ctx.strokeStyle = PIRATE_MENU_INK;
+  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+  ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
+  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+
+  // The panel and authority flag sit behind the speakers. On short viewports the
+  // dialogue panel rises into the portrait area; painting it last used to hide
+  // the port official completely.
+  if (portFaction && !compactMarketSwitch) {
+    drawDialogueFactionFlag(portFaction, panel, nowMs, subject, factionBlockW);
+  }
   const stagedPortraits = [...portraitStage.frames].sort((a, b) => (
     Number(a.characterId === subject.character.id) - Number(b.characterId === subject.character.id)
   ));
@@ -66740,12 +66811,6 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   }
   if (portraitStage.animating) dirty = true;
 
-  drawPiratePaperPanel(panel);
-  ctx.strokeStyle = PIRATE_MENU_INK;
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
-  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
-
   ctx.fillStyle = PIRATE_MENU_INK;
   const speakerW = portFaction ? factionBlockX - panel.x - 16 : panel.w - 18;
   const speakerLines = portGreeting && SCREEN_H > SCREEN_W
@@ -66758,7 +66823,6 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   });
 
   if (compactMarketSwitch) drawMarketModeSwitch(view, optionGroups.modeSwitches, panel);
-  else if (portFaction) drawDialogueFactionFlag(portFaction, panel, nowMs, subject, factionBlockW);
 
   const textX = panel.x + 12;
   let y = panel.y + textYOffset;
@@ -67107,9 +67171,12 @@ function drawCrewRecruitmentDialogueOverlay(nowMs, dialogueView) {
       rect.y + 7,
       { color: option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK }
     );
-    drawOptionsText(candidate.member.crewTypeId.toUpperCase(), textX, rect.y + 19, {
-      color: PIRATE_MENU_INK_MUTED
-    });
+    drawOptionsText(
+      fitPixelText(candidate.member.crewTypeId.replaceAll("-", " ").toUpperCase(), PIXEL_FONT_SMALL_8, textW),
+      textX,
+      rect.y + 19,
+      { color: PIRATE_MENU_INK_MUTED }
+    );
     const hireRect = { x: textX, y: rect.y + 34, w: textW, h: 20 };
     drawPiratePaperInset(hireRect, selected && !option.disabled);
     drawOptionsText(`HIRE  ${candidate.cost} DB`, hireRect.x + hireRect.w / 2, hireRect.y + 6, {
@@ -67234,9 +67301,12 @@ function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
       rect.y + 8,
       { color: option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK }
     );
-    drawOptionsText(candidate.member.crewTypeId.toUpperCase(), textX, rect.y + 20, {
-      color: PIRATE_MENU_INK_MUTED
-    });
+    drawOptionsText(
+      fitPixelText(candidate.member.crewTypeId.replaceAll("-", " ").toUpperCase(), PIXEL_FONT_SMALL_8, textW),
+      textX,
+      rect.y + 20,
+      { color: PIRATE_MENU_INK_MUTED }
+    );
     drawOptionsText("DISMISS", textX, rect.y + 35, {
       color: option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_DANGER
     });

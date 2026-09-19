@@ -21,6 +21,23 @@ const LOCALES = Object.freeze([
   { id: "ko", serviceCode: "ko", fileName: "ko.js" }
 ]);
 
+// Preserve reviewed translations when an English source sentence is polished
+// without changing its meaning. The next successful translation run can then
+// retain the existing locale copy instead of exporting the renamed text.
+const LEGACY_SOURCE_BY_SOURCE = Object.freeze({
+  "AVG {0}": "AVG {0} DB",
+  "Matanzas Bay gives us a defensible harbor. We will lay out St. Augustine here while the army turns north toward Fort Caroline.":
+    "Matanzas Bay gives us a defensible harbor. We will lay out San Agustin here while the army turns north toward Fort Caroline.",
+  "Menendez calls the plan St. Augustine, a permanent Spanish town where earlier Florida ventures failed.":
+    "Menendez calls the plan San Agustin, a permanent Spanish town where earlier Florida ventures failed.",
+  "St. Augustine needs grain before storms or war cut off the harbor.":
+    "San Agustin needs grain before storms or war cut off the harbor.",
+  "The granary is secure; St. Augustine can remain a town rather than another abandoned camp.":
+    "The granary is secure; San Agustin can remain a town rather than another abandoned camp.",
+  "You have done me a great service. Please accept {0}; it may serve you as well as you served me.":
+    "You have done me a great service. Please take this {0}; it may serve you as well as you served me."
+});
+
 const SHIP_TYPE_TERMS = new Set([
   "Fishing Barque", "Small Cog", "Dhow", "Ocean Dhow", "Sampan", "Large Junk",
   "Heavy Caravel", "Galleon", "Urca", "Carrack", "Great Carrack", "Medium Junk",
@@ -136,6 +153,7 @@ const REVIEWED_OVERRIDES = Object.freeze({
     "zh-Hant": "海盜賞金 +{0} DB",
     ko: "해적 현상금 +{0} DB"
   }),
+  ...reviewedPlaytesterPolishOverrides(),
   // Retain or transliterate the regional fish name instead of translating it
   // as an unrelated word when the translation service lacks this species.
   "Shabout": Object.freeze({
@@ -1585,6 +1603,61 @@ function reviewedLocaleOverrides(source, values) {
   return Object.freeze(Object.fromEntries(LOCALES.map(({ id }, index) => [id, values[index]])));
 }
 
+function reviewedPlaytesterPolishOverrides() {
+  const entries = [
+    ["{0} and {1} joined the crew.", [
+      "{0}和{1}加入了船员。", "{0} и {1} присоединились к команде.",
+      "{0} y {1} se unieron a la tripulación.", "{0} e {1} juntaram-se à tripulação.",
+      "{0}と{1}が乗組員に加わった。", "{0} und {1} traten der Mannschaft bei.",
+      "{0} et {1} ont rejoint l’équipage.", "{0} i {1} dołączyli do załogi.",
+      "{0}和{1}加入了船員。", "{0}와 {1}이(가) 선원으로 합류했습니다."
+    ]],
+    ["{0}, and {1} joined the crew.", [
+      "{0}和{1}加入了船员。", "{0} и {1} присоединились к команде.",
+      "{0} y {1} se unieron a la tripulación.", "{0} e {1} juntaram-se à tripulação.",
+      "{0}、そして{1}が乗組員に加わった。", "{0} und {1} traten der Mannschaft bei.",
+      "{0} et {1} ont rejoint l’équipage.", "{0} i {1} dołączyli do załogi.",
+      "{0}和{1}加入了船員。", "{0}와 {1}이(가) 선원으로 합류했습니다."
+    ]],
+    ["MATCHUP: DANGEROUS", [
+      "交战评估：危险", "БОЙ: ОПАСНО", "COMBATE: PELIGROSO", "COMBATE: PERIGOSO",
+      "戦力評価：危険", "KAMPF: GEFÄHRLICH", "COMBAT : DANGEREUX", "WALKA: NIEBEZPIECZNA",
+      "交戰評估：危險", "교전 평가: 위험"
+    ]],
+    ["MATCHUP: EVEN", [
+      "交战评估：势均力敌", "БОЙ: РАВНЫЕ СИЛЫ", "COMBATE: IGUALADO", "COMBATE: EQUILIBRADO",
+      "戦力評価：互角", "KAMPF: AUSGEGLICHEN", "COMBAT : ÉQUILIBRÉ", "WALKA: WYRÓWNANA",
+      "交戰評估：勢均力敵", "교전 평가: 대등"
+    ]],
+    ["MATCHUP: FAVORABLE", [
+      "交战评估：有利", "БОЙ: ПРЕИМУЩЕСТВО", "COMBATE: FAVORABLE", "COMBATE: FAVORÁVEL",
+      "戦力評価：有利", "KAMPF: GÜNSTIG", "COMBAT : FAVORABLE", "WALKA: KORZYSTNA",
+      "交戰評估：有利", "교전 평가: 유리"
+    ]],
+    ["VESSEL: {0} / {1}", [
+      "船只：{0} / {1}", "СУДНО: {0} / {1}", "NAVÍO: {0} / {1}", "EMBARCAÇÃO: {0} / {1}",
+      "船：{0} / {1}", "SCHIFF: {0} / {1}", "NAVIRE : {0} / {1}", "STATEK: {0} / {1}",
+      "船隻：{0} / {1}", "선박: {0} / {1}"
+    ]],
+    ["You have done me a great service. Please accept {0}; it may serve you as well as you served me.", [
+      "你为我立下大功。请收下{0}；愿它像你为我效力那样为你效力。",
+      "Вы оказали мне большую услугу. Примите {0}; пусть это послужит вам так же верно, как вы послужили мне.",
+      "Me habéis prestado un gran servicio. Aceptad {0}; quizá os sirva tan bien como vos me habéis servido.",
+      "Prestastes-me um grande serviço. Aceitai {0}; talvez vos sirva tão bem quanto me servistes.",
+      "大いに尽くしてくれた。{0}を受け取ってほしい。そなたが私に尽くしたように、これも役立つだろう。",
+      "Ihr habt mir einen großen Dienst erwiesen. Nehmt {0} an; möge es Euch so gut dienen, wie Ihr mir gedient habt.",
+      "Vous m’avez rendu un grand service. Acceptez {0} ; puisse cela vous servir aussi bien que vous m’avez servi.",
+      "Oddaliście mi wielką przysługę. Przyjmijcie {0}; niech służy wam równie dobrze, jak wy mnie.",
+      "你為我立下大功。請收下{0}；願它像你為我效力那樣為你效力。",
+      "큰 도움을 주셨습니다. {0}을(를) 받아 주십시오. 선장님이 제게 힘이 되었듯 이것도 도움이 되기를 바랍니다."
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, values]) => [
+    source,
+    reviewedLocaleOverrides(source, values)
+  ]));
+}
+
 function reviewedCrewOverrides() {
   const entries = [
     ["{0} CREW EXPERIENCE {1}/3", [
@@ -2414,10 +2487,11 @@ for (const locale of LOCALES) {
   const outputPath = path.join(OUTPUT_ROOT, locale.fileName);
   const existing = await readExistingCatalog(outputPath);
   const missing = PRUNE_ONLY ? [] : SCREEN_TEXT_TEMPLATES.filter((source) => (
-    !REVIEWED_OVERRIDES[source]?.[locale.id] && (
-      typeof existing[source] !== "string" ||
-      (existing[source] === source && requiresTranslatedProse(source))
-    )
+    !REVIEWED_OVERRIDES[source]?.[locale.id] && (() => {
+      const previous = existing[source] ?? existing[LEGACY_SOURCE_BY_SOURCE[source]];
+      return typeof previous !== "string" ||
+        (previous === source && requiresTranslatedProse(source));
+    })()
   ));
   process.stdout.write(`${locale.id}: ${PRUNE_ONLY ? "pruning" : `translating ${missing.length} missing templates`}\n`);
   const translated = missing.length > 0
@@ -2425,7 +2499,8 @@ for (const locale of LOCALES) {
     : {};
   const catalog = Object.fromEntries(SCREEN_TEXT_TEMPLATES.map((source) => [
     source,
-    REVIEWED_OVERRIDES[source]?.[locale.id] || translated[source] || existing[source]
+    REVIEWED_OVERRIDES[source]?.[locale.id] || translated[source] || existing[source] ||
+      existing[LEGACY_SOURCE_BY_SOURCE[source]]
   ]));
   validateCatalog(locale.id, catalog);
   await writeFile(outputPath, renderModule(locale.id, catalog));

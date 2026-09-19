@@ -12,6 +12,7 @@ import {
   createPassengerDialogueSession,
   createPortArrivalDialogueSession,
   createPortDialogueSession,
+  crewRecruitmentHireFeedback,
   deliveryMissionShouldOpenOnArrival,
   dialogueBackOptionIndex,
   createShoreBatteryDialogueSession,
@@ -32,6 +33,7 @@ import {
   selectShoreBatteryDialogueOption,
   selectShipDialogueOption,
   shoreBatteryDialogueView,
+  shipCombatStrengthAssessment,
   shipDialogueView,
   worldPriceIndicator
 } from "./dialogueSystem.js";
@@ -217,6 +219,25 @@ test("hailing an NPC ship identifies the captain by name", () => {
   assert.equal(view.text, "Fair winds, captain. Running in ballast.");
   assert.deepEqual(view.options.map((option) => option.label), ["Demand surrender", "Leave"]);
   assert.deepEqual(selectShipDialogueOption(session, ship, 1), { closed: true, action: null });
+});
+
+test("ship hails explain the current combat matchup", () => {
+  assert.deepEqual(shipCombatStrengthAssessment({ playerPower: 200, targetPower: 100 }), {
+    id: "favorable", label: "MATCHUP: FAVORABLE"
+  });
+  assert.deepEqual(shipCombatStrengthAssessment({ playerPower: 100, targetPower: 100 }), {
+    id: "even", label: "MATCHUP: EVEN"
+  });
+  assert.deepEqual(shipCombatStrengthAssessment({ playerPower: 100, targetPower: 200 }), {
+    id: "dangerous", label: "MATCHUP: DANGEROUS"
+  });
+  const ship = { id: "heavy-prize", label: "Galleon", character: { name: "Diego Ruiz" },
+    combatStrength: { playerPower: 100, targetPower: 200 },
+    attackEligibility: shipAttackEligibility({ shipId: "heavy-prize" }) };
+  assert.equal(
+    shipDialogueView(createShipDialogueSession(ship), ship).topic,
+    "VESSEL: GALLEON / MATCHUP: DANGEROUS"
+  );
 });
 
 test("ship hails preview whether an attack is legal under a letter of marque", () => {
@@ -3889,6 +3910,7 @@ test(`port crew offers hire and exit correctly from ${returnNodeId || "inn"}`, (
   }
   assert.equal(view.presentation.candidates.length, 0);
   assert.equal(gameState.ship.crew, 1 + offeredCount);
+  assert.ok(offer.candidates.every(({ member }) => view.feedback.includes(member.name)));
   const manageIndex = view.options.findIndex(({action}) => action.type === "open-crew-management");
   assert.ok(manageIndex >= 0);
   const manage = selectPortDialogueOption(session, city, gameState, economy, [city], manageIndex, context);
@@ -3899,6 +3921,16 @@ test(`port crew offers hire and exit correctly from ${returnNodeId || "inn"}`, (
   assert.equal(session.crewRecruitmentReturnNodeId, null);
 });
 }
+
+test("crew recruitment feedback names every hire in the current muster", () => {
+  assert.equal(crewRecruitmentHireFeedback(["Mateo"]), "Mateo joined the crew.");
+  assert.equal(crewRecruitmentHireFeedback(["Mateo", "Joao"]), "Mateo and Joao joined the crew.");
+  assert.equal(
+    crewRecruitmentHireFeedback(["Mateo", "Joao", "Nuno"]),
+    "Mateo, Joao, and Nuno joined the crew."
+  );
+  assert.throws(() => crewRecruitmentHireFeedback([]), /one or more recruit names/);
+});
 
 test("crew recruitment presents a clean empty state when no hands are available", () => {
   const city = {

@@ -21,7 +21,7 @@ test("every recruitable appearance at every port can be hired, saved and inspect
       const destinations = activeCityDestinations({ availableDestinationIds: null,
         features: resolveCitySceneFeatures(city), assaultActive: false });
       const host = destinations.find(({ id }) => id === "inn");
-      assert.ok(host?.layers.includes("Home 2"), `${city.cityId}: large house hosts recruitment`);
+      assert.ok(host?.streetLayers.includes("Home 2"), `${city.cityId}: large house hosts recruitment`);
       assert.ok(cityRecruitableCrewAppearances(city).length > 0, city.cityId);
     }
     for (const appearance of cityRecruitableCrewAppearances(city)) {

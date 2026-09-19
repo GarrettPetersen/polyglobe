@@ -35,6 +35,14 @@ export function shipCargoRowsPerPageForPanel({
   height,
   pagerHeight = 24
 }) {
+  return shipCargoManifestLayout({ width, height, pagerHeight }).capacity;
+}
+
+export function shipCargoManifestLayout({
+  width,
+  height,
+  pagerHeight = 24
+}) {
   for (const [label, value] of Object.entries({ width, height, pagerHeight })) {
     if (!Number.isFinite(value) || value <= 0) {
       throw new Error(`Ship cargo panel ${label} must be positive: ${value}`);
@@ -45,18 +53,77 @@ export function shipCargoRowsPerPageForPanel({
     const rowHeight = 17;
     const pagerTop = height - pagerHeight - 5;
     const rowsPerColumn = Math.max(1, Math.min(4, Math.floor((pagerTop - firstRowTop) / rowHeight)));
-    return rowsPerColumn * 2;
+    return Object.freeze({
+      columns: 2,
+      rowsPerColumn,
+      capacity: rowsPerColumn * 2,
+      firstRowTop,
+      rowHeight,
+      pagerTop
+    });
   }
   if (height < 300) {
     const firstRowTop = 175;
     const rowHeight = 17;
     const pagerTop = height - pagerHeight - 5;
-    return Math.max(1, Math.floor((pagerTop - firstRowTop) / rowHeight));
+    const rowsPerColumn = Math.max(1, Math.floor((pagerTop - firstRowTop) / rowHeight));
+    return Object.freeze({
+      columns: 1,
+      rowsPerColumn,
+      capacity: rowsPerColumn,
+      firstRowTop,
+      rowHeight,
+      pagerTop
+    });
   }
   const firstRowTop = 312;
   const rowHeight = 17;
   const pagerTop = height - pagerHeight - 5;
-  return Math.max(1, Math.floor((pagerTop - firstRowTop) / rowHeight));
+  const rowsPerColumn = Math.max(1, Math.floor((pagerTop - firstRowTop) / rowHeight));
+  return Object.freeze({
+    columns: 1,
+    rowsPerColumn,
+    capacity: rowsPerColumn,
+    firstRowTop,
+    rowHeight,
+    pagerTop
+  });
+}
+
+export function shipCargoHeaderLayout({
+  left,
+  right,
+  labelWidth,
+  balanceWidth,
+  minimumBarWidth = 18,
+  gap = 7
+}) {
+  for (const [label, value] of Object.entries({
+    left, right, labelWidth, balanceWidth, minimumBarWidth, gap
+  })) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Invalid ship cargo header ${label}: ${value}`);
+    }
+  }
+  if (right <= left) throw new Error(`Invalid ship cargo header bounds: ${left}/${right}`);
+  const balanceLeft = right - balanceWidth;
+  const maximumLabelWidth = balanceLeft - left - minimumBarWidth - gap * 2;
+  if (maximumLabelWidth <= 0) throw new Error("Ship cargo header has no room for its label and meter");
+  const renderedLabelWidth = Math.min(labelWidth, maximumLabelWidth);
+  const barX = left + renderedLabelWidth + gap;
+  const barWidth = balanceLeft - gap - barX;
+  return Object.freeze({ renderedLabelWidth, barX, barWidth, balanceLeft });
+}
+
+export function shipCargoRowTextWidth({ textX, basisRight, basisWidth, gap = 6 }) {
+  for (const [label, value] of Object.entries({ textX, basisRight, basisWidth, gap })) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Invalid ship cargo row ${label}: ${value}`);
+    }
+  }
+  const width = basisRight - basisWidth - gap - textX;
+  if (width <= 0) throw new Error("Ship cargo row has no room between its item and average cost");
+  return width;
 }
 
 export function shipLedgerRowsPerPageForPanel({

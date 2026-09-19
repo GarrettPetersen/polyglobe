@@ -159,3 +159,9 @@ test("pirate village authority points to a house and uses its captain's title", 
   assert.equal(authority.label, "Captain’s house");
   assert.equal(authority.streetSlotId, "business-east");
 });
+
+test("the inn uses a placed house only as a street fallback", () => {
+  const inn = cityDestinationById(PORT_CITY_LOCATION.INN);
+  assert.deepEqual(inn.layers, ["Inn"]);
+  assert.deepEqual(inn.streetLayers, ["Home 2"]);
+});

@@ -4811,8 +4811,11 @@ function streetDestinationPresentation(destination) {
   const activeLayers = activePortSceneLayers(state.features);
   if (!destination.streetSlotId && destination.layers.some(layer => activeLayers.has(layer) &&
     state.portManifest.staticFrames.some(frame => frame.layer === layer))) return null;
+  const streetLayers = destination.streetLayers?.length > 0
+    ? destination.streetLayers
+    : destination.layers;
   const placement = state.streetBuildings.find(building => destination.streetSlotId
-    ? building.slotId === destination.streetSlotId : destination.layers.includes(building.layerName));
+    ? building.slotId === destination.streetSlotId : streetLayers.includes(building.layerName));
   if (!placement) return null;
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
   const source = regionalStaticFrame(placement.frame, placement.layerName) ||
@@ -4864,9 +4867,11 @@ function destinationScreenAnchor(destination) {
       layerSceneOffsetY(layerName, occurrence, approach),
       layerParallaxAnchor(layerName, occurrence)
     );
+    const regional = regionalStaticFrame(frame, layerName);
+    const displayedFrame = regional?.frame || frame;
     return Object.freeze({
-      x: frame.spriteSourceSize.x + frame.frame.w / 2 - window.x,
-      y: frame.spriteSourceSize.y + Math.min(6, Math.floor(frame.frame.h / 4)) - window.y
+      x: displayedFrame.spriteSourceSize.x + displayedFrame.frame.w / 2 - window.x,
+      y: displayedFrame.spriteSourceSize.y + Math.min(6, Math.floor(displayedFrame.frame.h / 4)) - window.y
     });
   }
   const street = streetDestinationPresentation(destination);

@@ -28,7 +28,8 @@ export const CITY_DESTINATIONS = Object.freeze([
   cityDestination({
     id: PORT_CITY_LOCATION.INN,
     label: "Inn",
-    layers: ["Inn", "Home 2"],
+    layers: ["Inn"],
+    streetLayers: ["Home 2"],
     requiredFeature: "inn"
   }),
   cityDestination({
@@ -120,12 +121,15 @@ export function validateCityDestinationIds(destinationIds) {
   return validated;
 }
 
-function cityDestination({ id, label, layers, requiredFeature = null }) {
+function cityDestination({ id, label, layers, streetLayers = [], requiredFeature = null }) {
   if (typeof id !== "string" || id === "" || typeof label !== "string" || label === "") {
     throw new Error("City destination requires an id and label");
   }
   if (!Array.isArray(layers) || layers.some((layer) => typeof layer !== "string" || layer === "")) {
     throw new Error(`City destination ${id} requires valid scene layers`);
+  }
+  if (!Array.isArray(streetLayers) || streetLayers.some((layer) => typeof layer !== "string" || layer === "")) {
+    throw new Error(`City destination ${id} requires valid street layers`);
   }
   if (requiredFeature !== null && typeof requiredFeature !== "string") {
     throw new Error(`City destination ${id} has an invalid required feature`);
@@ -134,6 +138,7 @@ function cityDestination({ id, label, layers, requiredFeature = null }) {
     id,
     label,
     layers: Object.freeze([...layers]),
+    streetLayers: Object.freeze([...streetLayers]),
     ...(requiredFeature === null ? {} : { requiredFeature })
   });
 }

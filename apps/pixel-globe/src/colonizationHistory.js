@@ -128,11 +128,11 @@ const HISTORIES = Object.freeze([
       stage("florida-arms", "arms", 5, "the soldiers sent against Fort Caroline", "The French position lies to the north. Equip the landing force with"),
       stage("florida-grain", "grain", 12, "colonists, sailors, and the first planting season", "Eight hundred people cannot live from a military chest. Add")
     ],
-    ready: "Menendez calls the plan San Agustin, a permanent Spanish town where earlier Florida ventures failed.",
+    ready: "Menendez calls the plan St. Augustine, a permanent Spanish town where earlier Florida ventures failed.",
     departed: "Families, soldiers, clergy, and Africans both free and slave crowd the decks of the Florida expedition.",
-    landing: "Matanzas Bay gives us a defensible harbor. We will lay out San Agustin here while the army turns north toward Fort Caroline.",
-    landingAction: "Found San Agustin",
-    resupply: resupply("grain", 12, "a large garrison and town in an uncertain food landscape", "San Agustin needs grain before storms or war cut off the harbor.", "The planned town survives, but its soldiers and families have consumed the first stores.", "The granary is secure; San Agustin can remain a town rather than another abandoned camp."),
+    landing: "Matanzas Bay gives us a defensible harbor. We will lay out St. Augustine here while the army turns north toward Fort Caroline.",
+    landingAction: "Found St. Augustine",
+    resupply: resupply("grain", 12, "a large garrison and town in an uncertain food landscape", "St. Augustine needs grain before storms or war cut off the harbor.", "The planned town survives, but its soldiers and families have consumed the first stores.", "The granary is secure; St. Augustine can remain a town rather than another abandoned camp."),
     established: "St. Augustine has survived where earlier Spanish ventures did not, a permanent planned town and naval base in Florida."
   }),
   history("caracas|venezuela", {

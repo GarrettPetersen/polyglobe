@@ -20,6 +20,9 @@ import {
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
+  shipCargoManifestLayout,
+  shipCargoHeaderLayout,
+  shipCargoRowTextWidth,
   shipCargoRowsPerPageForPanel,
   shipComparisonArmamentRow,
   shipComparisonDifferenceLabel,
@@ -131,6 +134,35 @@ test("cargo manifest rows end above the pager on the playtest viewport", () => {
   assert.equal(shipCargoRowsPerPageForPanel({ width: 456, height: 240 }), 4);
   assert.equal(shipCargoRowsPerPageForPanel({ width: 320, height: 240 }), 2);
   assert.equal(shipCargoRowsPerPageForPanel({ width: 520, height: 400 }), 8);
+});
+
+test("wide cargo manifests distribute short pages across columns above the pager", () => {
+  const layout = shipCargoManifestLayout({ width: 456, height: 240 });
+  assert.deepEqual(layout, {
+    columns: 2,
+    rowsPerColumn: 2,
+    capacity: 4,
+    firstRowTop: 174,
+    rowHeight: 17,
+    pagerTop: 211
+  });
+  assert.ok(layout.firstRowTop + (layout.rowsPerColumn - 1) * layout.rowHeight < layout.pagerTop);
+});
+
+test("cargo headers and rows reserve non-overlapping text columns", () => {
+  const header = shipCargoHeaderLayout({
+    left: 12,
+    right: 444,
+    labelWidth: 102,
+    balanceWidth: 72
+  });
+  assert.ok(header.barX > 12 + header.renderedLabelWidth);
+  assert.ok(header.barX + header.barWidth < header.balanceLeft);
+  assert.equal(shipCargoRowTextWidth({
+    textX: 32,
+    basisRight: 220,
+    basisWidth: 30
+  }), 152);
 });
 
 test("ship ledger page size keeps its final text row above the pager", () => {

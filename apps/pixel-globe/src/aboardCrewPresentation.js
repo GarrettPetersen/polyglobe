@@ -18,6 +18,32 @@ export function aboardCrewExperienceLevelKey(experienceStars) {
   return EXPERIENCE_LEVEL_KEYS[experienceStars];
 }
 
+export function aboardCharacterBiography({
+  roleLabel,
+  nationalityLabel,
+  homePortLabel,
+  homePortName,
+  sexLabel,
+  birthDateLabel,
+  age
+}) {
+  const textFields = { roleLabel, nationalityLabel, homePortLabel, homePortName, sexLabel, birthDateLabel };
+  for (const [field, value] of Object.entries(textFields)) {
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new Error(`Aboard biography requires ${field}`);
+    }
+  }
+  if (!Number.isInteger(age) || age < 0) throw new Error(`Aboard biography requires a valid age: ${age}`);
+  return Object.freeze([
+    Object.freeze(["ROLE", roleLabel]),
+    Object.freeze(["NATIONALITY", nationalityLabel]),
+    Object.freeze([homePortLabel, homePortName]),
+    Object.freeze(["SEX", sexLabel]),
+    Object.freeze(["BORN", birthDateLabel]),
+    Object.freeze(["AGE", String(age)])
+  ]);
+}
+
 export function aboardCrewMemberDetail(member, currentMinute) {
   const experienceStars = crewMemberExperienceStars(member);
   const wounded = crewMemberIsWounded(member);

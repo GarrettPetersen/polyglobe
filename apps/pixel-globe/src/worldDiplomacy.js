@@ -1022,6 +1022,8 @@ function validateDiplomacyEvent(event) {
 }
 
 function stanceEventKind(previous, relation) {
+  if (previous === DIPLOMACY_HOSTILE && relation === DIPLOMACY_WAR) return "war";
+  if (previous === DIPLOMACY_WAR && relation === DIPLOMACY_HOSTILE) return "peace";
   if (previous === DIPLOMACY_FRIENDLY && relation === DIPLOMACY_ALLY) return "alliance";
   if (previous === DIPLOMACY_ALLY && relation === DIPLOMACY_FRIENDLY) return "alliance-ended";
   return RELATION_LADDER.indexOf(relation) > RELATION_LADDER.indexOf(previous)
@@ -1032,6 +1034,8 @@ function stanceEventKind(previous, relation) {
 function stanceHeadline(kind, factionAId, factionBId) {
   const a = factionName(factionAId);
   const b = factionName(factionBId);
+  if (kind === "war") return `${a} declares war on ${b}.`;
+  if (kind === "peace") return `${a} and ${b} make peace.`;
   if (kind === "alliance") return `${a} and ${b} form an alliance.`;
   if (kind === "alliance-ended") return `${a} and ${b} dissolve their alliance.`;
   if (kind === "relations-improve") return `${a} and ${b} improve relations.`;

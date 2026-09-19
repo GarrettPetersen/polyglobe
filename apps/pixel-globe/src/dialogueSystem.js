@@ -518,6 +518,7 @@ export function createPortDialogueSession(city, options = {}) {
     historicalGossip: options.historicalGossip || null,
     crewRecruitmentArrivalPresented: false,
     crewRecruitmentReturnNodeId: null,
+    crewRecruitmentHireNames: [],
     exeterCanalArrivalPresented: false,
     exeterCanalReturnNodeId: null,
     questReturnNodeId: null,
@@ -1068,10 +1069,27 @@ export function shipDialogueView(session, ship, gameState = null) {
   if (view.topic !== undefined) {
     throw new Error(`Ship dialogue already defines a topic: ${ship.id}`);
   }
+  const vesselLabel = shipDialogueVesselLabel(ship).toUpperCase();
+  const combatAssessment = shipCombatStrengthAssessment(ship.combatStrength);
   return {
     ...view,
-    topic: `VESSEL: ${shipDialogueVesselLabel(ship).toUpperCase()}`
+    topic: combatAssessment
+      ? `VESSEL: ${vesselLabel} / ${combatAssessment.label}`
+      : `VESSEL: ${vesselLabel}`
   };
+}
+
+export function shipCombatStrengthAssessment(combatStrength) {
+  if (combatStrength === undefined || combatStrength === null) return null;
+  const { playerPower, targetPower } = combatStrength;
+  if (!Number.isFinite(playerPower) || playerPower <= 0 ||
+      !Number.isFinite(targetPower) || targetPower <= 0) {
+    throw new Error(`Invalid hail combat strength: ${playerPower}/${targetPower}`);
+  }
+  const ratio = targetPower / playerPower;
+  if (ratio <= 0.75) return Object.freeze({ id: "favorable", label: "MATCHUP: FAVORABLE" });
+  if (ratio <= 1.25) return Object.freeze({ id: "even", label: "MATCHUP: EVEN" });
+  return Object.freeze({ id: "dangerous", label: "MATCHUP: DANGEROUS" });
 }
 
 function shipDialogueContentView(session, ship, gameState = null) {
@@ -2197,6 +2215,7 @@ export function selectPortDialogueAction(
       allowEmpty: true
     });
     session.crewRecruitmentReturnNodeId = null;
+    session.crewRecruitmentHireNames = [];
     session.nodeId = "crew-recruitment";
     session.selectedIndex = 0;
     session.feedback = null;
@@ -2209,7 +2228,11 @@ export function selectPortDialogueAction(
   }
   if (action.type === "hire-crew-member") {
     const hired = hireCrewMemberAtPort(gameState, city, action.memberId, context);
-    session.feedback = `${hired.member.name} joined the crew.`;
+    if (!Array.isArray(session.crewRecruitmentHireNames)) {
+      throw new Error("Crew recruitment session has no hire-name history");
+    }
+    session.crewRecruitmentHireNames.push(hired.member.name);
+    session.feedback = crewRecruitmentHireFeedback(session.crewRecruitmentHireNames);
     session.selectedIndex = 0;
     return { closed: false, crewHire: hired };
   }
@@ -3840,6 +3863,16 @@ export function selectPortDialogueAction(
     return { closed: false };
   }
   throw new Error(`Unknown dialogue action: ${action.type}`);
+}
+
+export function crewRecruitmentHireFeedback(names) {
+  if (!Array.isArray(names) || names.length === 0 ||
+      names.some((name) => typeof name !== "string" || name.trim() === "")) {
+    throw new Error("Crew recruitment feedback requires one or more recruit names");
+  }
+  if (names.length === 1) return `${names[0]} joined the crew.`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} joined the crew.`;
+  return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)} joined the crew.`;
 }
 
 export function passengerDialogueView(session, city, quest, gameState) {

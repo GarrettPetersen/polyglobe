@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  aboardCharacterBiography,
   aboardCrewExperienceLevelKey,
   aboardCrewMemberDetail,
   crewWoundNoticeText
@@ -22,6 +23,20 @@ const CREW_MEMBER = Object.freeze({
   recruitedAtMinute: 10 * WEATHER_MINUTES_PER_DAY,
   sailingMinutes: 46 * WEATHER_MINUTES_PER_DAY,
   wound: null
+});
+
+test("compact character biographies retain the birth date row", () => {
+  const rows = aboardCharacterBiography({
+    roleLabel: "Emissary",
+    nationalityLabel: "Portuguese",
+    homePortLabel: "HOME PORT",
+    homePortName: "Lisbon",
+    sexLabel: "MALE",
+    birthDateLabel: "14 JUL 1482",
+    age: 39
+  });
+  assert.deepEqual(rows.at(-2), ["BORN", "14 JUL 1482"]);
+  assert.deepEqual(rows.at(-1), ["AGE", "39"]);
 });
 
 test("aboard crew detail presents the durable crew facts", () => {

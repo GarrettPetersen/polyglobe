@@ -312,6 +312,16 @@ test("diplomatic relations improve and worsen one stance at a time", () => {
   assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_FRIENDLY);
 });
 
+test("a diplomacy-triggered war is announced as war rather than worsening relations", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "stance-war-notice" });
+  makeDiplomaticPeace(state, "england", "france", 100 * DAY);
+  const [event] = adjustDiplomaticStance(state, "england", "france", "worsen", 200 * DAY);
+
+  assert.equal(event.kind, "war");
+  assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_WAR);
+  assert.equal(diplomacyEventNotice(event), "WAR: ENGLAND VS. FRANCE");
+});
+
 test("allied powers can be dragged into a new war", () => {
   let joined = null;
   for (let seed = 0; seed < 100 && !joined; seed++) {
