@@ -253,7 +253,7 @@ const HISTORIES = Object.freeze([
     fetch: [
       stage("raleigh-houses", "timber", 10, "houses, a palisade, boats, and store sheds", "The old fort cannot shelter a colony of families. Bring"),
       stage("raleigh-tools", "iron", 6, "axes, nails, farming tools, and repairs beyond easy resupply", "Virginia is too far from an English smithy for careless planning. Supply"),
-      stage("raleigh-stores", "grain", 14, "food and seed that do not depend on Algonquian stores", "The first colony made enemies while demanding food. This one must carry its own")
+      stage("raleigh-stores", "grain", 14, "food and seed secured without relying on Algonquian provisions", "The first colony made enemies while demanding food. This one must carry its own")
     ],
     ready: "Men, women, and children are ready to sail under John White's governorship. Raleigh calls the settlement the Cittie of Ralegh.",
     departed: "The Roanoke settlers are aboard with families, tools, and more confidence than provisions ever seem to justify.",
@@ -287,7 +287,7 @@ const HISTORIES = Object.freeze([
     fetch: [
       stage("james-fort", "timber", 10, "the triangular fort, storehouse, and river landing", "The company values defense before health. Its island fort needs"),
       stage("virginia-tools", "iron", 6, "axes, farming tools, nails, and experimental industries", "Gentlemen searching for treasure will still need to cut wood and plant. Bring"),
-      stage("virginia-grain", "grain", 14, "food and seed that do not depend on Powhatan stores", "The Company expects the savages along the James to feed English gentlemen. Carry our own")
+      stage("virginia-grain", "grain", 14, "food and seed secured without relying on Powhatan provisions", "The Company expects the savages along the James to feed English gentlemen. Carry our own")
     ],
     ready: "The investors call the passengers adventurers, but most have never farmed and the company expects the colony to find profit immediately.",
     departed: "Company gentlemen, laborers, and soldiers are aboard, still debating whether gold or a passage lies beyond the James.",

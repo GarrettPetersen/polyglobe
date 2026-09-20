@@ -46828,7 +46828,7 @@ function discoveryCaptainDialogueMessage(discovery, cargoReward) {
   let message = dialogue;
   if (discovery.id === EL_DORADO_DISCOVERY_ID && cargoReward) {
     const cargoMessage = cargoReward.quantity > 0
-      ? `Every spare inch now holds gold: ${cargoReward.quantity} units.`
+      ? `Every bit of spare hold space now holds gold: ${cargoReward.quantity} units.`
       : "But our hold is full; we cannot carry its treasure.";
     message = `${message} ${cargoMessage}`;
   }

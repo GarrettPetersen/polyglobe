@@ -2049,7 +2049,10 @@ const EMBEDDED_PHRASES = Object.freeze(
     .sort((left, right) => right[1].length - left[1].length)
     .map(([key, value]) => Object.freeze({
       key,
-      expression: new RegExp(escapeRegularExpression(value), "gi")
+      expression: new RegExp(
+        `${/^[a-z0-9]/i.test(value) ? "\\b" : ""}${escapeRegularExpression(value)}${/[a-z0-9]$/i.test(value) ? "\\b" : ""}`,
+        "gi"
+      )
     }))
 );
 

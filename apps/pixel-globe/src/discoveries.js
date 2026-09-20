@@ -191,7 +191,7 @@ export const CIRCUMNAVIGATION_DISCOVERY = Object.freeze({
   countsTowardExplorerGoal: true,
   explorerLeadAssignable: false,
   explorerRewardDoubloons: 3000,
-  explorerChallengeDialogue: "Every place in my book now has an account, but one proof remains beyond any pin on a map. Sail continuously around the world and return to this harbor. Bring me a log that joins west to east.",
+  explorerChallengeDialogue: "My book maps every known place, but only a continuous voyage proves a circumnavigation. Sail around the world without stopping, return here, and bring me your ship's log of the route west and east.",
   notice: "You have circumnavigated the globe",
   detail: "A full voyage around the world",
   portArrivalDialogue: "The harbor clerk's calendar and our log disagree by a whole day. We sailed around the world and carried our old reckoning all the way with us!",

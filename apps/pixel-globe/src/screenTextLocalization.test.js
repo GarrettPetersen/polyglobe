@@ -50,9 +50,9 @@ test("validation argument labels do not enter the player-facing translation cata
   const sourceCatalog = extractScreenTextSourceCatalog(SOURCE_ROOT);
   for (const internalLabel of [
     "campaign reminder doubloons", "campaign reminder home port", "campaign reminder contact",
-    "buyPrice", "capitalContributions", "constructionExpenses", "effectDetail", "foodUnits",
-    "itemId", "LocalSaveWriteError", "playerPayouts", "salesPitch", "salesRevenue", "sellPrice",
-    "tradeImpact", "waterUnits"
+    "en-US", "buyPrice", "capitalContributions", "constructionExpenses", "effectDetail", "equipment factor item {0}", "faith with your commission. The treasury will honor the crown's word.", "font:inherit;padding:12px 24px;cursor:pointer", "from Southeast Asia, and I will pay well for the voyage.{0}", "foodUnits",
+    "character portrait manifest", "Cartoon Horse with animations", "itemId", "LocalSaveWriteError",
+    "playerPayouts", "salesPitch", "salesRevenue", "sellPrice", "tradeImpact", "waterUnits"
   ]) {
     assert.ok(!sourceCatalog.includes(internalLabel), internalLabel);
   }
@@ -85,6 +85,105 @@ test("historical maritime and trade language keeps its intended meaning", () => 
       "군주의 인장에 따라 {0}의 관세 수입을 계약 채무인 120만 더블룬을 갚을 때까지 양도합니다."
     ]]
   ], "historical maritime and trade language");
+});
+
+test("the 1050s dialogue and trade labels are natural and fully localized", () => {
+  for (const [language, expected] of Object.entries({
+    fr: [
+      ["Captain! My family marks the day you found me on that lonely shore every year. Come to supper.", "Capitaine ! Ma famille célèbre chaque année le jour où vous m'avez trouvé sur cette plage isolée. Venez dîner chez nous."],
+      ["Caravans meet the boats at this quay, so news of a useful cargo travels inland quickly.", "Les caravanes retrouvent les bateaux à ce quai ; la nouvelle d'une cargaison utile se répand vite dans l'arrière-pays."]
+    ],
+    ko: [
+      ["Captain, the rival courier reached my office first.", "대장님, 경쟁 세력이 보낸 사절이 먼저 제 관청에 도착했습니다."],
+      ["Captain, you restored our family. Please accept {0} doubloons and {1} with our everlasting gratitude.", "함장님, 우리 가족을 다시 만나게 해 주셨습니다. 영원한 감사의 뜻으로 {0}더블룬과 {1}을 받아 주십시오."]
+    ],
+    pl: [
+      ["Caravan brokers and coastal pilots bargain beneath the storehouses, linking distant inland markets to the sea.", "Pośrednicy karawanowi i piloci przybrzeżni targują się pod magazynami, łącząc odległe rynki w głębi lądu z morzem."]
+    ],
+    "zh-Hans": [
+      ["Captain's log: the crew is quiet because the crew is me. An efficient meeting.", "船长日志：船员都很安静，因为船员只有我一个。会议开得真有效率。"]
+    ],
+    "zh-Hant": [
+      ["Cargo delivered", "貨物已送達"],
+      ["CARGO", "貨物"]
+    ]
+  })) {
+    for (const [source, translation] of expected) {
+      assert.equal(localizeText(language, source), translation, `${language}: ${source}`);
+    }
+  }
+});
+
+test("the 1100s historical and maritime translations avoid false friends and corruption", () => {
+  const reviewed = [
+    ["fr", "Carlisle Bay is the best roadstead on the island. We will establish the town that sailors are already calling the Bridge.", "La baie de Carlisle est le meilleur mouillage de l'île. Nous fonderons la ville que les marins surnomment déjà le Pont."],
+    ["ja", "Carlisle Bay is the best roadstead on the island. We will establish the town that sailors are already calling the Bridge.", "カーライル湾は島で最良の停泊地です。船乗りたちがすでに「橋」と呼ぶ町を築きます。"],
+    ["zh-Hans", "Carlisle Bay is the best roadstead on the island. We will establish the town that sailors are already calling the Bridge.", "卡莱尔湾是岛上最好的锚地。我们要在此建立一座城镇，水手们已经称它为“桥”。"],
+    ["de", "Carlisle's agents want a harbor at Carlisle Bay. Barbados grows cotton and tobacco, and its planters already search for a richer staple.", "Carlisles Vertreter wollen einen Hafen in der Carlisle Bay. Auf Barbados wachsen Baumwolle und Tabak, und die Plantagenbesitzer suchen bereits nach einer einträglicheren Nutzpflanze."],
+    ["pl", "Carlisle's agents want a harbor at Carlisle Bay. Barbados grows cotton and tobacco, and its planters already search for a richer staple.", "Agenci Carlisle'a chcą portu w zatoce Carlisle. Na Barbadosie uprawia się bawełnę i tytoń, a plantatorzy szukają już bardziej dochodowej uprawy."],
+    ["fr", "Castilian sails brought Sultan al-Mansur promises. Your family accepted their drafts as though promises were silver.", "Les voiles castillanes apportèrent les promesses du sultan al-Mansur. Votre famille accepta leurs traites comme si les promesses étaient d'argent."],
+    ["fr", "Cedar canoes crowd the landing, and their crews are comparing your route with the winds and currents they know.", "Les canots de cèdre se pressent au débarcadère. Leurs équipages comparent votre route aux vents et aux courants qu'ils connaissent."],
+    ["es", "Cedar canoes crowd the landing, and their crews are comparing your route with the winds and currents they know.", "Las canoas de cedro se agolpan en el embarcadero. Sus tripulaciones comparan tu ruta con los vientos y las corrientes que conocen."],
+    ["fr", "Charles demands Burgundy, Francis's claims in Italy, marriage to Eleanor, and the king's sons as hostages. Freedom has acquired a very long invoice.", "Charles réclame la Bourgogne, les prétentions de François en Italie, son mariage avec Éléonore et les fils du roi comme otages. La liberté s'accompagne d'une facture interminable."],
+    ["ja", "Change ship loadout", "船の装備を変更"]
+  ];
+  for (const [language, source, expected] of reviewed) {
+    assert.equal(localizeText(language, source), expected, `${language}: ${source}`);
+  }
+});
+
+test("captured-ship, provisioning, and nautical material terms keep their context", () => {
+  const reviewed = [
+    ["ja", "Chimborazo lifts an ice-covered dome almost directly above the equatorial country. Its broad white mass seems to push higher because tropical fields lie within sight below.", "チンボラソ山は赤道地帯のほぼ真上にそびえ、頂は氷に覆われています。眼下に熱帯の畑が見えるため、広い白い山体はひときわ高く感じられます。"],
+    ["fr", "Choose {0} crew members to leave behind before transferring to the smaller captured ship. No dismissal is permanent until you confirm.", "Avant de passer sur le plus petit navire capturé, choisissez les {0} membres d'équipage qui resteront à terre. Personne ne sera renvoyé avant votre confirmation."],
+    ["pl", "Choose the crew, cannon, food, and water levels your ship should restore automatically at each port.", "Wybierz docelowe ilości załogi, dział, żywności i wody, które statek ma automatycznie uzupełniać w każdym porcie."],
+    ["ru", "clinker rivets and roves", "Заклёпки и шайбы для обшивки внакрой"],
+    ["de", "Close recalled commission {0} db", "Zurückgezogenen Auftrag abrechnen: {0} Dublonen"],
+    ["ko", "Coastal canoe crews recognized your sail offshore. Market runners are already spreading word of your return.", "해안 카누 선원들이 먼바다에서 당신의 돛을 알아보았습니다. 장터의 전령들은 이미 귀환 소식을 퍼뜨리고 있습니다."]
+  ];
+  for (const [language, source, expected] of reviewed) {
+    assert.equal(localizeText(language, source), expected, `${language}: ${source}`);
+  }
+});
+
+test("scripture delivery and historical references avoid literal false friends", () => {
+  const reviewed = [
+    ["ja", "Diet of Worms dialogue", "ヴォルムス帝国議会の会話"],
+    ["zh-Hans", "Deliver Testaments {0}/{1}", "分送《圣经》 {0}/{1}"],
+    ["ko", "Delivered: {0}/{1}.", "전달 완료: {0}/{1}."],
+    ["es", "Diu kept its walls free of Portugal. Your estate was less fortunate with me.", "Diu mantuvo a Portugal lejos de sus murallas. Tu hacienda tuvo menos suerte conmigo."],
+    ["fr", "Dismiss", "Renvoyer"],
+    ["pt-BR", "Deliver your package to {0} first, Captain. Then the council can hear your petition.", "Capitão, entregue primeiro a encomenda em {0}. Depois, o conselho poderá ouvir sua petição."],
+    ["fr", "Doge {0}", "doge {0}"],
+    ["zh-Hans", "Duke", "公爵"],
+    ["es", "Dominican supporters' purse", "Donativo de quienes apoyan a los dominicos"],
+    ["de", "Set a double watch whenever we carry precious metal. Greed travels farther than any pirate.", "Wenn wir Edelmetalle an Bord haben, verdoppeln wir die Wache. Habgier reicht weiter als jeder Pirat."],
+    ["ko", "Electorate of Cologne", "쾰른 선제후령"],
+    ["de", "Eight hundred people cannot live from a military chest. Add", "Achthundert Menschen können nicht aus der Kriegskasse leben. Ergänzt"],
+    ["es", "Embark the conquistadors", "Embarca a los conquistadores"],
+    ["zh-Hans", "ESC", "ESC"],
+    ["pl", "Every sailor inherits a world half chart and half rumor. I intend to learn which half is true.", "Każdy żeglarz dziedziczy świat złożony w połowie z map morskich, a w połowie z pogłosek. Ustalę, która połowa jest prawdziwa."],
+    ["fr", "Every bit of spare hold space now holds gold: {0} units.", "Chaque espace libre de la cale contient désormais de l'or : {0} unités."],
+    ["es", "Fine Lateen Sailcloth", "Tela fina para vela latina"],
+    ["de", "FISH MOVED OUT OF REACH", "DIE FISCHE SIND AUSSER REICHWEITE"],
+    ["ko", "Farewell, captain. I am retiring from piracy before it ruins my retirement.", "잘 가세요, 선장님. 해적질이 노후를 망치기 전에 그만두렵니다."],
+    ["pl", "My book maps every known place, but only a continuous voyage proves a circumnavigation. Sail around the world without stopping, return here, and bring me your ship's log of the route west and east.", "W mojej księdze opisano już wszystkie znane miejsca, ale trzeba jeszcze dowieść, że można opłynąć świat. Żegluj bez przerwy dookoła globu, wróć do tego portu i przynieś dziennik pokładowy z zapisem trasy na zachód i wschód."],
+    ["zh-Hans", "Fishing odds +{0}", "捕鱼成功率 +{0}"],
+    ["ko", "Food: 1 share / day", "식량: 하루 1인분"],
+    ["fr", "Five European captains race west with the first tea of spring. Deliver these ten sealed chests to London ahead of them for {0} db, or complete the race later for {1} db.", "Cinq capitaines européens rivalisent pour acheminer vers l'ouest le premier thé du printemps. Livrez ces dix coffres scellés à Londres avant eux pour {0} doublons ; terminez plus tard et vous recevrez {1}."],
+    ["de", "Flemish Sailcloth", "Flämisches Segeltuch"]
+    , ["pt-BR", "French New France settlement", "Assentamento francês na Nova França"]
+    , ["pl", "FOUND POLAR GAME", "ZNALEZIONO ZWIERZYNĘ POLARNĄ"]
+    , ["es", "FOUND WILD GAME", "PIEZA DE CAZA ENCONTRADA"]
+    , ["fr", "Found five new cities in a single voyage.", "Vous avez découvert cinq nouvelles villes en un seul voyage."]
+    , ["ja", "FRESH WATER REFILLED", "真水を補給しました"]
+    , ["fr", "Francis I remains prisoner in Madrid. Charles V sends his release articles to Louise of Savoy's council. Carry us to {0}, then bring her sealed answer back.", "François Ier est toujours prisonnier à Madrid. Charles Quint transmet les conditions de sa libération au conseil de Louise de Savoie. Conduisez-nous à {0}, puis rapportez sa réponse scellée."]
+    , ["ru", "Fresh tracks led the party to game enough to replenish the stores.", "Свежие следы привели отряд к добыче, которой хватило для пополнения запасов."]
+    , ["de", "Fuji rises above the surrounding peaks as a near-perfect cone capped with snow. Its symmetry gives the mountain an almost deliberate grace above the fields, roads, and sea.", "Der Fuji überragt die umliegenden Gipfel als nahezu perfekter, schneebedeckter Kegel. Seine Symmetrie verleiht dem Berg über Feldern, Straßen und Meer eine beinahe gewollte Anmut."]
+  ];
+  for (const [language, source, expected] of reviewed) {
+    assert.equal(localizeText(language, source), expected, `${language}: ${source}`);
+  }
 });
 
 test("every authored screen-text template is committed to the localization catalog", () => {
@@ -162,7 +261,7 @@ test("nautical watch shifts are not translated as timepieces", () => {
 test("fishing and scavenging haul labels describe their yields", () => {
   const reviewed = new Map([
     ["Fishing odds x{0} / Max haul {1}", [
-      "钓鱼概率 x{0} / 最大渔获 {1}", "Шанс улова x{0} / Макс. улов {1}", "Probabilidad de pesca x{0} / Captura máxima {1}", "Chance de pesca x{0} / Captura máxima {1}", "漁獲確率 x{0} / 最大漁獲量 {1}", "Fangchance x{0} / Höchstfang {1}", "Chance de pêche x{0} / Prise maximale {1}", "Szansa połowu x{0} / Maks. połów {1}", "釣魚機率 x{0} / 最大漁獲 {1}", "어획 확률 x{0} / 최대 어획량 {1}"
+      "捕鱼成功率 ×{0} / 最大渔获 {1}", "Шанс улова ×{0} / Максимальный улов {1}", "Probabilidad de pesca ×{0} / Captura máxima {1}", "Chance de pesca ×{0} / Captura máxima {1}", "釣果の確率 ×{0} / 最大漁獲量 {1}", "Fangchance ×{0} / Höchstfang {1}", "Chance de capture ×{0} / Prise maximale {1}", "Szansa na połów ×{0} / Maks. połów {1}", "捕魚成功率 ×{0} / 最大漁獲 {1}", "어획 확률 ×{0} / 최대 어획량 {1}"
     ]],
     ["Scavenging haul +{0}", [
       "搜集所得 +{0}", "Добыча припасов +{0}", "Rendimiento de recolección +{0}", "Rendimento da coleta +{0}", "物資採集量 +{0}", "Bergungsertrag +{0}", "Rendement de récupération +{0}", "Wydajność zbieractwa +{0}", "蒐集所得 +{0}", "채집 수확량 +{0}"

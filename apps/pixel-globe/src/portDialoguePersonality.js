@@ -50,7 +50,7 @@ const CONTEXT_LINES = Object.freeze({
   },
   fishermen: {
     cordial: "The fishing boats are working close by. Fresh catch may reach the stalls by evening.",
-    vigilant: "Fishing boats are thick near shore. Mind their nets when you depart.",
+    vigilant: "Many fishing boats work near shore. Mind their nets when you depart.",
     gossipy: "The fishermen say the shoals have shifted. They say that whenever the catch is poor.",
     austere: "Fishing craft are working nearby. Keep outside their nets.",
     enterprising: "The fishing fleet is active. A strong catch will soften food prices.",

@@ -183,7 +183,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
     "Most of the mountain begins beneath your keel, then. That thought enlarges it beyond what the eye can see. Sound the surrounding depths wherever you safely can."
   ),
   "mountain-mount-fuji": exchange(
-    "Fuji stood apart from every other height, a near-perfect cone carrying snow above fields, roads, and the sea. Its symmetry made the mountain feel composed rather than accidental.",
+    "Fuji rises above the surrounding peaks as a near-perfect cone capped with snow. Its symmetry gives the mountain an almost deliberate grace above the fields, roads, and sea.",
     "Now I understand why painters return to it. Give me its outline from several bearings; each view may test just how perfect that cone truly is."
   ),
   "mountain-mount-etna": exchange(

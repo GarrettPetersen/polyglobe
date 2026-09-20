@@ -1577,7 +1577,7 @@ function surrenderPrizeView(session, ship, gameState) {
     return {
       speaker: `${candidate}, surrendered prize`,
       expressionId: "afraid",
-      text: `Choose ${required} crewmate${required === 1 ? "" : "s"} to dismiss before transferring to the smaller prize. No dismissal is permanent until you confirm the transfer.`,
+      text: `Choose ${required} crew members to leave behind before transferring to the smaller captured ship. No dismissal is permanent until you confirm.`,
       feedback: session.feedback,
       presentation,
       options: [
@@ -8336,7 +8336,7 @@ function loadoutView(session, city, gameState, context) {
     speaker: speakerName(city),
     expressionId: "attentive",
     text: currentId
-      ? "Choose the targets we should automatically restore whenever you dock."
+      ? "Choose the crew, cannon, food, and water levels your ship should restore automatically at each port."
       : "Before I provision your ship, choose how you intend to use her.",
     feedback: session.feedback,
     optionHeight: 34,

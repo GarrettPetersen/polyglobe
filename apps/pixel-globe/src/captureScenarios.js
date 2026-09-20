@@ -1996,7 +1996,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
   }),
   "short-loadout-presets": trailerScenario({
     id: "short-loadout-presets",
-    title: "Choose the targets we should automatically restore whenever you dock.",
+    title: "Choose the crew, cannon, food, and water levels your ship should restore automatically at each port.",
     seed: "short-loadout-presets-v1",
     player: capturePlayer("portugal", "portuguese-carrack", 38.72, -9.14, 45, {
       characterPortraitSourceId: LOADOUT_SHORT_CAPTAIN_SOURCE_ID,

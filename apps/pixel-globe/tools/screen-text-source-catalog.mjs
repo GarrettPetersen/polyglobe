@@ -12,6 +12,7 @@ const DISPLAY_PROPERTY_NAMES = new Set([
   "speaker", "status", "subtitle", "success", "successText", "summary", "text", "title",
   "transactionText", "warning"
 ]);
+const NON_DISPLAY_PROPERTY_NAMES = new Set(["sourceTitle"]);
 
 const DISPLAY_CALL_ARGUMENTS = new Map([
   ["achievement", [1, 2]],
@@ -98,9 +99,9 @@ const NON_DISPLAY_VALIDATION_CALLS = new Set([
   "requiredNpcRoutePort"
 ]);
 const NON_DISPLAY_SOURCE_TEMPLATES = new Set([
-  "buyPrice", "capitalContributions", "constructionExpenses", "effectDetail", "foodUnits",
-  "itemId", "LocalSaveWriteError", "playerPayouts", "salesPitch", "salesRevenue", "sellPrice",
-  "tradeImpact", "waterUnits"
+  "en-US", "buyPrice", "capitalContributions", "constructionExpenses", "effectDetail", "equipment factor item {0}", "faith with your commission. The treasury will honor the crown's word.", "font:inherit;padding:12px 24px;cursor:pointer", "from Southeast Asia, and I will pay well for the voyage.{0}", "foodUnits",
+  "character portrait manifest", "itemId", "LocalSaveWriteError", "playerPayouts", "salesPitch",
+  "salesRevenue", "sellPrice", "tradeImpact", "waterUnits"
 ]);
 
 export function extractScreenTextSourceCatalog(sourceRoot) {
@@ -163,7 +164,8 @@ function assignedDisplayPropertyName(expression, sourceFile) {
 }
 
 function isDisplayPropertyName(name) {
-  return DISPLAY_PROPERTY_NAMES.has(name) || DISPLAY_FUNCTION_NAME.test(name);
+  return !NON_DISPLAY_PROPERTY_NAMES.has(name) &&
+    (DISPLAY_PROPERTY_NAMES.has(name) || DISPLAY_FUNCTION_NAME.test(name));
 }
 
 function isDisplayFunction(node) {

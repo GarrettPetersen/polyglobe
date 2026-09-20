@@ -99,8 +99,8 @@ export function createTeaRaceQuest({
     reward: TEA_RACE_FINISHER_PRIZE,
     firstPrize: TEA_RACE_FIRST_PRIZE,
     finisherPrize: TEA_RACE_FINISHER_PRIZE,
-    offerText: `Five European captains race the first spring tea west. Land these ten sealed chests ` +
-      `at London before them for ${TEA_RACE_FIRST_PRIZE} db; finish later for ` +
+    offerText: `Five European captains race west with the first tea of spring. Deliver these ten sealed chests ` +
+      `to London ahead of them for ${TEA_RACE_FIRST_PRIZE} db, or complete the race later for ` +
       `${TEA_RACE_FINISHER_PRIZE} db.`
   };
 }

@@ -455,6 +455,21 @@ test("dynamic canvas templates localize in every target language", () => {
   }
 });
 
+test("embedded goods translations do not corrupt matching letter sequences in other words", () => {
+  assert.equal(
+    localizeText(LANGUAGE_FRENCH, "Caravans meet the boats at this quay, so news of a useful cargo travels inland quickly."),
+    "Les caravanes retrouvent les bateaux à ce quai ; la nouvelle d'une cargaison utile se répand vite dans l'arrière-pays."
+  );
+  assert.equal(
+    localizeText(LANGUAGE_SPANISH, "Cedar canoes crowd the landing, and their crews are comparing your route with the winds and currents they know."),
+    "Las canoas de cedro se agolpan en el embarcadero. Sus tripulaciones comparan tu ruta con los vientos y las corrientes que conocen."
+  );
+  assert.match(
+    localizeText(LANGUAGE_FRENCH, "Champlain wants Laviolette to fortify the Saint-Maurice confluence. Algonquin and Innu traders already gather there for the fur trade."),
+    /Saint-Maurice/
+  );
+});
+
 test("war-loan journal, secured renegotiation, and repayment navigation localize in every target language", () => {
   const cases = [
     ["quest.sovereignWarLoan", {}],

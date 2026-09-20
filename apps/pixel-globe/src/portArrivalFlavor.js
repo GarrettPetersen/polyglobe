@@ -146,7 +146,7 @@ const REGIONAL_PORT_LINES = Object.freeze({
     ]),
     ordinary: Object.freeze([
       "The landing joins the sea road to settlements inland, and every unfamiliar sail draws attention.",
-      "Fishing rafts line the shore, and word of your arrival is already moving toward the settlements above."
+      "Fishing rafts line the shore, and word of your arrival is already moving toward inland settlements."
     ])
   }),
   polynesian: Object.freeze({

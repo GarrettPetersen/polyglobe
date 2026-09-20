@@ -416,7 +416,7 @@ export const CHART_REFRAME_DIALOGUES = Object.freeze([
     dialogueLine("captain", "Something in the porcelain crate rattled. Lash it again before profit becomes crockery.", "concerned")
   ]),
   dialogue("gold-watch", "cargo", 5, (c) => c.cargoGoodIds.some((id) => ["gold", "silver"].includes(id)) && c.hasCrew, [
-    dialogueLine("captain", "Double the watch by the precious metal. Greed swims farther than any pirate.", "attentive")
+    dialogueLine("captain", "Set a double watch whenever we carry precious metal. Greed travels farther than any pirate.", "attentive")
   ]),
   dialogue("recent-port-admirer", "recent-port", 6, (c) => c.recentPortNames.length > 0 && c.hasMaleCrew, [
     dialogueLine("male-crew", "I wonder whether the girl I met in {0} still watches the harbor.", "thoughtful", null, ["recentPort"]),
