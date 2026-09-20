@@ -11745,6 +11745,7 @@ function assertDiplomaticQuestMemory(quests) {
     || isStatusEnvoyQuest(quest)
     || isImperialElectionEnvoyQuest(quest)
     || isWokouHuntQuest(quest)
+    || quest?.soundDuesExemptionFactionId !== undefined
   ));
   for (const quest of diplomaticQuests) {
     if (typeof quest.id !== "string" || quest.id === "") {
@@ -11763,6 +11764,13 @@ function assertDiplomaticQuestMemory(quests) {
     }
     if (isStatusEnvoyQuest(quest) && !quest.statusProposal) {
       throw new Error(`Status envoy requires proposed terms: ${quest.id}`);
+    }
+    if (quest.soundDuesExemptionFactionId !== undefined) {
+      const beneficiaryFactionId = assertFactionId(quest.soundDuesExemptionFactionId);
+      if (quest.kind !== "friendly-envoy" || quest.originFactionId !== beneficiaryFactionId ||
+          quest.targetFactionId !== SOUND_DUES_FACTION_ID || quest.tradeAccessPolicyId !== undefined) {
+        throw new Error(`Invalid Sound Dues exemption envoy: ${quest.id}`);
+      }
     }
     if (isCourtEnvoyQuest(quest) && (
       (quest.courtMatterId === undefined) !== (quest.courtAuthorityFactionId === undefined) ||

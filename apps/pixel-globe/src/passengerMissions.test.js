@@ -20,6 +20,7 @@ import {
   recordAttackAgainstFaction,
   soundDuesExemptionForFaction,
   sovereignTradeOpenToFaction,
+  validateGameState,
   negotiateEnvoyQuest
 } from "./gameState.js";
 import { diplomacyBetween } from "./factions.js";
@@ -649,6 +650,30 @@ test("a friendly country with recorded Baltic traffic can negotiate a Sound Dues
   assert.equal(negotiation.soundDuesExemptionOpened, true);
   assert.equal(negotiation.soundDuesExemptionOpenedFactionId, "england");
   assert.equal(soundDuesExemptionForFaction(state, "england"), true);
+  validateGameState(state);
+
+  const deterioratedState = makeEligibleState();
+  deterioratedState.memory.soundDues.trafficFactionIds.push("england");
+  const deterioratedOffer = envoyOfferForCapital(
+    deterioratedState,
+    LONDON,
+    [LONDON, COPENHAGEN],
+    contextFor(deterioratedState)
+  );
+  acceptQuest(deterioratedState, deterioratedOffer);
+  adjustDiplomaticStance(deterioratedState.relations.diplomacy, "denmark-norway", "england", "worsen", 10);
+  adjustDiplomaticStance(deterioratedState.relations.diplomacy, "denmark-norway", "england", "worsen", 20);
+  const refusal = negotiateEnvoyQuest(deterioratedState, COPENHAGEN, {
+    simMinute: 100,
+    portCities: [LONDON, COPENHAGEN]
+  });
+  assert.equal(refusal.soundDuesExemptionOpened, false);
+  assert.match(refusal.quest.dialogue.negotiation, /refuse the exemption/);
+  assert.equal(refusal.quest.stage, "return");
+  validateGameState(deterioratedState);
+
+  refusal.quest.soundDuesExemptionFactionId = "missing-faction";
+  assert.throws(() => validateGameState(deterioratedState), /Unknown faction/);
 });
 
 test("the Ming trade-opening embassy cannot bypass the envoy spawn roll", () => {

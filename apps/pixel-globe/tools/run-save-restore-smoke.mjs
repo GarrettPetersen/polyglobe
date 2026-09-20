@@ -916,6 +916,16 @@ async function exerciseSoundDuesRoundTrips(page, browserErrors) {
   for (const nationalityId of ["denmark-norway", "lubeck"]) {
     const exemptFixture = structuredClone(fixture);
     exemptFixture.payload.gameState.playerCharacter.nationalityId = nationalityId;
+    exemptFixture.payload.gameState.memory.soundDues = {
+      ...createSoundDuesMemory(),
+      nextPassageNumber: 2,
+      active: {
+        id: "danish-straits:1",
+        straitId: "oresund",
+        status: "refused",
+        tollDoubloons: 30
+      }
+    };
     await page.evaluate(
       (serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized),
       JSON.stringify(exemptFixture)

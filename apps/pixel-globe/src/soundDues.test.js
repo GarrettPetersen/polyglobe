@@ -161,6 +161,18 @@ test("a treaty exemption is revoked as soon as relations cease to be good", () =
   assert.equal(soundDuesExemptForFaction(memory, "hamburg"), true);
 });
 
+test("a newly exempt ship clears an earlier refused passage and its enforcement", () => {
+  const state = createState();
+  state.playerCharacter = { id: "player:english", nationalityId: "england" };
+  const passageId = enter(state);
+  resolveSoundDuesPassage(state, passageId, "refuse");
+  assert.equal(soundDuesEnforcementApplies(state.memory.soundDues, "denmark-norway"), true);
+  grantSoundDuesExemption(state.memory.soundDues, "england");
+  assert.equal(advanceSoundDuesPassage(state, inSound), true);
+  assert.equal(state.memory.soundDues.active, null);
+  assert.equal(soundDuesEnforcementApplies(state.memory.soundDues, "denmark-norway"), false);
+});
+
 test("shared pricing preserves the existing civilian safe-passage price", () => {
   const state = createState();
   assert.equal(factionSafePassageToll(state), shipPassageTollDoubloons(state));

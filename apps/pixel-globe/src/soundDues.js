@@ -112,8 +112,7 @@ export function advanceSoundDuesPassage(state, { lat, lon }) {
   const playerFactionId = state.playerCharacter?.nationalityId || null;
   const straitId = soundDuesStraitAt({ lat, lon });
   if (playerFactionId && straitId) recordSoundDuesTraffic(memory, playerFactionId);
-  if (playerFactionId && soundDuesExemptForFaction(memory, playerFactionId) &&
-      memory.active?.status === "awaiting-payment") {
+  if (playerFactionId && soundDuesExemptForFaction(memory, playerFactionId) && memory.active) {
     memory.active = null;
     return true;
   }
