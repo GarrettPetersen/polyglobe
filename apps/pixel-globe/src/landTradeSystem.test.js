@@ -137,6 +137,48 @@ test("low-capacity carts trade, advance, and restore exactly", () => {
   assert.deepEqual(expanded.carts[0], snapshot.carts[0]);
 });
 
+test("carts on obsolete generated roads are deterministically reseeded", () => {
+  const roads = syntheticRoads();
+  const economy = createWorldEconomy({
+    ports: [LONDON, ANTIOCH, ALEPPO],
+    shipyardPorts: [LONDON],
+    startMinute: 0
+  });
+  const current = createLandTradeSystem({
+    roads,
+    economy,
+    cities: [LONDON, ANTIOCH, ALEPPO],
+    startMinute: 0,
+    seedKey: "obsolete-road-recovery"
+  });
+  const seededFirstCart = structuredClone(current.carts[0]);
+  const snapshot = snapshotLandTradeSystem(current);
+  Object.assign(snapshot.carts[0], {
+    originTileId: LONDON.tileId,
+    destinationTileId: ALEPPO.tileId,
+    routeId: "road-1-3",
+    departureMinute: 10,
+    arrivalMinute: 20,
+    specie: 777,
+    journeySerial: 12
+  });
+  snapshot.carts[1].specie = 321;
+
+  restoreLandTradeSystem(current, snapshot);
+
+  assert.equal(current.carts[0].routeId, seededFirstCart.routeId);
+  assert.equal(current.carts[0].originTileId, seededFirstCart.originTileId);
+  assert.equal(current.carts[0].departureMinute, economy.lastMinute);
+  assert.ok(current.carts[0].arrivalMinute > current.carts[0].departureMinute);
+  assert.equal(current.carts[0].specie, 777);
+  assert.equal(current.carts[0].journeySerial, 12);
+  assert.equal(current.carts[1].specie, 321);
+  assert.throws(() => restoreLandTradeSystem(current, {
+    ...snapshot,
+    carts: [{ ...snapshot.carts[0], routeId: "removed-road" }]
+  }), /Land cart references unknown route/);
+});
+
 test("carts continue through connected cities instead of shuttling across one short road", () => {
   const roads = syntheticRoads();
   const economy = createWorldEconomy({

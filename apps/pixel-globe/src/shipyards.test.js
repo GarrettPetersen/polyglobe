@@ -51,7 +51,8 @@ const TEST_CITY_IDS = new Map([
   ["Nagasaki", "nagasaki|japan"], ["Seville", "seville|spain"],
   ["Venice", "venice|italy"], ["Istanbul", "istanbul|turkey"],
   ["Malacca", "malacca|malaysia"], ["Goa", "goa|india"],
-  ["Chanchan", "chanchan|peru"], ["Lahore", "lahore|pakistan"]
+  ["Chanchan", "chanchan|peru"], ["Lahore", "lahore|pakistan"],
+  ["Ohrid", "ohrid|bulgaria"], ["Thessaloniki", "thessaloniki|greece"]
 ]);
 
 test("single-material procurement never refills a different shipyard store", () => {
@@ -113,6 +114,8 @@ const MALACCA = port(12, "Malacca", "southeast-asian", 45000, 2.19, 102.25, "neu
 const GOA = port(13, "Goa", "south-asian", 75000, 15.49, 73.83, "portugal");
 const CHANCHAN = port(14, "Chanchan", "andean", 25000, -8.106, -79.075, "inca");
 const LAHORE = port(15, "Lahore", "south-asian", 80000, 31.55, 74.34, "delhi");
+const OHRID = port(16, "Ohrid", "mediterranean", 12000, 41.12, 20.8, "ottoman");
+const THESSALONIKI = port(17, "Thessaloniki", "mediterranean", 70000, 40.64, 22.94, "ottoman");
 
 test("new-build listings are uncommon but available across a useful share of ports", () => {
   const ports = Array.from({ length: 240 }, (_, index) => (
@@ -1038,6 +1041,42 @@ test("shipyard snapshots restore listings and construction clocks", () => {
   assert.equal(lisbon.buildNumber, 14);
   assert.equal(lisbon.listing.id, snapshot.yards.find((yard) => yard.portId === LISBON.cityId).listing.id);
   assert.equal(lisbon.nextBuildMinute, 123456);
+});
+
+test("obsolete inland NPC shipyards are rebuilt without overwriting their gateway yard", () => {
+  const released = createWorldShipyards({
+    ports: [OHRID, THESSALONIKI],
+    startMinute: 0,
+    seedKey: "ohrid-inland-recovery"
+  });
+  const ohrid = shipyardAtPort(released, OHRID);
+  const thessaloniki = shipyardAtPort(released, THESSALONIKI);
+  ohrid.buildNumber = 7;
+  thessaloniki.buildNumber = 11;
+  released.npcSales.push(Object.freeze({
+    id: "ohrid-sale:npc-sale",
+    portId: OHRID.cityId,
+    factionId: "ottoman",
+    shipSlug: "caravel",
+    price: 4200,
+    soldMinute: 100
+  }));
+  const snapshot = snapshotWorldShipyards(released);
+  const current = createWorldShipyards({
+    ports: [THESSALONIKI],
+    startMinute: 500,
+    seedKey: "ohrid-inland-recovery"
+  });
+
+  restoreWorldShipyards(current, snapshot);
+
+  assert.equal(shipyardAtPort(current, THESSALONIKI).buildNumber, 11);
+  assert.deepEqual(current.npcSales, []);
+  assert.throws(() => restoreWorldShipyards(current, {
+    ...snapshot,
+    yards: [{ ...snapshot.yards[0], portId: "missing|port" }],
+    npcSales: []
+  }), /Saved shipyard city is missing/);
 });
 
 test("shipyard stores persist while old player yards regain their founding deliveries", () => {

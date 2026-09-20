@@ -8509,6 +8509,25 @@ export function reconcileQuestPortTiles(state, portCities, {
     delete shipyardInvestment.backedPortTileIds;
     updates += 1;
   }
+  if (shipyardInvestment?.version === SHIPYARD_INVESTMENT_VERSION) {
+    const backedPortCityIds = shipyardInvestment.backedPortCityIds.map((cityId) => {
+      const port = reconciledPortReference(portCities, { cityId, tileId: null }, legacyPortTileIds);
+      if (!port) throw new Error(`Saved player-backed shipyard does not resolve: ${cityId}`);
+      return port.cityId;
+    });
+    const uniqueBackedPortCityIds = [...new Set(backedPortCityIds)];
+    if (uniqueBackedPortCityIds.length !== shipyardInvestment.backedPortCityIds.length) {
+      throw new Error("Saved player-backed shipyards collide after inland-port recovery");
+    }
+    if (
+      uniqueBackedPortCityIds.some((cityId, index) => (
+        cityId !== shipyardInvestment.backedPortCityIds[index]
+      ))
+    ) {
+      shipyardInvestment.backedPortCityIds = uniqueBackedPortCityIds;
+      updates += 1;
+    }
+  }
   updates += reconcileNamedPortFields(shipyardInvestment?.project, {
     tileField: "portTileId",
     cityIdField: "portCityId",

@@ -2318,6 +2318,39 @@ test("NPC route snapshots preserve planless pirates hidden at a hideout", () => 
   assert.equal(restored.hiddenAtHideout, false);
 });
 
+test("saved NPC routes move Ohrid's retired sailing endpoint to Thessaloniki", () => {
+  const thessaloniki = port(
+    394865,
+    "Thessaloniki",
+    "Greece",
+    "mediterranean",
+    40.64,
+    22.94,
+    70000,
+    "ottoman"
+  );
+  const ports = [...PORTS, thessaloniki];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const saved = snapshot.ships.find((ship) => ship.plan?.segments.some((segment) => (
+    segment.kind === "sail"
+  )));
+  assert.ok(saved);
+  const retiredOhridPort = { ...thessaloniki, tileId: 394384, city: "Ohrid", displayCity: "Ohrid" };
+  saved.finalDestination = retiredOhridPort;
+  saved.plan.destination = retiredOhridPort;
+  const lastSail = [...saved.plan.segments].reverse().find((segment) => segment.kind === "sail");
+  lastSail.to = retiredOhridPort;
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+
+  const restored = routes.shipById.get(saved.id);
+  assert.equal(restored.finalDestination.tileId, thessaloniki.tileId);
+  assert.equal(restored.plan.destination.tileId, thessaloniki.tileId);
+  assert.equal(JSON.stringify(restored.plan).includes("394384"), false);
+});
+
 test("saved routes retain generated fishing grounds that leave the current top set", () => {
   const fishState = createGameState({ cargoCapacity: 20 });
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });

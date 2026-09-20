@@ -354,18 +354,24 @@ export function restoreLandTradeSystem(system, snapshot, {
   const seededCarts = system.carts;
   const seededById = new Map(seededCarts.map((cart) => [cart.id, cart]));
   const ids = new Set();
-  const restoredById = new Map(snapshot.carts.map((raw) => {
-    validateSavedCart(system, raw);
+  const restoredById = new Map();
+  for (const raw of snapshot.carts) {
+    validateSavedCartShape(raw);
     if (ids.has(raw.id)) throw new Error(`Duplicate saved land cart: ${raw.id}`);
     if (!seededById.has(raw.id)) throw new Error(`Saved land cart is outside the current population: ${raw.id}`);
     ids.add(raw.id);
-    return [raw.id, {
+    if (savedCartUsesObsoleteRoute(system, raw)) {
+      restoredById.set(raw.id, reseedSavedCartOnCurrentRoute(system, seededById.get(raw.id), raw));
+      continue;
+    }
+    validateSavedCartRoute(system, raw);
+    restoredById.set(raw.id, {
       ...raw,
       cargo: { ...raw.cargo },
       cargoCost: { ...raw.cargoCost }
-    }];
-  }));
-  if (restoredById.size === 0) throw new Error("Land trade save contains no carts");
+    });
+  }
+  if (ids.size === 0) throw new Error("Land trade save contains no carts");
   system.carts = seededCarts.map((seeded) => restoredById.get(seeded.id) || seeded);
   return system;
 }
@@ -603,15 +609,16 @@ function otherRouteEndpoint(route, tileId) {
 
 function requiredCartRoute(system, routeId) {
   const route = system.roads.routeById.get(routeId);
-  if (!route) throw new Error(`Land cart references unknown route: ${routeId}`);
+  if (!route || !system.cityByTileId.has(route.fromTileId) || !system.cityByTileId.has(route.toTileId)) {
+    throw new Error(`Land cart references unknown route: ${routeId}`);
+  }
   return route;
 }
 
-function validateSavedCart(system, cart) {
-  const route = requiredCartRoute(system, cart?.routeId);
+function validateSavedCartShape(cart) {
   if (typeof cart.id !== "string" || cart.id === "" ||
+      typeof cart.routeId !== "string" || cart.routeId === "" ||
       !Number.isInteger(cart.originTileId) || !Number.isInteger(cart.destinationTileId) ||
-      otherRouteEndpoint(route, cart.originTileId) !== cart.destinationTileId ||
       !Number.isFinite(cart.departureMinute) || !Number.isFinite(cart.arrivalMinute) ||
       cart.arrivalMinute <= cart.departureMinute ||
       cart.cargoCapacity !== LAND_CART_CARGO_CAPACITY ||
@@ -626,6 +633,47 @@ function validateSavedCart(system, cart) {
     if (!Number.isFinite(cost) || cost < 0) throw new Error(`Invalid saved land cart cost: ${goodId}=${cost}`);
   }
   assertCartCargo(cart);
+}
+
+function validateSavedCartRoute(system, cart) {
+  const route = requiredCartRoute(system, cart.routeId);
+  if (otherRouteEndpoint(route, cart.originTileId) !== cart.destinationTileId) {
+    throw new Error(`Invalid saved land cart: ${cart.id}`);
+  }
+}
+
+function savedCartUsesObsoleteRoute(system, cart) {
+  if (system.roads.routeById.has(cart.routeId)) {
+    const route = system.roads.routeById.get(cart.routeId);
+    return !system.cityByTileId.has(route.fromTileId) || !system.cityByTileId.has(route.toTileId);
+  }
+  const fromTileId = Math.min(cart.originTileId, cart.destinationTileId);
+  const toTileId = Math.max(cart.originTileId, cart.destinationTileId);
+  if (cart.routeId !== `road-${fromTileId}-${toTileId}`) {
+    throw new Error(`Land cart references unknown route: ${cart.routeId}`);
+  }
+  // Cart traffic is derived world state. Road generation can legitimately
+  // replace a released route while preserving both endpoint cities, so a
+  // well-formed cart on that obsolete route deterministically falls back to
+  // its freshly seeded current route instead of blocking an old save.
+  return true;
+}
+
+function reseedSavedCartOnCurrentRoute(system, seededCart, savedCart) {
+  const currentMinute = system.economy.lastMinute;
+  if (!Number.isFinite(currentMinute)) {
+    throw new Error("Land cart route recovery requires a finite economy minute");
+  }
+  const route = requiredCartRoute(system, seededCart.routeId);
+  return {
+    ...seededCart,
+    departureMinute: currentMinute,
+    arrivalMinute: currentMinute + routeDurationMinutes(route),
+    cargo: { ...savedCart.cargo },
+    cargoCost: { ...savedCart.cargoCost },
+    specie: savedCart.specie,
+    journeySerial: savedCart.journeySerial
+  };
 }
 
 function assertSystemInputs({

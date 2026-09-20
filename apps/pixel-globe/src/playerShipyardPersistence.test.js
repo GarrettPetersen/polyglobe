@@ -3,11 +3,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorldShipyards, fundPlayerShipyard, snapshotWorldShipyards, shipyardAtPort,
   advanceWorldShipyards, claimShipyardListing } from "./shipyards.js";
-import { playerShipyardSnapshot, restorePlayerShipyardSnapshot } from "./playerShipyardPersistence.js";
+import {
+  playerShipyardSnapshot,
+  restorePlayerShipyardSnapshot,
+  snapshotPlayerShipyards
+} from "./playerShipyardPersistence.js";
 import { restoreOrRecreateDerivedSaveState } from "./derivedSaveRecovery.js";
 
 const port = { cityId: "lisbon|portugal", tileId: 1, city: "Lisbon", cityType: "mediterranean",
   population: 100000, lat: 38.72, lon: -9.14, factionId: "portugal" };
+const ohrid = { ...port, cityId: "ohrid|bulgaria", tileId: 2, city: "Ohrid",
+  population: 12000, lat: 41.12, lon: 20.8, factionId: "ottoman" };
+const thessaloniki = { ...port, cityId: "thessaloniki|greece", tileId: 3, city: "Thessaloniki",
+  population: 70000, lat: 40.64, lon: 22.94, factionId: "ottoman" };
 const seedKey = "durable-shipyard-books";
 function business() {
   const system = createWorldShipyards({ ports: [port], startMinute: 0, seedKey });
@@ -47,6 +55,24 @@ test("legacy tile-based books migrate through the saved catalog mapping", () => 
   });
   assert.deepEqual(shipyardAtPort(system, port).playerAccounts, originalBooks);
   assert.equal(snapshotWorldShipyards(system).yards[0].portId, port.cityId);
+});
+
+test("player-backed shipyard books move from corrected inland cities to their gateway", () => {
+  const released = createWorldShipyards({ ports: [ohrid], startMinute: 0, seedKey });
+  fundPlayerShipyard(released, ohrid, { investedMinute: 123, seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 } });
+  const saved = playerShipyardSnapshot(snapshotWorldShipyards(released));
+  const originalAccounts = structuredClone(saved.yards[0].playerAccounts);
+  const current = createWorldShipyards({ ports: [thessaloniki], startMinute: 500000, seedKey });
+
+  restorePlayerShipyardSnapshot(current, saved, {
+    seedKey,
+    expectedCityIds: [ohrid.cityId]
+  });
+
+  const restored = shipyardAtPort(current, thessaloniki);
+  assert.deepEqual(restored.playerAccounts, originalAccounts);
+  assert.equal(snapshotPlayerShipyards(current).yards[0].portId, thessaloniki.cityId);
 });
 
 test("missing, duplicate and corrupt durable books cannot become a newly founded business", () => {

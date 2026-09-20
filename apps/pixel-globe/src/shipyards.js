@@ -13,6 +13,7 @@ import {
 } from "./shipStats.js";
 import { JAPANESE_POLITY_FACTION_IDS } from "./factions.js";
 import { requireCityId } from "./entityIds.js";
+import { sailingGatewayCityIdForInlandCity } from "./cityPortAccessPolicy.js";
 
 const MINUTES_PER_DAY = 24 * 60;
 const SHIPYARD_SNAPSHOT_VERSION = 13;
@@ -324,9 +325,22 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
     throw new Error("Unsupported shipyard save data");
   }
   if (!Number.isFinite(snapshot.lastMinute)) throw new Error("Invalid saved shipyard minute");
+  // A released dock can later be corrected to an inland settlement. Its
+  // ordinary NPC yard is derived state, so retain the independently saved
+  // inland market while rebuilding that obsolete yard instead of merging it
+  // into the gateway's distinct shipbuilding history. Durable player books
+  // are migrated to the gateway before they enter this boundary.
+  const savedYards = snapshot.yards.filter((saved) => (
+    !savedShipyardBelongsToCorrectedInlandCity(system, saved?.portId)
+  ));
+  const savedNpcSales = snapshot.version >= 3
+    ? snapshot.npcSales.filter((sale) => (
+        !savedShipyardBelongsToCorrectedInlandCity(system, sale?.portId)
+      ))
+    : [];
   system.seedKey = seedKey;
   system.npcSales = snapshot.version >= 3
-    ? snapshot.npcSales.map((sale) => restoreNpcSale(sale, system, snapshot.version))
+    ? savedNpcSales.map((sale) => restoreNpcSale(sale, system, snapshot.version))
     : [];
   const nextTradeInByPort = new Map();
   for (const sale of system.npcSales) {
@@ -335,7 +349,7 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
     nextTradeInByPort.set(sale.portId, Math.max(nextTradeInByPort.get(sale.portId) || 1, nextSerial));
   }
   for (const yard of system.yards.values()) yard.seedKey = seedKey;
-  for (const saved of snapshot.yards) {
+  for (const saved of savedYards) {
     const yard = restoredShipyard(system, saved.portId, snapshot.version);
     if (!yard) throw new Error(`Saved shipyard port is missing: ${saved.portId}`);
     if (!Number.isInteger(saved.buildNumber) || saved.buildNumber < 0) {
@@ -367,7 +381,7 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
       throw new Error(`Invalid saved shipyard accounts: ${saved.portId}`);
     }
   }
-  for (const saved of snapshot.yards) {
+  for (const saved of savedYards) {
     const yard = restoredShipyard(system, saved.portId, snapshot.version);
     yard.buildNumber = saved.buildNumber;
     yard.listing = restoreShipyardListing(yard, saved);
@@ -1776,6 +1790,14 @@ function restoredShipyard(system, savedPortId, snapshotVersion) {
     throw new Error(`Legacy saved shipyard tile resolves to ${matches.length} cities: ${savedPortId}`);
   }
   return matches[0];
+}
+
+function savedShipyardBelongsToCorrectedInlandCity(system, savedPortId) {
+  if (typeof savedPortId !== "string" || savedPortId === "" || system.yards.has(savedPortId)) {
+    return false;
+  }
+  const gatewayCityId = sailingGatewayCityIdForInlandCity(savedPortId);
+  return gatewayCityId !== null && system.yards.has(gatewayCityId);
 }
 
 function restorePlayerPendingSale(sale) {

@@ -109,6 +109,7 @@ import {
   factionExpansionTargetPriority,
   factionExpansionWarshipTarget
 } from "./factionExpansion.js";
+import { PRE_OHRID_INLAND_TILE_IDS } from "./portCatalogMigration.js";
 
 const EARTH_RADIUS_KM = 6371;
 const DEG_TO_RAD = Math.PI / 180;
@@ -1683,7 +1684,8 @@ export function restoreNpcSeaRouteSystem(
     sovereignTradeOpenToFaction = system?.sovereignTradeOpenToFaction ||
       defaultSovereignTradeOpenToFaction,
     suzeraintyMemory = system?.suzeraintyMemory,
-    tradeEmbargoes = system?.tradeEmbargoes
+    tradeEmbargoes = system?.tradeEmbargoes,
+    legacyPortTileIds = null
   } = {}
 ) {
   assertSaveableNpcRouteSystem(system);
@@ -1739,7 +1741,7 @@ export function restoreNpcSeaRouteSystem(
   // reusing those cached paths while repairing and replanning the snapshot.
   system.routeCache.clear();
   system.edgeCostCache.clear();
-  canonicalizeSavedNpcRoutePorts(system, ships);
+  canonicalizeSavedNpcRoutePorts(system, ships, legacyPortTileIds);
   if (snapshot.version < 9) {
     // Old hidden pirates used ordinary cities as aliases. Let them depart from
     // their actual saved position instead of relocating the ship or its history.
@@ -2068,19 +2070,37 @@ function nearestJapaneseFleetPort(ports, position, factionId) {
   ))[0];
 }
 
-function canonicalizeSavedNpcRoutePorts(system, ships) {
+function canonicalizeSavedNpcRoutePorts(system, ships, legacyPortTileIds = null) {
+  if (legacyPortTileIds !== null && !(legacyPortTileIds instanceof Map)) {
+    throw new Error("NPC route port migration must be a map");
+  }
   for (const ship of ships) {
-    ship.currentPort = canonicalNpcRouteDestination(system, ship.currentPort);
+    ship.currentPort = canonicalNpcRouteDestination(system, ship.currentPort, legacyPortTileIds);
     if (ship.finalDestination) {
-      ship.finalDestination = canonicalNpcRouteDestination(system, ship.finalDestination);
+      ship.finalDestination = canonicalNpcRouteDestination(system, ship.finalDestination, legacyPortTileIds);
     }
     if (!ship.plan || typeof ship.plan !== "object") {
       if (ship.hiddenAtHideout && ship.plan === null) continue;
       throw new Error(`Saved NPC ship has no route plan: ${ship.id}`);
     }
-    ship.plan.origin = canonicalNpcRouteDestination(system, ship.plan.origin);
-    ship.plan.destination = canonicalNpcRouteDestination(system, ship.plan.destination);
+    ship.plan.origin = canonicalNpcRouteDestination(system, ship.plan.origin, legacyPortTileIds);
+    ship.plan.destination = canonicalNpcRouteDestination(system, ship.plan.destination, legacyPortTileIds);
+    for (const segment of ship.plan.segments || []) {
+      segment.from = canonicalizeMigratedNpcRoutePoint(system, segment.from, legacyPortTileIds);
+      segment.to = canonicalizeMigratedNpcRoutePoint(system, segment.to, legacyPortTileIds);
+    }
   }
+}
+
+function canonicalizeMigratedNpcRoutePoint(system, point, legacyPortTileIds) {
+  if (!Number.isInteger(point?.tileId)) return point;
+  const migratedTileId = migratedNpcRoutePortTileId(point.tileId, legacyPortTileIds);
+  if (migratedTileId === point.tileId) return point;
+  const canonical = system.ports.find((port) => port.tileId === migratedTileId);
+  if (!canonical) {
+    throw new Error(`Saved NPC route migration target is absent from the current world: ${migratedTileId}`);
+  }
+  return canonical;
 }
 
 function repairInvalidRegionalFishermanRoutes(system, ships) {
@@ -2185,11 +2205,12 @@ function currentRoutePointUsesAnchor(system, point, anchorId) {
   return currentPoint.routeAnchors.includes(anchorId);
 }
 
-function canonicalNpcRouteDestination(system, destination) {
+function canonicalNpcRouteDestination(system, destination, legacyPortTileIds = null) {
   if (!Number.isInteger(destination?.tileId)) {
     throw new Error(`Saved NPC route destination requires a tile id: ${destination?.tileId}`);
   }
-  const canonical = system.ports.find((port) => port.tileId === destination.tileId) ||
+  const migratedTileId = migratedNpcRoutePortTileId(destination.tileId, legacyPortTileIds);
+  const canonical = system.ports.find((port) => port.tileId === migratedTileId) ||
     system.fishingGrounds.find((ground) => ground.tileId === destination.tileId) ||
     system.whalingGrounds.find((ground) => ground.tileId === destination.tileId);
   if (!canonical && isSavedEncounterPoint(destination)) return destination;
@@ -2200,6 +2221,16 @@ function canonicalNpcRouteDestination(system, destination) {
     throw new Error(`Saved NPC route destination is absent from the current world: ${destination.tileId}`);
   }
   return canonical;
+}
+
+function migratedNpcRoutePortTileId(savedTileId, legacyPortTileIds) {
+  // The Ohrid mapping is safe without a catalog-version discriminator because
+  // its released tile is no longer occupied by any current destination. The
+  // broader migration map remains versioned because some historical tiles were
+  // subsequently assigned to different canonical cities.
+  return legacyPortTileIds?.get(savedTileId) ??
+    PRE_OHRID_INLAND_TILE_IDS.get(savedTileId) ??
+    savedTileId;
 }
 
 function restoreSavedFishingGround(system, destination) {

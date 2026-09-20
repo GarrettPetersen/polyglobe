@@ -415,6 +415,7 @@ test("every saved inland sailing reference moves to its canonical maritime gatew
       homePortCityId: inland.cityId,
       homePortTileId: inland.tileId
     });
+    state.memory.shipyardInvestment.backedPortCityIds.push(inland.cityId);
 
     const result = reconcileQuestWorldAssumptions(state, [LISBON, gateway], {
       identityCities: [LISBON, inland, gateway]
@@ -425,6 +426,7 @@ test("every saved inland sailing reference moves to its canonical maritime gatew
     assert.equal(state.memory.quests.active.destinationTileId, gateway.tileId);
     assert.equal(state.playerCharacter.homePortCityId, gateway.cityId);
     assert.equal(state.playerCharacter.homePortTileId, gateway.tileId);
+    assert.deepEqual(state.memory.shipyardInvestment.backedPortCityIds, [gateway.cityId]);
     assert.deepEqual(state.memory.navigation.optionalWaypoints, [{
       id: `port:${gateway.cityId}:shipyard-supply:timber`,
       destinationCityId: gateway.cityId,

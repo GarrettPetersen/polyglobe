@@ -1,6 +1,7 @@
 // Retain the existing versioned shipyard format, including construction state,
 // rather than reconstructing a player's business from its investment flag.
 import { restoreWorldShipyards, snapshotWorldShipyards } from "./shipyards.js";
+import { sailingGatewayCityIdForInlandCity } from "./cityPortAccessPolicy.js";
 
 export function snapshotPlayerShipyards(system) {
   // Serialize only the portfolio, not a second copy of every NPC yard.
@@ -27,7 +28,13 @@ export function restorePlayerShipyardSnapshot(system, snapshot, {
   }
   const ids = new Set();
   const resolve = (portId) => {
-    if (typeof portId === "string" && portId) return portId;
+    if (typeof portId === "string" && portId) {
+      if (system.yards.has(portId)) return portId;
+      const gatewayCityId = sailingGatewayCityIdForInlandCity(portId);
+      return gatewayCityId !== null && system.yards.has(gatewayCityId)
+        ? gatewayCityId
+        : portId;
+    }
     if (snapshot.version > 10 || !Number.isInteger(portId) || portId < 0 ||
         typeof legacyCityIdForPortReference !== "function") {
       throw new Error(`Saved player shipyard requires a legacy city resolver: ${portId}`);
@@ -44,7 +51,12 @@ export function restorePlayerShipyardSnapshot(system, snapshot, {
       usedListings: yard.usedListings.map((listing) => ({ ...listing, portId: resolve(listing.portId) }))
     } : {}) };
   });
-  if (expectedCityIds && (expectedCityIds.length !== ids.size || expectedCityIds.some((id) => !ids.has(id)))) {
+  const resolvedExpectedCityIds = expectedCityIds?.map(resolve);
+  if (resolvedExpectedCityIds && (
+    new Set(resolvedExpectedCityIds).size !== resolvedExpectedCityIds.length ||
+    resolvedExpectedCityIds.length !== ids.size ||
+    resolvedExpectedCityIds.some((id) => !ids.has(id))
+  )) {
     throw new Error("Saved player shipyard books do not match the investment portfolio");
   }
   // Restoring durable books must not replace the separately restored NPC queue.
