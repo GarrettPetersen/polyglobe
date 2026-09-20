@@ -5,7 +5,9 @@ import { createGameState, migrateGameState, validateGameState, settleSoundDues, 
 import { shipStatsForSlug } from "./shipStats.js";
 import { testCrewMigrationOptions } from "./test-fixtures/crewTestFixtures.js";
 import { SOUND_DUES_COLLECTOR_CITY_ID, DANISH_STRAITS, advanceSoundDuesPassage, createSoundDuesMemory,
-  resolveSoundDuesPassage, soundDuesPaymentEligibility, soundDuesEnforcementApplies, shipPassageTollDoubloons, validateSoundDuesMemory } from "./soundDues.js";
+  grantSoundDuesExemption, resolveSoundDuesPassage, revokeDeterioratedSoundDuesExemptions,
+  soundDuesExemptForFaction, soundDuesPaymentEligibility, soundDuesEnforcementApplies,
+  soundDuesTrafficRecordedForFaction, shipPassageTollDoubloons, validateSoundDuesMemory } from "./soundDues.js";
 import { createSoundDuesDialogueSession, shoreBatteryDialogueView, selectShoreBatteryDialogueOption } from "./dialogueSystem.js";
 
 const city = { cityId: SOUND_DUES_COLLECTOR_CITY_ID, city: "Copenhagen", country: "Denmark",
@@ -122,7 +124,9 @@ test("frozen pre-dues saves migrate explicitly, current malformed memory fails l
   const fixture = JSON.parse(readFileSync(new URL("./test-fixtures/save-schemas/canonical-states-v103.json", import.meta.url)));
   const old = fixture.states[0].state;
   const migrated = migrateGameState(old, shipStatsForSlug(old.ship.slug), testCrewMigrationOptions());
-  assert.deepEqual(migrated.memory.soundDues, createSoundDuesMemory());
+  assert.equal(migrated.memory.soundDues.nextPassageNumber, 1);
+  assert.equal(migrated.memory.soundDues.active, null);
+  assert.deepEqual(migrated.memory.soundDues.trafficFactionIds, []);
   assert.deepEqual(migrateGameState(migrated, shipStatsForSlug(old.ship.slug)), migrated);
   delete migrated.memory.soundDues;
   assert.throws(() => migrateGameState(migrated, shipStatsForSlug(old.ship.slug)), /Sound Dues/);
@@ -130,6 +134,31 @@ test("frozen pre-dues saves migrate explicitly, current malformed memory fails l
     {nextPassageNumber:1,active:{id:"danish-straits:0",straitId:"unknown",status:"paid",tollDoubloons:30}}]) {
     assert.throws(() => validateSoundDuesMemory(invalid), /Sound Dues/);
   }
+});
+
+test("domestic and historical treaty shipping passes free while traffic is recorded for foreign ships", () => {
+  for (const nationalityId of ["denmark-norway", "hamburg", "lubeck"]) {
+    const state = createState();
+    state.playerCharacter = { id: `player:${nationalityId}`, nationalityId };
+    assert.equal(advanceSoundDuesPassage(state, inSound), false);
+    assert.equal(state.memory.soundDues.active, null);
+  }
+  const state = createState();
+  state.playerCharacter = { id: "player:english", nationalityId: "england" };
+  assert.equal(advanceSoundDuesPassage(state, inSound), true);
+  assert.equal(soundDuesTrafficRecordedForFaction(state.memory.soundDues, "england"), true);
+});
+
+test("a treaty exemption is revoked as soon as relations cease to be good", () => {
+  const memory = createSoundDuesMemory();
+  grantSoundDuesExemption(memory, "england");
+  assert.equal(soundDuesExemptForFaction(memory, "england"), true);
+  assert.deepEqual(revokeDeterioratedSoundDuesExemptions(
+    memory,
+    (_denmarkId, factionId) => factionId === "hamburg" ? "friendly" : "neutral"
+  ).map(({ factionId }) => factionId), ["england", "lubeck"]);
+  assert.equal(soundDuesExemptForFaction(memory, "england"), false);
+  assert.equal(soundDuesExemptForFaction(memory, "hamburg"), true);
 });
 
 test("shared pricing preserves the existing civilian safe-passage price", () => {

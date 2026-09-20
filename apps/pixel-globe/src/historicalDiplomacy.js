@@ -1,4 +1,5 @@
 import {
+  DIPLOMACY_FRIENDLY,
   DIPLOMACY_HOSTILE,
   DIPLOMACY_NEUTRAL
 } from "./factions.js";
@@ -35,7 +36,7 @@ const TRANSITIONS = Object.freeze([
     LUBECK_DANISH_WAR_MINUTE,
     "lubeck",
     "denmark-norway",
-    DIPLOMACY_NEUTRAL,
+    DIPLOMACY_FRIENDLY,
     "Lubeck's 1522 war against Christian II"
   )
 ]);

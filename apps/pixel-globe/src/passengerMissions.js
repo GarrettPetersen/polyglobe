@@ -6,13 +6,22 @@ import {
   cargoFree,
   factionReputation,
   isEnvoyQuest,
+  diplomacyBetweenForState,
+  soundDuesExemptionForFaction,
+  soundDuesTrafficForFaction,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
 import {
   DIPLOMACY_ALLY,
+  DIPLOMACY_FRIENDLY,
   DIPLOMACY_WAR,
   factionById
 } from "./factions.js";
+import {
+  SOUND_DUES_COLLECTOR_CITY_ID,
+  SOUND_DUES_EXEMPTION_POLICY,
+  SOUND_DUES_FACTION_ID
+} from "./soundDues.js";
 import { travelSailingDistanceKm as passengerTravelDistanceKm } from "./travelSailingDistance.js";
 import { rulerAtMinute } from "./rulers.js";
 import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
@@ -352,24 +361,26 @@ export function envoyOfferForCapital(state, city, portCities, context = {}) {
   const spawnChance = passengerSpawnChance(context.envoySpawnChance ?? ENVOY_SPAWN_CHANCE);
   if (spawnChance < 1 && seededFraction(`${rollKey}|spawn`) >= spawnChance) return null;
 
-  const tradeAccessTarget = context.envoyKind === undefined || context.envoyKind === "friendly-envoy"
-    ? tradeAccessOpeningTarget(state, city, portCities, context)
+  const commercialPrivilegeTarget = context.envoyKind === undefined || context.envoyKind === "friendly-envoy"
+    ? commercialPrivilegeOpeningTarget(state, city, portCities, context)
     : null;
-  if (tradeAccessTarget) {
-    const distanceKm = passengerTravelDistanceKm(city, tradeAccessTarget.port, context);
+  if (commercialPrivilegeTarget) {
+    const { port, distanceKm, policy, kind } = commercialPrivilegeTarget;
     const quest = buildEnvoyQuest(
       city,
-      tradeAccessTarget.port,
+      port,
       "friendly-envoy",
       distanceKm,
       period,
       context.simMinute ?? 0,
-      {
-        tradeAccessPolicyId: tradeAccessTarget.policy.id,
-        tradeAccessOpeningFactionId: state.playerCharacter.nationalityId
-      }
+      kind === "sound-dues"
+        ? { soundDuesExemptionFactionId: state.playerCharacter.nationalityId }
+        : {
+            tradeAccessPolicyId: policy.id,
+            tradeAccessOpeningFactionId: state.playerCharacter.nationalityId
+          }
     );
-    attachEnvoyCharacter(quest, city, tradeAccessTarget.port, context);
+    attachEnvoyCharacter(quest, city, port, context);
     quests.passengerOffers[cityKey(city)] = quest;
     return quest;
   }
@@ -518,6 +529,13 @@ function passengerOfferIsPending(state, quests, offer) {
     offer.tradeAccessPolicyId,
     offer.tradeAccessOpeningFactionId
   )) return false;
+  if (offer.soundDuesExemptionFactionId) {
+    const factionId = offer.soundDuesExemptionFactionId;
+    const relation = diplomacyBetweenForState(state, SOUND_DUES_FACTION_ID, factionId);
+    if (soundDuesExemptionForFaction(state, factionId) ||
+        !soundDuesTrafficForFaction(state, factionId) ||
+        (relation !== DIPLOMACY_FRIENDLY && relation !== DIPLOMACY_ALLY)) return false;
+  }
   return !(offer.kind === "passenger" && !offer.tradeAccessPolicyId &&
     !isEastAsianMissionQuest(offer) && !passengerDistanceIsAllowed(offer));
 }
@@ -588,11 +606,18 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
   if (!originRuler || !targetRuler) throw new Error("Envoy missions require sovereign origin and destination factions");
   const tradeAccessPolicyId = options.tradeAccessPolicyId || null;
   const tradeAccessOpeningFactionId = options.tradeAccessOpeningFactionId || null;
+  const soundDuesExemptionFactionId = options.soundDuesExemptionFactionId || null;
   if ((tradeAccessPolicyId === null) !== (tradeAccessOpeningFactionId === null)) {
     throw new Error("Trade-opening envoy requires both a policy and beneficiary faction");
   }
   if (tradeAccessPolicyId !== null && kind !== "friendly-envoy") {
     throw new Error("Trade opening requires a friendly envoy");
+  }
+  if (soundDuesExemptionFactionId !== null && kind !== "friendly-envoy") {
+    throw new Error("Sound Dues exemption requires a friendly envoy");
+  }
+  if (soundDuesExemptionFactionId !== null && tradeAccessPolicyId !== null) {
+    throw new Error("Envoy cannot negotiate two commercial privileges at once");
   }
   const tradeAccessPolicy = tradeAccessPolicyId
     ? sovereignTradePolicyById(tradeAccessPolicyId)
@@ -600,6 +625,13 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
   if (tradeAccessPolicy && target.factionId !== tradeAccessPolicy.hostFactionId) {
     throw new Error(`Trade-opening envoy target does not host ${tradeAccessPolicy.id}`);
   }
+  if (soundDuesExemptionFactionId !== null &&
+      (target.factionId !== SOUND_DUES_FACTION_ID || target.cityId !== SOUND_DUES_COLLECTOR_CITY_ID)) {
+    throw new Error("Sound Dues exemption envoy must negotiate in Copenhagen");
+  }
+  const commercialPolicy = soundDuesExemptionFactionId
+    ? SOUND_DUES_EXEMPTION_POLICY
+    : tradeAccessPolicy;
   return {
     id: options.id || `${kind}-${hashString32(seed).toString(36)}`,
     kind,
@@ -632,6 +664,7 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
       tradeAccessPolicyId: tradeAccessPolicy.id,
       tradeAccessOpeningFactionId
     } : {}),
+    ...(soundDuesExemptionFactionId ? { soundDuesExemptionFactionId } : {}),
     ...(options.tributeCargoRequirements ? {
       tributeCargoRequirements: options.tributeCargoRequirements,
       tributeCargoLabel: options.tributeCargoLabel
@@ -642,14 +675,14 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
       courtMatterId: options.courtMatterId,
       courtAuthorityFactionId: options.courtAuthorityFactionId
     } : {}),
-    dialogue: options.dialogue || (tradeAccessPolicy
+    dialogue: options.dialogue || (commercialPolicy
       ? tradeAccessOpeningDialogueText(
           origin,
           target,
           reward,
           originRuler,
           targetRuler,
-          tradeAccessPolicy
+          commercialPolicy
         )
       : diplomaticEnvoyDialogueText(
           kind,
@@ -759,6 +792,41 @@ function tradeAccessOpeningTarget(state, origin, portCities, context) {
       left.distanceKm - right.distanceKm || left.policy.id.localeCompare(right.policy.id)
     ));
   return candidates[0] || null;
+}
+
+function soundDuesExemptionOpeningTarget(state, origin, portCities, context) {
+  const playerFactionId = state.playerCharacter?.nationalityId || null;
+  if (!playerFactionId || origin.factionId !== playerFactionId ||
+      playerFactionId === SOUND_DUES_FACTION_ID ||
+      !soundDuesTrafficForFaction(state, playerFactionId) ||
+      soundDuesExemptionForFaction(state, playerFactionId)) return null;
+  const relation = context.relationBetween(SOUND_DUES_FACTION_ID, playerFactionId);
+  if (relation !== DIPLOMACY_FRIENDLY && relation !== DIPLOMACY_ALLY) return null;
+  const port = portCities.find((candidate) => (
+    candidate.cityId === SOUND_DUES_COLLECTOR_CITY_ID &&
+    candidate.factionId === SOUND_DUES_FACTION_ID &&
+    candidate.isFactionCapital === true &&
+    candidate.capitalOfFactionId === SOUND_DUES_FACTION_ID
+  )) || null;
+  if (!port) return null;
+  const distanceKm = passengerTravelDistanceKm(origin, port, context);
+  return distanceKm === null ? null : {
+    kind: "sound-dues",
+    policy: SOUND_DUES_EXEMPTION_POLICY,
+    port,
+    distanceKm
+  };
+}
+
+function commercialPrivilegeOpeningTarget(state, origin, portCities, context) {
+  const tradeAccess = tradeAccessOpeningTarget(state, origin, portCities, context);
+  const soundDues = soundDuesExemptionOpeningTarget(state, origin, portCities, context);
+  return [
+    tradeAccess ? { ...tradeAccess, kind: "sovereign-trade" } : null,
+    soundDues
+  ].filter(Boolean).sort((left, right) => (
+    left.distanceKm - right.distanceKm || left.policy.id.localeCompare(right.policy.id)
+  ))[0] || null;
 }
 
 function tradeAccessOpeningDialogueText(origin, target, reward, originRuler, targetRuler, policy) {

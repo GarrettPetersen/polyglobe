@@ -9,17 +9,21 @@ import {
   completeQuest,
   createGameState,
   deliveryOfferForCity,
+  diplomacyBetweenForState,
   factionReputation,
   grantEnvoySafePassage,
   ledgerEntries,
   migrateGameState,
+  openSoundDuesExemptionToFaction,
   openSovereignTradeToFaction,
   portEntryStatus,
   recordAttackAgainstFaction,
+  soundDuesExemptionForFaction,
   sovereignTradeOpenToFaction,
   negotiateEnvoyQuest
 } from "./gameState.js";
 import { diplomacyBetween } from "./factions.js";
+import { adjustDiplomaticStance } from "./worldDiplomacy.js";
 import {
   HAJJ_PASSENGER_MAX_DISTANCE_KM,
   HAJJ_PASSENGER_SCENARIO_ID,
@@ -80,6 +84,7 @@ const VENETIAN_ISTANBUL = withForeignSettlements1522(
 const ACEH = port(13, "Aceh", "Indonesia", "southeast-asian", "neutral", 5.55, 95.32);
 const JEDDAH = port(14, "Jeddah", "Saudi Arabia", "islamic-desert", "ottoman", 21.54, 39.17);
 const BAGHDAD = port(15, "Baghdad", "Iraq", "islamic-desert", "safavid", 33.34, 44.4);
+const COPENHAGEN = port(16, "Copenhagen", "Denmark", "northern-european", "denmark-norway", 55.68, 12.57);
 
 for (const capital of [
   LISBON,
@@ -89,7 +94,8 @@ for (const capital of [
   SEOUL,
   SEVILLE,
   VENICE,
-  VENETIAN_ISTANBUL
+  VENETIAN_ISTANBUL,
+  COPENHAGEN
 ]) {
   capital.isFactionCapital = true;
   capital.capitalOfFactionId = capital.factionId;
@@ -580,6 +586,69 @@ test("a special envoy from the player capital opens a sovereign market during ne
   completeQuest(state, LONDON, { simMinute: 2000 });
   assert.equal(state.doubloons, startingDoubloons + offer.reward);
   assert.equal(sovereignTradeOpenToFaction(state, MING_TRADE_POLICY_ID, "england"), true);
+});
+
+test("a friendly country with recorded Baltic traffic can negotiate a Sound Dues exemption", () => {
+  const makeEligibleState = () => {
+    const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+    adjustDiplomaticStance(
+      state.relations.diplomacy,
+      "denmark-norway",
+      "england",
+      "improve",
+      0
+    );
+    return state;
+  };
+  const contextFor = (state) => ({
+    sailingDistanceKm: testSailingDistanceKm,
+    envoySpawnChance: 1,
+    envoyKind: "friendly-envoy",
+    relationBetween: (factionAId, factionBId) => (
+      diplomacyBetweenForState(state, factionAId, factionBId)
+    ),
+    simMinute: 0
+  });
+
+  const noTrafficState = makeEligibleState();
+  const unrelatedOffer = envoyOfferForCapital(
+    noTrafficState,
+    LONDON,
+    [LONDON, COPENHAGEN],
+    contextFor(noTrafficState)
+  );
+  assert.equal(unrelatedOffer?.soundDuesExemptionFactionId, undefined);
+
+  const poorRelationsState = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  poorRelationsState.memory.soundDues.trafficFactionIds.push("england");
+  assert.throws(
+    () => openSoundDuesExemptionToFaction(poorRelationsState, "england"),
+    /requires good relations/
+  );
+  const ordinaryOffer = envoyOfferForCapital(
+    poorRelationsState,
+    LONDON,
+    [LONDON, COPENHAGEN],
+    contextFor(poorRelationsState)
+  );
+  assert.equal(ordinaryOffer?.soundDuesExemptionFactionId, undefined);
+
+  const state = makeEligibleState();
+  state.memory.soundDues.trafficFactionIds.push("england");
+  const offer = envoyOfferForCapital(state, LONDON, [LONDON, COPENHAGEN], contextFor(state));
+  assert.equal(offer.soundDuesExemptionFactionId, "england");
+  assert.equal(offer.targetCityId, COPENHAGEN.cityId);
+  assert.match(offer.dialogue.offer, /Sound Dues/);
+  assert.equal(soundDuesExemptionForFaction(state, "england"), false);
+
+  acceptQuest(state, offer);
+  const negotiation = negotiateEnvoyQuest(state, COPENHAGEN, {
+    simMinute: 100,
+    portCities: [LONDON, COPENHAGEN]
+  });
+  assert.equal(negotiation.soundDuesExemptionOpened, true);
+  assert.equal(negotiation.soundDuesExemptionOpenedFactionId, "england");
+  assert.equal(soundDuesExemptionForFaction(state, "england"), true);
 });
 
 test("the Ming trade-opening embassy cannot bypass the envoy spawn roll", () => {

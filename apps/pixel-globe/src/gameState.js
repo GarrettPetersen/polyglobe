@@ -7,7 +7,19 @@ import { createPirateHavenMemory, migratePirateHavenMemory, validatePirateHavenM
 import { ACTIVE_QUEST_SLOTS, activeQuests } from "./activeQuests.js";
 import { createExeterCanalMemory, validateExeterCanalState } from "./exeterCanal.js";
 import { recordReputationChange, validateReputationChanges } from "./reputationHistory.js";
-import { SOUND_DUES_COLLECTOR_CITY_ID, createSoundDuesMemory, validateSoundDuesMemory, shipPassageTollDoubloons, resolveSoundDuesPassage } from "./soundDues.js";
+import {
+  SOUND_DUES_COLLECTOR_CITY_ID,
+  SOUND_DUES_FACTION_ID,
+  createSoundDuesMemory,
+  grantSoundDuesExemption,
+  migrateSoundDuesMemory,
+  resolveSoundDuesPassage,
+  revokeDeterioratedSoundDuesExemptions,
+  shipPassageTollDoubloons,
+  soundDuesExemptForFaction,
+  soundDuesTrafficRecordedForFaction,
+  validateSoundDuesMemory
+} from "./soundDues.js";
 import { isRetiredFactionId, withoutRetiredFactionKeys, migrateRetiredFactionReferences, migrateRetiredSovereignState } from "./retiredFactionMigration.js";
 import { recordNavalCasualties, validateNavalCasualties } from "./navalCasualtyReport.js";
 import {
@@ -572,7 +584,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 113;
+export const GAME_STATE_VERSION = 114;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -993,7 +1005,7 @@ export function migrateGameState(state, shipStats, {
   crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -1214,7 +1226,9 @@ export function migrateGameState(state, shipStats, {
       namedCrewDeathNotices: state.memory?.namedCrewDeathNotices || [],
       navalCasualties: state.version < 103 ? [] : state.memory.navalCasualties,
       pirateHavens: migratePirateHavenMemory(state.memory?.pirateHavens),
-      soundDues: state.version < 104 ? createSoundDuesMemory() : state.memory.soundDues,
+      soundDues: state.version < 104
+        ? createSoundDuesMemory()
+        : migrateSoundDuesMemory(state.memory.soundDues),
       crewRecruitment: state.version >= 95
         ? migrateCrewRecruitmentWounds(state.memory?.crewRecruitment)
         : createCrewRecruitmentMemory(),
@@ -1301,6 +1315,14 @@ export function migrateGameState(state, shipStats, {
     migrated.cargoCapacity = effectivePlayerShipStats(migrated, shipStats).cargoCapacity;
     migrated.ship.loadoutTargets = selectedShipLoadoutPlan(migrated, shipStats);
   }
+  revokeDeterioratedSoundDuesExemptions(
+    migrated.memory.soundDues,
+    (factionAId, factionBId) => rawWorldDiplomacyBetween(
+      migrated.relations.diplomacy,
+      factionAId,
+      factionBId
+    )
+  );
   delete migrated.survival.foodDebt;
   return restoreLoadedGameState(migrated, shipStats);
 }
@@ -2005,6 +2027,14 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
       englishReformationConversions += questConversion.count;
     }
   }
+  const soundDuesExemptionRevocations = revokeDeterioratedSoundDuesExemptions(
+    state.memory.soundDues,
+    (factionAId, factionBId) => rawWorldDiplomacyBetween(
+      state.relations.diplomacy,
+      factionAId,
+      factionBId
+    )
+  );
   return Object.freeze({
     diplomacyEvents: Object.freeze([
       ...historicalTransitions.map((transition) => transition.diplomacyEvent),
@@ -2030,6 +2060,7 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
     conquistadorRewardReady: conquistador.rewardReady,
     historicalTransitions,
     historicalDiplomaticTransitions,
+    soundDuesExemptionRevocations,
     englishReformation: papal.englishReformation,
     englishReformationConversions
   });
@@ -4895,6 +4926,31 @@ export function openSovereignTradeToFaction(state, policyId, factionId) {
   return opened;
 }
 
+export function soundDuesExemptionForFaction(state, factionId) {
+  if (!state || typeof state !== "object") throw new Error("Missing game state");
+  return soundDuesExemptForFaction(state.memory?.soundDues, factionId);
+}
+
+export function soundDuesTrafficForFaction(state, factionId) {
+  if (!state || typeof state !== "object") throw new Error("Missing game state");
+  return soundDuesTrafficRecordedForFaction(state.memory?.soundDues, factionId);
+}
+
+export function openSoundDuesExemptionToFaction(state, factionId) {
+  assertGameState(state);
+  const id = assertFactionId(factionId);
+  if (!soundDuesTrafficRecordedForFaction(state.memory.soundDues, id)) {
+    throw new Error(`Sound Dues exemption requires recorded Danish-straits traffic: ${id}`);
+  }
+  const relation = diplomacyBetweenForState(state, SOUND_DUES_FACTION_ID, id);
+  if (relation !== DIPLOMACY_FRIENDLY && relation !== DIPLOMACY_ALLY) {
+    throw new Error(`Sound Dues exemption requires good relations with Denmark: ${id}`);
+  }
+  const opened = grantSoundDuesExemption(state.memory.soundDues, id);
+  if (opened) recordDecision(state, `diplomacy.sound-dues-exemption.${id}`, 1);
+  return opened;
+}
+
 export function hasPersonalTradePass(state, policyId) {
   assertGameState(state);
   return personalTradePassGranted(state.relations.personalTradePasses, policyId);
@@ -5100,6 +5156,17 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
         tradeAccessOpenedFactionId
       )
     : false;
+  const soundDuesExemptionOpenedFactionId = active.kind === "friendly-envoy"
+    ? soundDuesExemptionOpeningFactionId(state, active)
+    : null;
+  const soundDuesExemptionOpened = soundDuesExemptionOpenedFactionId
+    ? openSoundDuesExemptionToFaction(state, soundDuesExemptionOpenedFactionId)
+    : false;
+  if (active.soundDuesExemptionFactionId && !soundDuesExemptionOpened &&
+      !soundDuesExemptionForFaction(state, active.soundDuesExemptionFactionId)) {
+    active.dialogue.negotiation = `${active.targetRulerName}'s ministers refuse the exemption; ` +
+      "relations with Denmark are not good enough for such a privilege.";
+  }
   recordDecision(state, `quest.envoy.negotiate.${active.id}`, 1);
   active.stage = "return";
   active.negotiatedAtMinute = context.simMinute;
@@ -5117,7 +5184,9 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
     targetReputationDelta,
     tradeAccessOpened,
     tradeAccessPolicyId: tradeAccessOpened ? active.tradeAccessPolicyId : null,
-    tradeAccessOpenedFactionId
+    tradeAccessOpenedFactionId,
+    soundDuesExemptionOpened,
+    soundDuesExemptionOpenedFactionId
   };
 }
 
@@ -5129,6 +5198,16 @@ function tradeAccessOpeningFactionId(state, quest) {
     return null;
   }
   return quest.originFactionId === playerFactionId ? playerFactionId : null;
+}
+
+function soundDuesExemptionOpeningFactionId(state, quest) {
+  const beneficiaryFactionId = quest.soundDuesExemptionFactionId || null;
+  if (!beneficiaryFactionId || soundDuesExemptionForFaction(state, beneficiaryFactionId)) return null;
+  const playerFactionId = state.playerCharacter?.nationalityId || null;
+  if (quest.originFactionId !== playerFactionId || beneficiaryFactionId !== playerFactionId ||
+      !soundDuesTrafficForFaction(state, beneficiaryFactionId)) return null;
+  const relation = diplomacyBetweenForState(state, SOUND_DUES_FACTION_ID, beneficiaryFactionId);
+  return relation === DIPLOMACY_FRIENDLY || relation === DIPLOMACY_ALLY ? playerFactionId : null;
 }
 
 export function grantEnvoySafePassage(state, factionId, simMinute) {

@@ -53,7 +53,7 @@ const fixtures = frozenSaveFixtures();
 const reachabilityOptions = parseReachabilityArguments(process.argv.slice(2));
 const releaseReachability = reachabilityOptions.release;
 const smokeFocus = process.env.PIXEL_GLOBE_SMOKE_FOCUS;
-if (smokeFocus !== undefined && !["commission-troops", "saved-start-menu", "port-regressions", "pirate-havens", "wishlist", "port-authorities", "daylight", "cached-chart"].includes(smokeFocus)) {
+if (smokeFocus !== undefined && !["commission-troops", "saved-start-menu", "port-regressions", "pirate-havens", "wishlist", "port-authorities", "daylight", "cached-chart", "sound-dues"].includes(smokeFocus)) {
   throw new Error(`Unknown save-restore smoke focus: ${smokeFocus}`);
 }
 if (smokeFocus && releaseReachability) {
@@ -155,7 +155,9 @@ try {
     `Save-restore runtime initialized in ${Math.round(performance.now() - startedAt)} ms\n`
   );
 
-  if (smokeFocus === "commission-troops") {
+  if (smokeFocus === "sound-dues") {
+    await exerciseSoundDuesRoundTrips(page, browserErrors);
+  } else if (smokeFocus === "commission-troops") {
     await page.evaluate(text => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(text), fixtures.at(-1).serialized);
     await exerciseCommissionTroops(context, baseUrl);
   } else if (smokeFocus === "saved-start-menu") {
@@ -911,6 +913,22 @@ async function exerciseSoundDuesRoundTrips(page, browserErrors) {
   fixture.payload.playerShip.tileId = 393304;
   fixture.payload.playerShip.heading = [-Math.sin(lat) * Math.cos(lon), Math.cos(lat), Math.sin(lat) * Math.sin(lon)];
   fixture.payload.playerShip.targetHeading = fixture.payload.playerShip.heading;
+  for (const nationalityId of ["denmark-norway", "lubeck"]) {
+    const exemptFixture = structuredClone(fixture);
+    exemptFixture.payload.gameState.playerCharacter.nationalityId = nationalityId;
+    await page.evaluate(
+      (serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized),
+      JSON.stringify(exemptFixture)
+    );
+    const exemptPassage = await page.evaluate(() => (
+      window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectSoundDues()
+    ));
+    assert.equal(exemptPassage.view, null, `${nationalityId} received an exempt Sound Dues demand`);
+    assert.equal(exemptPassage.memory.active, null, `${nationalityId} opened a toll passage`);
+    await assertNoBrowserFailure(page, browserErrors, `${nationalityId} Sound Dues exemption`);
+  }
+
+  fixture.payload.gameState.playerCharacter.nationalityId = "england";
   await page.evaluate((serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), JSON.stringify(fixture));
   const pending = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectSoundDues());
   assert.equal(pending.memory.active.status, "awaiting-payment");
@@ -925,7 +943,9 @@ async function exerciseSoundDuesRoundTrips(page, browserErrors) {
   assert.equal(reloaded.balance, paid.balance);
   assert.deepEqual(reloaded.memory, paid.memory);
   await assertNoBrowserFailure(page, browserErrors, "Sound Dues demand, payment and reload");
-  process.stdout.write("  Sound Dues rendered; interrupted demand resumed; paid passage retained after reload.\n");
+  process.stdout.write(
+    "  Danish and Lubeck ships passed free; an English ship received, resumed, paid, and retained its Sound Dues passage after reload.\n"
+  );
 }
 
 async function exerciseLandmassChannelRestore(page, browserErrors) {

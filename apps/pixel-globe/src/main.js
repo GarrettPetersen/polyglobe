@@ -37158,6 +37158,9 @@ function updateWorldDiplomacy() {
   for (const event of result.embargoEvents) announce(tradeEmbargoHudNotice(event));
   for (const action of result.courtActions) announce(courtActionNotice(action));
   for (const matter of result.courtMattersOpened) announce(courtMatterNotice(matter));
+  for (const event of result.soundDuesExemptionRevocations) {
+    announce(`${factionById(event.factionId).adjective.toUpperCase()} SOUND DUES EXEMPTION REVOKED`);
+  }
   if (expulsions.length > 0) announce(foreignSettlementExpulsionNotice(expulsions));
   for (const event of result.diplomacyEvents) {
     announce(diplomacyEventNotice(event), event.kind === "peace" ? "good" : "warn");

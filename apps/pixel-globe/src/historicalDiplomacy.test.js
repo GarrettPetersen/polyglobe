@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DIPLOMACY_HOSTILE,
+  DIPLOMACY_FRIENDLY,
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR
 } from "./factions.js";
@@ -16,7 +17,8 @@ import {
 import {
   activeGameTradeEmbargoes,
   advanceGamePolitics,
-  createGameState
+  createGameState,
+  soundDuesExemptionForFaction
 } from "./gameState.js";
 import { gameMinuteForDate } from "./rulers.js";
 import {
@@ -45,7 +47,7 @@ test("the Rhodes campaign and Lubeck's Danish war begin in June", () => {
   assert.equal(rawWorldDiplomacyBetween(state.relations.diplomacy, "ottoman", "hospitallers"),
     DIPLOMACY_HOSTILE);
   assert.equal(rawWorldDiplomacyBetween(state.relations.diplomacy, "lubeck", "denmark-norway"),
-    DIPLOMACY_NEUTRAL);
+    DIPLOMACY_FRIENDLY);
 
   const transitions = advanceHistoricalDiplomacy(state, RHODES_WAR_WARNING_MINUTE);
   assert.equal(transitions.length, 2);
@@ -84,6 +86,20 @@ test("the dated declaration and its trade ban advance together in game politics"
     order.issuerFactionId === "england" && order.targetFactionId === "france" &&
     order.imposedMinute === ENGLISH_DECLARATION_OF_WAR_MINUTE
   )));
+});
+
+test("Lubeck loses its Sound Dues privilege when its Danish war begins", () => {
+  const state = createGameState({
+    cargoCapacity: 20,
+    startMinute: gameMinuteForDate(1522, 3, 21)
+  });
+  assert.equal(soundDuesExemptionForFaction(state, "lubeck"), true);
+  const result = advanceGamePolitics(state, LUBECK_DANISH_WAR_MINUTE);
+  assert.deepEqual(
+    result.soundDuesExemptionRevocations.map(({ factionId }) => factionId),
+    ["lubeck"]
+  );
+  assert.equal(soundDuesExemptionForFaction(state, "lubeck"), false);
 });
 
 function historicalState() {

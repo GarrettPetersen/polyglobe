@@ -128,7 +128,9 @@ test("a political update announces every category and applies commission revocat
     englishReformation: true, papalActions: ["papal action 1", "papal action 2"],
     papalCommissionRevoked: "revoked", papalMattersOpened: ["papal matter"],
     embargoEvents: ["papal arms ban", "national import ban"], courtActions: ["court action"],
-    courtMattersOpened: ["court matter"], diplomacyEvents: [{ kind: "peace" }, { kind: "war" }]
+    courtMattersOpened: ["court matter"],
+    soundDuesExemptionRevocations: [{ factionId: "lubeck" }],
+    diplomacyEvents: [{ kind: "peace" }, { kind: "war" }]
   };
   const effects = [];
   Object.assign(notice.context, {
@@ -142,6 +144,7 @@ test("a political update announces every category and applies commission revocat
     papalActionNotice: (event) => event, papalCommissionRevocationNotice: (event) => event,
     papalMatterNotice: (event) => event, tradeEmbargoHudNotice: (event) => event,
     courtActionNotice: (event) => event, courtMatterNotice: (event) => event,
+    factionById: () => ({ adjective: "Lubeck" }),
     foreignSettlementExpulsionNotice: (events) => events.join(), diplomacyEventNotice: (event) => event.kind,
     showSurvivalNotice: notice.showSurvivalNotice
   });
@@ -150,7 +153,7 @@ test("a political update announces every category and applies commission revocat
   assert.deepEqual(effects, ["succession alert", "passage cleared", "cargo cleared"]);
   const dispatches = [];
   for (let dispatch; (dispatch = notice.context.politicalNoticeQueue.take());) dispatches.push(dispatch);
-  assert.equal(dispatches.length, 16);
+  assert.equal(dispatches.length, 17);
   assert.deepEqual(dispatches.slice(8, 11).map(({ text }) => text), ["papal matter", "papal arms ban", "national import ban"]);
   assert.equal(dispatches.at(-2).tone, "good");
   assert.equal(dispatches.at(-1).text, "war");

@@ -248,6 +248,10 @@ const FRIENDSHIPS_1522 = Object.freeze([
   ["lubeck", "hamburg"],
   ["lubeck", "bremen"],
   ["hamburg", "bremen"],
+  // The 1512 Malmö settlement preserved the old Sound-toll terms for these
+  // privileged Wendish cities until Christian II's breach led Lübeck to war.
+  ["denmark-norway", "lubeck"],
+  ["denmark-norway", "hamburg"],
   ["england", "portugal"],
   ["spain", "portugal"],
   ["burgundian-netherlands", "portugal"],

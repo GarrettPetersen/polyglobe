@@ -996,7 +996,7 @@ export function shoreBatteryDialogueView(session, city, state) {
     if (!eligibility.offered) throw new Error(`Sound Dues dialogue has a stale passage: ${session.passageId}`);
     return {
       speaker: characterName(city.character), expressionId: "stern", topic: "SOUND DUES",
-      text: `Heave to! The Sound Dues are ${eligibility.tollDoubloons} doubloons, whatever your flag. One receipt covers the Sound and both Belts until open sea. Refusal risks Danish guns; payment does not end a war.`,
+      text: `Heave to! Your passage owes ${eligibility.tollDoubloons} doubloons in Sound Dues. One receipt covers the Sound and both Belts until open sea. Refusal risks Danish guns; payment does not end a war.`,
       feedback: null,
       options: [option(`Pay ${eligibility.tollDoubloons} db`, { type: "pay-sound-dues" }, {
         disabled: !eligibility.canPay, disabledReason: "Not enough doubloons."
