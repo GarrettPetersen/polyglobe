@@ -149,7 +149,7 @@ test("restore preparation failures leave the active domain state and clock untou
       isCurrent: () => phase !== "superseded", gameState: active, weatherClockMinutes: 10, restoredGameState: { voyage: "candidate" },
       restoredWorldClock: { currentMinute: 100 }, savedShip: { typeSlug: "galleon" }, stats: {}, payload: {},
       preparedVoyage: { gameState: { voyage: "candidate" }, worldClock: { currentMinute: 100 } },
-      savedWorldTopology: {}, legacyCityIdForPortReference() {},
+      savedWorldTopology: {}, legacyCityIdForPortReference() {}, legacyPortTileIds: null,
       prepareSavedVoyageCityCatalog: () => { failAt("catalog"); return {}; },
       loadShipAssetSet: async () => { failAt("assets"); return {}; }, characterExpression() {},
       ensureCharacterPortraitLoaded: async () => failAt("portrait"),

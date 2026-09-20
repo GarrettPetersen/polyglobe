@@ -18231,7 +18231,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   await ensureCharacterPortraitLoaded(restoredGameState.playerCharacter, characterExpression(restoredGameState.playerCharacter));
   if (!isCurrent()) throw new Error("Saved voyage preparation was superseded before activation");
   const candidateWorld = prepareSavedVoyageWorld(payload, preparedVoyage, savedWorldTopology,
-    legacyCityIdForPortReference, legacyPortTileIds, candidateCatalog);
+    legacyCityIdForPortReference, candidateCatalog, legacyPortTileIds);
   restoreNpcSurrenderContinuity(candidateWorld.npcSeaRoutes, payload.npcSurrenders);
   advanceShipyardTradeInSerialsPastFleet(candidateWorld.worldEconomy.shipyards, [
     ...candidateWorld.npcSeaRoutes.ships.map(entry => entry.id),
@@ -18507,8 +18507,8 @@ function prepareSavedVoyageWorld(
   { gameState: state, worldClock },
   topology,
   legacyCityIdForPortReference,
-  legacyPortTileIds,
-  cityCatalog
+  cityCatalog,
+  legacyPortTileIds = null
 ) {
   // These bindings belong exclusively to the candidate. Constructors and restore
   // functions may mutate them without touching the active voyage.
