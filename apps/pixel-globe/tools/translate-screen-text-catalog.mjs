@@ -142,6 +142,8 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 
 const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedSupplyAndBriefOverrides(),
+  ...reviewedSpanishScreenOverrides(),
+  ...reviewedStandingOverrides(),
   "PIRATE BOUNTY +{0} DB": Object.freeze({
     "zh-Hans": "海盗赏金 +{0} DB",
     ru: "НАГРАДА ЗА ПИРАТОВ +{0} DB",
@@ -1523,7 +1525,8 @@ const REVIEWED_OVERRIDES = Object.freeze({
   }),
   "Concepcion endures at Penco as a military and administrative center, sustained from Peru on a frontier Spain has not subdued.": Object.freeze({
     pl: "Concepcion trwa w Penco jako ośrodek wojskowy i administracyjny, zaopatrywany z Peru na pograniczu, którego Hiszpania nie podporządkowała."
-  })
+  }),
+  ...reviewedStandingOverrides()
 });
 
 function reviewedSupplyAndBriefOverrides() {
@@ -1570,6 +1573,561 @@ function reviewedSupplyAndBriefOverrides() {
     "為{0}提供成為永久城市所需的物資。", "{0}이 영구 도시가 되는 데 필요한 물자를 공급합니다."
   ]]);
   return Object.fromEntries(entries.map(([source, values]) => [source, reviewedLocaleOverrides(source, values)]));
+}
+
+function reviewedStandingOverrides() {
+  const entries = [
+    ["{0} Standing {1}/{2}.", [
+      "{0} 声望 {1}/{2}。", "Репутация {0}: {1}/{2}.", "Reputación de {0}: {1}/{2}.", "Reputação de {0}: {1}/{2}.", "{0}の評判 {1}/{2}。", "{0} Ansehen {1}/{2}.", "Réputation de {0} : {1}/{2}.", "Reputacja {0}: {1}/{2}.", "{0} 聲望 {1}/{2}。", "{0} 평판 {1}/{2}."
+    ]],
+    ["{0} standing or better.", [
+      "声望达到{0}或更高。", "Репутация не ниже {0}.", "Reputación de {0} o superior.", "Reputação de {0} ou superior.", "評判{0}以上。", "{0} Ansehen oder besser.", "Une réputation de {0} ou plus.", "Reputacja {0} lub wyższa.", "聲望達到{0}或更高。", "평판 {0} 이상."
+    ]],
+    ["{0} DEFENDED {1} STANDING +{2}", [
+      "{0} 守住 {1}，声望 +{2}", "{0} защитил {1}. Репутация +{2}.", "{0} defendió {1}. Reputación +{2}.", "{0} defendeu {1}. Reputação +{2}.", "{0}が{1}を防衛。評判 +{2}", "{0} verteidigte {1}. Ansehen +{2}", "{0} a défendu {1}. Réputation +{2}", "{0} obronił {1}. Reputacja +{2}", "{0} 守住 {1}，聲望 +{2}", "{0}이(가) {1}을(를) 방어함. 평판 +{2}"
+    ]],
+    ["Standing adjustment", [
+      "声望变化", "Изменение репутации", "Cambio de reputación", "Variação de reputação", "評判の変動", "Ansehensänderung", "Évolution de la réputation", "Zmiana reputacji", "聲望變化", "평판 변화"
+    ]],
+    ["{0} went ashore. Earned {1} db. Standing improved.", [
+      "{0} 已上岸。获得 {1} DB。声望提高。", "{0} сошел на берег. Получено {1} DB. Репутация улучшилась.", "{0} desembarcó. Ganó {1} doblones. Mejoró su reputación.", "{0} desembarcou. Ganhou {1} DB. Sua reputação melhorou.", "{0}は上陸した。{1} DBを獲得。評判が上がった。", "{0} ging an Land. {1} DB verdient. Ansehen verbessert.", "{0} a débarqué. {1} DB gagnés. Réputation améliorée.", "{0} zeszedł na ląd. Zdobyto {1} DB. Reputacja wzrosła.", "{0} 已上岸。取得 {1} DB。聲望提高。", "{0}이(가) 상륙함. {1} DB 획득. 평판 상승."
+    ]],
+    ["Commission fulfilled. Earned {0} db. Standing greatly improved.", [
+      "委托完成。获得 {0} DB。声望大幅提高。", "Поручение выполнено. Получено {0} DB. Репутация значительно улучшилась.", "Comisión cumplida. Ganó {0} doblones. Su reputación mejoró mucho.", "Comissão cumprida. Ganhou {0} DB. Sua reputação melhorou muito.", "任務完了。{0} DBを獲得。評判が大きく上がった。", "Auftrag erfüllt. {0} DB verdient. Ansehen deutlich verbessert.", "Commission remplie. {0} DB gagnés. Réputation grandement améliorée.", "Zlecenie wykonane. Zdobyto {0} DB. Reputacja znacznie wzrosła.", "委託完成。取得 {0} DB。聲望大幅提高。", "임무 완료. {0} DB 획득. 평판 크게 상승."
+    ]],
+    ["Delivered. Earned {0} db. Standing improved.", [
+      "已送达。获得 {0} DB。声望提高。", "Доставлено. Получено {0} DB. Репутация улучшилась.", "Entrega completada. Ganó {0} doblones. Mejoró su reputación.", "Entrega concluída. Ganhou {0} DB. Sua reputação melhorou.", "配達完了。{0} DBを獲得。評判が上がった。", "Abgeliefert. {0} DB verdient. Ansehen verbessert.", "Livraison effectuée. {0} DB gagnés. Réputation améliorée.", "Dostarczono. Zdobyto {0} DB. Reputacja wzrosła.", "已送達。取得 {0} DB。聲望提高。", "배달 완료. {0} DB 획득. 평판 상승."
+    ]],
+    ["War-ending commission fulfilled. Earned {0} db. Standing transformed.", [
+      "终战委托完成。获得 {0} DB。声望焕然一新。", "Поручение по прекращению войны выполнено. Получено {0} DB. Репутация преобразилась.", "Comisión para poner fin a la guerra cumplida. Ganó {0} doblones. Su reputación cambió por completo.", "Comissão para encerrar a guerra cumprida. Ganhou {0} DB. Sua reputação mudou por completo.", "終戦任務完了。{0} DBを獲得。評判が一変した。", "Auftrag zur Beendigung des Krieges erfüllt. {0} DB verdient. Ansehen grundlegend verändert.", "Commission de paix accomplie. {0} DB gagnés. Votre réputation a changé du tout au tout.", "Zlecenie kończące wojnę wykonane. Zdobyto {0} DB. Reputacja uległa przemianie.", "終戰委託完成。取得 {0} DB。聲望煥然一新。", "종전 임무 완료. {0} DB 획득. 평판이 완전히 달라짐."
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, translations]) => [
+    source,
+    reviewedLocaleOverrides(source, translations)
+  ]));
+}
+
+function reviewedSpanishScreenOverrides() {
+  const entries =   [
+    [
+      "{0} -{1} CREW",
+      "{0} -{1} TRIPULANTES"
+    ],
+    [
+      "{0} BANS {1} MERCHANDISE",
+      "{0} PROHÍBE PRODUCTOS DE {1}"
+    ],
+    [
+      "{0} BLOCKADES {1}",
+      "{0} BLOQUEA {1}"
+    ],
+    [
+      "{0} and {1} spend Christian blood against one another.",
+      "{0} y {1} derraman sangre cristiana al combatirse."
+    ],
+    [
+      "{0} and {1} spend Christian blood against one another. Carry a Papal nuncio between their courts and return with both answers.",
+      "{0} y {1} derraman sangre cristiana al combatirse. Lleva un nuncio papal entre sus cortes y vuelve con la respuesta de ambos."
+    ],
+    [
+      "{0} crew",
+      "{0} tripulantes"
+    ],
+    [
+      "{0} crew muster",
+      "Recuento de tripulación de {0}"
+    ],
+    [
+      "{0} cheated me of my share. Take my silver cup from {1}, last seen near {2}. Bring it here for {3} doubloons.",
+      "{0} me estafó mi parte. Recupera mi copa de plata de {1}, vista por última vez cerca de {2}. Tráela aquí y te pagaré {3} doblones."
+    ],
+    [
+      "{0} CASKS CANNOT TAKE MORE",
+      "{0} BARRILES LLENOS"
+    ],
+    [
+      "{0} CONQUISTADORS / {1} DEAD / {2} WOUNDED",
+      "{0} CONQUISTADORES / {1} MUERTOS / {2} HERIDOS"
+    ],
+    [
+      "{0} DAYS TO LAUNCH",
+      "{0} DÍAS PARA BOTAR"
+    ],
+    [
+      "{0} DELEGATION ENGAGED",
+      "{0} DELEGACIÓN EN COMBATE"
+    ],
+    [
+      "{0} is hard pressed by {1}. Carry {2} and a Papal nuncio",
+      "{0} está en apuros ante {1}. Lleva a {2} y a un nuncio papal"
+    ],
+    [
+      "{0} is hard pressed by {1}. Carry {2} and a Papal nuncio to {3} before another Christian harbor is lost.",
+      "{0} está en apuros ante {1}. Lleva a {2} y a un nuncio papal a {3} antes de que se pierda otro puerto cristiano."
+    ],
+    [
+      "{0} is ready for the court at {1}.",
+      "{0} está listo para presentarse ante la corte de {1}."
+    ],
+    [
+      "{0} ISSUES A BULL IN FAVOUR OF {1}",
+      "{0} PROMULGA UNA BULA A FAVOR DE {1}"
+    ],
+    [
+      "{0} JOINED THE CREW",
+      "{0} SE UNIÓ A LA TRIPULACIÓN"
+    ],
+    [
+      "{0} joined the crew as Master Chef.",
+      "{0} se unió a la tripulación como maestre cocinero."
+    ],
+    [
+      "{0} LIFTS ITS BAN ON {1} MERCHANDISE",
+      "{0} LEVANTA EL VETO COMERCIAL A {1}"
+    ],
+    [
+      "{0} RELEASED",
+      "{0} LIBERADA"
+    ],
+    [
+      "{0} Standing {1}/{2}.",
+      "{0} Reputación {1}/{2}."
+    ],
+    [
+      "{0} standing or better.",
+      "{0} de reputación o más."
+    ],
+    [
+      "{0} TAKEN HOLD FULL",
+      "{0} CAZADA: BODEGA LLENA"
+    ],
+    [
+      "{0} TREASURE PIRATES REMAIN",
+      "QUEDAN {0} PIRATAS DEL TESORO"
+    ],
+    [
+      "{0} UNDERWAY CONCERNING {1}",
+      "{0} EN CURSO CONTRA {1}"
+    ],
+    [
+      "{0} water",
+      "{0} agua"
+    ],
+    [
+      "{0} wounded",
+      "{0} heridos"
+    ],
+    [
+      "{0} WOUNDED",
+      "{0} HERIDOS"
+    ],
+    [
+      "{0}'s court requires sufficient standing and ship strength. Standing {1}/{2}. Strength {3}/{4}.",
+      "La corte de {0} exige reputación y fuerza naval suficientes. Reputación: {1}/{2}. Fuerza: {3}/{4}."
+    ],
+    [
+      "{0}{1} is annexed and placed under the direct rule of {2}.",
+      "{0}{1} queda anexionada y bajo el gobierno directo de {2}."
+    ],
+    [
+      "{0}{1} remains independent but agrees to pay tribute to {2}.",
+      "{0}{1} sigue siendo independiente, pero acepta pagar tributo a {2}."
+    ],
+    [
+      "{0} of {1} creatures now have a place in my book. Keep watch whenever you make landfall.",
+      "He registrado {0} de {1} criaturas en mi libro. Mantente alerta cada vez que desembarques."
+    ],
+    [
+      "{0} of {1} creatures of these seas now have a place in my book. Keep watch whenever you make landfall.",
+      "He registrado {0} de {1} criaturas de estos mares en mi libro. Mantente alerta cada vez que desembarques."
+    ],
+    [
+      "{0} of Captain {1}'s old crew still block the harbor.",
+      "{0} antiguos tripulantes del capitán {1} aún bloquean el puerto."
+    ],
+    [
+      "{0} of Captain {1}'s old crew still block the harbor. They mean to have the treasure before they let us reach the quay.",
+      "{0} antiguos tripulantes del capitán {1} aún bloquean el puerto. Quieren quedarse con el tesoro antes de dejarnos llegar al muelle."
+    ],
+    [
+      "{0} offers protection to {1} in return for tribute and allegiance.",
+      "{0} protege a {1} a cambio de tributo y lealtad."
+    ],
+    [
+      "{0} offers tribute and allegiance to {1} in return for recognition and protection.",
+      "{0} ofrece tributo y lealtad a {1} a cambio de reconocimiento y protección."
+    ],
+    [
+      "{0} refits will remain after this one.",
+      "Quedarán {0} reacondicionamientos después de este."
+    ],
+    [
+      "{0} still has my silver cup aboard {1}. Look for that merchant near {2}. Bring the cup back here.",
+      "{0} aún tiene mi copa de plata a bordo de {1}. Busca a ese mercader cerca de {2} y tráeme la copa."
+    ],
+    [
+      "{0} went ashore. Earned {1} db. Standing improved.",
+      "{0} desembarcó. Ganó {1} DB. Mejoró su reputación."
+    ],
+    [
+      "{0} was remembered as the greatest explorer of the age. {1} {2}{3}{4}",
+      "Se recuerda a {0} como el mayor explorador de la época. {1} {2}{3}{4}"
+    ],
+    [
+      "{0} was secured by allied forces. The commission is recalled, but the treasury will pay {1} doubloons for your preparations.",
+      "{0} cayó en manos aliadas. La comisión queda anulada, pero el tesoro pagará {1} doblones por tus preparativos."
+    ],
+    [
+      "{0} WITHDRAWS THE BULL IN FAVOUR OF {1}",
+      "{0} RETIRA LA BULA A FAVOR DE {1}"
+    ],
+    [
+      "{0} x{1} moved straight to the yard stores.",
+      "{0} x{1} se almacenó directamente en el astillero."
+    ],
+    [
+      "{0} You are a fellow Muslim. If you are ready, come with me as a pilgrim.",
+      "{0} Eres musulmán como yo. Si estás listo, acompáñame en la peregrinación."
+    ],
+    [
+      "{0} You have made the Hajj before, captain; pray that mine is accepted.",
+      "{0} Ya has hecho el hach, capitán; reza para que acepten el mío."
+    ],
+    [
+      "{0} Your name is known in every warehouse here, and our merchants will always give you {1}% off goods you buy.",
+      "{0} Tu nombre es conocido en todos nuestros almacenes; nuestros mercaderes siempre te harán un {1}% de descuento en tus compras."
+    ],
+    [
+      "{0}, cook",
+      "{0}, cocinero"
+    ],
+    [
+      "{0}, planter",
+      "{0}, agricultor"
+    ],
+    [
+      "{0}, surrendered prize",
+      "{0}, presa rendida"
+    ],
+    [
+      "{0} joined the crew.",
+      "{0} se unió a la tripulación."
+    ],
+    [
+      "{0} Both courts have now spoken. Rome will act upon the counsel you carry home.",
+      "{0} Ambas cortes ya se han pronunciado. Roma actuará según el consejo que lleves a casa."
+    ],
+    [
+      "{0} has drawn grave notice in Rome. Carry the Pope's sealed admonition",
+      "{0} ha llamado la atención en Roma. Lleva la amonestación sellada del Papa"
+    ],
+    [
+      "{0} has fallen. The commissioners brought its court to terms, and the",
+      "{0} ha caído. Los comisionados lograron que su corte aceptara las condiciones, y"
+    ],
+    [
+      "{0} has fallen. The commissioners brought its court to terms, and the princes and envoys sealed peace. The treasury will honor",
+      "{0} ha caído. Los comisionados lograron que su corte aceptara las condiciones, y los príncipes y enviados sellaron la paz. El tesoro cumplirá"
+    ],
+    [
+      "{0} has fallen. The commissioners brought its court to terms, and the princes and envoys sealed peace. The treasury will honor {1}'s extraordinary commission.",
+      "{0} ha caído. Los comisionados lograron que su corte aceptara las condiciones, y los príncipes y enviados sellaron la paz. El tesoro cumplirá la comisión extraordinaria de {1}."
+    ],
+    [
+      "{0} has received the chancery's sealed receipt. The treasury pays {1} db for your passage.",
+      "{0} ha recibido el recibo sellado de la cancillería. El tesoro te pagará {1} doblones por el viaje."
+    ],
+    [
+      "{0} has received the court's receipt. The treasury will pay {1} db.",
+      "{0} ha recibido el recibo de la corte. El tesoro pagará {1} doblones."
+    ],
+    [
+      "{0} has sealed instructions for the election of a {1}. Carry me to {2} and home for {3} db. My prince alone chooses; your duty is only our passage.",
+      "{0} ha sellado las instrucciones para elegir a un {1}. Llévame a {2} y tráeme de vuelta por {3} doblones. Solo mi príncipe decide; tu deber es llevarnos."
+    ],
+    [
+      "{0} has submitted to the commissioners and the rulers have sealed peace. Carry the final dispatches to {1}.",
+      "{0} se ha sometido a los comisionados y los gobernantes han sellado la paz. Lleva el despacho final a {1}."
+    ],
+    [
+      "{0} has taken power in {1}. The harbor watch expects policy to follow.",
+      "{0} ha tomado el poder en {1}. La guardia del puerto espera que pronto cambie la política."
+    ],
+    [
+      "{0} has trusted readers waiting behind drawn shutters.",
+      "{0} tiene lectores de confianza aguardando tras las contraventanas cerradas."
+    ],
+    [
+      "{0} has trusted readers waiting behind drawn shutters. {1}",
+      "En {0}, lectores de confianza aguardan tras las contraventanas cerradas. {1}"
+    ],
+    [
+      "{0} have laid prohibitions upon merchandise from {1}",
+      "{0} han prohibido el comercio de mercancías de {1}"
+    ],
+    [
+      "{0} HOLD FULL",
+      "{0} BODEGA LLENA"
+    ],
+    [
+      "{0} in {1} has a stolen chest for us. Meet him by the waterfront, from eight in the evening until five in the morning. Bring it here for {2} doubloons. Quietly.",
+      "{0} en {1} tiene un cofre robado para nosotros. Reúnete con él junto al puerto entre las ocho de la tarde y las cinco de la mañana. Tráelo aquí por {2} doblones. Sin hacer ruido."
+    ],
+    [
+      "{0} is aboard on an embassy from {1} to {2}; finish that mission first.",
+      "{0} va a bordo en una embajada de {1} a {2}; termina primero esa misión."
+    ],
+    [
+      "{0} is aboard, returning from {1} to {2}; finish that embassy first.",
+      "{0} va a bordo de regreso de {1} a {2}; termina primero esa embajada."
+    ],
+    [
+      "A flightless seabird of the southern ice.",
+      "Un ave marina no voladora de los hielos australes."
+    ],
+    [
+      "A hidden bundle beneath the Sō register bears unlisted names and copied seals. The evidence remains locked in the captain's cabin.",
+      "Un paquete oculto bajo el registro Sō contiene nombres no registrados y sellos copiados. Las pruebas siguen bajo llave en la cabina del capitán."
+    ],
+    [
+      "a great broad-beamed galley enlarged into a floating gun platform, sacrificing the ordinary galley's speed for heavy artillery and a powerful fighting crew",
+      "una gran galera de manga ancha convertida en plataforma artillera flotante, que sacrifica velocidad por artillería pesada y una tripulación de combate numerosa"
+    ],
+    [
+      "A dozen pirates, a dozen scraps, and one island somewhere beyond the lamps of any harbor. It sounds like the beginning of a hanging, not a fortune.",
+      "Una docena de piratas, una docena de fragmentos y una isla perdida más allá de las luces de cualquier puerto. Parece el comienzo de una horca, no de una fortuna."
+    ],
+    [
+      "A Good Haul",
+      "Una buena pesca"
+    ],
+    [
+      "A glacier-clad beacon for the whole sound. Note the river mouths below; all that ice must send its influence far beyond the mountain.",
+      "Un faro cubierto de glaciares que domina todo el estrecho. Observa las desembocaduras de los ríos; esos hielos deben influir mucho más allá de la montaña."
+    ],
+    [
+      "A heavy horned browser of warm grasslands and forests.",
+      "Un gran herbívoro de pesados cuernos que ramonea en praderas y bosques cálidos."
+    ],
+    [
+      "A mode of travel and nurture unlike anything in our books. Draw the feet, tail, and pouch separately; readers will otherwise insist we joined three animals together.",
+      "Una forma de desplazarse y criar a sus cachorros que no se parece a nada en nuestros libros. Dibuja por separado las patas, la cola y la bolsa; si no, los lectores creerán que juntamos tres animales."
+    ],
+    [
+      "A most dexterous subject. Leave the raccoon in my care and I shall pay you {payment} doubloons. I shall begin by purchasing stronger locks.",
+      "Un ejemplar de gran destreza. Déjame cuidar al mapache y te pagaré {payment} doblones. Empezaré por comprar cerraduras más resistentes."
+    ],
+    [
+      "A mountain in a world almost emptied of everything else. Keep that page exactly as you drew it. The blankness around the massif is part of the discovery.",
+      "Una montaña en un mundo casi vacío de todo lo demás. Conserva esa página tal como la dibujaste. El vacío que rodea el macizo también forma parte del hallazgo."
+    ],
+    [
+      "A nesting colony of shore birds yielded eggs and meat enough to add to the stores.",
+      "Una colonia de aves costeras proporcionó huevos y carne para las provisiones."
+    ],
+    [
+      "A pinch of the tea would improve this watch beyond recognition.",
+      "Una pizca de té mejoraría esta guardia por completo."
+    ],
+    [
+      "A polar bear charged through the blowing snow and killed a sailor before the hunters drove it off.",
+      "Un oso polar atravesó la ventisca y mató a un marinero antes de que los cazadores lo ahuyentaran."
+    ],
+    [
+      "a light East Asian river and coastal craft, shallow enough for creeks and crowded harbors where a deeper ocean ship could never work",
+      "una ligera embarcación fluvial y costera de Asia oriental, de poco calado para navegar por arroyos y puertos congestionados, inaccesibles a los buques oceánicos"
+    ],
+    [
+      "a light lateen craft long at home on the Nile and eastern Mediterranean, fast to handle and able to trade from the smallest landing places",
+      "una ligera embarcación de vela latina, habitual en el Nilo y el Mediterráneo oriental, fácil de maniobrar y capaz de comerciar desde los embarcaderos más pequeños"
+    ],
+    [
+      "A maritime world raised into the mountains. Record how its people build with reeds where timber is scarce; ingenuity belongs in our book beside grandeur.",
+      "Un mundo marítimo elevado a las montañas. Anota cómo sus gentes construyen con juncos donde escasea la madera; el ingenio merece figurar junto a la grandeza."
+    ],
+    [
+      "A compass, cross-staff, lead line, and tables sharpen shiphandling.",
+      "La brújula, la ballestilla, la sondaleza y las tablas de navegación mejoran el gobierno del buque."
+    ],
+    [
+      "A concealed crevasse opened beneath a sailor. The party returned one fewer.",
+      "Una grieta oculta se abrió bajo un marinero. El grupo regresó con uno menos."
+    ],
+    [
+      "A king turned an isolated rock into both palace and proclamation. Sketch the gardens as well as the walls; power often reveals itself in what it chooses to make beautiful.",
+      "Un rey convirtió una roca aislada en palacio y pregón. Dibuja los jardines y las murallas: el poder también se revela en aquello que embellece."
+    ],
+    [
+      "A landing at the Pasig cannot rely on steel alone. Supply",
+      "Un desembarco en el Pasig no puede depender solo del acero. Abastece"
+    ],
+    [
+      "A new wonder was added to the chart.",
+      "Se añadió una nueva maravilla al mapa."
+    ],
+    [
+      "A pilgrim's flask filled at the Zamzam well, with a fitted cup that helps the crew ration every cask.",
+      "Una cantimplora de peregrino, llenada en el pozo de Zamzam, con una taza acoplada para racionar el contenido de cada barril."
+    ],
+    [
+      "A captain outside Christendom would require singular trust in Rome: {0} standing or better.",
+      "Un capitán ajeno a la cristiandad necesita gran confianza en Roma: reputación de {0} o más."
+    ],
+    [
+      "The broker reports you to the harbor watch. {0} standing fell.",
+      "El agente te denunció ante la guardia del puerto. Tu reputación con {0} ha bajado."
+    ],
+    [
+      "The Curia requires {0} standing before it will entrust you",
+      "La Curia exige reputación de {0} antes de confiarte"
+    ],
+    [
+      "The Curia requires {0} standing before it will entrust you with sealed Papal briefs.",
+      "La Curia exige reputación de {0} antes de confiarte documentos papales sellados."
+    ],
+    [
+      "A letter found me in {0}. My family in {1} needs me before the season turns. Please take me there; I can pay {2} db.",
+      "Recibí una carta en {0}. Mi familia de {1} me necesita antes de que cambie la estación. Llévame allí, por favor; puedo pagarte {2} doblones."
+    ],
+    [
+      "A letter of marque licenses prizes at sea; it does not grant the choice of a harbor. Name an enemy, or ask after an independent port. The council will judge the realm's need and name any target.",
+      "La patente de corso autoriza a apresar barcos enemigos, pero no permite elegir el puerto. Nombra a un enemigo o pregunta por un puerto independiente. El consejo decidirá qué objetivo necesita el reino."
+    ],
+    [
+      "A bear sustained upon grass and equipped to sort it. Aristotle would object on several grounds, which makes the observation especially valuable.",
+      "Un oso que vive de la hierba y sabe digerirla. Aristóteles objetaría por varios motivos, lo que hace esta observación aún más valiosa."
+    ],
+    [
+      "A bare fort cannot command commerce. Complete the factor's stock with",
+      "Un fuerte vacío no puede controlar el comercio. Completa las existencias del factor con"
+    ],
+    [
+      "a palisade, house, store, and raised river landing",
+      "una empalizada, una casa, un almacén y un embarcadero elevado en el río"
+    ],
+    [
+      "A full voyage around the world",
+      "Una vuelta completa al mundo"
+    ],
+    [
+      "A fur post without respectable exchange goods will destroy its own alliances. Supply",
+      "Un puesto peletero sin mercancías adecuadas para el trueque destruirá sus propias alianzas. Abastece"
+    ],
+    [
+      "A fine coincidence. We shall have to compare who has weathered the better year.",
+      "Qué coincidencia. Tendremos que comparar quién ha pasado mejor el año."
+    ],
+    [
+      "A mountain shaped as much by Atlantic weather as by stone. Your harbor approaches and cloud notes will make this a useful page as well as a handsome one.",
+      "El clima atlántico ha dado forma a esta montaña tanto como la piedra. Anota los accesos al puerto y las nubes; así esta página será tan útil como hermosa."
+    ],
+    [
+      "A city of stone in the southern interior, joined to the sea by trade. Bring me the beads, metals, and stories you found there; walls tell only half a city's life.",
+      "Una ciudad de piedra en el interior austral, unida al mar por el comercio. Tráeme las cuentas, los metales y las historias que encontraste allí; las murallas solo cuentan la mitad de su historia."
+    ],
+    [
+      "A city upon a hill still requires ordinary labor. Supply",
+      "Una ciudad en lo alto de una colina también necesita mano de obra. Abastece"
+    ],
+    [
+      "A pinch. The rest still belongs to our buyer.",
+      "Una pizca. El resto sigue reservado para nuestro comprador."
+    ],
+    [
+      "a compact junk in the old East Asian coastal tradition, with a shallow hull and easily managed battened sail suited to a modest crew",
+      "un junco compacto de antigua tradición costera de Asia oriental, con poco calado y una vela de sables fácil de manejar, adecuada para una tripulación reducida"
+    ],
+    [
+      "a lean Japanese war vessel built to carry warriors swiftly along the coast beneath a single sail and long banks of oars",
+      "un ligero buque de guerra japonés, diseñado para transportar guerreros con rapidez por la costa bajo una vela y largas bancadas de remos"
+    ],
+    [
+      "a lean Mediterranean sailing vessel whose lateen canvas and narrow hull made the type prized by traders, naval scouts, and corsairs alike",
+      "un velero mediterráneo ligero y estrecho, apreciado por igual por mercaderes, exploradores navales y corsarios por su vela latina"
+    ],
+    [
+      "a great paddled dugout like those Mesoamerican mariners used for fishing and coastal commerce long before European ships reached their shores",
+      "una gran piragua de remo, como las que los navegantes mesoamericanos usaban para pescar y comerciar por la costa mucho antes de la llegada de los europeos"
+    ],
+    [
+      "A panda? I know the animal, captain, but I never expected to see one serving aboard a ship.",
+      "¿Un panda? Conozco al animal, capitán, pero nunca imaginé que uno pudiera trabajar a bordo."
+    ],
+    [
+      "A people without a surviving name arranged stone as carefully as an astronomer arranges numbers. Record the openings in the ring; perhaps they watched the heavens through them.",
+      "Un pueblo cuyo nombre no perduró dispuso las piedras con el cuidado de un astrónomo al ordenar sus cifras. Anota las aberturas del círculo; quizá observaban el cielo a través de ellas."
+    ],
+    [
+      "A permanent station needs more than the seasonal crews leave behind. Bring",
+      "Una estación permanente necesita más de lo que dejan las tripulaciones temporales. Trae"
+    ],
+    [
+      "A pilgrimage made into an ascent, with every step teaching before the summit is reached. Preserve the order of the terraces; the path itself is part of the work.",
+      "Una peregrinación convertida en ascenso, donde cada paso enseña antes de alcanzar la cima. Conserva el orden de las terrazas; el propio camino forma parte de la obra."
+    ],
+    [
+      "a stockade, storehouses, and storm repairs",
+      "una empalizada, almacenes y reparaciones para resistir las tormentas"
+    ],
+    [
+      "{0} DEFENDED {1} STANDING +{2}",
+      "{0} DEFENDIDO {1} REPUTACIÓN +{2}"
+    ],
+    [
+      "{0} is theft from the court. Your mission will fail and your standing",
+      "{0} es un robo a la corte. Tu misión fracasará y tu reputación"
+    ],
+    [
+      "Commission fulfilled. Earned {0} db. Standing greatly improved.",
+      "Comisión cumplida. Ganó {0} doblones. Su reputación mejoró mucho."
+    ],
+    [
+      "Delivered. Earned {0} db. Standing improved.",
+      "Entrega completada. Ganó {0} doblones. Su reputación mejoró."
+    ],
+    [
+      "Standing adjustment",
+      "Ajuste de reputación"
+    ],
+    [
+      "Those {0} are sealed tribute, not your cargo. Selling {1} is theft from the court. Your mission will fail and your standing",
+      "Esos {0} son tributos sellados, no tu carga. Vender {1} es un robo a la corte. Tu misión fracasará y tu reputación"
+    ],
+    [
+      "Those {0} are sealed tribute, not your cargo. Selling {1} is theft from the court. Your mission will fail and your standing will fall {2} with {3}{4}.",
+      "Esos {0} son tributos sellados, no tu carga. Vender {1} es un robo a la corte. Tu reputación con {3}{4} bajará {2} y fracasarás en la misión."
+    ],
+    [
+      "Those {0} chests were entrusted for the new-crop race, not given to you. Selling {1} is theft. The race will fail and your standing",
+      "Esos {0} cofres te fueron confiados para la carrera de la nueva cosecha, no regalados. Vender {1} es un robo. La carrera fracasará y tu reputación"
+    ],
+    [
+      "Those {0} chests were entrusted for the new-crop race, not given to you. Selling {1} is theft. The race will fail and your standing will fall {2} with {3}.",
+      "Esos {0} cofres te fueron confiados para la carrera de la nueva cosecha, no regalados. Vender {1} es un robo. Tu reputación con {3} bajará {2} y fracasarás en la carrera."
+    ],
+    [
+      "to you. Selling {0} is theft. The race will fail and your standing",
+      "a ti. Vender {0} es un robo. La carrera fracasará y tu reputación"
+    ],
+    [
+      "War-ending commission fulfilled. Earned {0} db. Standing transformed.",
+      "Comisión para poner fin a la guerra cumplida. Ganó {0} doblones. Su reputación cambió por completo."
+    ],
+    [
+      "Your standing here remains poor, captain, but {0}'s protection opens the quay to you. Mind your conduct.",
+      "Vuestra reputación aquí sigue siendo baja, capitán, pero la protección de {0} os permite atracar. Cuidad vuestra conducta."
+    ],
+    [
+      "Your standing is poor. Conduct yourself accordingly.",
+      "Tu reputación es baja. Compórtate en consecuencia."
+    ],
+    [
+      "Your standing is satisfactory. We can do business directly.",
+      "Vuestra reputación es satisfactoria. Podemos tratar directamente."
+    ],
+  ];
+  return Object.fromEntries(entries.map(([source, translation]) => [source, Object.freeze({ es: translation })]));
 }
 
 function reviewedShipTypeOverrides() {

@@ -83,6 +83,23 @@ test("community port offices are localized inside generated speaker names", () =
   }
 });
 
+test("political standing is translated as reputation in every screen locale", () => {
+  const reviewed = new Map([
+    ["{0} Standing {1}/{2}.", [
+      "{0} 声望 {1}/{2}。", "Репутация {0}: {1}/{2}.", "Reputación de {0}: {1}/{2}.", "Reputação de {0}: {1}/{2}.", "{0}の評判 {1}/{2}。", "{0} Ansehen {1}/{2}.", "Réputation de {0} : {1}/{2}.", "Reputacja {0}: {1}/{2}.", "{0} 聲望 {1}/{2}。", "{0} 평판 {1}/{2}."
+    ]],
+    ["Standing adjustment", [
+      "声望变化", "Изменение репутации", "Cambio de reputación", "Variação de reputação", "評判の変動", "Ansehensänderung", "Évolution de la réputation", "Zmiana reputacji", "聲望變化", "평판 변화"
+    ]]
+  ]);
+  for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
+    const catalog = screenTextTranslationCatalog(language);
+    for (const [source, expected] of reviewed) {
+      assert.equal(catalog[source], expected[SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH).findIndex(({ id }) => id === language)], `${language}: ${source}`);
+    }
+  }
+});
+
 test("normal game text cannot be written to the screen in English-only form", () => {
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     const catalog = screenTextTranslationCatalog(language);

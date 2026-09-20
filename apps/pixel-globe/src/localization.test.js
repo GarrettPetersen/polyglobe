@@ -506,3 +506,23 @@ test("the longest dense-menu translations fit their conservative pixel budgets",
     }
   }
 });
+
+test("Spanish keeps nautical, financial, and political labels concise and unambiguous", () => {
+  const expected = new Map([
+    ["options.controlScheme.relativeDetail", "ARRIBA: HALAR; IZQ./DER.: GIRAR"],
+    ["ship.ledger", "CUENTAS"],
+    ["captain.chart", "CARTA NÁUTICA"],
+    ["politics.papalAuthorityShort", "PAPAL"],
+    ["politics.bans", "VETOS"],
+    ["politics.importBan", "PROHÍBE IMPORTACIONES"],
+    ["good.arms", "Picas y espadas"],
+    ["tutorial.haul", "HALAR"],
+    ["hud.tooltip.waterDaysOne", "Queda 1 día de agua potable"],
+    ["hud.tooltip.foodDaysOne", "1 día de comida disponible"],
+    ["outcome.neverSeenAgain", "DESAPARECIÓ PARA SIEMPRE."]
+  ]);
+  for (const [key, value] of expected) {
+    const replacements = key.includes("DaysOne") ? { days: "1" } : undefined;
+    assert.equal(translate(LANGUAGE_SPANISH, key, replacements), value, key);
+  }
+});
