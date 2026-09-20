@@ -100,6 +100,25 @@ test("political standing is translated as reputation in every screen locale", ()
   }
 });
 
+test("nautical watch shifts are not translated as timepieces", () => {
+  const reviewed = new Map([
+    ["A pinch of the tea would improve this watch beyond recognition.", [
+      "一撮茶就能让这班岗轻松不少。", "Щепотка чая сделала бы эту вахту куда приятнее.", "Una pizca de té mejoraría mucho esta guardia.", "Uma pitada de chá tornaria este turno bem melhor.", "お茶をひとつまみ飲めば、この当直もずっと楽になる。", "Eine Prise Tee würde diese Wache deutlich angenehmer machen.", "Une pincée de thé rendrait ce quart bien plus agréable.", "Szczypta herbaty umiliłaby tę wachtę.", "一撮茶就能讓這班值勤輕鬆不少。", "차 한 꼬집이면 이번 당직이 훨씬 나아질 거야."
+    ]],
+    ["No, sleeping through the watch does not count as standing it.", [
+      "不，值勤时睡觉可不算在岗。", "Нет, сон во время вахты не считается несением службы.", "No, dormir durante la guardia no cuenta como hacerla.", "Não, dormir durante o turno não conta como cumprir serviço.", "いや、当直中に眠っていては務めを果たしたことにならない。", "Nein, während der Wache zu schlafen gilt nicht als Wachdienst.", "Non, dormir pendant le quart ne compte pas comme monter la garde.", "Nie, przespanie wachty nie liczy się jako służba.", "不，值勤時睡覺可不算在崗。", "아니, 당직 중에 자는 건 근무한 게 아니야."
+    ]]
+  ]);
+  const languages = SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH);
+  for (const { id: language } of languages) {
+    const catalog = screenTextTranslationCatalog(language);
+    const languageIndex = languages.findIndex(({ id }) => id === language);
+    for (const [source, expected] of reviewed) {
+      assert.equal(catalog[source], expected[languageIndex], `${language}: ${source}`);
+    }
+  }
+});
+
 test("normal game text cannot be written to the screen in English-only form", () => {
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     const catalog = screenTextTranslationCatalog(language);

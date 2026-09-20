@@ -1526,7 +1526,8 @@ const REVIEWED_OVERRIDES = Object.freeze({
   "Concepcion endures at Penco as a military and administrative center, sustained from Peru on a frontier Spain has not subdued.": Object.freeze({
     pl: "Concepcion trwa w Penco jako ośrodek wojskowy i administracyjny, zaopatrywany z Peru na pograniczu, którego Hiszpania nie podporządkowała."
   }),
-  ...reviewedStandingOverrides()
+  ...reviewedStandingOverrides(),
+  ...reviewedWatchShiftOverrides()
 });
 
 function reviewedSupplyAndBriefOverrides() {
@@ -1600,6 +1601,36 @@ function reviewedStandingOverrides() {
     ]],
     ["War-ending commission fulfilled. Earned {0} db. Standing transformed.", [
       "终战委托完成。获得 {0} DB。声望焕然一新。", "Поручение по прекращению войны выполнено. Получено {0} DB. Репутация преобразилась.", "Comisión para poner fin a la guerra cumplida. Ganó {0} doblones. Su reputación cambió por completo.", "Comissão para encerrar a guerra cumprida. Ganhou {0} DB. Sua reputação mudou por completo.", "終戦任務完了。{0} DBを獲得。評判が一変した。", "Auftrag zur Beendigung des Krieges erfüllt. {0} DB verdient. Ansehen grundlegend verändert.", "Commission de paix accomplie. {0} DB gagnés. Votre réputation a changé du tout au tout.", "Zlecenie kończące wojnę wykonane. Zdobyto {0} DB. Reputacja uległa przemianie.", "終戰委託完成。取得 {0} DB。聲望煥然一新。", "종전 임무 완료. {0} DB 획득. 평판이 완전히 달라짐."
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, translations]) => [
+    source,
+    reviewedLocaleOverrides(source, translations)
+  ]));
+}
+
+function reviewedWatchShiftOverrides() {
+  const entries = [
+    ["A pinch of the tea would improve this watch beyond recognition.", [
+      "一撮茶就能让这班岗轻松不少。", "Щепотка чая сделала бы эту вахту куда приятнее.", "Una pizca de té mejoraría mucho esta guardia.", "Uma pitada de chá tornaria este turno bem melhor.", "お茶をひとつまみ飲めば、この当直もずっと楽になる。", "Eine Prise Tee würde diese Wache deutlich angenehmer machen.", "Une pincée de thé rendrait ce quart bien plus agréable.", "Szczypta herbaty umiliłaby tę wachtę.", "一撮茶就能讓這班值勤輕鬆不少。", "차 한 꼬집이면 이번 당직이 훨씬 나아질 거야."
+    ]],
+    ["Christmas Day at last. When the watch allows it, we should say the Nativity office together.", [
+      "终于到了圣诞节。等值勤允许，我们该一起诵念圣诞日课。", "Наконец-то Рождество. Когда позволит вахта, нам следует вместе прочесть рождественскую службу.", "Por fin es Navidad. Cuando lo permita la guardia, recemos juntos el oficio de la Natividad.", "Enfim, chegou o Natal. Quando o turno permitir, rezaremos juntos o ofício da Natividade.", "やっとクリスマスだ。当直が許せば、共に降誕祭の祈祷を唱えよう。", "Endlich ist Weihnachten. Wenn es die Wache erlaubt, sollten wir gemeinsam das Gebet zur Geburt Christi sprechen.", "Enfin, c'est Noël. Quand le quart le permettra, récitons ensemble l'office de la Nativité.", "Wreszcie Boże Narodzenie. Gdy pozwoli wachta, odmówmy wspólnie oficjum Narodzenia Pańskiego.", "終於到了聖誕節。等值勤允許，我們該一起誦念聖誕日課。", "드디어 성탄절이야. 당직이 허락하면 함께 성탄 기도를 드리자."
+    ]],
+    ["No, sleeping through the watch does not count as standing it.", [
+      "不，值勤时睡觉可不算在岗。", "Нет, сон во время вахты не считается несением службы.", "No, dormir durante la guardia no cuenta como hacerla.", "Não, dormir durante o turno não conta como cumprir serviço.", "いや、当直中に眠っていては務めを果たしたことにならない。", "Nein, während der Wache zu schlafen gilt nicht als Wachdienst.", "Non, dormir pendant le quart ne compte pas comme monter la garde.", "Nie, przespanie wachty nie liczy się jako służba.", "不，值勤時睡覺可不算在崗。", "아니, 당직 중에 자는 건 근무한 게 아니야."
+    ]],
+    ["Then I will take your watch while you pray. If the cook finds a feast, all aboard may be glad of it.", [
+      "那你祈祷时我来替你值勤。要是厨子找到好吃的，船上人人都会高兴。", "Тогда я заступлю вместо тебя на вахту, пока ты молишься. Если повар раздобудет пир, вся команда будет рада.", "Entonces te relevaré mientras rezas. Si el cocinero consigue un buen banquete, toda la tripulación se alegrará.", "Então assumirei seu turno enquanto você reza. Se o cozinheiro encontrar um banquete, todos a bordo ficarão contentes.", "では祈っている間は私が当直を代わろう。料理人がご馳走を見つければ、皆も喜ぶだろう。", "Dann übernehme ich deine Wache, während du betest. Wenn der Koch ein Festmahl auftreibt, freut sich die ganze Mannschaft.", "Je prendrai donc votre quart pendant que vous prierez. Si le cuisinier trouve un festin, tout l'équipage s'en réjouira.", "W takim razie obejmę twoją wachtę, gdy będziesz się modlić. Jeśli kucharz znajdzie ucztę, cała załoga się ucieszy.", "那你祈禱時我來替你值勤。要是廚子找到好吃的，船上人人都會高興。", "그럼 네가 기도하는 동안 내가 당직을 설게. 요리사가 잔치를 마련하면 모두 기뻐하겠지."
+    ]],
+    ["There they are! Sound the alarm! The watch recognizes your ship, and you barely escape. The port will remain alert for {0} day{1}.", [
+      "他们在那里！快拉响警报！巡港守卫认出了你的船，你才勉强逃脱。港口还会戒备 {0} 天{1}。", "Вот они! Тревога! Портовая стража узнала ваш корабль, и вы едва успели уйти. Порт будет настороже ещё {0} день{1}.", "¡Ahí están! ¡Da la alarma! La patrulla del puerto reconoce tu barco y apenas logras escapar. El puerto seguirá alerta {0} día{1} más.", "Lá estão eles! Soe o alarme! A patrulha do porto reconhece seu navio, e você mal consegue escapar. O porto ficará alerta por mais {0} dia{1}.", "いたぞ！警報を鳴らせ！港の哨兵は君の船を見知っており、君は辛うじて逃げおおせる。港はあと{0}日{1}警戒を続ける。", "Da sind sie! Alarm! Die Hafenpatrouille erkennt Euer Schiff, und Ihr entkommt nur knapp. Der Hafen bleibt noch {0} Tag{1} in Alarmbereitschaft.", "Les voilà ! Donnez l'alarme ! La patrouille du port reconnaît votre navire et vous échappez de justesse. Le port restera en alerte encore {0} jour{1}.", "Oto oni! Alarm! Straż portowa rozpoznaje twój statek i ledwo udaje ci się uciec. Port pozostanie czujny jeszcze przez {0} dzień{1}.", "他們在那裡！快拉響警報！巡港守衛認出了你的船，你才勉強逃脫。港口還會戒備 {0} 天{1}。", "저기 있다! 경보를 울려! 항구 순찰대가 네 배를 알아보고, 너는 간신히 달아난다. 항구는 앞으로 {0}일{1} 동안 경계 태세를 유지한다."
+    ]],
+    ["These oar benches have outlived kingdoms. My back may not outlive the watch.", [
+      "这些桨座比王国存在得还久。可我的腰未必撑得过这班岗。", "Эти гребные банки пережили царства. Не знаю, пережит ли моя спина эту вахту.", "Estos bancos de remo han sobrevivido a reinos. No sé si mi espalda aguantará esta guardia.", "Estes bancos de remo sobreviveram a reinos. Talvez minhas costas não aguentem este turno.", "この漕ぎ座は王国より長く残った。だが我が腰はこの当直を乗り切れぬかもしれぬ。", "Diese Ruderbänke haben Königreiche überdauert. Mein Rücken hält diese Wache vielleicht nicht durch.", "Ces bancs de nage ont survécu à des royaumes. Mon dos ne tiendra peut-être pas jusqu'à la fin du quart.", "Te ławy wioślarskie przetrwały królestwa. Nie wiem, czy moje plecy wytrzymają tę wachtę.", "這些槳座比王國存在得還久。可我的腰未必撐得過這班值勤。", "이 노 젓는 자리는 왕국보다 오래 버텼어. 하지만 내 허리는 이번 당직을 못 버틸지도 몰라."
+    ]],
+    ["We know this vessel. The harbor watch is waiting for you. This port remains closed for {0} more day{1}.", [
+      "我们认得这艘船。港口巡卫正在等你。本港还要关闭 {0} 天{1}。", "Мы знаем это судно. Портовая стража ждёт вас. Порт останется закрытым ещё {0} день{1}.", "Conocemos este barco. La guardia del puerto te espera. Este puerto seguirá cerrado {0} día{1} más.", "Conhecemos este navio. A guarda portuária está à sua espera. Este porto continuará fechado por mais {0} dia{1}.", "この船は見覚えがある。港の守備隊が待ち構えている。この港はあと{0}日{1}閉鎖される。", "Wir kennen dieses Schiff. Die Hafenwache erwartet Euch. Dieser Hafen bleibt noch {0} Tag{1} geschlossen.", "Nous connaissons ce navire. La garde portuaire vous attend. Ce port restera fermé encore {0} jour{1}.", "Znamy ten statek. Straż portowa czeka na ciebie. Port pozostanie zamknięty jeszcze przez {0} dzień{1}.", "我們認得這艘船。港口巡衛正在等你。本港還要關閉 {0} 天{1}。", "우리는 이 배를 안다. 항구 경비대가 널 기다린다. 이 항구는 앞으로 {0}일{1} 동안 폐쇄된다."
     ]]
   ];
   return Object.fromEntries(entries.map(([source, translations]) => [
