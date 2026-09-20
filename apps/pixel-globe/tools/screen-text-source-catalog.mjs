@@ -5,6 +5,7 @@ import ts from "typescript";
 const DISPLAY_PROPERTY_NAMES = new Set([
   "accept", "accepted", "account", "body", "captain", "comment", "decline", "declined",
   "description", "detail", "disabledReason", "dialogue", "effect", "established", "eventLabel", "failed",
+  "envoyGrant", "envoyMemorial", "envoyPurpose", "envoyRequest",
   "failure", "feedback", "goal", "gossip", "greeting", "heading", "hint", "label", "landing", "message",
   "name", "notice", "offer", "opening", "option", "outro", "patron", "pitch", "prompt",
   "purpose", "ready", "recruitPrompt", "response", "responses", "route", "rumor", "skill",

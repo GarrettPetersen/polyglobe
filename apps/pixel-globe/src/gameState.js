@@ -5164,8 +5164,7 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
     : false;
   if (active.soundDuesExemptionFactionId && !soundDuesExemptionOpened &&
       !soundDuesExemptionForFaction(state, active.soundDuesExemptionFactionId)) {
-    active.dialogue.negotiation = `${active.targetRulerName}'s ministers refuse the exemption; ` +
-      "relations with Denmark are not good enough for such a privilege.";
+    active.dialogue.negotiation = soundDuesExemptionRefusalText(active.targetRulerName);
   }
   recordDecision(state, `quest.envoy.negotiate.${active.id}`, 1);
   active.stage = "return";
@@ -5188,6 +5187,10 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
     soundDuesExemptionOpened,
     soundDuesExemptionOpenedFactionId
   };
+}
+
+function soundDuesExemptionRefusalText(targetRulerName) {
+  return `${targetRulerName}'s ministers refuse the exemption; relations with Denmark are not good enough for such a privilege.`;
 }
 
 function tradeAccessOpeningFactionId(state, quest) {

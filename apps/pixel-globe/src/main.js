@@ -37159,7 +37159,7 @@ function updateWorldDiplomacy() {
   for (const action of result.courtActions) announce(courtActionNotice(action));
   for (const matter of result.courtMattersOpened) announce(courtMatterNotice(matter));
   for (const event of result.soundDuesExemptionRevocations) {
-    announce(`${factionById(event.factionId).adjective.toUpperCase()} SOUND DUES EXEMPTION REVOKED`);
+    announce(soundDuesExemptionRevocationNotice(event));
   }
   if (expulsions.length > 0) announce(foreignSettlementExpulsionNotice(expulsions));
   for (const event of result.diplomacyEvents) {
@@ -37167,6 +37167,10 @@ function updateWorldDiplomacy() {
   }
   if (announced) dirty = true;
   return announced || result.authorityEvents.length > 0;
+}
+
+function soundDuesExemptionRevocationNotice(event) {
+  return `${factionById(event.factionId).adjective.toUpperCase()} SOUND DUES EXEMPTION REVOKED`;
 }
 
 function reconcileEnglishReformationCharacters() {

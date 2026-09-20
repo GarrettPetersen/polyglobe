@@ -148,7 +148,10 @@ test("a political update announces every category and applies commission revocat
     foreignSettlementExpulsionNotice: (events) => events.join(), diplomacyEventNotice: (event) => event.kind,
     showSurvivalNotice: notice.showSurvivalNotice
   });
-  const { updateWorldDiplomacy } = runtime(["updateWorldDiplomacy"], notice.context);
+  const { updateWorldDiplomacy } = runtime(
+    ["soundDuesExemptionRevocationNotice", "updateWorldDiplomacy"],
+    notice.context
+  );
   assert.equal(updateWorldDiplomacy(), true);
   assert.deepEqual(effects, ["succession alert", "passage cleared", "cargo cleared"]);
   const dispatches = [];
