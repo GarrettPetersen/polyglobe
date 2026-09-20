@@ -99,7 +99,7 @@ const NON_DISPLAY_VALIDATION_CALLS = new Set([
   "requiredNpcRoutePort"
 ]);
 const NON_DISPLAY_SOURCE_TEMPLATES = new Set([
-  "en-US", "buyPrice", "capitalContributions", "constructionExpenses", "effectDetail", "equipment factor item {0}", "faith with your commission. The treasury will honor the crown's word.", "font:inherit;padding:12px 24px;cursor:pointer", "from Southeast Asia, and I will pay well for the voyage.{0}", "foodUnits",
+  "en-US", "buyPrice", "capitalContributions", "constructionExpenses", "effectDetail", "equipment factor item {0}", "faith with your commission. The treasury will honor the crown's word.", "font:inherit;padding:12px 24px;cursor:pointer", "from Southeast Asia, and I will pay well for the voyage.{0}", "princes and envoys sealed peace. The treasury will honor", "{0} has fallen. The commissioners brought its court to terms, and the princes and envoys sealed peace. The treasury will honor", "{0} has fallen. The commissioners brought its court to terms, and the", "foodUnits",
   "character portrait manifest", "itemId", "LocalSaveWriteError", "playerPayouts", "salesPitch",
   "salesRevenue", "sellPrice", "tradeImpact", "waterUnits"
 ]);

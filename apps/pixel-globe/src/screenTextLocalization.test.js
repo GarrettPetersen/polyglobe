@@ -50,7 +50,7 @@ test("validation argument labels do not enter the player-facing translation cata
   const sourceCatalog = extractScreenTextSourceCatalog(SOURCE_ROOT);
   for (const internalLabel of [
     "campaign reminder doubloons", "campaign reminder home port", "campaign reminder contact",
-    "en-US", "buyPrice", "capitalContributions", "constructionExpenses", "effectDetail", "equipment factor item {0}", "faith with your commission. The treasury will honor the crown's word.", "font:inherit;padding:12px 24px;cursor:pointer", "from Southeast Asia, and I will pay well for the voyage.{0}", "foodUnits",
+    "en-US", "buyPrice", "capitalContributions", "constructionExpenses", "effectDetail", "equipment factor item {0}", "faith with your commission. The treasury will honor the crown's word.", "font:inherit;padding:12px 24px;cursor:pointer", "from Southeast Asia, and I will pay well for the voyage.{0}", "princes and envoys sealed peace. The treasury will honor", "{0} has fallen. The commissioners brought its court to terms, and the princes and envoys sealed peace. The treasury will honor", "{0} has fallen. The commissioners brought its court to terms, and the", "foodUnits",
     "character portrait manifest", "Cartoon Horse with animations", "itemId", "LocalSaveWriteError",
     "playerPayouts", "salesPitch", "salesRevenue", "sellPrice", "tradeImpact", "waterUnits"
   ]) {
@@ -199,6 +199,31 @@ test("financial, maritime, and Manila history copy avoids false friends", () => 
   assert.match(localizeText("fr", "Maynila is already a fortified Tagalog and Muslim port beside Tondo. Legazpi intends to conquer it and rebuild it as his capital, not claim to have discovered it."), /port fortifié tagalog et musulman/);
   assert.equal(localizeText("pl", "Manually assigned crew, guns, and supplies"), "Ręcznie przydzielona załoga, działa i zapasy");
   assert.equal(localizeText("ru", "Many merchants are arriving. Berths and dock labor are limited."), "Прибывает много купцов, а причалов и портовых рабочих не хватает.");
+});
+
+test("N and O entries keep historical, gear, and port meanings", () => {
+  assert.match(localizeText("pt-BR", "Overlapping plates riveted inside cloth can turn aside blades while keeping a sailor mobile."), /sem limitar os movimentos/);
+  assert.match(localizeText("pl", "Patrol the waters near {0}. Sink the marked wokou vessel or force its surrender. Pirates need no letter of marque."), /listu kaperskiego/);
+  assert.match(localizeText("pt-BR", "No rival ship has reached the Thames. Your chests carry the first tea delivery of the year to London."), /baús levam a Londres/);
+  assert.match(localizeText("de", "Olinda has poor anchorage. Beyond the reef, fishers and merchants gather at Arrecife dos Navios. Pernambuco needs a harbor for sugar and mill equipment."), /Fischer und Händler/);
+  assert.match(localizeText("zh-Hans", "New Haven now stands at Quinnipiac as a rigorously planned Puritan merchant colony. Its nine-square grid is clearer than its commercial future."), /九宫格/);
+});
+
+test("O and P entries retain game and historical context", () => {
+  assert.match(localizeText("es", "Pitch-wrapped arrowheads threaten rigging and planking, though they fly shorter and slower."), /puntas de flecha/);
+  assert.match(localizeText("pl", "Pizarro chose the cultivated Rimac valley, ruled by curaca Taulichusco, for his City of Kings. The city must be seized and established on inhabited ground."), /założyć je na ziemi już zamieszkanej/);
+  assert.match(localizeText("zh-Hans", "Penn's Holy Experiment promises Quaker refuge and a green, spacious city along the Delaware. His charter still needs Lenape agreement."), /勒纳佩人的同意/);
+  assert.match(localizeText("pt-BR", "Portuguese trading agents keep a small post here, linking Patani to their routes through Malacca and Siam."), /Agentes comerciais portugueses/);
+  assert.equal(screenTextTemplates().includes("princes and envoys sealed peace. The treasury will honor"), false);
+});
+
+test("Q and R entries distinguish money, political offices, and provisions", () => {
+  assert.equal(localizeText("ja", "Prince-Bishopric of Liege"), "リエージュ司教侯領");
+  assert.match(screenTextTranslationCatalog("pl")["Powder, provisions, and silence are all for sale. Doubloons in the cove: {0} db."], /Dublony w zatoce/);
+  assert.match(localizeText("ja", "Quebec now secures New France at the narrow passage of the St. Lawrence, sustained by shipping, fur trade, and alliances with the Innu, Algonquin, and Wendat."), /セントローレンス川の狭い水路/);
+  assert.match(localizeText("es", "Plymouth has endured at Patuxet through Wampanoag aid and an uneasy alliance; English provisions alone would not have saved it."), /provisiones inglesas/);
+  assert.equal(localizeText("zh-Hans", "Powerful yew bows shoot farther across water but require skilled archers."), "强劲的紫杉木弓射程更远，但需要熟练的弓手。");
+  assert.match(localizeText("de", "Rainier loomed above the inland waters, a massive white volcano cut by rivers of ice. Even at great distance it made the forested ridges before it seem small."), /ließ er die bewaldeten Rücken davor klein erscheinen/);
 });
 
 test("every authored screen-text template is committed to the localization catalog", () => {

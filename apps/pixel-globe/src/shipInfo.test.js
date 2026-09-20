@@ -322,7 +322,7 @@ test("ship papers list each player-owned shipyard partnership", () => {
   const paper = view.papers.find((entry) => entry.kind === "shipyard-ownership");
   assert.equal(paper.title, "Cadiz shipyard partnership");
   assert.equal(paper.issuer, "Cadiz master shipwrights");
-  assert.match(paper.detail, /dividends payable at the yard/);
+  assert.match(paper.detail, /dividends payable at the shipyard/);
   assert.equal(paper.simMinute, 1440);
 });
 

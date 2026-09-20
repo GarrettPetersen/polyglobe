@@ -9483,7 +9483,7 @@ export function recordTeaRacePlayerArrival(state, questId, context = {}) {
   quest.reward = quest.teaRaceWon ? quest.firstPrize : quest.finisherPrize;
   quest.stage = "arrived";
   quest.completionText = quest.teaRaceWon
-    ? "No rival pennant has reached the Thames. Your chests hold London's first new tea of the year."
+    ? "No rival ship has reached the Thames. Your chests carry the first tea delivery of the year to London."
     : "Another racing ship has unloaded, but the first-crop buyers still offer a finishing premium.";
   recordDecision(state, `quest.tea-race.${quest.teaRaceWon ? "won" : "finished"}.${quest.id}`, 1);
   return quest;

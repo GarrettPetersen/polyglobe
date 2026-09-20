@@ -191,7 +191,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
     "Creation and destruction from one furnace. Mark the fresh flows separately from the cultivated slopes; the island's prosperity and danger share a source."
   ),
   "mountain-mount-olympus-n40p08325-e22p35012": exchange(
-    "Olympus is not one neat summit but a crown of ravines, cliffs, and high peaks frequently hidden in cloud. From the sea it truly seems to possess its own weather.",
+    "Olympus is not a single peak but a crown of ravines, cliffs, and high summits often hidden in cloud. From the sea it seems to have weather of its own.",
     "No wonder poets placed a court of gods there. We shall keep the old stories beside your measured bearings; imagination is also evidence of how a place commands people."
   ),
   "mountain-ben-nevis": exchange(
@@ -203,7 +203,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
     "Five peaks rather than one: preserve their order. A careful sequence of silhouettes may identify the mountain from routes that never share the same view."
   ),
   "mountain-nanga-parbat": exchange(
-    "Nanga Parbat rises in one overwhelming sweep above the Indus country, its bare lower walls giving way to hanging ice. The face seemed tall enough to contain several climates.",
+    "Nanga Parbat rises in one overwhelming sweep above the Indus country, its bare lower slopes giving way to hanging ice. Its immense face seemed to contain several climates.",
     "A naked mountain indeed, displaying its structure instead of hiding among neighboring peaks. Your section of the valley and face may be our most instructive mountain drawing."
   ),
   "mountain-mount-ararat": exchange(
@@ -211,7 +211,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
     "Then set the stories beside the observations and confuse neither for the other. A good atlas has room for what people believe as well as what a captain measures."
   ),
   "mountain-mount-rainier": exchange(
-    "Rainier loomed above the inland waters, a massive white volcano cut by rivers of ice. Even at great distance it dwarfed the forested ridges in front of it.",
+    "Rainier loomed above the inland waters, a massive white volcano cut by rivers of ice. Even at great distance it made the forested ridges before it seem small.",
     "A glacier-clad beacon for the whole sound. Note the river mouths below; all that ice must send its influence far beyond the mountain."
   )
 }));

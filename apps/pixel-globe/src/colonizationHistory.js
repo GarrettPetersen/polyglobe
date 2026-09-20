@@ -10,7 +10,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "royal surveyor",
     settlementLeaderRole: "governor of the City of Kings",
     basis: "Pizarro founded the City of Kings in 1535 on Taulichusco's lands in the Rimac valley.",
-    pitch: "Pizarro chose the cultivated Rimac valley, ruled by curaca Taulichusco, for his City of Kings. The city must be taken and planted upon inhabited ground.",
+    pitch: "Pizarro chose the cultivated Rimac valley, ruled by curaca Taulichusco, for his City of Kings. The city must be seized and established on inhabited ground.",
     fetch: [
       stage("survey-camp", "linen-cloth", 6, "field tents, map cases, and the first chapel", "The survey party must work between the river and the old roads. Bring"),
       stage("city-grid", "timber", 8, "stakes, bridgework, and frames around the new plaza", "The plaza has been measured over the existing settlement. Its grid now needs"),
@@ -27,7 +27,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "Pernambuco harbor factor",
     settlementLeaderRole: "harbor factor of Recife",
     basis: "Recife grew around the arrecife dos navios as the reef-sheltered warehouse port for Olinda and Pernambuco sugar.",
-    pitch: "Olinda has poor anchorage. Behind the reef, fishers and stores gather at the arrecife dos navios. Pernambuco needs a harbor for sugar and mill gear.",
+    pitch: "Olinda has poor anchorage. Beyond the reef, fishers and merchants gather at Arrecife dos Navios. Pernambuco needs a harbor for sugar and mill equipment.",
     fetch: [
       stage("reef-wharves", "timber", 8, "wharves and warehouses behind the sheltering reef", "The reef breaks the Atlantic swell, but cargo still needs dry footing. Bring"),
       stage("warehouse-fittings", "iron", 5, "cranes, locks, hoops, and sugar-mill repairs", "The first warehouses stand between the Capibaribe and Beberibe. Fit them with"),
@@ -192,7 +192,7 @@ const HISTORIES = Object.freeze([
       grantedFeedback: "The court and Omura envoys have accepted terms for a Japanese trading port at Nagasaki."
     },
     resupply: resupply("silk-cloth", 6, "the Macau-Japan trade on which the new port depends", "Nagasaki needs a China-trade cargo, not another load of European promises.", "The six streets are filling, but no port built for the great ship can prosper while its warehouses are empty.", "Macau silk is in the warehouses; Nagasaki's reason for being is now visible on its quays."),
-    established: "Nagasaki is a Japanese port transformed by the annual Portuguese ship, its six streets shared by local officials, Jesuits, and foreign factors."
+    established: "Nagasaki is a Japanese port reshaped by the annual arrival of a Portuguese ship. Its six streets are shared by local officials, Jesuits, and foreign trading factors."
   }),
   history("luanda|angola", {
     sponsorRole: "agent of Paulo Dias de Novais",
@@ -321,7 +321,7 @@ const HISTORIES = Object.freeze([
     landing: "The high ground commands the narrows called Quebec. We will build the Habitation here and enter an alliance system far older than this fort.",
     landingAction: "Build the Quebec Habitation",
     resupply: resupply("grain", 12, "the Habitation after its deadly first winter", "Quebec needs grain before ice closes the St. Lawrence.", "The post survived, but scurvy and cold have left too few hands for a confident harvest.", "The grain is inside the Habitation before freeze-up."),
-    established: "Quebec now anchors New France at the river narrows, sustained by shipping, fur trade, and alliances with the Innu, Algonquin, and Wendat."
+    established: "Quebec now secures New France at the narrow passage of the St. Lawrence, sustained by shipping, fur trade, and alliances with the Innu, Algonquin, and Wendat."
   }),
   history("st. george's|bermuda", {
     sponsorRole: "Virginia Company island promoter",
@@ -374,7 +374,7 @@ const HISTORIES = Object.freeze([
     landing: "This is Patuxet, a Wampanoag town emptied by pestilence. If Plymouth survives here, it will owe much to Wampanoag corn, counsel, and alliance.",
     landingAction: "Settle at Patuxet",
     resupply: resupply("grain", 14, "survivors of the first winter and the next planting", "Plymouth needs grain after a winter that spared very few households.", "The settlement stands among the cleared fields of Patuxet, but illness and hunger have taken a terrible share.", "The grain has arrived; the survivors can plant without immediately consuming their seed."),
-    established: "Plymouth has endured at Patuxet through Wampanoag aid and an uneasy alliance; English stores alone would not have saved it."
+    established: "Plymouth has endured at Patuxet through Wampanoag aid and an uneasy alliance; English provisions alone would not have saved it."
   }),
   history("new amsterdam|united states of america", {
     organizerReligionId: "reformed-protestant",
@@ -498,7 +498,7 @@ const HISTORIES = Object.freeze([
     landing: "This is Quinnipiac land and harbor. The company will establish New Haven here under its agreement with local leaders and its own unusually strict covenant.",
     landingAction: "Lay out New Haven",
     resupply: resupply("grain", 12, "the planned town while its farms and trade develop", "New Haven needs grain; its ordered squares do not yet produce an ordered harvest.", "The meetinghouse and wharf stand, but the merchant venture has not fed the settlement.", "The grain is stored; New Haven has another year to make its port succeed."),
-    established: "New Haven now stands at Quinnipiac as a rigorously planned Puritan merchant colony, its nine-square order clearer than its commercial future."
+    established: "New Haven now stands at Quinnipiac as a rigorously planned Puritan merchant colony. Its nine-square grid is clearer than its commercial future."
   }),
   history("ville-marie|canada", {
     sponsorRole: "agent of the Societe Notre-Dame",
@@ -549,7 +549,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "agent of William Penn",
     settlementLeaderRole: "steward of Philadelphia",
     basis: "William Penn planned Philadelphia in 1682 between the Delaware and Schuylkill as a Quaker capital and commercial port, negotiating land with Lenape leaders.",
-    pitch: "Penn's Holy Experiment promises Quaker refuge and a green city on the Delaware. His charter still requires negotiation with the Lenape.",
+    pitch: "Penn's Holy Experiment promises Quaker refuge and a green, spacious city along the Delaware. His charter still needs Lenape agreement.",
     fetch: [
       stage("penn-grid", "timber", 10, "wharves, houses, and the first streets of Penn's spacious grid", "Penn wants a green country town rather than another crowded London. Build it with"),
       stage("delaware-trade", "wool-cloth", 8, "trade and the obligations of Lenape land agreements", "Peaceful language must be matched by useful and fairly delivered goods. Supply"),
@@ -560,7 +560,7 @@ const HISTORIES = Object.freeze([
     landing: "The ground between the Delaware and Schuylkill suits Penn's grid. We will lay out Philadelphia here, subject to agreements that recognize Lenape ownership and presence.",
     landingAction: "Lay out Philadelphia",
     resupply: resupply("wool-cloth", 8, "trade obligations and the city's rapidly arriving settlers", "Philadelphia needs trade cloth as new land agreements and households multiply.", "The grid fills faster than expected, and every new survey creates another obligation to neighbors already here.", "The trade goods are accounted for; Philadelphia can grow without beginning by defaulting on its promises."),
-    established: "Philadelphia has become Penn's planned Quaker capital and Delaware port, its early peace resting on toleration and negotiated relations with the Lenape."
+    established: "Philadelphia has become Penn's planned Quaker capital in Pennsylvania and a major Delaware River port. Its early peace depended on tolerance and negotiated relations with the Lenape."
   })
 ]);
 

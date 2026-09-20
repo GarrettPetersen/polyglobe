@@ -527,7 +527,7 @@ function shipPapers(gameState, ownedShipyards) {
         title: `${yard.portName} shipyard partnership`,
         issuer: `${yard.portName} master shipwrights`,
         route: "Ownership",
-        detail: "Partnership indenture; dividends payable at the yard.",
+        detail: "Partnership indenture; dividends payable at the shipyard.",
         effect: null,
         simMinute: yard.playerBacking.investedMinute
       };

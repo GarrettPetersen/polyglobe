@@ -5187,7 +5187,7 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
   );
   const customsNotice = pendingCustomsNotice(session, city, gameState, tradeAccess);
   const statusText = pirateHideout
-    ? `Powder, provisions, and silence are all for sale. Cove specie: ${market.specie} db.`
+    ? `Powder, provisions, and silence are all for sale. Doubloons in the cove: ${market.specie} db.`
     : session.disguisedEntry
     ? `Keep your disguise intact. Market specie: ${market.specie} db.`
     : tradeAccess.restricted && !tradeAccess.allowed
@@ -8868,7 +8868,7 @@ function wokouHuntQuestView(session, questState, returnNodeId, gameState, city) 
       ? `The commission for ${quest.patrolName} has been recalled. Return to ${quest.originName} to close the account.`
       : quest.stage === "return"
       ? `The wokou are defeated. Return to ${quest.originName} for the court's reward.`
-      : `Patrol the waters near ${quest.patrolName}. Sink the marked wokou vessel or force its surrender. Pirates require no letter of marque.`,
+      : `Patrol the waters near ${quest.patrolName}. Sink the marked wokou vessel or force its surrender. Pirates need no letter of marque.`,
     feedback: session.feedback,
     options: [back]
   };

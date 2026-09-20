@@ -17,7 +17,7 @@ const ANIMAL_REPORTS = new Map(Object.entries({
   ),
   otter: exchange(
     "The otter swam on its back with a fish clasped to its chest, then slid down the muddy bank and returned to do it again for no purpose I could discern.",
-    "Natural philosophers too often deny beasts any action without grim necessity. I am prepared to enter play among the otter's observable habits."
+    "Natural philosophers too often deny beasts any action beyond bare necessity. I intend to study the otter's observable habits firsthand."
   ),
   chipmunk: exchange(
     "The little striped creature filled its cheeks until its head seemed twice its proper width, then carried the hoard into a burrow beneath the roots.",

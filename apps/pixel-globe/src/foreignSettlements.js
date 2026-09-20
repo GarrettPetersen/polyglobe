@@ -65,7 +65,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
     country: "Thailand",
     factionId: "portugal",
     label: "Portuguese trading post",
-    factorText: "Portuguese factors keep a small trading post here, joining Patani to their routes through Malacca and Siam."
+    factorText: "Portuguese trading agents keep a small post here, linking Patani to their routes through Malacca and Siam."
   }),
   settlement({
     id: "portuguese-cochin",

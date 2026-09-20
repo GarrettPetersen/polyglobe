@@ -83,7 +83,7 @@ export const PERK_ITEMS = Object.freeze([
     "item:katana", { portAssaultMeleeDamageMultiplier: 1.16 }, ["japan"]),
   item("padded-jack", "Padded Jack", "A quilted coat gives a landing party useful protection without slowing it badly.", 800, 1,
     "item:padded-jack", { portAssaultArmorCoverageFlat: 0.06 }, ["global"]),
-  item("brigandine", "Brigandine", "Overlapping plates riveted inside cloth turn blades while leaving a marine mobile.", 1900, 2,
+  item("brigandine", "Brigandine", "Overlapping plates riveted inside cloth can turn aside blades while keeping a sailor mobile.", 1900, 2,
     "item:brigandine", { portAssaultArmorCoverageFlat: 0.16 }, ["europe"]),
   item("indo-persian-mail", "Indo-Persian Mail", "A shirt of fine linked rings protects fighting hands from cuts and arrows.", 1850, 2,
     "item:indo-persian-mail", { portAssaultArmorCoverageFlat: 0.14 }, ["islamic", "south-asia"]),

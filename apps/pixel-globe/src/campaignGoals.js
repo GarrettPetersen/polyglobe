@@ -1302,7 +1302,7 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "We supplied horses and grain when the frontier rose in alarm. The court settled with the Sultan before it settled with us."
   ),
   ragusa: debtOrigin(
-    "Ragusa pays for peace with every great power. Your family merely added one more payment.",
+    "Ragusa pays every great power for peace. Your family merely added another instalment.",
     "We guaranteed a caravan under the Republic's seal. Its cargo vanished inland, while the guarantee returned to our door."
   ),
   hejaz: debtOrigin(

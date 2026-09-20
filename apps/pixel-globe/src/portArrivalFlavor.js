@@ -76,7 +76,7 @@ const REGIONAL_PORT_LINES = Object.freeze({
     ]),
     ordinary: Object.freeze([
       "Caravans meet the boats at this quay, so news of a useful cargo travels inland quickly.",
-      "Ox carts wait beyond the landing; anything unloaded here will be quoted in inland markets before sunset."
+      "Ox carts wait inland from the quay; anything unloaded here will be priced in inland markets before sunset."
     ])
   }),
   "southeast-asian": Object.freeze({
@@ -339,7 +339,7 @@ function namedRemotePortLine(city, shipLabel, localHull, returning) {
   if (name === "gao") {
     if (returning) return "Your sail is known at Gao now. Niger boatmen have already carried word of your return along the landing.";
     return localHull
-      ? "Niger boats, salt caravans, and court messengers crowd Gao's landing; news of every arrival moves quickly through the market."
+      ? "Boats on the Niger, salt caravans, and court messengers crowd Gao's river landing; news of every arrival moves quickly through the market."
       : `A ${shipLabel} from the outer ocean has reached Gao. Niger boatmen and court merchants are crowding the landing to learn what route brought you here.`;
   }
   return null;

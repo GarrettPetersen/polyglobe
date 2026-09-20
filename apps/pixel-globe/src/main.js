@@ -24224,7 +24224,7 @@ function maybeOpenColonizationAftermathPortDialogue(cityCall) {
       rightCharacter: captain,
       speakerCharacter: captain,
       expressionId: "thoughtful",
-      message: "No bodies, no sign of hurried flight. The houses were dismantled, and the word CROATOAN was carved as a destination."
+      message: "No bodies or sign of a hurried flight. The houses were dismantled; CROATOAN was carved into a post, perhaps naming their destination."
     }),
     pairedCharacterAlertStep({
       leftCharacter: factor,
