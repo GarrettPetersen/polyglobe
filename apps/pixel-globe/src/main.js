@@ -1778,6 +1778,7 @@ import {
   resolveShipCollision,
   separateTouchingShips
 } from "./shipCollision.js";
+import { combatEntryCollisionGraceForPair } from "./combatCollisionGrace.js";
 import {
   resolveWhaleRamCollision,
   whaleRamAppliedDamage,
@@ -4029,6 +4030,7 @@ const playerFriendlyFireIncidents = new Map();
 const playerFriendlyFirePenaltyFactionIds = new Set();
 const shipCollisionCooldowns = new Map();
 const shipCombatEntryCollisionGrace = new Map();
+const shipCombatEntryOverlapGracePairs = new Set();
 let pendingNpcCombatHailId = null;
 const pendingDamageSurrenderDecisions = [];
 const shoreBatteryStates = new Map();
@@ -18448,6 +18450,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   playerFriendlyFirePenaltyFactionIds.clear();
   shipCollisionCooldowns.clear();
   shipCombatEntryCollisionGrace.clear();
+  shipCombatEntryOverlapGracePairs.clear();
   playerHaulBlockedSeconds = 0;
   playerBoundaryAssistContact = null;
   playerBoundaryProbeCache = null;
@@ -28882,7 +28885,7 @@ function applyShipDialogueAction(npcShipId, action) {
     return;
   }
   if (action.type === "capture-surrendered-ship") {
-    void captureSurrenderedShip(npcShipId);
+    void captureSurrenderedShip(npcShipId, action.dismissedMemberIds || []);
     return;
   }
   if (action.type === "attack") {
@@ -28939,7 +28942,7 @@ function releaseDamageSurrender(npcShipId) {
   saveVoyageNow("released a surrendered ship");
 }
 
-async function captureSurrenderedShip(npcShipId) {
+async function captureSurrenderedShip(npcShipId, dismissedMemberIds = []) {
   if (surrenderedShipCapturePendingId) return;
   const session = dialogueState;
   if (
@@ -28953,9 +28956,14 @@ async function captureSurrenderedShip(npcShipId) {
   }
   const candidateSlug = session.prize.candidateShipSlug;
   const strategic = npcSeaRoutes.shipById.get(npcShipId);
+  const pendingDismissals = [];
   const recoverCaptureFailure = (error, notice = null) => {
     // Never soft-recover after the player hull has already been replaced.
     if (gameState?.ship?.slug === candidateSlug) return false;
+    if (pendingDismissals.length > 0) {
+      restoreDismissedCrew(gameState, pendingDismissals);
+      pendingDismissals.length = 0;
+    }
     if (!restoreFailedSurrenderedShipCapture(session, error)) return false;
     showSurvivalNotice(
       (notice || playerFacingSurrenderedShipCaptureFailure(error)).toUpperCase(),
@@ -28967,6 +28975,9 @@ async function captureSurrenderedShip(npcShipId) {
   };
   try {
     assertSurrenderedNpcPrizeReadyForCapture(strategic, candidateSlug, npcShipId);
+    for (const memberId of dismissedMemberIds) {
+      pendingDismissals.push(dismissCrewMember(gameState, memberId));
+    }
     assertSurrenderedPrizeCaptureEligible(gameState, candidateSlug);
   } catch (error) {
     if (recoverCaptureFailure(error)) return;
@@ -29006,6 +29017,7 @@ async function captureSurrenderedShip(npcShipId) {
         const abandonedCargoQuantity = Object.values(deferredLoot.remainingCargo)
           .reduce((sum, quantity) => sum + quantity, 0);
         captureSurrenderedNpcShip(npcSeaRoutes, npcShipId, Math.floor(weatherClockMinutes));
+        pendingDismissals.length = 0;
         if (strategic.factionId === PIRATE_FACTION_ID) recordPirateLoss(gameState, "ship");
         deleteNpcVisualShipState(npcShipId);
         shipCombatEntryCollisionGrace.delete(npcShipId);
@@ -41921,6 +41933,7 @@ function updateCombatShipCollisions(dt) {
   };
   let changed = false;
   const checkedPairs = new Set();
+  const retainedOverlapGracePairs = new Set();
   for (const aId of ids) {
     const point = combatEntityPoint(aId);
     if (!point) continue;
@@ -41941,11 +41954,19 @@ function updateCombatShipCollisions(dt) {
       const a = bodyForId(aId);
       const b = bodyForId(bId);
       if (!a || !b) continue;
-      const collisionGrace = shipCombatEntryCollisionGrace.has(a.id) || shipCombatEntryCollisionGrace.has(b.id);
-      const broadPhaseRange = a.radius + b.radius + (collisionGrace ? SHIP_COMBAT_ENTRY_SEPARATION_PX : 0);
       const dx = b.x - a.x;
       const dy = b.y - a.y;
-      if (dx * dx + dy * dy > broadPhaseRange * broadPhaseRange) continue;
+      const distanceSquared = dx * dx + dy * dy;
+      const touchingRange = a.radius + b.radius;
+      const entryGrace = shipCombatEntryCollisionGrace.has(a.id) || shipCombatEntryCollisionGrace.has(b.id);
+      const collisionGrace = combatEntryCollisionGraceForPair(
+        shipCombatEntryOverlapGracePairs,
+        pair,
+        { entryGrace, distanceSquared, touchingRange }
+      );
+      if (shipCombatEntryOverlapGracePairs.has(pair)) retainedOverlapGracePairs.add(pair);
+      const broadPhaseRange = touchingRange + (collisionGrace ? SHIP_COMBAT_ENTRY_SEPARATION_PX : 0);
+      if (distanceSquared > broadPhaseRange * broadPhaseRange) continue;
       if (collisionGrace) {
         const separation = separateTouchingShips(a, b, SHIP_COMBAT_ENTRY_SEPARATION_PX);
         if (separation) {
@@ -41968,8 +41989,14 @@ function updateCombatShipCollisions(dt) {
         playCannonImpactSound(0);
       }
       changed = true;
-      if (gameOverReason) return true;
+      if (gameOverReason) {
+        shipCombatEntryOverlapGracePairs.clear();
+        return true;
+      }
     }
+  }
+  for (const pair of shipCombatEntryOverlapGracePairs) {
+    if (!retainedOverlapGracePairs.has(pair)) shipCombatEntryOverlapGracePairs.delete(pair);
   }
   return changed;
 }

@@ -1092,7 +1092,10 @@ export function snapshotNpcSeaRouteSystem(system) {
   reconcileNpcFleetCargo(system, "route snapshot");
   return {
     version: NPC_SEA_ROUTE_SNAPSHOT_VERSION,
-    ships: cloneJsonData(system.ships),
+    // Local visual navigation belongs to the current chart projection. Restoring
+    // it after login strands quest markers at the last rendered position while
+    // the strategic route continues from its authoritative plan.
+    ships: system.ships.map((ship) => ({ ...cloneJsonData(ship), visualNavigation: null })),
     replacementQueue: cloneJsonData(system.replacementQueue),
     capitalNavalReserveSlots: cloneJsonData(system.capitalNavalReserveSlots),
     pirateHideoutDangerUntil: [...system.pirateHideoutDangerUntil.entries()]

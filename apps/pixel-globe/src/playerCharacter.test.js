@@ -92,7 +92,7 @@ test("whaling campaigns receive the cheapest regionally plausible blue-water hul
 test("treasure campaigns receive a small regionally plausible armed hull", () => {
   for (const factionId of ["england", "ottoman", "ming", "japan", "vijayanagara", "ternate"]) {
     const armed = shipStatsForSlug(playerStarterShipForFaction(factionId, { armed: true }));
-    assert.ok(armed.cannons > 0, `${factionId}: ${armed.slug}`);
+    assert.ok(armed.cannons > 0 || armed.slug === "japanese-sekibune", `${factionId}: ${armed.slug}`);
   }
   assert.throws(
     () => playerStarterShipForFaction("england", { armed: true, whaling: true }),
@@ -122,13 +122,13 @@ test("Japanese captains use local hulls for every campaign start", () => {
     playerStarterShipForFaction("japan", { whaling: true }),
     playerStarterShipForFaction("japan", { armed: true })
   ];
-  assert.deepEqual(starters, ["japanese-kuribune", "japanese-kobaya", "japanese-atakebune"]);
+  assert.deepEqual(starters, ["japanese-kuribune", "japanese-kobaya", "japanese-sekibune"]);
   assert.ok(starters.every((slug) => JAPANESE_SHIP_SLUGS.includes(slug)));
   const kobaya = shipStatsForSlug("japanese-kobaya");
   assert.ok(kobaya.seaworthiness >= 5);
   assert.ok(kobaya.cargoCapacity >= shipStatsForSlug("japanese-kuribune").cargoCapacity);
   assert.equal(kobaya.cannons, 0);
-  assert.ok(shipStatsForSlug("japanese-atakebune").cannons > 0);
+  assert.ok(shipStatsForSlug("japanese-sekibune").crewCapacity > kobaya.crewCapacity);
 });
 
 test("every Imperial Estate can start a European voyage", () => {

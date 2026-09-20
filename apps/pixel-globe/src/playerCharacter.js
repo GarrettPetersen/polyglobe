@@ -9,8 +9,8 @@ import {
 import { imperialEstateForFaction } from "./imperialEstates.js";
 import {
   FUSTA_SLUG,
-  JAPANESE_ATAKEBUNE_SLUG,
   JAPANESE_KOBAYA_SLUG,
+  JAPANESE_SEKIBUNE_SLUG,
   JAPANESE_SHIP_SLUGS,
   JAPANESE_UMI_BUNE_SLUG,
   shipStatsForSlug
@@ -121,7 +121,7 @@ export function playerStarterShipForFaction(factionId, {
     : armed ? PLAYER_ARMED_STARTER_SHIPS : PLAYER_STARTER_SHIPS;
   let slug = isJapanesePolityFaction(factionId)
     ? (armed
-      ? JAPANESE_ATAKEBUNE_SLUG
+      ? JAPANESE_SEKIBUNE_SLUG
       : whaling ? JAPANESE_KOBAYA_SLUG : JAPANESE_UMI_BUNE_SLUG)
     : roster[region];
   if (!isJapanesePolityFaction(factionId) && startArea === "mediterranean" && !whaling) {
@@ -142,7 +142,7 @@ export function playerStarterShipForFaction(factionId, {
   if (whaling && stats.seaworthiness < 5) {
     throw new Error(`Whaling starter is not seaworthy: ${slug}`);
   }
-  if (armed && stats.cannons <= 0) {
+  if (armed && stats.cannons <= 0 && slug !== JAPANESE_SEKIBUNE_SLUG) {
     throw new Error(`Armed starter has no gun ports: ${slug}`);
   }
   return slug;

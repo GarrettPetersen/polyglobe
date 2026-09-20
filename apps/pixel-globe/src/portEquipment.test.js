@@ -132,3 +132,16 @@ test("native pre-contact ports do not invent cannon merchandise", () => {
   const colonized = { ...chanchan, factionId: "spain" };
   assert.equal(nativePreContactPortCannotBuildCannons(colonized, EQUIPMENT_STOCK_CANNON), false);
 });
+
+test("villages carry only basic nets and harpoons and no cannon improvements", () => {
+  const village = { ...PORTS[0], cityId: "test-village|test", settlementType: "village", lat: 12, lon: 34 };
+  const economy = createWorldEconomy({ ports: [village], startMinute: 0 });
+  assert.deepEqual(
+    equipmentStockAtPort(economy, village, EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT),
+    []
+  );
+  assert.ok(equipmentStockAtPort(economy, village, EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS)
+    .every((item) => item.tier === 1));
+  assert.ok(equipmentStockAtPort(economy, village, EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS)
+    .every((item) => item.tier === 1));
+});

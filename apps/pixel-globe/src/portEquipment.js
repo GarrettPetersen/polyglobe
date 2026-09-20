@@ -40,6 +40,10 @@ export function equipmentAvailableAtPort(economy, city, kind, equipment) {
   assertEquipmentKind(kind);
   assertEquipment(equipment);
   if (equipment.tier === 0) return false;
+  if (city?.settlementType === "village") {
+    if (kind === EQUIPMENT_STOCK_CANNON) return false;
+    if (equipment.tier > 1) return false;
+  }
   if (nativePreContactPortCannotBuildCannons(city, kind)) return false;
   if (equipmentSpecialistAtPort(city, kind)) return true;
   const threshold = TIER_PROSPERITY_THRESHOLDS[equipment.tier];

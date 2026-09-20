@@ -243,6 +243,11 @@ const ALLIANCES_1522 = Object.freeze([
 ]);
 
 const FRIENDSHIPS_1522 = Object.freeze([
+  // The Wendish Hanseatic cities remained separate governments, but shared
+  // institutions and commercial defense warrant a friendly baseline.
+  ["lubeck", "hamburg"],
+  ["lubeck", "bremen"],
+  ["hamburg", "bremen"],
   ["england", "portugal"],
   ["spain", "portugal"],
   ["burgundian-netherlands", "portugal"],

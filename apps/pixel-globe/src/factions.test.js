@@ -99,6 +99,9 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
   assert.equal(diplomacyBetween("sweden", "denmark-norway"), DIPLOMACY_WAR);
   assert.equal(diplomacyBetween("sweden", "habsburg"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("papal-states", "hospitallers"), DIPLOMACY_FRIENDLY);
+  assert.equal(diplomacyBetween("lubeck", "hamburg"), DIPLOMACY_FRIENDLY);
+  assert.equal(diplomacyBetween("lubeck", "bremen"), DIPLOMACY_FRIENDLY);
+  assert.equal(diplomacyBetween("hamburg", "bremen"), DIPLOMACY_FRIENDLY);
   assert.equal(diplomacyBetween("venice", "genoa"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("ternate", "spain"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("ternate", "portugal"), DIPLOMACY_NEUTRAL);

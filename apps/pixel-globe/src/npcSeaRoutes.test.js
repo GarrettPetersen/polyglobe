@@ -3273,6 +3273,12 @@ test("the annual tea race launches five distinct wind-routed merchants for Londo
   assert.ok(racers.every((ship) => ship.plan.destination.tileId === london.tileId));
   assert.ok(racers.every((ship) => ship.cargo.tea === TEA_RACE_CARGO_QUANTITY));
   assert.ok(racers.every((ship) => ship.plan.endMinute > ship.plan.startMinute));
+  setNpcShipVisualNavigation(routes, racers[0].id, [1, 0, 0], [0, 1, 0]);
+  assert.equal(
+    snapshotNpcSeaRouteSystem(routes).ships.find((ship) => ship.id === racers[0].id).visualNavigation,
+    null,
+    "save snapshots discard chart-local positions so race waypoints restore from strategic routes"
+  );
 });
 
 test("pirate hideouts are explicit independent catalog ports", () => {

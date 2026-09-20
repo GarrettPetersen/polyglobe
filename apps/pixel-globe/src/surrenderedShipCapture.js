@@ -1,6 +1,7 @@
 import { playerShipReplacementEligibility } from "./gameState.js";
 import { vikingLongshipTradeInPlan } from "./vikingLongshipQuest.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { permanentCrewFloor } from "./namedCrew.js";
 
 // Escape / back from port dialogue returns to the city scene only while that
 // scene is live. Ship dialogue at sea has no portCityView; callers must not
@@ -23,6 +24,35 @@ export function surrenderedPrizeCaptureDisabledReason(gameState, candidateShipSl
     { departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || [] }
   );
   return replacement.eligible ? null : replacement.disabledReason;
+}
+
+export function surrenderedPrizeCrewDismissalPlan(gameState, candidateShipSlug) {
+  if (!gameState?.ship) throw new Error("Surrendered prize crew plan requires player ship state");
+  const candidateStats = shipStatsForSlug(candidateShipSlug);
+  const capacity = candidateStats.crewCapacity;
+  const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
+  const departingIds = new Set(vikingTradeIn?.departingNamedCrewIds || []);
+  const departingNamedCrewCount = gameState.namedCrew.filter((member) => departingIds.has(member.id)).length;
+  const committedCrew = permanentCrewFloor(gameState) - departingNamedCrewCount;
+  if (committedCrew > capacity) return null;
+  const crewAfterDepartures = gameState.ship.crew - departingNamedCrewCount;
+  const dismissalsRequired = Math.max(0, crewAfterDepartures - capacity);
+  if (dismissalsRequired > gameState.crewRoster.length) return null;
+  if (dismissalsRequired > 0) {
+    const previewState = {
+      ...gameState,
+      ship: { ...gameState.ship, crew: gameState.ship.crew - dismissalsRequired },
+      crewRoster: gameState.crewRoster.slice(0, gameState.crewRoster.length - dismissalsRequired)
+    };
+    const replacement = playerShipReplacementEligibility(previewState, candidateStats, {
+      departingNamedCrewIds: [...departingIds]
+    });
+    if (!replacement.eligible) return null;
+  }
+  return Object.freeze({
+    targetCrew: capacity,
+    dismissalsRequired
+  });
 }
 
 export function assertSurrenderedNpcPrizeReadyForCapture(strategic, candidateSlug, npcShipId) {

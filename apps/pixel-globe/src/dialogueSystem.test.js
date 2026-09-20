@@ -1020,7 +1020,7 @@ test("a surrendered prize cannot replace the player with a hold that is too smal
   assert.match(session.feedback, /will not fit its \d+-unit hold/);
 });
 
-test("a surrendered prize cannot replace the player when crew will not fit", () => {
+test("a smaller surrendered prize opens reversible crew selection before confirmation", () => {
   const ship = {
     id: "tiny-crew-prize",
     slug: "fishing-lugger",
@@ -1045,9 +1045,51 @@ test("a surrendered prize cannot replace the player when crew will not fit", () 
     cargoUsed: cargoUsed(playerHull)
   });
   selectShipDialogueOption(session, ship, 0);
+  let view = shipDialogueView(session, ship, playerHull);
+  assert.equal(view.options[0].disabled, false);
+  selectShipDialogueOption(session, ship, 0, playerHull);
+  view = shipDialogueView(session, ship, playerHull);
+  assert.equal(view.options[0].disabled, false);
+  selectShipDialogueOption(session, ship, 0, playerHull);
+  view = shipDialogueView(session, ship, playerHull);
+  assert.match(view.text, /No dismissal is permanent until you confirm/i);
+  assert.ok(view.options.some((option) => option.label === "Undo all"));
+  assert.ok(view.options.some((option) => /Confirm dismissals and take/i.test(option.label)));
+});
+
+test("crew dismissal is not offered when cargo would still prevent taking the prize", () => {
+  const ship = {
+    id: "overloaded-tiny-prize",
+    slug: "fishing-lugger",
+    hitPoints: 4,
+    maxHitPoints: 4,
+    combatGrace: true,
+    character: { name: "Amina Haddad" }
+  };
+  const currentStats = shipStatsForSlug("galleon");
+  const playerHull = createGameState({ shipStats: currentStats, cargoCapacity: currentStats.cargoCapacity });
+  initializeProvisionalShipLoadout(playerHull, currentStats);
+  setTestCrewCount(playerHull, 40);
+  playerHull.cargo = { amber: 100 };
+  playerHull.accounts.cargoCostBasis = { amber: 100 };
+  playerHull.survival.freshWater = 0;
+  playerHull.ship.cannons = 0;
+
+  const session = prepareSurrenderPrizeDialogue(null, ship, {
+    slug: "galleon",
+    hitPoints: currentStats.hitPoints,
+    maxHitPoints: currentStats.hitPoints,
+    cargoUsed: cargoUsed(playerHull)
+  });
+  selectShipDialogueOption(session, ship, 0);
   const view = shipDialogueView(session, ship, playerHull);
   assert.equal(view.options[0].disabled, true);
-  assert.match(view.options[0].disabledReason, /Dismiss .* crew|berths/i);
+  assert.match(view.options[0].disabledReason, /Dismiss .* crew/i);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 0, playerHull), {
+    closed: false,
+    action: null
+  });
+  assert.doesNotMatch(session.nodeId, /dismissal/);
 });
 
 test("a surrender prize accepts fractional cargo use from daily provisions", () => {

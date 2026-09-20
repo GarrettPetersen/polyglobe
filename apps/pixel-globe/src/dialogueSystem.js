@@ -299,7 +299,10 @@ import {
   vikingLongshipQuestState,
   vikingLongshipTradeInPlan
 } from "./vikingLongshipQuest.js";
-import { surrenderedPrizeCaptureDisabledReason } from "./surrenderedShipCapture.js";
+import {
+  surrenderedPrizeCaptureDisabledReason,
+  surrenderedPrizeCrewDismissalPlan
+} from "./surrenderedShipCapture.js";
 import {
   COLONIZATION_CARGO_RESERVATION_ID,
   COLONIZATION_EXPEDITION_CARGO_UNITS,
@@ -1222,7 +1225,8 @@ function shipDialogueContentView(session, ship, gameState = null) {
       ]
     };
   }
-  if (session.nodeId === "prize-choice" || session.nodeId === "capture-confirm") {
+  if (session.nodeId === "prize-choice" || session.nodeId === "capture-confirm" ||
+      session.nodeId === "capture-crew-dismissal") {
     return surrenderPrizeView(session, ship, gameState);
   }
   if (session.nodeId === "capture-loading") {
@@ -1565,6 +1569,35 @@ function surrenderPrizeView(session, ship, gameState) {
     gameState,
     presentation.candidateShipSlug
   );
+  const dismissalPlan = surrenderedPrizeCrewDismissalPlan(gameState, presentation.candidateShipSlug);
+  if (session.nodeId === "capture-crew-dismissal") {
+    const selectedIds = new Set(session.prizeCrewDismissalIds || []);
+    const required = dismissalPlan?.dismissalsRequired || 0;
+    const candidates = gameState.crewRoster.filter((member) => member.permanent !== true);
+    return {
+      speaker: `${candidate}, surrendered prize`,
+      expressionId: "afraid",
+      text: `Choose ${required} crewmate${required === 1 ? "" : "s"} to dismiss before transferring to the smaller prize. No dismissal is permanent until you confirm the transfer.`,
+      feedback: session.feedback,
+      presentation,
+      options: [
+        ...candidates.map((member) => option(
+          `${selectedIds.has(member.id) ? "Keep " : "Dismiss "}${member.name}`,
+          { type: "toggle-prize-crew-dismissal", memberId: member.id },
+          { detail: `${crewMemberExperienceStars(member)} STAR${crewMemberExperienceStars(member) === 1 ? "" : "S"}` }
+        )),
+        option("Undo all", { type: "undo-prize-crew-dismissals" }, {
+          disabled: selectedIds.size === 0,
+          disabledReason: "No dismissals selected."
+        }),
+        option(`Confirm dismissals and take ${candidate}`, { type: "confirm-prize-crew-dismissals" }, {
+          disabled: selectedIds.size !== required,
+          disabledReason: `Select exactly ${required} crewmate${required === 1 ? "" : "s"}.`
+        }),
+        option(`Keep ${current}`, { type: "close" })
+      ]
+    };
+  }
   if (session.nodeId === "capture-confirm") {
     const remainingCargo = shipCargoManifest(presentation.remainingCargo);
     return {
@@ -1578,10 +1611,14 @@ function surrenderPrizeView(session, ship, gameState) {
       feedback: session.feedback,
       presentation,
       options: [
-        option(`Confirm ${candidate}`, { type: "capture-surrendered-ship" }, {
+        option(`Confirm ${candidate}`, {
+          type: dismissalPlan?.dismissalsRequired > 0
+            ? "prepare-prize-crew-dismissal"
+            : "capture-surrendered-ship"
+        }, {
           detail: "CURRENT SHIP WILL BE REPLACED",
-          disabled: Boolean(disabledReason),
-          disabledReason
+          disabled: Boolean(disabledReason) && !dismissalPlan?.dismissalsRequired,
+          disabledReason: dismissalPlan?.dismissalsRequired ? null : disabledReason
         }),
         option(`Keep ${current}`, { type: "close" })
       ]
@@ -1605,8 +1642,8 @@ function surrenderPrizeView(session, ship, gameState) {
     options: [
       option(`Take ${candidate}`, { type: "inspect-surrendered-ship" }, {
         detail: `COMPARE WITH ${current.toUpperCase()}`,
-        disabled: Boolean(disabledReason),
-        disabledReason
+        disabled: Boolean(disabledReason) && !dismissalPlan?.dismissalsRequired,
+        disabledReason: dismissalPlan?.dismissalsRequired ? null : disabledReason
       }),
       option(`Keep ${current}`, { type: "close" }, {
         detail: remainingCargo ? "LEAVE PRIZE AND REMAINING CARGO" : null
@@ -1637,7 +1674,7 @@ export function selectShipDialogueOption(session, ship, optionIndex = session.se
     if (!isHostileShipAction(pendingAction)) throw new Error(`Invalid piracy warning action: ${pendingAction}`);
     session.pendingPiracyAction = null;
     session.piracyWarningAccepted = true;
-    return applyShipDialogueAction(session, ship, { type: pendingAction });
+    return applyShipDialogueAction(session, ship, { type: pendingAction }, gameState);
   }
   if (shipHostileActionNeedsPiracyWarning(session, ship, action)) {
     session.nodeId = "piracy-warning";
@@ -1645,7 +1682,7 @@ export function selectShipDialogueOption(session, ship, optionIndex = session.se
     session.selectedIndex = 0;
     return { closed: false, action: null };
   }
-  return applyShipDialogueAction(session, ship, action);
+  return applyShipDialogueAction(session, ship, action, gameState);
 }
 
 function assertShipDialogueSubject(session, ship) {
@@ -1653,7 +1690,7 @@ function assertShipDialogueSubject(session, ship) {
   if (!ship || session.npcShipId !== ship.id) throw new Error("Dialogue ship does not match active session");
 }
 
-function applyShipDialogueAction(session, ship, action) {
+function applyShipDialogueAction(session, ship, action, gameState) {
   if (isHostileShipAction(action.type) &&
       action.type !== "accept-damage-surrender" &&
       !shipAttackEligibilityForDialogue(ship).available) {
@@ -1764,6 +1801,46 @@ function applyShipDialogueAction(session, ship, action) {
     session.nodeId = "capture-confirm";
     session.selectedIndex = 0;
     return { closed: false, action: null };
+  }
+  if (action.type === "prepare-prize-crew-dismissal") {
+    const plan = surrenderedPrizeCrewDismissalPlan(gameState, session.prize?.candidateShipSlug);
+    if (!plan || plan.dismissalsRequired <= 0) {
+      throw new Error("Prize crew dismissal opened without excess crew");
+    }
+    session.prizeCrewDismissalIds = [];
+    session.nodeId = "capture-crew-dismissal";
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
+  if (action.type === "toggle-prize-crew-dismissal") {
+    if (session.nodeId !== "capture-crew-dismissal") {
+      throw new Error("Prize crew dismissal changed outside its review screen");
+    }
+    const member = gameState.crewRoster.find((candidate) => candidate.id === action.memberId);
+    if (!member || member.permanent === true) {
+      throw new Error(`Prize crew dismissal candidate is unavailable: ${action.memberId}`);
+    }
+    const selected = new Set(session.prizeCrewDismissalIds || []);
+    if (selected.has(member.id)) selected.delete(member.id);
+    else selected.add(member.id);
+    session.prizeCrewDismissalIds = [...selected];
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
+  if (action.type === "undo-prize-crew-dismissals") {
+    session.prizeCrewDismissalIds = [];
+    session.selectedIndex = 0;
+    return { closed: false, action: null };
+  }
+  if (action.type === "confirm-prize-crew-dismissals") {
+    const plan = surrenderedPrizeCrewDismissalPlan(gameState, session.prize?.candidateShipSlug);
+    const memberIds = [...(session.prizeCrewDismissalIds || [])];
+    if (!plan || memberIds.length !== plan.dismissalsRequired) {
+      throw new Error(`Prize crew dismissal is incomplete: ${memberIds.length}/${plan?.dismissalsRequired}`);
+    }
+    session.nodeId = "capture-loading";
+    session.selectedIndex = 0;
+    return { closed: false, action: { type: "capture-surrendered-ship", dismissedMemberIds: memberIds } };
   }
   if (action.type === "capture-surrendered-ship") {
     session.nodeId = "capture-loading";
