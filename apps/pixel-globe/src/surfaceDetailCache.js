@@ -32,6 +32,18 @@ export function surfaceDetailLayerCoversViewport(layer, viewport, tileMargin) {
   );
 }
 
+export function cachedLayerPrefetchRequired(layer, viewport, {
+  requiredMargin,
+  prefetchMargin
+}) {
+  if (!Number.isFinite(requiredMargin) || requiredMargin < 0 ||
+      !Number.isFinite(prefetchMargin) || prefetchMargin <= requiredMargin) {
+    throw new Error("Cached layer prefetch requires increasing non-negative margins");
+  }
+  return surfaceDetailLayerCoversViewport(layer, viewport, requiredMargin) &&
+    !surfaceDetailLayerCoversViewport(layer, viewport, prefetchMargin);
+}
+
 export function surfaceDetailCallsForLayer({
   tileCalls,
   riverConnectorCalls,

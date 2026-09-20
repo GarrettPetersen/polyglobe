@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  cachedLayerPrefetchRequired,
   createSurfaceDetailLayerBounds,
   surfaceDetailCallsForLayer,
   surfaceDetailCallsHaveSameGeometry,
@@ -77,6 +78,25 @@ test("surface detail cache rebuilds before the viewport reaches undrawn pixels",
     maxX: 1555,
     maxY: 2256
   }, 32), false);
+});
+
+test("cached layers prefetch before their required coverage is exhausted", () => {
+  const layer = { x: 0, y: 0, width: 400, height: 300 };
+  assert.equal(cachedLayerPrefetchRequired(layer, {
+    minX: 80, minY: 80, maxX: 320, maxY: 220
+  }, { requiredMargin: 24, prefetchMargin: 64 }), false);
+  assert.equal(cachedLayerPrefetchRequired(layer, {
+    minX: 55, minY: 80, maxX: 295, maxY: 220
+  }, { requiredMargin: 24, prefetchMargin: 64 }), true);
+  assert.equal(cachedLayerPrefetchRequired(layer, {
+    minX: 20, minY: 80, maxX: 260, maxY: 220
+  }, { requiredMargin: 24, prefetchMargin: 64 }), false);
+  assert.throws(
+    () => cachedLayerPrefetchRequired(layer, {
+      minX: 80, minY: 80, maxX: 320, maxY: 220
+    }, { requiredMargin: 24, prefetchMargin: 24 }),
+    /increasing non-negative margins/
+  );
 });
 
 test("surface detail cache covers movement on every supported viewport shape", () => {

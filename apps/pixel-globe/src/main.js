@@ -106,6 +106,7 @@ import {
   measureChartViewportTileCoverage
 } from "./chartViewportCoverage.js";
 import {
+  cachedLayerPrefetchRequired,
   createSurfaceDetailLayerBounds,
   surfaceDetailCallsForLayer,
   surfaceDetailCallsHaveSameGeometry,
@@ -3884,6 +3885,8 @@ const coralReefNearbyTileIdsCache = new Map();
 const surfaceDetailLayerCache = new WeakMap();
 const SURFACE_DETAIL_LAYER_MARGIN_PX = 96;
 const TERRAIN_CONNECTOR_LAYER_MARGIN_PX = 128;
+const TERRAIN_CONNECTOR_PREFETCH_MARGIN_PX = 64;
+const TERRAIN_CONNECTOR_PREFETCH_BUDGET_MS = 3;
 const WATER_FOREGROUND_LAYER_MARGIN_PX = 160;
 const pixelTextRasterCache = new Map();
 const pixelTextFontLayoutCache = new Map();
@@ -7296,6 +7299,10 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateShoreScavenge(nowMs)) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     chartRebuiltThisFrame = measurePerformanceBenchmarkStage("chart", () => ensureChart());
+    measurePerformanceBenchmarkStage(
+      "render.prepare.connectors",
+      () => advanceTerrainConnectorLayerPrefetch(chart)
+    );
     measurePerformanceBenchmarkStage(
       "portraits.preload",
       () => preloadNearbyPortPortraits(nowMs)
@@ -57081,6 +57088,7 @@ function projectDirectionFor(v, view, snap) {
 const terrainConnectorLayerCache = new WeakMap();
 const terrainConnectorDynamicLayerCache = new WeakMap();
 const terrainConnectorEntryCache = new WeakMap();
+let terrainConnectorLayerPrefetch = null;
 const TERRAIN_CONNECTOR_WAVE_ATLAS_MAX_WIDTH = 512;
 const TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING = 1;
 const TERRAIN_CONNECTOR_WAVE_BUILD_BUDGET_MS = 2;
@@ -57367,11 +57375,57 @@ function terrainConnectorLayer(faceCalls, activeChart) {
   return build.layer;
 }
 
-function createTerrainConnectorLayerBuild(faceCalls, activeChart) {
+function advanceTerrainConnectorLayerPrefetch(activeChart) {
+  if (!activeChart || activeChart !== chart) return false;
+  const cacheKey = worldChartRenderCacheKey(activeChart);
+  const cached = terrainConnectorLayerCache.get(cacheKey);
+  const revision = terrainConnectorLayerRevision();
+  if (terrainConnectorLayerPrefetch && (
+    terrainConnectorLayerPrefetch.cacheKey !== cacheKey ||
+    terrainConnectorLayerPrefetch.revision !== revision ||
+    terrainConnectorLayerPrefetch.baseLayer !== cached
+  )) {
+    terrainConnectorLayerPrefetch = null;
+  }
+  if (!cached) return false;
+  const offset = chartOffsetPixels(activeChart);
+  const viewport = {
+    minX: -offset.x,
+    minY: -offset.y,
+    maxX: SCREEN_W - offset.x,
+    maxY: SCREEN_H - offset.y
+  };
+  if (!terrainConnectorLayerPrefetch) {
+    if (!cachedLayerPrefetchRequired({
+      x: cached.x,
+      y: cached.y,
+      width: cached.canvas.width,
+      height: cached.canvas.height
+    }, viewport, {
+      requiredMargin: TILE_ART_SIZE,
+      prefetchMargin: TERRAIN_CONNECTOR_PREFETCH_MARGIN_PX
+    })) return false;
+    const build = createTerrainConnectorLayerBuild(activeChart.faceCalls, activeChart, {
+      forceRebuild: true
+    });
+    terrainConnectorLayerPrefetch = { ...build, baseLayer: cached };
+  }
+  const complete = advanceTerrainConnectorLayerBuild(
+    terrainConnectorLayerPrefetch,
+    TERRAIN_CONNECTOR_PREFETCH_BUDGET_MS
+  );
+  if (complete) terrainConnectorLayerPrefetch = null;
+  return complete;
+}
+
+function createTerrainConnectorLayerBuild(faceCalls, activeChart, { forceRebuild = false } = {}) {
   if (!Array.isArray(faceCalls)) throw new Error("Terrain connector layer requires face calls");
   if (!activeChart || typeof activeChart !== "object") throw new Error("Terrain connector layer requires a chart");
+  if (typeof forceRebuild !== "boolean") {
+    throw new Error("Terrain connector layer force-rebuild option must be boolean");
+  }
   const dayKey = Math.floor(weatherClockMinutes / (24 * 60));
-  const revision = `${dayKey}:${surfaceIceSettledRevision}`;
+  const revision = terrainConnectorLayerRevision();
   const cacheKey = worldChartRenderCacheKey(activeChart);
   const cached = terrainConnectorLayerCache.get(cacheKey);
   const currentWorldChart = activeChart === chart;
@@ -57380,7 +57434,7 @@ function createTerrainConnectorLayerBuild(faceCalls, activeChart) {
     entryCache = new Map();
     terrainConnectorEntryCache.set(cacheKey, entryCache);
   }
-  if (cached?.revision === revision) {
+  if (!forceRebuild && cached?.revision === revision) {
     if (!currentWorldChart && cached.faceCalls === faceCalls) {
       return { complete: true, layer: cached };
     }
@@ -57444,6 +57498,10 @@ function createTerrainConnectorLayerBuild(faceCalls, activeChart) {
     canvas: null,
     layerCtx: null
   };
+}
+
+function terrainConnectorLayerRevision() {
+  return `${Math.floor(weatherClockMinutes / (24 * 60))}:${surfaceIceSettledRevision}`;
 }
 
 function advanceTerrainConnectorLayerBuild(build, budgetMs) {

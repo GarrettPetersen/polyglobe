@@ -141,3 +141,15 @@ test("replacement, dialogue and notebook callers use their shared entry operatio
     assert.doesNotMatch(text(name), /keys\.clear\(|clearPointerSteering\(/);
   }
 });
+
+test("sailing prepares shoreline connector caches incrementally before render fallback", () => {
+  const text = name => source.statements.find(
+    node => ts.isFunctionDeclaration(node) && node.name.text === name
+  ).getText(source);
+  assert.match(text("runFrame"), /advanceTerrainConnectorLayerPrefetch\(chart\)/);
+  assert.match(
+    text("advanceTerrainConnectorLayerPrefetch"),
+    /TERRAIN_CONNECTOR_PREFETCH_BUDGET_MS/
+  );
+  assert.match(text("terrainConnectorLayer"), /advanceTerrainConnectorLayerBuild\(build, Infinity\)/);
+});
