@@ -27,3 +27,11 @@ export function dialogueActionBlockedByActivationGuard(guard, session, action, n
     action?.type === "hire-crew-member" &&
     nowMs < guard.notBeforeMs;
 }
+
+export function displayedDialogueOptionAt(options, selectedIndex) {
+  if (!Array.isArray(options)) throw new Error("Dialogue selection requires displayed options");
+  if (!Number.isInteger(selectedIndex) || selectedIndex < 0) {
+    throw new Error(`Invalid dialogue selection index: ${selectedIndex}`);
+  }
+  return options[selectedIndex] || null;
+}

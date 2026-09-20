@@ -4,7 +4,8 @@ import test from "node:test";
 import {
   ARRIVAL_RECRUITMENT_ACTIVATION_GUARD_MS,
   createArrivalRecruitmentActivationGuard,
-  dialogueActionBlockedByActivationGuard
+  dialogueActionBlockedByActivationGuard,
+  displayedDialogueOptionAt
 } from "./dialogueActivationGuard.js";
 
 test("arrival recruitment ignores a spilled hire activation without blocking its exit", () => {
@@ -40,4 +41,17 @@ test("a recruitment guard cannot block a later dialogue session", () => {
     { type: "hire-crew-member", memberId: "crew:test" },
     1000
   ), false);
+});
+
+test("stale confirm input cannot select an option absent from the displayed view", () => {
+  const option = Object.freeze({ label: "Trade", action: Object.freeze({ type: "market" }) });
+  assert.equal(displayedDialogueOptionAt([option], 0), option);
+  assert.equal(displayedDialogueOptionAt([], 0), null);
+  assert.equal(displayedDialogueOptionAt([option], 1), null);
+});
+
+test("dialogue selection rejects malformed input contracts", () => {
+  assert.throws(() => displayedDialogueOptionAt(null, 0), /displayed options/);
+  assert.throws(() => displayedDialogueOptionAt([], -1), /selection index/);
+  assert.throws(() => displayedDialogueOptionAt([], 0.5), /selection index/);
 });

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   NPC_GOSSIP_REPEAT_DAYS,
   npcGossipId,
+  reconcileNpcGossipMemory,
   recordNpcGossipHeard,
   unheardNpcGossip
 } from "./npcGossipMemory.js";
@@ -60,4 +61,25 @@ test("gossip memory rejects duplicate recording inside the cooldown", () => {
     () => recordNpcGossipHeard(decisions, HISTORY, 301),
     /repeated before its cooldown elapsed/
   );
+});
+
+test("restored gossip timestamps ahead of the voyage clock retain a fresh cooldown", () => {
+  const decisions = { unrelated: 900 };
+  recordNpcGossipHeard(decisions, HISTORY, 600);
+
+  assert.equal(reconcileNpcGossipMemory(decisions, 120), 1);
+  assert.equal(decisions.unrelated, 900, "other decision clock domains are untouched");
+  assert.equal(unheardNpcGossip(decisions, HISTORY, 120), null);
+  assert.equal(
+    unheardNpcGossip(decisions, HISTORY, 120 + NPC_GOSSIP_REPEAT_DAYS * WEATHER_MINUTES_PER_DAY),
+    HISTORY
+  );
+  assert.equal(reconcileNpcGossipMemory(decisions, 120), 0);
+});
+
+test("restored gossip reconciliation rejects corrupt timestamps", () => {
+  const decisions = {};
+  recordNpcGossipHeard(decisions, HISTORY, 10);
+  decisions[Object.keys(decisions)[0]] = Number.NaN;
+  assert.throws(() => reconcileNpcGossipMemory(decisions, 20), /Invalid NPC gossip memory/);
 });

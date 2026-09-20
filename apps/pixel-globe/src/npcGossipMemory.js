@@ -4,6 +4,24 @@ export const NPC_GOSSIP_REPEAT_DAYS = 60;
 
 const NPC_GOSSIP_DECISION_PREFIX = "npc-gossip-heard";
 
+export function reconcileNpcGossipMemory(decisions, simMinute) {
+  assertNpcGossipMemory(decisions, simMinute);
+  let corrected = 0;
+  for (const [key, lastHeardMinute] of Object.entries(decisions)) {
+    if (!key.startsWith(`${NPC_GOSSIP_DECISION_PREFIX}.`)) continue;
+    if (!Number.isFinite(lastHeardMinute) || lastHeardMinute < 0) {
+      throw new Error(`Invalid NPC gossip memory for ${key}: ${lastHeardMinute}`);
+    }
+    if (lastHeardMinute <= simMinute) continue;
+    // A restored world clock can legitimately be repaired behind a timestamp
+    // written by an earlier build. Preserve the full cooldown from the restored
+    // present instead of crashing when the player next enters a port.
+    decisions[key] = simMinute;
+    corrected += 1;
+  }
+  return corrected;
+}
+
 export function unheardNpcGossip(decisions, gossip, simMinute, perspectiveId = null) {
   if (gossip === null) return null;
   const key = npcGossipDecisionKey(gossip, perspectiveId);

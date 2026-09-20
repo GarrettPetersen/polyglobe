@@ -232,7 +232,8 @@ import {
 } from "./aboardCrewPresentation.js";
 import {
   createArrivalRecruitmentActivationGuard,
-  dialogueActionBlockedByActivationGuard
+  dialogueActionBlockedByActivationGuard,
+  displayedDialogueOptionAt
 } from "./dialogueActivationGuard.js";
 import {
   cancelAboardCrewDismissal,
@@ -1937,7 +1938,11 @@ import {
   recentHistoricalGossipForPort,
   validateHistoricalGossipCityCatalog
 } from "./historicalGossip.js";
-import { recordNpcGossipHeard, unheardNpcGossip } from "./npcGossipMemory.js";
+import {
+  reconcileNpcGossipMemory,
+  recordNpcGossipHeard,
+  unheardNpcGossip
+} from "./npcGossipMemory.js";
 import { dietOfWormsGossipPerspective } from "./religiousDialogue.js";
 import { isRomanCatholicReligion } from "./religiousAttitudes.js";
 import {
@@ -18189,6 +18194,16 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   if (recoveredWhaleClockMinutes > 0) {
     console.warn("[pixel-globe] repaired saved whale calendar ahead of voyage clock:", recoveredWhaleClockMinutes);
   }
+  const correctedNpcGossipTimestamps = reconcileNpcGossipMemory(
+    restoredGameState.memory.decisions,
+    restoredWorldClock.currentMinute
+  );
+  if (correctedNpcGossipTimestamps > 0) {
+    console.warn(
+      "[pixel-globe] repaired saved NPC gossip timestamps ahead of voyage clock:",
+      correctedNpcGossipTimestamps
+    );
+  }
   const migratedPortReferenceCount = reconcileQuestPortTiles(
     restoredGameState,
     savedCityReferenceCatalog,
@@ -27892,7 +27907,10 @@ function closeAutomaticQuestSiteAnchorOverlay(closingOverlayKind) {
 
 function chooseDialogueOption(optionIndex) {
   if (colonistLandingInProgress() || chefFeastInputBlocked()) return false;
-  const selected = currentDialogueView().options[optionIndex];
+  const selected = displayedDialogueOptionAt(currentDialogueView().options, optionIndex);
+  // Controller polling can deliver a confirm on the frame where a dialogue
+  // transition removes or repaginates its options. There is no action to take.
+  if (selected === null) return false;
   if (dialogueActionBlockedByActivationGuard(
     dialogueActivationGuard,
     dialogueState,

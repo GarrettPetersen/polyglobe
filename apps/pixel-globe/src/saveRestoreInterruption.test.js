@@ -59,6 +59,25 @@ test("restored whale initialization uses the saved clock and position, independe
   }
 });
 
+test("save restoration reconciles gossip timestamps against the restored clock before activation", () => {
+  const restore = source.statements.find(node =>
+    ts.isFunctionDeclaration(node) && node.name.text === "restoreSavedVoyage"
+  );
+  const statements = restore.body.statements;
+  const reconciliationIndex = statements.findIndex(node =>
+    node.getText(source).startsWith("const correctedNpcGossipTimestamps = reconcileNpcGossipMemory(")
+  );
+  const validationIndex = statements.findIndex(node =>
+    node.getText(source) === "validateGameState(restoredGameState);"
+  );
+  const publicationIndex = statements.findIndex(node =>
+    node.getText(source) === "gameState = restoredGameState;"
+  );
+  assert.ok(reconciliationIndex >= 0, "restore must reconcile saved gossip memory");
+  assert.ok(reconciliationIndex < validationIndex, "reconciled memory must be validated");
+  assert.ok(validationIndex < publicationIndex, "the repaired candidate must validate before activation");
+});
+
 test("a failed restore reports the attempted ship and quest without overwriting the saved voyage", async () => {
   const payload = { playerShip: { typeSlug: "galleon" }, gameState: {
     playerCharacter: { name: "Private Captain" }, memory: { campaignGoal: { type: "explorer" } }

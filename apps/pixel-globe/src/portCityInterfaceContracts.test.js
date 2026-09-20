@@ -172,6 +172,12 @@ test("arrival recruitment defaults to leave and rejects a spilled purchase input
   assert.match(choice, /if \([\s\S]*\) \{[\s\S]*return false/);
 });
 
+test("confirm input during dialogue repagination cannot activate a missing option", () => {
+  const choice = functionSource("chooseDialogueOption", "applyDialogueOption");
+  assert.match(choice, /displayedDialogueOptionAt\(currentDialogueView\(\)\.options, optionIndex\)/);
+  assert.match(choice, /if \(selected === null\) return false/);
+});
+
 function functionSource(name, nextName) {
   const start = MAIN_SOURCE.indexOf(`function ${name}(`);
   const end = MAIN_SOURCE.indexOf(`function ${nextName}(`, start + 1);

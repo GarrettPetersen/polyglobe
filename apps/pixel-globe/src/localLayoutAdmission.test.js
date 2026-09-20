@@ -1641,6 +1641,13 @@ worldTraversalTest("reported protected-stitch regions retain continuous terrain 
     {
       label: "lower Amur",
       waypoints: [[49.5, 135.0], [51.68, 137.9], [54.0, 141.0]]
+    },
+    {
+      label: "Ligurian Sea",
+      waypoints: [
+        [44.4, 9.3], [43.54, 8.2], [42.8, 7.3],
+        [43.54, 8.2], [44.4, 9.3], [43.54, 8.2]
+      ]
     }
   ];
   for (const region of regions) {
