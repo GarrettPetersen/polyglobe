@@ -143,6 +143,38 @@ test("ship stores mean provisions rather than shops", () => {
   assertReviewedTranslations(reviewed, "ship stores");
 });
 
+test("reviewed Spanish screen copy avoids nautical and historical false friends", () => {
+  const reviewed = new Map([
+    ["A raccoon aboard? I know its kind, captain. Count every ration again after dark.", "¿Un mapache a bordo? Conozco la especie, capitán. Vuelve a contar las raciones al anochecer."],
+    ["A sperm whale stove in your hull.", "Un cachalote te abrió una brecha en el casco."],
+    ["A settlement founded for conscience still needs practical independence. Add", "Un asentamiento fundado por motivos de conciencia también necesita independencia práctica. Añade"],
+    ["A storm is working nearby. Check every line before departure.", "Se acerca una tormenta. Revisa cada cabo antes de zarpar."],
+    ["A shirt of fine linked rings protects fighting hands from cuts and arrows.", "Una cota de malla fina protege de cortes y flechas a quienes combaten."],
+    ["A venomous snake struck among the rocks. The party returned to the ship one fewer.", "Una serpiente venenosa mordió a un marinero entre las rocas. El grupo regresó al barco con uno menos."]
+  ]);
+  for (const [source, expected] of reviewed) {
+    assert.equal(localizeText("es", source), expected, source);
+  }
+});
+
+test("harpoon line break rates are translated as a broken line, not a text wrap", () => {
+  const reviewed = new Map([
+    ["Accuracy {0}%, line break {1}%", [
+      "准确度 {0}%，断绳率 {1}%", "Точность {0}%, обрыв линя {1}%", "Precisión {0}%, rotura del cabo {1}%", "Precisão {0}%, ruptura do cabo {1}%", "命中精度 {0}%、銛綱の破断率 {1}%", "Trefferquote {0}%, Leinenbruch {1}%", "Précision {0}%, rupture du cordage {1}%", "Celność {0}%, zerwanie liny {1}%", "準確度 {0}%，斷繩率 {1}%", "정확도 {0}%, 작살줄 끊김 확률 {1}%"
+    ]]
+  ]);
+  assertReviewedTranslations(reviewed, "harpoon line break");
+});
+
+test("historical commissions, tribute, and provisioning instructions keep their context", () => {
+  const reviewed = new Map([
+    ["Acquire one each for {0}: {1}.", ["为{0}各备一份：{1}。", "Доставьте в {0} по одной единице каждого продукта: {1}.", "Consigue una unidad de cada ingrediente para {0}: {1}.", "Consiga uma unidade de cada ingrediente para {0}: {1}.", "{0}に材料を一つずつ届ける：{1}。", "Besorge für {0} je eine Einheit: {1}.", "Procurez-vous un exemplaire de chaque ingrédient pour {0} : {1}.", "Zdobądź po jednej sztuce każdego składnika dla {0}: {1}.", "為{0}各備一份：{1}。", "{0}에 재료를 하나씩 가져오기: {1}."]],
+    ["Agadez sends tribute to Gao. None of it bears your family's mark.", ["阿加德兹向加奥进贡。这些贡品上没有你家族的印记。", "Агадес платит дань Гао. Ни на одном подношении нет знака вашей семьи.", "Agadez envía tributo a Gao. Ninguna ofrenda lleva el emblema de tu familia.", "Agadez envia tributo a Gao. Nenhuma oferenda traz a marca da sua família.", "アガデスはガオに貢納している。その品々に、あなたの一族の印はない。", "Agadez entrichtet Gao Tribut. Keine der Gaben trägt das Zeichen deiner Familie.", "Agadez verse un tribut à Gao. Aucun présent ne porte la marque de votre famille.", "Agadez składa daninę Gao. Żaden dar nie nosi znaku twojej rodziny.", "阿加德茲向加奧進貢。這些貢品上沒有你家族的印記。", "아가데즈가 가오에 조공을 바칩니다. 어느 공물에도 가문의 표식은 없습니다."]],
+    ["Adrian VI has sealed a reform brief for the northern clergy. Carry it north and return with their answer.", ["教宗阿德里安六世已为北方教士封好一份改革文书。将它送往北方并带回答复。", "Адриан VI запечатал послание о реформе для северного духовенства. Отвезите его на север и вернитесь с ответом.", "Adriano VI ha sellado un breve de reforma para el clero del norte. Llévalo al norte y regresa con su respuesta.", "Adriano VI selou um breve de reforma para o clero do norte. Leve-o ao norte e volte com a resposta.", "教皇アドリアーノ6世は北方の聖職者に向けた改革書簡に封をした。それを北へ届け、返事を持ち帰れ。", "Adrian VI. hat ein versiegeltes Reformschreiben für den Klerus des Nordens aufgesetzt. Bringt es nach Norden und kehrt mit ihrer Antwort zurück.", "Adrien VI a scellé un bref de réforme destiné au clergé du Nord. Portez-le au nord et revenez avec sa réponse.", "Adrian VI zapieczętował pismo reformacyjne dla duchowieństwa północy. Zanieś je na północ i wróć z odpowiedzią.", "教宗亞德里安六世已為北方教士封好一份改革文書。將它送往北方並帶回答覆。", "교황 아드리아노 6세가 북부 성직자들에게 보낼 개혁 서한을 봉인했습니다. 이를 북쪽에 전하고 답을 받아 돌아오세요."]]
+  ]);
+  assertReviewedTranslations(reviewed, "historical commission wording");
+});
+
 test("normal game text cannot be written to the screen in English-only form", () => {
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     const catalog = screenTextTranslationCatalog(language);

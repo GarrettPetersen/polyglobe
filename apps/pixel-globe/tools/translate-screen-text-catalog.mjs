@@ -1529,7 +1529,11 @@ const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedStandingOverrides(),
   ...reviewedWatchShiftOverrides(),
   ...reviewedFishingYieldOverrides(),
-  ...reviewedStoreSupplyOverrides()
+  ...reviewedStoreSupplyOverrides(),
+  ...reviewedSpanishAuditOverrides(),
+  ...reviewedSpanishAuditFollowUpOverrides(),
+  ...reviewedWhalingLineOverrides(),
+  ...reviewedEarlyCatalogRangeOverrides()
 });
 
 function reviewedSupplyAndBriefOverrides() {
@@ -1695,6 +1699,185 @@ function reviewedStoreSupplyOverrides() {
     ]],
     ["These stores are received. Still required: {0}.", [
       "物资已收到。仍需：{0}。", "Припасы получены. Ещё требуется: {0}.", "Suministros recibidos. Aún faltan: {0}.", "Suprimentos recebidos. Ainda faltam: {0}.", "物資を受領した。残り：{0}。", "Vorräte eingetroffen. Noch benötigt: {0}.", "Approvisionnements reçus. Il manque encore : {0}.", "Zaopatrzenie odebrane. Nadal potrzeba: {0}.", "物資已收到。仍需：{0}。", "보급품을 받았다. 남은 수량: {0}."
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, translations]) => [
+    source,
+    reviewedLocaleOverrides(source, translations)
+  ]));
+}
+
+function reviewedSpanishAuditOverrides() {
+  const entries = [
+    ["A port for the great nao from Macau requires more than wooden sheds. Bring", "El puerto para la gran nao de Macao necesita algo más que cobertizos de madera. Trae"],
+    ["A Portuguese fort and cinnamon factory stand beside the harbor under treaty with the local court.", "Un fuerte portugués y una fábrica de canela se alzan junto al puerto, amparados por un tratado con la corte local."],
+    ["A post at an old meeting place must arrive ready to exchange, not merely command. Bring", "Un puesto en un antiguo lugar de reunión debe poder comerciar desde su llegada, no limitarse a dar órdenes. Trae"],
+    ["a practical coastal trader whose divided lateen sail plan can be shortened by a small crew when a sudden squall comes down", "un mercante costero práctico, con velas latinas que una tripulación reducida puede rizar cuando se desata una tormenta repentina"],
+    ["A provincial headquarters must secure both river and harbor. Finish it with", "Una sede provincial debe controlar tanto el río como el puerto. Complétala con"],
+    ["a quick, handy two-master from a family of rigs long favored for scouting, dispatch work, coastal trade, and the occasional less lawful errand", "un velero ágil de dos mástiles, de un tipo apreciado desde hace mucho para explorar, llevar despachos, comerciar por la costa y, de vez en cuando, atender algún encargo ilícito"],
+    ["A quick, watchful hunter of temperate lands.", "Un veloz cazador, siempre alerta, de las regiones templadas."],
+    ["A raccoon aboard? I know its kind, captain. Count every ration again after dark.", "¿Un mapache a bordo? Conozco la especie, capitán. Vuelve a contar las raciones al anochecer."],
+    ["A rack of simple bows lets free hands harry an exposed enemy deck.", "Un conjunto de arcos sencillos permite que quienes están libres hostiguen una cubierta enemiga expuesta."],
+    ["A reputation is another wake: difficult to outrun once made.", "La reputación es otra estela: una vez creada, cuesta dejarla atrás."],
+    ["A rising whiteout drove the party back before they found fresh water or game.", "La ventisca creciente obligó al grupo a regresar antes de que encontrara agua dulce o caza."],
+    ["a riverside stockade, boats, and raised store floors", "una empalizada junto al río, botes y almacenes elevados sobre pilotes"],
+    ["a roofed Joseon warship of the late sixteenth century, remembered for fighting in Admiral Yi Sun-sin's fleets among Korea's narrow tidal seas", "un buque de guerra cubierto de la dinastía Joseon, de finales del siglo XVI, célebre por servir en las flotas del almirante Yi Sun-sin entre los estrechos canales mareales de Corea"],
+    ["a round-bellied descendant of the medieval North Sea cog, with high sides and a simple square rig built for cargo rather than haste", "un descendiente de casco redondeado de la coca medieval del mar del Norte, con bordas altas y aparejo de cruz pensado para la carga, no para la velocidad"],
+    ["A routine harbor dispatch needs a reliable captain.", "Un encargo habitual del puerto requiere un capitán de confianza."],
+    ["A royal capital cannot remain a survey camp. Finish the outfit with", "Una capital real no puede seguir siendo un campamento de exploración. Completa las obras con"],
+    ["a royal license for our merchants to trade at the Crown's ports in the Indies", "una licencia real que permita a nuestros mercaderes comerciar en los puertos de la Corona en las Indias"],
+    ["A sacred mountain rebuilt in stone and surrounded by water. Your description makes its plan sound like a map of the heavens. I want every court and causeway marked.", "Una montaña sagrada, reconstruida en piedra y rodeada de agua. Por tu descripción, su trazado parece un mapa celeste. Quiero que señales cada patio y calzada."],
+    ["A sailor fell from a sea cliff while searching for supplies. The party returned one fewer.", "Un marinero cayó por un acantilado mientras buscaba provisiones. El grupo regresó con uno menos."],
+    ["A scrap of the old captain's map is worth more than a hold of guesses. Keep watch for pirate colors.", "Un trozo del mapa del viejo capitán vale más que una bodega llena de conjeturas. Vigila las enseñas piratas."],
+    ["A sealed packet needs passage to {0}, {1} away.", "Un pliego sellado debe llegar a {0}, a {1} de distancia."],
+    ["A sealed packet needs passage to {0}, {1} away. Payment is {2} db on delivery.", "Un pliego sellado debe llegar a {0}, a {1} de distancia. Se pagarán {2} doblones al entregarlo."],
+    ["A Separatist congregation from Leiden seeks its own covenant. Weather may force them north of their patent onto the Wampanoag coast at Patuxet.", "Una congregación separatista de Leiden busca establecer su propio pacto. El mal tiempo podría obligarla a asentarse en la costa wampanoag de Patuxet, al norte de los límites de su concesión."],
+    ["A settlement founded for conscience still needs practical independence. Add", "Un asentamiento fundado por motivos de conciencia también necesita independencia práctica. Añade"],
+    ["A severe mountain, then, and unmistakable from every approach. Draw that sharp profile; a navigator remembers a silhouette long after numbers fade.", "Una montaña imponente, inconfundible desde cualquier acceso. Dibuja su perfil abrupto; un navegante recuerda una silueta mucho después de olvidar las cifras."],
+    ["A shipwright is waiting on these spar and sail measurements.", "El carpintero naval espera las medidas de estas vergas y velas."],
+    ["A shirt of fine linked rings protects fighting hands from cuts and arrows.", "Una cota de malla fina protege de cortes y flechas a quienes combaten."],
+    ["a sixteenth-century development of the carrack, with a longer hull and lower forward works that made a steadier gun platform and convoy escort", "una evolución de la carraca del siglo XVI, con casco más largo y obra de proa más baja, que ofrecía una plataforma artillera más estable y servía de escolta a los convoyes"],
+    ["a small pinnace suited to coasting, scouting, and carrying messages, the kind of useful tender a larger fleet always finds work for", "una pequeña pinaza apta para navegar junto a la costa, explorar y llevar mensajes; una embarcación auxiliar a la que una gran flota siempre encuentra tarea"],
+    ["A social hunter rather than a solitary emblem upon a shield. Record which animals noticed them first; fear can reveal a predator's place in the whole country.", "Es un cazador social, no el emblema solitario de un escudo. Anota qué animales lo detectan primero; el miedo puede revelar el lugar que ocupa un depredador en la región."],
+    ["A sperm whale stove in your hull.", "Un cachalote te abrió una brecha en el casco."],
+    ["A stand of heavy handguns punches through cover at the cost of smoke and a long reload.", "Un grupo de armas de fuego pesadas atraviesa la cobertura, aunque produce mucho humo y tarda en recargar."],
+    ["A storm is working nearby. Check every line before departure.", "Se acerca una tormenta. Revisa cada cabo antes de zarpar."],
+    ["A storm threw me overboard, and I woke among wreckage on this beach. My family may have reached {0}. Please take me there.", "Una tormenta me arrojó por la borda y desperté entre restos en esta playa. Puede que mi familia haya llegado a {0}. Por favor, llévame allí."],
+    ["a sturdy coastal working boat whose handy lug sail and useful hold descend from the fishing craft that kept Europe's ports supplied", "un robusto barco de trabajo costero, con una práctica vela al tercio y una bodega amplia, descendiente de las embarcaciones pesqueras que abastecían los puertos europeos"],
+    ["a suitable ocean-going ship", "un barco apto para navegar en alta mar"],
+    ["a swift Japanese oared fighting boat whose wooden screens shelter warriors during reconnaissance, pursuit, and sudden attacks", "una veloz embarcación japonesa de combate a remo, con mamparas de madera que protegen a los guerreros durante la exploración, la persecución y los ataques por sorpresa"],
+    ["a swift Malay oar-and-sail vessel whose narrow double-ended hull, tanja sail, and shallow draft suit straits, coasts, and sudden attacks", "un veloz barco malayo de vela y remo, con proa y popa simétricas, vela tanja y poco calado, apto para estrechos, costas y ataques por sorpresa"],
+    ["a towering island merchant, built with a deep cargo hull, canted sails, and twin quarter rudders for the long monsoon passages of Southeast Asia", "un imponente mercante insular, con casco de gran capacidad, velas inclinadas y dos timones laterales, hecho para las largas travesías monzónicas del Sudeste Asiático"],
+    ["a two-masted Malay fighting vessel built to maneuver under oars in confined straits while carrying enough sail and ordnance for longer patrols", "un buque de guerra malayo de dos mástiles, construido para maniobrar a remo por estrechos angostos y llevar velas y artillería suficientes para patrullas largas"],
+    ["A venomous snake struck among the rocks. The party returned to the ship one fewer.", "Una serpiente venenosa mordió a un marinero entre las rocas. El grupo regresó al barco con uno menos."],
+    ["a versatile Chinese junk, large enough for regional commerce yet handier in shoal water and river mouths than the great ocean carriers", "un junco chino versátil, lo bastante grande para el comercio regional y más maniobrable en aguas someras y desembocaduras que los grandes navíos oceánicos"],
+    ["A warrant is only paper. I shall deny every word on it.", "Una comisión no es más que un papel. Negaré todo lo que diga."],
+    ["A waterfall vast enough to announce itself beyond sight. Mark the portage well. Such power is a wonder to behold and a deadly fact for every navigator.", "Una cascada tan vasta que su estruendo se oye antes de verla. Marca bien la ruta de porteo. Su fuerza es maravillosa, pero también un peligro mortal para cualquier navegante."],
+    ["A white mountain ruling one of the world's deepest roads. Trace the gorge beneath it; mountain and passage explain one another.", "Una montaña blanca domina una de las rutas más encajonadas del mundo. Traza el desfiladero a sus pies: la montaña y el paso se explican mutuamente."],
+    ["A whole congregation and its cattle need more than a trading camp. Bring", "Toda una congregación y su ganado necesitan algo más que un campamento comercial. Trae"],
+    ["a working bank of oars", "una bancada de remos en buen estado"],
+    ["A year ago they called this empire untouchable. Now Cuzco answers to the Crown, and even the royal accountants have surrendered. You kept faith with me, Captain. Here is the share I promised.", "Hace un año llamaban invencible a este imperio. Ahora Cuzco responde ante la Corona e incluso se han rendido sus contadores reales. Cumpliste tu palabra, capitán. Aquí tienes la parte que te prometí."]
+  ];
+  return Object.fromEntries(entries.map(([source, translation]) => [
+    source,
+    Object.freeze({ es: translation })
+  ]));
+}
+
+function reviewedWhalingLineOverrides() {
+  const entries = [
+    ["Accuracy {0}% / Line break {1}% / Range {2}", [
+      "准确度 {0}% / 断绳率 {1}% / 射程 {2}", "Точность {0}% / обрыв линя {1}% / дальность {2}", "Precisión {0}% / rotura del cabo {1}% / alcance {2}", "Precisão {0}% / ruptura do cabo {1}% / alcance {2}", "命中精度 {0}% / 銛綱の破断率 {1}% / 射程 {2}", "Trefferquote {0}% / Leinenbruch {1}% / Reichweite {2}", "Précision {0}% / rupture du cordage {1}% / portée {2}", "Celność {0}% / zerwanie liny {1}% / zasięg {2}", "準確度 {0}% / 斷繩率 {1}% / 射程 {2}", "정확도 {0}% / 작살줄 끊김 확률 {1}% / 사거리 {2}"
+    ]],
+    ["ACCURACY {0}% LINE BREAK {1}% RANGE {2}", [
+      "命中率 {0}% 断绳率 {1}% 射程 {2}", "ТОЧНОСТЬ {0}% ОБРЫВ ЛИНЯ {1}% ДАЛЬНОСТЬ {2}", "PRECISIÓN {0}% ROTURA DEL CABO {1}% ALCANCE {2}", "PRECISÃO {0}% RUPTURA DO CABO {1}% ALCANCE {2}", "命中精度 {0}% 銛綱の破断率 {1}% 射程 {2}", "TREFFERQUOTE {0}% LEINENBRUCH {1}% REICHWEITE {2}", "PRÉCISION {0}% RUPTURE DU CORDAGE {1}% PORTÉE {2}", "CELNOŚĆ {0}% ZERWANIE LINY {1}% ZASIĘG {2}", "命中率 {0}% 斷繩率 {1}% 射程 {2}", "정확도 {0}% 작살줄 끊김 확률 {1}% 사거리 {2}"
+    ]],
+    ["Accuracy {0}%, line break {1}%", [
+      "准确度 {0}%，断绳率 {1}%", "Точность {0}%, обрыв линя {1}%", "Precisión {0}%, rotura del cabo {1}%", "Precisão {0}%, ruptura do cabo {1}%", "命中精度 {0}%、銛綱の破断率 {1}%", "Trefferquote {0}%, Leinenbruch {1}%", "Précision {0}%, rupture du cordage {1}%", "Celność {0}%, zerwanie liny {1}%", "準確度 {0}%，斷繩率 {1}%", "정확도 {0}%, 작살줄 끊김 확률 {1}%"
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, translations]) => [
+    source,
+    reviewedLocaleOverrides(source, translations)
+  ]));
+}
+
+function reviewedSpanishAuditFollowUpOverrides() {
+  const entries = [
+    ["African traditional", "Tradición africana"],
+    ["All Hands", "Toda la tripulación"],
+    ["ALL HANDS RETURNED FIT FOR DUTY.", "TODA LA TRIPULACIÓN REGRESÓ EN CONDICIONES DE SERVIR."],
+    ["Ainu traditional", "Tradición ainu"],
+    ["ADVANCE 1,000,000 DB", "PRESTAR 1.000.000 DB"],
+    ["Advance one million doubloons under seal. At victory—or at an even peace if the treasury remains answerable—it shall return twelve hundred thousand. If defeat breaks its credit, the loss is yours.", "Adelanta un millón de doblones bajo sello. Si vencemos, o si se firma una paz equitativa y el tesoro aún puede responder, devolverá un millón doscientos mil. Si la derrota lo deja insolvente, perderás el dinero."],
+    ["Address the Japanese envoys", "Dirígete a los enviados japoneses"],
+    ["admit our merchants under Joseon's licensed-port rules", "admitir a nuestros mercaderes en los puertos autorizados de Joseon"],
+    ["Agadez sends tribute to Gao. None of it bears your family's mark.", "Agadez envía tributo a Gao. Nada lleva la marca de tu familia."],
+    ["Ah, {0}. I kept the account warm while you were away. Interest added {1} doubloons, bringing the balance to {2}. The sea may ignore calendars. I do not.", "Ah, {0}. Mantuve tu cuenta al día mientras estabas fuera. Los intereses sumaron {1} doblones y elevaron el saldo a {2}. El mar podrá ignorar los calendarios; yo no."],
+    ["ALL {0} DISCOVERIES ALREADY FOUND", "YA ENCONTRASTE LOS {0} DESCUBRIMIENTOS"],
+    ["All {0}. There is no blank left in my book. No living captain can match what you have done.", "Has registrado los {0}. No queda una sola página en blanco en mi libro. Ningún capitán vivo puede igualar tus logros."],
+    ["Along the coasts of Rapa Nui, colossal stone ancestors stand upon ahu with their backs to the sea, watching over the settlements. At Rano Raraku, others remain half-carved in the quarry.", "En las costas de Rapa Nui, colosales ancestros de piedra se alzan sobre los ahu, de espaldas al mar y vigilantes sobre los poblados. En Rano Raraku, otros siguen a medio tallar en la cantera."],
+    ["An accomplished shipwright is seeking a new berth. With him at the slips, we could build finer vessels.", "Un hábil carpintero naval busca un nuevo puesto. Con él en las gradas, podríamos construir mejores navíos."],
+    ["An ancient city laid out in brick, older than any chart aboard.", "Una antigua ciudad de ladrillo, más vieja que cualquier carta náutica a bordo."],
+    ["An excellent contradiction. Size does not dictate diet, whatever a tidy bestiary may claim. I shall record what it ate as carefully as how it looked.", "Qué contradicción tan fascinante. El tamaño no determina la dieta, por más que diga un bestiario bien ordenado. Anotaré lo que comió con tanto cuidado como su aspecto."],
+    ["An excellent warning against judging danger by height alone. I will mark your weather notes boldly; future travelers may value them more than the summit sketch.", "Una buena advertencia: la altura no basta para medir el peligro. Destacaré tus notas meteorológicas; los futuros viajeros quizá las valoren más que el dibujo de la cumbre."],
+    ["an exemption from the Danish Sound Dues", "una exención de los derechos del Sund danés"],
+    ["An expedition seeking the Sierra de la Plata needs a fort on the Paraguay. The Cario Guarani control these banks; survival requires their cooperation.", "La expedición en busca de la Sierra de la Plata necesita un fuerte en el Paraguay. Los carios guaraníes controlan estas riberas; sobrevivir exige su cooperación."],
+    ["an Iberian ocean-going roundship of the kind called a nao, built to carry stores and cargo through the long Atlantic and Indies passages", "un barco ibérico de casco redondo, del tipo llamado nao, construido para llevar provisiones y carga por las largas rutas del Atlántico y las Indias"],
+    ["an island Southeast Asian outrigger whose stabilizing float lets a narrow, swift hull carry sail safely through reef passages and open water", "una embarcación con balancín del Sudeste Asiático insular, cuyo flotador estabilizador permite a su casco estrecho y veloz navegar a vela sin riesgo entre arrecifes y en mar abierto"],
+    ["An isolated peak becomes compass, calendar, and landmark. Ask the people beneath it when the snow retreats; their answer will add seasons to our chart.", "Un pico aislado sirve de brújula, calendario y referencia. Pregunta a quienes viven a sus pies cuándo se retira la nieve; su respuesta añadirá estaciones a nuestra carta."],
+    ["an ocean-going caravel carrying square canvas for stronger following winds while retaining the handy hull of its lateen-rigged forebears", "una carabela oceánica con velas cuadras para aprovechar mejor los vientos de popa, que conserva el casco manejable de sus antecesoras de aparejo latino"],
+    ["an ocean-going Chinese junk, joining a capacious hold with battened sails and internal bulkheads refined over centuries of maritime trade", "un junco chino de alta mar, con amplia bodega, velas con sables y mamparos perfeccionados durante siglos de comercio marítimo"],
+    ["Ancestor-alliance gift", "Regalo de alianza ancestral"],
+    ["anchors, cranes, locks, and warehouse fittings", "anclajes, grúas, esclusas y accesorios para almacenes"],
+    ["And gather again at sunset. No one should keep the fast alone at sea.", "Y volvamos a reunirnos al atardecer. Nadie debería ayunar solo en el mar."],
+    ["And share whatever feast the cook can coax from the hold. Christ is born.", "Y comparte el festín que el cocinero logre preparar con lo que haya en la bodega. Cristo ha nacido."],
+    ["Andean traditional", "Tradición andina"],
+    ["Austronesian traditional", "Tradición austronesia"],
+    ["AWK! Fair wind! AWK!", "¡Aak! ¡Buen viento! ¡Aak!"],
+    ["Aye. The chart can hang over a quiet hearth now. I have seen what lies beneath the red X, and I prefer the road home.", "Sí. La carta náutica ya puede colgar sobre un hogar tranquilo. He visto lo que hay bajo la X roja y prefiero el camino de vuelta a casa."],
+    ["Ayutthaya", "Ayutthaya"],
+    ["Ayutthayan", "ayutthayano"],
+    ["ACCEPT THE CUSTOMS ASSIGNMENT", "ACEPTAR EL ENCARGO DE ADUANAS"],
+    ["Accept the warrant: capture {0}", "Aceptar la orden de captura: {0}"],
+    ["Animal encounter odds +{0}", "Probabilidad de encuentro con animales +{0}"],
+    ["another full cod-curing season", "otra temporada completa de secado y salazón del bacalao"],
+    ["Another racing ship has unloaded, but the first-crop buyers still offer a finishing premium.", "Otro barco ya descargó su té, pero los compradores de la primera cosecha aún pagan una prima por la entrega."],
+    ["Another snowy contradiction beneath the hot sun, but broader and heavier than Kilimanjaro in your account. Comparing them will make both descriptions stronger.", "Otra montaña nevada bajo el sol abrasador, pero más extensa y voluminosa que el Kilimanjaro, según tu relato. Compararlas enriquecerá ambas descripciones."],
+    ["Aristotle and Pliny never saw what sailors have. Bring me honest accounts of exotic beasts for my book; I pay 100 doubloons each.", "Aristóteles y Plinio nunca vieron lo que han visto los marineros. Tráeme relatos fidedignos de bestias exóticas para mi libro; pagaré 100 doblones por cada una."],
+    ["artillery founder", "fundidor de cañones"],
+    ["Ash-shaft harpoon", "Arpón de asta de fresno"],
+    ["Ask about pirate havens", "Pregunta por las guaridas piratas"],
+    ["Ask about work", "Pregunta por trabajo"],
+    ["ASSAULT BROKEN OFF {0} DEAD / {1} WOUNDED", "ASALTO INTERRUMPIDO: {0} MUERTOS / {1} HERIDOS"],
+    ["Assessors may quarrel over {0}'s levy until Candlemas. Your bond fell due at Michaelmas.", "Los tasadores pueden discutir el impuesto de {0} hasta la Candelaria. La obligación venció el día de San Miguel."],
+    ["Asuncion has outgrown its first mud-and-thatch fort. It is now the upriver refuge from which new settlements can spread through the Plata basin.", "Asunción ya dejó atrás su primer fuerte de barro y paja. Ahora es el refugio río arriba desde el que pueden extenderse nuevos asentamientos por la cuenca del Plata."],
+    ["Asymmetric Japanese bows can be worked above a gunwale without striking the deck.", "Los arcos japoneses asimétricos pueden usarse por encima de la borda sin golpear la cubierta."],
+    ["At last, proportions from a sober witness rather than a tapestry. Its tongue and gait may be more instructive than the extraordinary neck everyone remembers.", "Al fin tenemos medidas de un testigo fiable, no de un tapiz. Su lengua y su forma de andar pueden enseñarnos más que el extraordinario cuello que todos recuerdan."],
+    ["At Ningbo, order matters as much as ink. Our support ships have sailed, and so have the {0}. We must reach the shipping office first.", "En Ningbo, el orden importa tanto como la tinta. Nuestros barcos de apoyo ya zarparon, y también los {0}. Debemos llegar primero a la oficina portuaria."],
+    ["At sea, good company is celebration enough. Thank you.", "En el mar, una buena compañía basta para celebrar. Gracias."],
+    ["At sea, it is too late to buy a license. Pay the Crown's fine, surrender controlled spice cargo, or fight.", "En alta mar ya es tarde para comprar una licencia. Paga la multa de la Corona, entrega la carga de especias sujeta a licencia o lucha."],
+    ["At Worms, Luther refused lawful recantation before Church and Emperor. The Edict has made him an outlaw, yet his pamphlets still cross every market.", "En Worms, Lutero se negó a abjurar ante la Iglesia y el Emperador. El edicto lo declaró proscrito, pero sus panfletos siguen circulando por todos los mercados."],
+    ["At Worms, Luther refused to recant before Church and Emperor. The quarrel is dividing German pulpits, presses, and taverns.", "En Worms, Lutero se negó a abjurar ante la Iglesia y el Emperador. La disputa divide los púlpitos, las imprentas y las tabernas de Alemania."],
+    ["At Worms, Luther would not recant what he held to Scripture and conscience. The Emperor calls him outlaw; many here call him steadfast.", "En Worms, Lutero no quiso retractarse de lo que creía conforme a las Escrituras y a su conciencia. El Emperador lo llama proscrito; muchos aquí lo consideran firme."],
+    ["At Worms, Luther would not recant what he held to Scripture. The Emperor calls him outlaw, but his words keep traveling.", "En Worms, Lutero no quiso retractarse de lo que juzgaba conforme a las Escrituras. El Emperador lo llama proscrito, pero sus palabras siguen circulando."],
+    ["Attack city", "Atacar la ciudad"],
+    ["Attack would be lawful - {0} embargo commission", "Ataque lícito al amparo de la comisión de embargo de {0}"],
+    ["Attack would be lawful - {0} letter of marque", "Ataque lícito al amparo de la patente de corso de {0}"],
+    ["ATTACKERS DEFEATED - RETURN TO {0}", "ATACANTES DERROTADOS: REGRESAR A {0}"],
+    ["Attend the merit dedication", "Asistir a la ceremonia de dedicación de méritos"],
+    ["Audit the pilgrimage charity", "Revisar las cuentas del fondo para peregrinos"],
+    ["axes, nails, farming tools, and repairs beyond easy resupply", "hachas, clavos, herramientas agrícolas y materiales de reparación difíciles de reponer"],
+    ["Babur won Delhi with cannon. Your family debt survived the field without firing a shot.", "Babur tomó Delhi con cañones. Tu deuda familiar sobrevivió a la campaña sin disparar un solo tiro."]
+  ];
+  return Object.fromEntries(entries.map(([source, translation]) => [
+    source,
+    Object.freeze({ es: translation })
+  ]));
+}
+
+function reviewedEarlyCatalogRangeOverrides() {
+  const entries = [
+    ["Able Seaman", ["熟练水手", "Старший матрос", "Marinero de primera", "Marinheiro de primeira", "一等水兵", "Vollmatrose", "Matelot breveté", "Starszy marynarz", "熟練水手", "숙련 수병"]],
+    ["Aboard", ["在船上", "На борту", "a bordo", "A bordo", "船上", "An Bord", "À bord", "Na pokładzie", "船上", "승선"]],
+    ["Accept capital commission: capture {0}", ["接受首都征服委托：攻占{0}", "Принять поручение на взятие столицы: захватить {0}", "Aceptar el encargo para conquistar la capital: tomar {0}", "Aceitar a missão para conquistar a capital: tomar {0}", "首都攻略の任務を受ける：{0}を攻略", "Auftrag zur Eroberung der Hauptstadt annehmen: {0} erobern", "Accepter la mission de conquête de la capitale : prendre {0}", "Przyjmij zlecenie zdobycia stolicy: zdobądź {0}", "接受首都征服委託：攻佔{0}", "수도 정복 임무 수락: {0} 점령"]],
+    ["Accept commission: capture {0}", ["接受征服委托：攻占{0}", "Принять поручение на захват: захватить {0}", "Aceptar el encargo: tomar {0}", "Aceitar a missão: tomar {0}", "征服任務を受ける：{0}を攻略", "Eroberungsauftrag annehmen: {0} erobern", "Accepter la mission de conquête : prendre {0}", "Przyjmij zlecenie zdobycia: zdobądź {0}", "接受征服委託：攻佔{0}", "정복 임무 수락: {0} 점령"]],
+    ["Accept surrender", ["接受投降", "Принять капитуляцию", "Aceptar la rendición", "Aceitar a rendição", "降伏を受け入れる", "Kapitulation annehmen", "Accepter la reddition", "Przyjmij kapitulację", "接受投降", "항복을 받아들이다"]],
+    ["Accept the commission", ["接受委托", "Принять поручение", "Aceptar el encargo", "Aceitar a missão", "任務を受ける", "Auftrag annehmen", "Accepter la mission", "Przyjmij zlecenie", "接受委託", "임무 수락"]],
+    ["Accept: hunt wokou near {0}", ["接受：在{0}附近追剿倭寇", "Принять задание: преследовать вако у {0}", "Aceptar: perseguir piratas wokou cerca de {0}", "Aceitar: perseguir piratas wokou perto de {0}", "受諾：{0}付近で倭寇を追討", "Annehmen: Wokou bei {0} verfolgen", "Accepter : poursuivre les pirates wokou près de {0}", "Przyjmij: ścigaj wokou w pobliżu {0}", "接受：在{0}附近追剿倭寇", "수락: {0} 근처에서 왜구 추격"]],
+    ["Accepted passage to {0}.", ["已接下前往{0}的乘船委托。", "Перевозка пассажира в {0} принята.", "Viaje de pasajero a {0} aceptado.", "Transporte de passageiro até {0} aceito.", "{0}行きの旅客輸送を引き受けた。", "Fahrgastbeförderung nach {0} angenommen.", "Transport de passagers vers {0} accepté.", "Przyjęto zlecenie przewozu pasażera do {0}.", "已接下前往{0}的乘客航程。", "{0}행 여객 운송을 맡았다."]],
+    ["Acquire one each for {0}: {1}.", ["为{0}各备一份：{1}。", "Доставьте в {0} по одной единице каждого продукта: {1}.", "Consigue una unidad de cada ingrediente para {0}: {1}.", "Consiga uma unidade de cada ingrediente para {0}: {1}.", "{0}に材料を一つずつ届ける：{1}。", "Besorge für {0} je eine Einheit: {1}.", "Procurez-vous un exemplaire de chaque ingrédient pour {0} : {1}.", "Zdobądź po jednej sztuce każdego składnika dla {0}: {1}.", "為{0}各備一份：{1}。", "{0}에 재료를 하나씩 가져오기: {1}."]],
+    ["Agadez sends tribute to Gao. None of it bears your family's mark.", ["阿加德兹向加奥进贡。这些贡品上没有你家族的印记。", "Агадес платит дань Гао. Ни на одном подношении нет знака вашей семьи.", "Agadez envía tributo a Gao. Ninguna ofrenda lleva el emblema de tu familia.", "Agadez envia tributo a Gao. Nenhuma oferenda traz a marca da sua família.", "アガデスはガオに貢納している。その品々に、あなたの一族の印はない。", "Agadez entrichtet Gao Tribut. Keine der Gaben trägt das Zeichen deiner Familie.", "Agadez verse un tribut à Gao. Aucun présent ne porte la marque de votre famille.", "Agadez składa daninę Gao. Żaden dar nie nosi znaku twojej rodziny.", "阿加德茲向加奧進貢。這些貢品上沒有你家族的印記。", "아가데즈가 가오에 조공을 바칩니다. 어느 공물에도 가문의 표식은 없습니다."]],
+    ["ACCEPT THE CUSTOMS ASSIGNMENT", ["接受关税收入抵债", "Принять таможенные сборы в обеспечение долга", "Aceptar los ingresos aduaneros como garantía", "Aceitar a receita alfandegária como garantia", "関税収入を担保に受け取る", "Zolleinnahmen als Sicherheit annehmen", "Accepter les recettes douanières en garantie", "Przyjąć dochody celne jako zabezpieczenie", "接受關稅收入抵債", "관세 수입을 담보로 받기"]],
+    ["Adrian VI has sealed a reform brief for the northern clergy. Carry it north and return", ["教宗阿德里安六世已为北方教士封好一份改革文书。将它送往北方并带回答复", "Адриан VI запечатал послание о реформе для северного духовенства. Отвезите его на север и вернитесь", "Adriano VI ha sellado un breve de reforma para el clero del norte. Llévalo al norte y regresa", "Adriano VI selou um breve de reforma para o clero do norte. Leve-o ao norte e volte", "教皇アドリアーノ6世は北方の聖職者に向けた改革書簡に封をした。それを北へ届け、返事を持ち帰れ", "Adrian VI. hat ein versiegeltes Reformschreiben für den Klerus des Nordens aufgesetzt. Bringt es nach Norden und kehrt zurück", "Adrien VI a scellé un bref de réforme destiné au clergé du Nord. Portez-le au nord et revenez", "Adrian VI zapieczętował pismo reformacyjne dla duchowieństwa północy. Zanieś je na północ i wróć", "教宗亞德里安六世已為北方教士封好一份改革文書。將它送往北方並帶回答覆", "교황 아드리아노 6세가 북부 성직자들에게 보낼 개혁 서한을 봉인했습니다. 이를 북쪽에 전하고 돌아오세요"]],
+    ["Adrian VI has sealed a reform brief for the northern clergy. Carry it north and return with their answer.", ["教宗阿德里安六世已为北方教士封好一份改革文书。将它送往北方并带回答复。", "Адриан VI запечатал послание о реформе для северного духовенства. Отвезите его на север и вернитесь с ответом.", "Adriano VI ha sellado un breve de reforma para el clero del norte. Llévalo al norte y regresa con su respuesta.", "Adriano VI selou um breve de reforma para o clero do norte. Leve-o ao norte e volte com a resposta.", "教皇アドリアーノ6世は北方の聖職者に向けた改革書簡に封をした。それを北へ届け、返事を持ち帰れ。", "Adrian VI. hat ein versiegeltes Reformschreiben für den Klerus des Nordens aufgesetzt. Bringt es nach Norden und kehrt mit ihrer Antwort zurück.", "Adrien VI a scellé un bref de réforme destiné au clergé du Nord. Portez-le au nord et revenez avec sa réponse.", "Adrian VI zapieczętował pismo reformacyjne dla duchowieństwa północy. Zanieś je na północ i wróć z odpowiedzią.", "教宗亞德里安六世已為北方教士封好一份改革文書。將它送往北方並帶回答覆。", "교황 아드리아노 6세가 북부 성직자들에게 보낼 개혁 서한을 봉인했습니다. 이를 북쪽에 전하고 답을 받아 돌아오세요."]],
+    ["All Hands", ["全体船员", "Весь экипаж", "Toda la tripulación", "Toda a tripulação", "全乗組員", "Gesamte Besatzung", "Tout l'équipage", "Cała załoga", "全體船員", "전원 승무원"]],
+    ["ALL HANDS RETURNED FIT FOR DUTY.", ["全体船员均健康归队，可以继续服役。", "Весь экипаж вернулся и готов к службе.", "Toda la tripulación regresó en condiciones de servir.", "Toda a tripulação voltou apta para o serviço.", "乗組員全員が無事に戻り、任務に就ける状態です。", "Die gesamte Besatzung ist diensttauglich zurückgekehrt.", "Tout l'équipage est rentré apte au service.", "Cała załoga wróciła zdolna do służby.", "全體船員均健康歸隊，可以繼續服役。", "모든 선원이 임무를 수행할 수 있는 상태로 돌아왔습니다."]],
+    ["Aconcagua towered above the dry Andes, bare rock and pale snow under an empty blue sky. Its height is startling because so little hides it: no forest, no gentle foothills, only ascent.", [
+      "阿空加瓜高耸于干燥的安第斯山脉，裸岩与浅色积雪直插空旷的蓝天。它几乎毫无遮蔽：没有森林，没有平缓的山麓，眼前只有不断攀升的山势。", "Аконкагуа возвышалась над засушливыми Андами: голая скала и светлый снег под безоблачным синим небом. Гора поражает высотой — ничто её не скрывает: ни лес, ни пологие предгорья, лишь крутой подъём.", "El Aconcagua se alza sobre los Andes áridos, entre roca desnuda y nieve pálida bajo un cielo azul despejado. Su altura sorprende: nada la oculta, ni bosques ni suaves estribaciones; solo la ladera que asciende.", "O Aconcágua se ergue sobre os Andes secos, entre rocha nua e neve pálida sob um céu azul sem nuvens. Sua altura impressiona porque nada a esconde: nem florestas nem colinas suaves, apenas a encosta íngreme.", "乾いたアンデスにそびえるアコンカグア。むき出しの岩と淡い雪が、雲ひとつない青空の下に広がる。森もなだらかな山麓もなく、その高さを隠すものはない。ただ山頂へ続く斜面だけがある。", "Der Aconcagua ragte über den trockenen Anden auf: kahler Fels und blasser Schnee unter wolkenlosem blauem Himmel. Seine Höhe ist verblüffend, weil ihn kaum etwas verbirgt: kein Wald, kein sanftes Vorland, nur der steile Anstieg.", "L'Aconcagua dominait les Andes arides, entre roche nue et neige pâle sous un ciel bleu sans nuages. Sa hauteur frappe, car rien ne la dissimule : ni forêt, ni doux contreforts, seulement la pente qui monte.", "Aconcagua górowała nad suchymi Andami: naga skała i blady śnieg pod bezchmurnym, błękitnym niebem. Jej wysokość zdumiewa, bo niemal nic jej nie zasłania: ani las, ani łagodne podnóża, tylko strome zbocze.", "阿空加瓜高聳於乾燥的安地斯山脈，裸岩與淺色積雪直插空曠的藍天。它幾乎毫無遮蔽：沒有森林，沒有平緩的山麓，眼前只有不斷攀升的山勢。", "아콩카과는 메마른 안데스산맥 위로 우뚝 솟아 있습니다. 맨바위와 옅은 눈이 구름 한 점 없는 푸른 하늘 아래 드러나 있습니다. 숲도 완만한 산기슭도 없어 가릴 것이 거의 없습니다. 가파른 산비탈만이 이어집니다."
+    ]],
+    ["Across the Nazca desert, straight paths run farther than an arrow can fly. From the surrounding heights they join into birds and beasts, their pale lines untouched by the barren wind.", [
+      "纳斯卡沙漠中，笔直的线条延伸得比箭飞得还远。从周围高地望去，它们连成飞鸟与野兽；苍白的线痕任荒风吹拂，依然清晰。", "По пустыне Наска тянутся прямые линии — дальше, чем долетит стрела. С окрестных высот они складываются в птиц и зверей; сухой ветер не стёр их бледные следы.", "Por el desierto de Nazca, líneas rectas se extienden más lejos de lo que vuela una flecha. Desde las alturas forman aves y bestias; el viento árido no borra sus trazos pálidos.", "Pelo deserto de Nazca, linhas retas avançam mais longe do que uma flecha alcança. Vistas das alturas, formam aves e animais; o vento seco não apaga seus traços pálidos.", "ナスカの砂漠には、矢が飛ぶよりも遠くまで直線が伸びている。周囲の高地から見ると、それらは鳥や獣の姿を形づくり、乾いた風にも淡い線は消えずに残る。", "Durch die Wüste von Nazca ziehen sich gerade Linien, weiter als ein Pfeil fliegt. Von den umliegenden Höhen formen sie Vögel und Tiere; der trockene Wind hat ihre blassen Spuren nicht verweht.", "Dans le désert de Nazca, des lignes droites s'étendent plus loin qu'une flèche ne peut voler. Vues des hauteurs, elles dessinent oiseaux et bêtes ; le vent aride n'efface pas leurs tracés pâles.", "Przez pustynię Nazca biegną proste linie, sięgające dalej niż lot strzały. Z okolicznych wzniesień układają się w ptaki i zwierzęta; suchy wiatr nie zatarł ich bladych śladów.", "納斯卡沙漠中，筆直的線條延伸得比箭飛得還遠。從周圍高地望去，它們連成飛鳥與野獸；蒼白的線痕任荒風吹拂，依然清晰。", "나스카 사막에는 화살이 날아가는 거리보다 더 멀리 곧은 선들이 이어져 있습니다. 주변 고지대에서 보면 새와 짐승의 형상을 이루며, 메마른 바람에도 희미한 선들은 지워지지 않았습니다."
     ]]
   ];
   return Object.fromEntries(entries.map(([source, translations]) => [
