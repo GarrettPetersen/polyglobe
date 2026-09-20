@@ -153,6 +153,7 @@ const REVIEWED_OVERRIDES = Object.freeze({
     "zh-Hant": "海盜賞金 +{0} DB",
     ko: "해적 현상금 +{0} DB"
   }),
+  ...reviewedSoundDuesOverrides(),
   ...reviewedPlaytesterPolishOverrides(),
   // Retain or transliterate the regional fish name instead of translating it
   // as an unrelated word when the translation service lacks this species.
@@ -1601,6 +1602,89 @@ function reviewedLocaleOverrides(source, values) {
     throw new Error(`Reviewed locale translations are incomplete: ${source}`);
   }
   return Object.freeze(Object.fromEntries(LOCALES.map(({ id }, index) => [id, values[index]])));
+}
+
+function reviewedSoundDuesOverrides() {
+  const entries = [
+    ["{0} SOUND DUES EXEMPTION REVOKED", [
+      "{0}：厄勒海峡通行税豁免已撤销", "{0}: ОСВОБОЖДЕНИЕ ОТ ЗУНДСКОЙ ПОШЛИНЫ ОТМЕНЕНО",
+      "{0}: EXENCIÓN DEL PEAJE DEL SUND REVOCADA", "{0}: ISENÇÃO DO PEDÁGIO DO SUND REVOGADA",
+      "{0}：エーレスンド海峡通行税の免除を撤回", "{0}: SUNDZOLLBEFREIUNG WIDERRUFEN",
+      "{0} : EXEMPTION DES DROITS DU SUND RÉVOQUÉE", "{0}: ZWOLNIENIE Z CŁA SUNDZKIEGO COFNIĘTE",
+      "{0}：厄勒海峽通行稅豁免已撤銷", "{0}: 외레순 해협 통행세 면제 철회"
+    ]],
+    ["a treaty privilege allowing our ships to pass the Sound and Belts without toll", [
+      "一项条约特权，允许我国船只免税通过厄勒海峡和两条贝尔特海峡",
+      "договорная привилегия, позволяющая нашим кораблям проходить Зунд и Бельты без пошлины",
+      "un privilegio de tratado que permite a nuestros barcos atravesar el Sund y los Belts sin pagar peaje",
+      "um privilégio de tratado que permite aos nossos navios passar pelo Sund e pelos Belts sem pedágio",
+      "我が国の船がエーレスンド海峡と二つのベルト海峡を無税で通航できる条約上の特権",
+      "ein vertragliches Privileg, das unseren Schiffen die zollfreie Durchfahrt durch den Sund und die Belte erlaubt",
+      "un privilège par traité permettant à nos navires de franchir le Sund et les Belts sans péage",
+      "przywilej traktatowy pozwalający naszym statkom przepływać przez Sund i Bełty bez cła",
+      "一項條約特權，允許我國船隻免稅通過厄勒海峽和兩條貝爾特海峽",
+      "우리 선박이 외레순 해협과 두 벨트 해협을 통행세 없이 지날 수 있게 하는 조약상의 특권"
+    ]],
+    ["an exemption from the Danish Sound Dues", [
+      "免缴丹麦厄勒海峡通行税", "освобождение от датской зундской пошлины",
+      "una exención del peaje danés del Sund", "uma isenção do pedágio dinamarquês do Sund",
+      "デンマークのエーレスンド海峡通行税の免除", "eine Befreiung vom dänischen Sundzoll",
+      "une exemption des droits danois du Sund", "zwolnienie z duńskiego cła sundzkiego",
+      "免繳丹麥厄勒海峽通行稅", "덴마크 외레순 해협 통행세 면제"
+    ]],
+    ["free our nation's ships from the Sound Dues", [
+      "使我国船只免缴厄勒海峡通行税", "освободить корабли нашей страны от зундской пошлины",
+      "librar a los barcos de nuestra nación del peaje del Sund", "isentar os navios da nossa nação do pedágio do Sund",
+      "我が国の船をエーレスンド海峡通行税から免除する", "die Schiffe unseres Landes vom Sundzoll befreien",
+      "exempter les navires de notre nation des droits du Sund", "zwolnić statki naszego kraju z cła sundzkiego",
+      "使我國船隻免繳厄勒海峽通行稅", "우리나라 선박의 외레순 해협 통행세를 면제하다"
+    ]],
+    ["Heave to! Your passage owes {0} doubloons in Sound Dues. One receipt covers the Sound and both Belts until open sea. Refusal risks Danish guns; payment does not end a war.", [
+      "停船！此次通航须缴纳{0}达布隆厄勒海峡通行税。一张收据可通行厄勒海峡及两条贝尔特海峡，直至外海。拒缴将招致丹麦炮火；缴税也不会终止战争。",
+      "Лечь в дрейф! За проход причитается {0} дублонов зундской пошлины. Одна квитанция действует в Зунде и обоих Бельтах до открытого моря. Отказ грозит огнём датских пушек; уплата не прекращает войну.",
+      "¡Póngase al pairo! Debe {0} doblones por el peaje del Sund. Un solo recibo cubre el Sund y ambos Belts hasta mar abierto. Negarse supone afrontar los cañones daneses; pagar no pone fin a una guerra.",
+      "Pare o navio! Sua passagem deve {0} dobrões de pedágio do Sund. Um recibo cobre o Sund e ambos os Belts até o mar aberto. Recusar significa enfrentar os canhões dinamarqueses; o pagamento não encerra uma guerra.",
+      "停船せよ！通航にはエーレスンド海峡通行税として{0}ダブロンを納めよ。一枚の領収証で、外海までエーレスンド海峡と二つのベルト海峡を通れる。拒めばデンマークの砲火を受ける。支払っても戦争は終わらない。",
+      "Beidrehen! Für die Durchfahrt sind {0} Dublonen Sundzoll fällig. Eine Quittung gilt für den Sund und beide Belte bis zur offenen See. Wer sich weigert, riskiert dänisches Geschützfeuer; die Zahlung beendet keinen Krieg.",
+      "Mettez en panne ! Votre passage doit {0} doublons de droits du Sund. Un seul reçu couvre le Sund et les deux Belts jusqu'à la haute mer. Refuser, c'est risquer les canons danois ; payer ne met pas fin à une guerre.",
+      "Stać! Za przejście należy się {0} dublonów cła sundzkiego. Jeden kwit obejmuje Sund i oba Bełty aż do otwartego morza. Odmowa grozi ogniem duńskich dział; zapłata nie kończy wojny.",
+      "停船！此次通航須繳納{0}達布隆厄勒海峽通行稅。一張收據可通行厄勒海峽及兩條貝爾特海峽，直至外海。拒繳將招致丹麥炮火；繳稅也不會終止戰爭。",
+      "정선하라! 통과하려면 외레순 해협 통행세 {0}더블룬을 내야 한다. 영수증 한 장이면 외해까지 외레순 해협과 두 벨트 해협을 모두 통과할 수 있다. 거부하면 덴마크 함포를 맞을 것이며, 납부해도 전쟁은 끝나지 않는다."
+    ]],
+    ["Sound Dues", [
+      "厄勒海峡通行税", "Зундская пошлина", "Peaje del Sund", "Pedágio do Sund",
+      "エーレスンド海峡通行税", "Sundzoll", "Droits du Sund", "Cło sundzkie",
+      "厄勒海峽通行稅", "외레순 해협 통행세"
+    ]],
+    ["SOUND DUES", [
+      "厄勒海峡通行税", "ЗУНДСКАЯ ПОШЛИНА", "PEAJE DEL SUND", "PEDÁGIO DO SUND",
+      "エーレスンド海峡通行税", "SUNDZOLL", "DROITS DU SUND", "CŁO SUNDZKIE",
+      "厄勒海峽通行稅", "외레순 해협 통행세"
+    ]],
+    ["Sound Dues exemption", [
+      "厄勒海峡通行税豁免", "Освобождение от зундской пошлины", "Exención del peaje del Sund",
+      "Isenção do pedágio do Sund", "エーレスンド海峡通行税の免除", "Sundzollbefreiung",
+      "Exemption des droits du Sund", "Zwolnienie z cła sundzkiego", "厄勒海峽通行稅豁免",
+      "외레순 해협 통행세 면제"
+    ]],
+    ["SOUND DUES PAID", [
+      "厄勒海峡通行税已缴", "ЗУНДСКАЯ ПОШЛИНА УПЛАЧЕНА", "PEAJE DEL SUND PAGADO",
+      "PEDÁGIO DO SUND PAGO", "エーレスンド海峡通行税支払済み", "SUNDZOLL BEZAHLT",
+      "DROITS DU SUND PAYÉS", "CŁO SUNDZKIE OPŁACONE", "厄勒海峽通行稅已繳",
+      "외레순 해협 통행세 납부"
+    ]],
+    ["your nation's ships are now exempt from the Sound Dues", [
+      "贵国船只现已免缴厄勒海峡通行税", "корабли вашей страны теперь освобождены от зундской пошлины",
+      "los barcos de vuestra nación quedan exentos del peaje del Sund", "os navios da sua nação agora estão isentos do pedágio do Sund",
+      "貴国の船は今後エーレスンド海峡通行税を免除される", "die Schiffe Eures Landes sind nun vom Sundzoll befreit",
+      "les navires de votre nation sont désormais exemptés des droits du Sund", "statki waszego kraju są teraz zwolnione z cła sundzkiego",
+      "貴國船隻現已免繳厄勒海峽通行稅", "귀국 선박은 이제 외레순 해협 통행세가 면제된다"
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, values]) => [
+    source,
+    reviewedLocaleOverrides(source, values)
+  ]));
 }
 
 function reviewedPlaytesterPolishOverrides() {

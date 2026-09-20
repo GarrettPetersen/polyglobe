@@ -175,6 +175,30 @@ constraints for a subtree, but must not weaken these standards.
 - Keep player-facing dialogue and historical prose separate from developer diagnostics. All
   player-facing text must follow localization and period-voice requirements.
 
+## Localization and historical terminology
+
+- Treat localization as part of every player-facing feature. Before completion, trace every
+  new label, notice, dialogue fragment, dynamic template, and failure response into the
+  screen-text catalog; a passing test for already-extracted text is not sufficient.
+- Build dynamic player-facing sentences in catalog-visible functions or explicitly register
+  their templates. Do not hide translatable prose in string concatenation, unrecognized data
+  properties, or runtime-only branches.
+- Regenerate every supported locale and require zero missing templates. Preserve placeholders,
+  capitalization intent, period voice, and the gameplay meaning of the complete sentence.
+- Machine translation is a draft. Manually review new translations for proper names, historical
+  institutions, nautical commands, polysemous words, and terms whose ordinary modern meaning is
+  misleading. Compare related short labels, headlines, and full sentences for consistent terms.
+- Put reviewed translations of ambiguous or domain-specific terms in the localization tool's
+  reviewed overrides or glossary so a later regeneration cannot replace them with a plausible
+  but incorrect translation. These entries are the editable source for reviewed copy, not a
+  permanent freeze; update them whenever later language review improves the wording, then
+  regenerate the locale outputs.
+- After localization changes, rerun deterministic generation, locale coverage and placeholder
+  checks, relevant layout tests, and the release-catalog update. Exercise the localized runtime
+  flow when it depends on dynamic state or interaction.
+- Report localization as complete only after checking every supported locale and inspecting the
+  generated diff for untranslated English, semantic mistranslations, and accidental catalog churn.
+
 ## Testing and verification
 
 - Every behavior change needs tests proportional to its risk. Every bug fix needs a regression

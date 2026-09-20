@@ -78,6 +78,25 @@ test("rice cargo localizes across its principal Asian languages", () => {
   assert.equal(localizeText(LANGUAGE_CHINESE_SIMPLIFIED, "sealed rice tribute"), "封缄的贡米");
 });
 
+test("Sound Dues use the historical Øresund toll term in every locale", () => {
+  const expected = new Map([
+    [LANGUAGE_ENGLISH, "Sound Dues"],
+    [LANGUAGE_CHINESE_SIMPLIFIED, "厄勒海峡通行税"],
+    [LANGUAGE_RUSSIAN, "Зундская пошлина"],
+    [LANGUAGE_SPANISH, "Peaje del Sund"],
+    [LANGUAGE_PORTUGUESE_BRAZIL, "Pedágio do Sund"],
+    [LANGUAGE_JAPANESE, "エーレスンド海峡通行税"],
+    [LANGUAGE_GERMAN, "Sundzoll"],
+    [LANGUAGE_FRENCH, "Droits du Sund"],
+    [LANGUAGE_POLISH, "Cło sundzkie"],
+    [LANGUAGE_CHINESE_TRADITIONAL, "厄勒海峽通行稅"],
+    [LANGUAGE_KOREAN, "외레순 해협 통행세"]
+  ]);
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    assert.equal(localizeText(id, "Sound Dues"), expected.get(id), `${id} mistranslated Sound as audio`);
+  }
+});
+
 test("first-day sunset and sunrise notices are localized everywhere", () => {
   for (const { id } of SUPPORTED_LANGUAGES) {
     for (const key of ["status.sunset", "status.sunrise"]) {
