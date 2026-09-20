@@ -19,6 +19,17 @@ import { extractScreenTextSourceCatalog } from "../tools/screen-text-source-cata
 
 const SOURCE_ROOT = path.dirname(fileURLToPath(import.meta.url));
 
+function assertReviewedTranslations(reviewed, context) {
+  const languages = SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH);
+  for (const { id: language } of languages) {
+    const catalog = screenTextTranslationCatalog(language);
+    const languageIndex = languages.findIndex(({ id }) => id === language);
+    for (const [source, expected] of reviewed) {
+      assert.equal(catalog[source], expected[languageIndex], `${context}: ${language}: ${source}`);
+    }
+  }
+}
+
 test("shared action eligibility retains player explanations in the text catalog", () => {
   const directory = mkdtempSync(path.join(tmpdir(), "action-text-contract-"));
   try {
@@ -92,12 +103,7 @@ test("political standing is translated as reputation in every screen locale", ()
       "声望变化", "Изменение репутации", "Cambio de reputación", "Variação de reputação", "評判の変動", "Ansehensänderung", "Évolution de la réputation", "Zmiana reputacji", "聲望變化", "평판 변화"
     ]]
   ]);
-  for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
-    const catalog = screenTextTranslationCatalog(language);
-    for (const [source, expected] of reviewed) {
-      assert.equal(catalog[source], expected[SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH).findIndex(({ id }) => id === language)], `${language}: ${source}`);
-    }
-  }
+  assertReviewedTranslations(reviewed, "standing");
 });
 
 test("nautical watch shifts are not translated as timepieces", () => {
@@ -109,14 +115,32 @@ test("nautical watch shifts are not translated as timepieces", () => {
       "不，值勤时睡觉可不算在岗。", "Нет, сон во время вахты не считается несением службы.", "No, dormir durante la guardia no cuenta como hacerla.", "Não, dormir durante o turno não conta como cumprir serviço.", "いや、当直中に眠っていては務めを果たしたことにならない。", "Nein, während der Wache zu schlafen gilt nicht als Wachdienst.", "Non, dormir pendant le quart ne compte pas comme monter la garde.", "Nie, przespanie wachty nie liczy się jako służba.", "不，值勤時睡覺可不算在崗。", "아니, 당직 중에 자는 건 근무한 게 아니야."
     ]]
   ]);
-  const languages = SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH);
-  for (const { id: language } of languages) {
-    const catalog = screenTextTranslationCatalog(language);
-    const languageIndex = languages.findIndex(({ id }) => id === language);
-    for (const [source, expected] of reviewed) {
-      assert.equal(catalog[source], expected[languageIndex], `${language}: ${source}`);
-    }
-  }
+  assertReviewedTranslations(reviewed, "watch duty");
+});
+
+test("fishing and scavenging haul labels describe their yields", () => {
+  const reviewed = new Map([
+    ["Fishing odds x{0} / Max haul {1}", [
+      "钓鱼概率 x{0} / 最大渔获 {1}", "Шанс улова x{0} / Макс. улов {1}", "Probabilidad de pesca x{0} / Captura máxima {1}", "Chance de pesca x{0} / Captura máxima {1}", "漁獲確率 x{0} / 最大漁獲量 {1}", "Fangchance x{0} / Höchstfang {1}", "Chance de pêche x{0} / Prise maximale {1}", "Szansa połowu x{0} / Maks. połów {1}", "釣魚機率 x{0} / 最大漁獲 {1}", "어획 확률 x{0} / 최대 어획량 {1}"
+    ]],
+    ["Scavenging haul +{0}", [
+      "搜集所得 +{0}", "Добыча припасов +{0}", "Rendimiento de recolección +{0}", "Rendimento da coleta +{0}", "物資採集量 +{0}", "Bergungsertrag +{0}", "Rendement de récupération +{0}", "Wydajność zbieractwa +{0}", "蒐集所得 +{0}", "채집 수확량 +{0}"
+    ]]
+  ]);
+  assertReviewedTranslations(reviewed, "fishing yield");
+});
+
+test("ship stores mean provisions rather than shops", () => {
+  const reviewed = new Map([
+    ["Stores", ["物资", "Запасы", "Provisiones", "Suprimentos", "物資", "Vorräte", "Réserves", "Zapasy", "物資", "비축품"]],
+    ["These stores are received. Still required: {0}.", [
+      "物资已收到。仍需：{0}。", "Припасы получены. Ещё требуется: {0}.", "Suministros recibidos. Aún faltan: {0}.", "Suprimentos recebidos. Ainda faltam: {0}.", "物資を受領した。残り：{0}。", "Vorräte eingetroffen. Noch benötigt: {0}.", "Approvisionnements reçus. Il manque encore : {0}.", "Zaopatrzenie odebrane. Nadal potrzeba: {0}.", "物資已收到。仍需：{0}。", "보급품을 받았다. 남은 수량: {0}."
+    ]],
+    ["A rising whiteout drove the party back before they found anything fit for the stores.", [
+      "暴风雪渐浓，队伍还没找到可补充船上储备的东西便被迫折返。", "Налетевшая метель заставила отряд повернуть назад, прежде чем он нашёл что-либо для пополнения запасов.", "La ventisca obligó al grupo a regresar antes de encontrar provisiones para el barco.", "A nevasca obrigou o grupo a voltar antes que encontrasse mantimentos para o navio.", "吹雪が強まり、船の物資にできるものを見つける前に一行は引き返した。", "Ein aufziehender Schneesturm zwang die Gruppe zur Umkehr, bevor sie etwas für die Vorräte fand.", "Un blizzard grandissant força le groupe à rebrousser chemin avant qu'il ne trouve de quoi ravitailler le navire.", "Nadciągająca zawieja zmusiła grupę do odwrotu, nim znalazła zapasy dla statku.", "暴風雪漸濃，隊伍還沒找到可補充船上儲備的東西便被迫折返。", "눈보라가 거세져 배의 비축품으로 쓸 것을 찾기도 전에 일행은 돌아갈 수밖에 없었다."
+    ]]
+  ]);
+  assertReviewedTranslations(reviewed, "ship stores");
 });
 
 test("normal game text cannot be written to the screen in English-only form", () => {

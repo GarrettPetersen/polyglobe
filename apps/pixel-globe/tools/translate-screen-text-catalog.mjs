@@ -1527,7 +1527,9 @@ const REVIEWED_OVERRIDES = Object.freeze({
     pl: "Concepcion trwa w Penco jako ośrodek wojskowy i administracyjny, zaopatrywany z Peru na pograniczu, którego Hiszpania nie podporządkowała."
   }),
   ...reviewedStandingOverrides(),
-  ...reviewedWatchShiftOverrides()
+  ...reviewedWatchShiftOverrides(),
+  ...reviewedFishingYieldOverrides(),
+  ...reviewedStoreSupplyOverrides()
 });
 
 function reviewedSupplyAndBriefOverrides() {
@@ -1631,6 +1633,68 @@ function reviewedWatchShiftOverrides() {
     ]],
     ["We know this vessel. The harbor watch is waiting for you. This port remains closed for {0} more day{1}.", [
       "我们认得这艘船。港口巡卫正在等你。本港还要关闭 {0} 天{1}。", "Мы знаем это судно. Портовая стража ждёт вас. Порт останется закрытым ещё {0} день{1}.", "Conocemos este barco. La guardia del puerto te espera. Este puerto seguirá cerrado {0} día{1} más.", "Conhecemos este navio. A guarda portuária está à sua espera. Este porto continuará fechado por mais {0} dia{1}.", "この船は見覚えがある。港の守備隊が待ち構えている。この港はあと{0}日{1}閉鎖される。", "Wir kennen dieses Schiff. Die Hafenwache erwartet Euch. Dieser Hafen bleibt noch {0} Tag{1} geschlossen.", "Nous connaissons ce navire. La garde portuaire vous attend. Ce port restera fermé encore {0} jour{1}.", "Znamy ten statek. Straż portowa czeka na ciebie. Port pozostanie zamknięty jeszcze przez {0} dzień{1}.", "我們認得這艘船。港口巡衛正在等你。本港還要關閉 {0} 天{1}。", "우리는 이 배를 안다. 항구 경비대가 널 기다린다. 이 항구는 앞으로 {0}일{1} 동안 폐쇄된다."
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, translations]) => [
+    source,
+    reviewedLocaleOverrides(source, translations)
+  ]));
+}
+
+function reviewedFishingYieldOverrides() {
+  const entries = [
+    ["A Good Haul", [
+      "好收获", "Хороший улов", "Buena pesca", "Boa pescaria", "大漁", "Guter Fang", "Belle prise", "Dobry połów", "好收穫", "좋은 어획"
+    ]],
+    ["Catch x{0}, max haul {1}", [
+      "捕获率 x{0}，最大渔获 {1}", "Улов x{0}, максимум: {1}", "Captura x{0}, captura máxima {1}", "Captura x{0}, captura máxima {1}", "捕獲 x{0}、最大漁獲量 {1}", "Fang x{0}, Höchstfang {1}", "Prise x{0}, prise maximale {1}", "Połów x{0}, maksymalny połów {1}", "捕獲率 x{0}，最大漁獲 {1}", "어획 x{0}, 최대 어획량 {1}"
+    ]],
+    ["Fishing haul +{0}", [
+      "渔获量 +{0}", "Улов рыбы +{0}", "Rendimiento pesquero +{0}", "Rendimento da pesca +{0}", "漁獲量 +{0}", "Fangertrag +{0}", "Rendement de pêche +{0}", "Wydajność połowu +{0}", "漁獲量 +{0}", "어획량 +{0}"
+    ]],
+    ["Fishing odds x{0} / Max haul {1}", [
+      "钓鱼概率 x{0} / 最大渔获 {1}", "Шанс улова x{0} / Макс. улов {1}", "Probabilidad de pesca x{0} / Captura máxima {1}", "Chance de pesca x{0} / Captura máxima {1}", "漁獲確率 x{0} / 最大漁獲量 {1}", "Fangchance x{0} / Höchstfang {1}", "Chance de pêche x{0} / Prise maximale {1}", "Szansa połowu x{0} / Maks. połów {1}", "釣魚機率 x{0} / 最大漁獲 {1}", "어획 확률 x{0} / 최대 어획량 {1}"
+    ]],
+    ["Long haul", [
+      "远洋航行", "Дальний рейс", "Larga distancia", "Longo curso", "長距離航海", "Fernfahrt", "Long cours", "Daleki rejs", "遠洋航行", "장거리 항해"
+    ]],
+    ["ODDS x{0} MAX HAUL {1}", [
+      "概率 x{0} 最大渔获 {1}", "ШАНС x{0} МАКС. УЛОВ {1}", "PROBABILIDAD x{0} CAPTURA MÁX. {1}", "CHANCE x{0} CAPTURA MÁX. {1}", "確率 x{0} 最大漁獲量 {1}", "CHANCE x{0} MAX. FANG {1}", "CHANCE x{0} PRISE MAX. {1}", "SZANSA x{0} MAKS. POŁÓW {1}", "機率 x{0} 最大漁獲 {1}", "확률 x{0} 최대 어획량 {1}"
+    ]],
+    ["Scavenging haul +{0}", [
+      "搜集所得 +{0}", "Добыча припасов +{0}", "Rendimiento de recolección +{0}", "Rendimento da coleta +{0}", "物資採集量 +{0}", "Bergungsertrag +{0}", "Rendement de récupération +{0}", "Wydajność zbieractwa +{0}", "蒐集所得 +{0}", "채집 수확량 +{0}"
+    ]],
+    ["Short haul", [
+      "近程航行", "Короткий рейс", "Cabotaje", "Cabotagem", "沿岸航海", "Küstenfahrt", "Cabotage", "Krótki rejs", "近程航行", "연안 항해"
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, translations]) => [
+    source,
+    reviewedLocaleOverrides(source, translations)
+  ]));
+}
+
+function reviewedStoreSupplyOverrides() {
+  const entries = [
+    ["Stores", ["物资", "Запасы", "Provisiones", "Suprimentos", "物資", "Vorräte", "Réserves", "Zapasy", "物資", "비축품"]],
+    ["STORES", ["物资", "ЗАПАСЫ", "PROVISIONES", "SUPRIMENTOS", "物資", "VORRÄTE", "RÉSERVES", "ZAPASY", "物資", "비축품"]],
+    ["{0} receives the officers' return from {1}, restoring the chain of orders, stores, and accounts.", [
+      "{0} 收到从 {1} 返航的军官，恢复命令、物资和账目之间的联系。", "{0} встречает офицеров, вернувшихся из {1}, и восстанавливает связь между приказами, снабжением и счетами.", "{0} recibe a los oficiales de vuelta de {1} y restablece la cadena de órdenes, suministros y cuentas.", "{0} recebe os oficiais de volta de {1}, restabelecendo a cadeia de ordens, suprimentos e contas.", "{0}は{1}から戻った士官を迎え、命令・物資・会計の連絡網を立て直す。", "{0} empfängt die aus {1} zurückgekehrten Offiziere und stellt die Verbindung zwischen Befehlen, Vorräten und Rechnungen wieder her.", "{0} accueille les officiers de retour de {1} et rétablit la chaîne des ordres, des approvisionnements et des comptes.", "{0} przyjmuje oficerów wracających z {1} i przywraca łączność między rozkazami, zaopatrzeniem i rachunkami.", "{0} 收到從 {1} 返航的軍官，恢復命令、物資和帳目之間的聯繫。", "{0}이(가) {1}에서 돌아온 장교들을 맞아 명령·보급품·회계의 연락망을 복구한다."
+    ]],
+    ["{0} x{1} moved straight to the yard stores.", [
+      "{0} x{1} 已直接存入船坞仓库。", "{0} x{1} отправлены прямо на склад верфи.", "{0} x{1} se guardó directamente en el almacén del astillero.", "{0} x{1} foi direto para o depósito do estaleiro.", "{0} x{1}は造船所の倉庫へ直送された。", "{0} x{1} wurde direkt ins Werftlager gebracht.", "{0} x{1} a été envoyé directement à l'entrepôt du chantier naval.", "{0} x{1} trafiło prosto do magazynu stoczni.", "{0} x{1} 已直接存入船塢倉庫。", "{0} x{1}이(가) 조선소 창고로 바로 옮겨졌다."
+    ]],
+    ["A rising whiteout drove the party back before they found anything fit for the stores.", [
+      "暴风雪渐浓，队伍还没找到可补充船上储备的东西便被迫折返。", "Налетевшая метель заставила отряд повернуть назад, прежде чем он нашёл что-либо для пополнения запасов.", "La ventisca obligó al grupo a regresar antes de encontrar provisiones para el barco.", "A nevasca obrigou o grupo a voltar antes que encontrasse mantimentos para o navio.", "吹雪が強まり、船の物資にできるものを見つける前に一行は引き返した。", "Ein aufziehender Schneesturm zwang die Gruppe zur Umkehr, bevor sie etwas für die Vorräte fand.", "Un blizzard grandissant força le groupe à rebrousser chemin avant qu'il ne trouve de quoi ravitailler le navire.", "Nadciągająca zawieja zmusiła grupę do odwrotu, nim znalazła zapasy dla statku.", "暴風雪漸濃，隊伍還沒找到可補充船上儲備的東西便被迫折返。", "눈보라가 거세져 배의 비축품으로 쓸 것을 찾기도 전에 일행은 돌아갈 수밖에 없었다."
+    ]],
+    ["Finds useful stores ashore and brings more back.", [
+      "能在岸上找到有用物资并带回更多。", "Находит полезные припасы на берегу и приносит их на борт.", "Encuentra provisiones útiles en tierra y trae más a bordo.", "Encontra suprimentos úteis em terra e traz mais a bordo.", "陸で役立つ物資を見つけ、船に持ち帰る。", "Findet nützliche Vorräte an Land und bringt weitere an Bord.", "Trouve des provisions utiles à terre et en rapporte davantage à bord.", "Znajduje przydatne zapasy na lądzie i przynosi je na pokład.", "能在岸上找到有用物資並帶回更多。", "육지에서 쓸 만한 물자를 찾아 배에 더 가져온다."
+    ]],
+    ["The promised stores have not arrived. Still required: {0}.", [
+      "承诺的物资尚未送达。仍需：{0}。", "Обещанные припасы не доставлены. Ещё требуется: {0}.", "Los suministros prometidos aún no han llegado. Faltan: {0}.", "Os suprimentos prometidos ainda não chegaram. Ainda faltam: {0}.", "約束の物資はまだ届いていない。残り：{0}。", "Die zugesagten Vorräte sind noch nicht eingetroffen. Noch benötigt: {0}.", "Les approvisionnements promis ne sont pas arrivés. Il manque encore : {0}.", "Obiecane zaopatrzenie jeszcze nie dotarło. Nadal potrzeba: {0}.", "承諾的物資尚未送達。仍需：{0}。", "약속한 보급품이 아직 도착하지 않았다. 남은 수량: {0}."
+    ]],
+    ["These stores are received. Still required: {0}.", [
+      "物资已收到。仍需：{0}。", "Припасы получены. Ещё требуется: {0}.", "Suministros recibidos. Aún faltan: {0}.", "Suprimentos recebidos. Ainda faltam: {0}.", "物資を受領した。残り：{0}。", "Vorräte eingetroffen. Noch benötigt: {0}.", "Approvisionnements reçus. Il manque encore : {0}.", "Zaopatrzenie odebrane. Nadal potrzeba: {0}.", "物資已收到。仍需：{0}。", "보급품을 받았다. 남은 수량: {0}."
     ]]
   ];
   return Object.fromEntries(entries.map(([source, translations]) => [
