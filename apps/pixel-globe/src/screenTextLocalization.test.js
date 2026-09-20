@@ -46,6 +46,47 @@ test("shared action eligibility retains player explanations in the text catalog"
   }
 });
 
+test("validation argument labels do not enter the player-facing translation catalog", () => {
+  const sourceCatalog = extractScreenTextSourceCatalog(SOURCE_ROOT);
+  for (const internalLabel of [
+    "campaign reminder doubloons", "campaign reminder home port", "campaign reminder contact",
+    "buyPrice", "capitalContributions", "constructionExpenses", "effectDetail", "foodUnits",
+    "itemId", "LocalSaveWriteError", "playerPayouts", "salesPitch", "salesRevenue", "sellPrice",
+    "tradeImpact", "waterUnits"
+  ]) {
+    assert.ok(!sourceCatalog.includes(internalLabel), internalLabel);
+  }
+});
+
+test("historical maritime and trade language keeps its intended meaning", () => {
+  assertReviewedTranslations([
+    ["Camel trains halt beside the warehouses as sailors carry manifests from the anchorage to the customs court.", [
+      "骆驼商队停在仓库旁，水手们则把货单从锚地送往海关。",
+      "Верблюжьи караваны останавливаются у складов, пока моряки несут манифесты с рейда в таможню.",
+      "Las caravanas de camellos se detienen junto a los almacenes mientras los marineros llevan los manifiestos desde el fondeadero a la aduana.",
+      "As caravanas de camelos param junto aos armazéns enquanto marinheiros levam os manifestos do ancoradouro à alfândega.",
+      "ラクダの隊商が倉庫のそばで足を止める。水夫たちは停泊地から税関へ貨物目録を運んでいる。",
+      "Kamelkarawanen halten neben den Lagerhäusern, während Seeleute die Frachtlisten vom Ankerplatz zum Zollhaus bringen.",
+      "Des caravanes de chameaux s'arrêtent près des entrepôts tandis que les marins portent les manifestes du mouillage à la douane.",
+      "Karawany wielbłądów zatrzymują się przy magazynach, gdy marynarze niosą manifesty z kotwicowiska do urzędu celnego.",
+      "駱駝商隊停在倉庫旁，水手們則把貨單從錨地送往海關。",
+      "낙타 대상이 창고 옆에 멈춰 서고, 선원들은 정박지에서 세관까지 화물 목록을 나릅니다."
+    ]],
+    ["By the sovereign's seal, the customs of {0} are offered until twelve hundred thousand doubloons have answered your indenture.", [
+      "奉君主之印，{0}的关税收入将交予你，直至偿清一百二十万达布隆的契约债务。",
+      "По печати государя вам передаются таможенные доходы {0}, пока они не покроют долг по вашему контракту в миллион двести тысяч дублонов.",
+      "Por mandato soberano, se te ceden los ingresos aduaneros de {0} hasta saldar tu contrato por un millón doscientos mil doblones.",
+      "Por ordem do soberano, a receita alfandegária de {0} será destinada a quitar sua dívida contratual de um milhão e duzentos mil dobrões.",
+      "君主の御璽により、契約債務の百二十万ダブロンを返済するまで、{0}の関税収入を譲渡する。",
+      "Mit dem Siegel des Landesherrn werden Euch die Zolleinnahmen aus {0} überlassen, bis Eure Vertragsschuld von einer Million zweihunderttausend Dublonen beglichen ist.",
+      "Par le sceau du souverain, les recettes douanières de {0} vous sont attribuées jusqu'au remboursement de votre engagement, soit un million deux cent mille doublons.",
+      "Na mocy pieczęci władcy dochody celne z {0} zostają ci przyznane, aż pokryją zobowiązanie kontraktowe w wysokości miliona dwustu tysięcy dublonów.",
+      "奉君主之印，{0}的關稅收入將交予你，直至償清一百二十萬達布隆的契約債務。",
+      "군주의 인장에 따라 {0}의 관세 수입을 계약 채무인 120만 더블룬을 갚을 때까지 양도합니다."
+    ]]
+  ], "historical maritime and trade language");
+});
+
 test("every authored screen-text template is committed to the localization catalog", () => {
   const baseEnglish = new Set(Object.values(localizationCatalog(LANGUAGE_ENGLISH)));
   const authored = extractScreenTextSourceCatalog(SOURCE_ROOT)

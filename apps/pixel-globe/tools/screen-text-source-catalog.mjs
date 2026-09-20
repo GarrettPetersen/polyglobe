@@ -90,10 +90,17 @@ const PERSISTENT_PROPER_NOUN_TEMPLATES = Object.freeze([
   "Vienna"
 ]);
 const NON_DISPLAY_VALIDATION_CALLS = new Set([
+  "assertNonEmptyString",
+  "assertNonNegativeInteger",
   "requireCityId",
   "requireEntityById",
   "requireEntityId",
   "requiredNpcRoutePort"
+]);
+const NON_DISPLAY_SOURCE_TEMPLATES = new Set([
+  "buyPrice", "capitalContributions", "constructionExpenses", "effectDetail", "foodUnits",
+  "itemId", "LocalSaveWriteError", "playerPayouts", "salesPitch", "salesRevenue", "sellPrice",
+  "tradeImpact", "waterUnits"
 ]);
 
 export function extractScreenTextSourceCatalog(sourceRoot) {
@@ -107,7 +114,9 @@ export function extractScreenTextSourceCatalog(sourceRoot) {
     const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
     visit(sourceFile, sourceFile, templates);
   }
-  return Object.freeze([...templates].sort((left, right) => left.localeCompare(right, "en")));
+  return Object.freeze([...templates]
+    .filter((template) => !NON_DISPLAY_SOURCE_TEMPLATES.has(template))
+    .sort((left, right) => left.localeCompare(right, "en")));
 }
 
 function visit(node, sourceFile, templates) {
