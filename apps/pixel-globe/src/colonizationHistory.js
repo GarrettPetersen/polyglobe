@@ -156,7 +156,7 @@ const HISTORIES = Object.freeze([
     sponsorRole: "agent of Legazpi",
     settlementLeaderRole: "governor of Manila",
     basis: "Legazpi made Manila the Spanish capital in 1571 after the conquest of the existing Tagalog polity of Maynila.",
-    pitch: "Maynila is already a fortified Tagalog and Muslim port beside Tondo. Legazpi means to conquer and rebuild it as his capital, not discover it.",
+    pitch: "Maynila is already a fortified Tagalog and Muslim port beside Tondo. Legazpi intends to conquer it and rebuild it as his capital, not claim to have discovered it.",
     fetch: [
       stage("manila-arms", "arms", 6, "the force sent to occupy Maynila", "The rulers of Maynila have ships, cannon, and allies. The expedition first demands"),
       stage("manila-powder", "gunpowder", 6, "arquebuses and artillery for the Pasig River approach", "A landing at the Pasig cannot rely on steel alone. Supply"),

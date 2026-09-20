@@ -131,7 +131,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
     "Two faces of the same mountain, depending on the road taken. Your paired sketches prove why one view is never enough for a true chart."
   ),
   "mountain-mount-kosciuszko": exchange(
-    "Kosciuszko is no lonely spire. It is the highest swell in a broad, windswept country of rounded ridges, pale grass, and winter snow.",
+    "Kosciuszko is no lonely spire. It is the highest rise in a broad, windswept country of rounded ridges, pale grass, and winter snow.",
     "Then height need not always announce itself with cliffs. I am glad you resisted the temptation to make the mountain more dramatic than it is. Accuracy is its own wonder."
   ),
   "mountain-dhaulagiri": exchange(
@@ -179,7 +179,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
     "No reader will mistake that profile. Sometimes a mountain gives the cartographer a symbol more memorable than any written name."
   ),
   "mountain-mauna-kea": exchange(
-    "Mauna Kea rises from the ocean as an entire island slope, gentle for leagues before reaching a cold, bare summit. Snow lay above warm Pacific water and black volcanic stone.",
+    "Mauna Kea rises from the ocean as a broad, gentle island slope, then climbs to a cold, bare summit. Snow lay above warm Pacific water and black volcanic stone.",
     "Most of the mountain begins beneath your keel, then. That thought enlarges it beyond what the eye can see. Sound the surrounding depths wherever you safely can."
   ),
   "mountain-mount-fuji": exchange(

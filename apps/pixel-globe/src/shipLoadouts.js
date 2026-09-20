@@ -160,7 +160,7 @@ export function shipCustomLoadoutPlan(stats, draft, options = {}) {
   return Object.freeze({
     id: CUSTOM_LOADOUT_ID,
     label: "Custom",
-    detail: "Manually assigned crew, guns, and stores",
+    detail: "Manually assigned crew, guns, and supplies",
     crew: draft.crew,
     crewCapacity,
     cannons: draft.cannons,

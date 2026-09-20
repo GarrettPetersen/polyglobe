@@ -44,7 +44,7 @@ const CONTEXT_LINES = Object.freeze({
     cordial: "The roadstead is full of merchant sails. There should be good company ashore tonight.",
     vigilant: "Merchant traffic is heavy. Watch for careless helms near the harbor mouth.",
     gossipy: "So many merchants came in today that every warehouse keeper claims a shortage.",
-    austere: "Merchant arrivals are heavy. Berths and labor are limited.",
+    austere: "Many merchants are arriving. Berths and dock labor are limited.",
     enterprising: "Merchant sails are crowding the roadstead. Prices will not sit still for long.",
     reflective: "Merchant wakes cross here from half the world, each following the same hope."
   },

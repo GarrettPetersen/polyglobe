@@ -1199,7 +1199,7 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "We furnished horses and grain for the army that crossed the Tweed. The men did not return, but every lender did."
   ),
   france: debtOrigin(
-    "Marignano made the king glorious. It made your family available to me.",
+    "Marignano made the king glorious. It left your family in my debt.",
     "We provisioned the march into Lombardy on sealed promises. Victory came home; payment did not."
   ),
   spain: debtOrigin(
@@ -1278,7 +1278,7 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "His name appeared among the Prince of Ning's papers. Proving his innocence cost the family nearly everything."
   ),
   inca: debtOrigin(
-    "Imperial tallies are excellent promises, provided one does not need payment.",
+    "Imperial bonds are excellent promises, provided one does not need payment.",
     "The northern campaign took our llamas, grain, and sons. The tallies came back honored; the goods did not."
   ),
   safavid: debtOrigin(
@@ -1354,7 +1354,7 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "We supplied men who joined Babur before Panipat. They came home with honors; their unpaid account reached Delhi first."
   ),
   ayutthaya: debtOrigin(
-    "Malacca lost a warehouse. I acquired excellent security.",
+    "Malacca lost a warehouse. I acquired excellent collateral.",
     "The warehouse was ours until the Portuguese took the city. It disappeared, but its bills crossed the sea intact."
   ),
   ternate: debtOrigin(

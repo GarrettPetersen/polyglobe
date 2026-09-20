@@ -357,7 +357,7 @@ export function eastAsianMissionDialogue(plan) {
   }
   if (plan.id === EAST_ASIAN_MISSION_TSUSHIMA) {
     return Object.freeze({
-      offer: "Joseon permits Tsushima limited trade, but its councillors call our envoys frauds. These papers are genuine. Carry me and the Sō register to Hanseong before they revoke our privilege.",
+      offer: "Joseon grants Tsushima limited trade, but its councillors call the Sō envoys frauds. These credentials are genuine. Carry me and the Sō register to Hanseong before they revoke our privilege.",
       underway: "A hidden bundle beneath the Sō register bears unlisted names and copied seals. The evidence remains locked in the captain's cabin.",
       arrival: "Joseon's councillors question the Sō envoy's papers. They ask you, the captain who carried the packet, whether you will vouch for him or produce contrary evidence.",
       journeyEvents: Object.freeze([

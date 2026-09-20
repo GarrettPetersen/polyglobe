@@ -186,6 +186,21 @@ test("scripture delivery and historical references avoid literal false friends",
   }
 });
 
+test("reviewed Korean identity, mountain, and Bible terms keep their intended meanings", () => {
+  assert.equal(localizeText("zh-Hans", "Korean"), "朝鲜人");
+  assert.equal(localizeText("ko", "Korean"), "한국인");
+  assert.match(localizeText("ru", "Kosciuszko is no lonely spire. It is the highest rise in a broad, windswept country of rounded ridges, pale grass, and winter snow."), /высшая точка/);
+  assert.equal(localizeText("fr", "Luther's Bible is forbidden. Fortunately, I have read it. Close the chest, captain; my eyesight has failed."), "La Bible de Luther est interdite. Heureusement, je l'ai déjà lue. Fermez le coffre, capitaine ; ma vue baisse.");
+});
+
+test("financial, maritime, and Manila history copy avoids false friends", () => {
+  assert.equal(localizeText("de", "Imperial bonds are excellent promises, provided one does not need payment."), "Kaiserliche Anleihen versprechen viel – solange man nicht auf Auszahlung angewiesen ist.");
+  assert.equal(localizeText("ko", "Masterwork seine"), "명품 후릿그물");
+  assert.match(localizeText("fr", "Maynila is already a fortified Tagalog and Muslim port beside Tondo. Legazpi intends to conquer it and rebuild it as his capital, not claim to have discovered it."), /port fortifié tagalog et musulman/);
+  assert.equal(localizeText("pl", "Manually assigned crew, guns, and supplies"), "Ręcznie przydzielona załoga, działa i zapasy");
+  assert.equal(localizeText("ru", "Many merchants are arriving. Berths and dock labor are limited."), "Прибывает много купцов, а причалов и портовых рабочих не хватает.");
+});
+
 test("every authored screen-text template is committed to the localization catalog", () => {
   const baseEnglish = new Set(Object.values(localizationCatalog(LANGUAGE_ENGLISH)));
   const authored = extractScreenTextSourceCatalog(SOURCE_ROOT)

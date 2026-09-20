@@ -1543,7 +1543,7 @@ function bibleInspectionView(session, speaker) {
     return {
       speaker,
       expressionId: "amused",
-      text: "Luther's Testaments are forbidden. Fortunately, I have read them. Close the chest, captain; my eyesight has failed.",
+      text: "Luther's Bible is forbidden. Fortunately, I have read it. Close the chest, captain; my eyesight has failed.",
       feedback: null,
       options: [option("Thank the captain", { type: "close" })]
     };
