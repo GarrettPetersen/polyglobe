@@ -325,7 +325,7 @@ function pacificIslandArrivalLine(city, shipLabel, localHull, returning, variati
 function namedRemotePortLine(city, shipLabel, localHull, returning) {
   const name = String(city.displayCity || city.city || "").toLowerCase();
   if (name === "dongola") {
-    if (returning) return "Your sail is known at Dongola now. Word of your return is already moving between the Nile landing and the market.";
+    if (returning) return "People in Dongola know your ship now. News of your return has spread between the Nile landing and the market.";
     return localHull
       ? "The Nile carries barges and lateen craft this far, but every new arrival becomes market news before its ropes are tied."
       : `Your ${shipLabel} has come farther up the Nile than most sea-going captains dare. Boatmen have left the river stairs to inspect her rig.`;
@@ -337,10 +337,10 @@ function namedRemotePortLine(city, shipLabel, localHull, returning) {
       : `Your ${shipLabel} has reached Kabara by the Niger, where sea-going rigs are rare. Salt merchants and scholars from Timbuktu have sent runners to inspect the arrival.`;
   }
   if (name === "gao") {
-    if (returning) return "Your sail is known at Gao now. Niger boatmen have already carried word of your return along the landing.";
+    if (returning) return "Boatmen on the Niger have brought word of your return to Gao's river landing.";
     return localHull
       ? "Boats on the Niger, salt caravans, and court messengers crowd Gao's river landing; news of every arrival moves quickly through the market."
-      : `A ${shipLabel} from the outer ocean has reached Gao. Niger boatmen and court merchants are crowding the landing to learn what route brought you here.`;
+      : `A ${shipLabel} from the outer ocean has reached Gao. Boatmen on the Niger and court merchants crowd the landing to learn what route brought you here.`;
   }
   return null;
 }
@@ -376,7 +376,7 @@ function americanVillageLine(city, shipLabel, localHull, returning) {
 
 function remoteApproachLine(approachKind, shipLabel, localHull, returning) {
   if (approachKind === "river") {
-    if (returning) return "Your sail is known this far upriver now. Boatmen were carrying news of your return before you reached the landing.";
+    if (returning) return "People this far upriver recognize your ship. Boatmen had spread word of your return before you reached the landing.";
     return localHull
       ? "River craft reach this far, but arrivals are uncommon enough that the market knows your cargo before the ropes are tied."
       : `No ${shipLabel} like yours is expected this far upriver. Boatmen, traders, and children have crowded the landing to inspect it.`;

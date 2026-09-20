@@ -617,7 +617,7 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
     return [
       step("contact", "concerned", `You still mean to follow that white whale, ${playerCharacter.givenName || playerCharacter.name}? Other captains call it a beast. You speak of it as judgment.`),
       step("player", "stern", "It took my boat, my comrades, and every quiet night since. Its white brow rises whenever I close my eyes. I will cross every sea until I set my iron in it."),
-      step("contact", "attentive", "Take a blue-water hull and a sound harpoon. Ask in every port and hail passing ships; sailors repeat strange news to a listening captain."),
+      step("contact", "attentive", "Take an ocean-going ship and a reliable harpoon. Ask in every port and call to passing ships; sailors share strange news with a captain who listens."),
       step("player", "determined", "Let the chart be blank and the ocean without end. I know the mark I hunt. Towards that white shape I roll, though all the waves of the world lie between us.")
     ];
   }

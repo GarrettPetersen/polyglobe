@@ -3886,7 +3886,7 @@ export function selectPortDialogueAction(
       : isTeaRaceQuest(quest)
         ? quest.teaRaceWon
           ? `First tea ashore. Won the race and earned ${quest.reward} db.`
-          : `Tea delivered. Earned the ${quest.reward} db finishing premium.`
+          : `Tea delivered. Delivery premium: ${quest.reward} db.`
         : `Delivered. Earned ${quest.reward} db. Standing improved.`;
     session.nodeId = session.nextPortNodeId || "root";
     session.nextPortNodeId = null;
@@ -5701,7 +5701,9 @@ function portugueseCartazView(session, city, gameState, context) {
     ? Math.max(1, Math.ceil((status.untilMinute - simMinute) / 1440))
     : 0;
   const text = status.valid
-    ? `Your Portuguese cartaz is valid for ${remainingDays} more day${remainingDays === 1 ? "" : "s"}. It prevents Estado da India inspections, but local customs still apply.`
+    ? remainingDays === 1
+      ? "Your Portuguese cartaz pass is valid for one more day. It prevents Estado da Índia inspections, but local customs still apply."
+      : `Your Portuguese cartaz pass is valid for ${remainingDays} more days. It prevents Estado da Índia inspections, but local customs still apply.`
     : status.fee === null
       ? portugueseCartazRefusalText()
       : `A ${status.fee} doubloon cartaz licenses this vessel for ${PORTUGUESE_CARTAZ_DURATION_DAYS} days under Estado da India patrols. Customs and spice levies still apply.`;
@@ -6396,7 +6398,7 @@ function conquistadorView(session, city, gameState, portCities, context) {
       expressionId: "stern",
       text: replenishmentPolicy.spanishPortsRemain
         ? "The walls bloodied us, but the royal commission still carries weight. Give me this harbor until dawn. I will replace the fallen, and the next assault will begin with what the first one taught us."
-        : "Spain has lost her ports, not every Spaniard his appetite for Peru. Panama remembers our compact. Give me until dawn to replace the fallen; we will carry the Crown in our own chests.",
+        : "Spain has lost her ports, but many Spaniards still hunger for Peru. Panama remembers our pact. Give me until dawn to replace the fallen; we will carry the Crown in our hearts.",
       feedback: session.feedback,
       options: [
         option("Re-form the expedition", { type: "replenish-conquistador-company" }),
@@ -6528,7 +6530,7 @@ function conquistadorView(session, city, gameState, portCities, context) {
     return {
       speaker,
       expressionId: "happy",
-      text: "Your gold is weighed and witnessed, Captain. Spend it loudly enough that Panama remembers who opened Peru.",
+      text: "Your gold has been weighed and witnessed, Captain. Spend it generously, so Panama remembers who opened the way to Peru.",
       feedback: session.feedback,
       options: [back]
     };

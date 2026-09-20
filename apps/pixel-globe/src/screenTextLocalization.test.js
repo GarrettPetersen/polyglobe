@@ -16,6 +16,7 @@ import {
   screenTextTranslationCatalog
 } from "./screenTextLocalization.js";
 import { extractScreenTextSourceCatalog } from "../tools/screen-text-source-catalog.mjs";
+import { NAME_CULTURE_LABELS } from "./nameCultures.js";
 
 const SOURCE_ROOT = path.dirname(fileURLToPath(import.meta.url));
 
@@ -224,6 +225,50 @@ test("Q and R entries distinguish money, political offices, and provisions", () 
   assert.match(localizeText("es", "Plymouth has endured at Patuxet through Wampanoag aid and an uneasy alliance; English provisions alone would not have saved it."), /provisiones inglesas/);
   assert.equal(localizeText("zh-Hans", "Powerful yew bows shoot farther across water but require skilled archers."), "强劲的紫杉木弓射程更远，但需要熟练的弓手。");
   assert.match(localizeText("de", "Rainier loomed above the inland waters, a massive white volcano cut by rivers of ice. Even at great distance it made the forested ridges before it seem small."), /ließ er die bewaldeten Rücken davor klein erscheinen/);
+});
+
+test("S to Z labels retain compass and fish identity across locales", () => {
+  assert.equal(screenTextTranslationCatalog("ja").SW, "南西");
+  assert.equal(screenTextTranslationCatalog("fr").SW, "SO");
+  assert.equal(screenTextTranslationCatalog("zh-Hans").SE, "东南");
+  assert.equal(screenTextTranslationCatalog("ja").Walleye, "ウォールアイ");
+  assert.equal(screenTextTranslationCatalog("de").Walleye, "Amerikanischer Zander");
+  assert.equal(screenTextTranslationCatalog("es").Walleye, "lucioperca amarilla");
+  assert.equal(screenTextTranslationCatalog("es")["Tea delivered. Delivery premium: {0} db."], "Té entregado. Prima por la entrega: {0} DB.");
+  assert.equal(screenTextTranslationCatalog("fr").Xebec, "Chébec");
+  assert.equal(screenTextTranslationCatalog("ko").Wendat, "웬다트");
+  assert.equal(screenTextTranslationCatalog("ja").Sikh, "シク教徒");
+  assert.equal(screenTextTranslationCatalog("ko").Somali, "소말리인");
+  assert.equal(screenTextTranslationCatalog("zh-Hant").Yoruba, "約魯巴人");
+  assert.equal(screenTextTranslationCatalog("ja").Shona, "ショナ人");
+});
+
+test("name-culture labels identify peoples rather than their languages", () => {
+  const cultureLabels = [...new Set(Object.values(NAME_CULTURE_LABELS))];
+  for (const source of cultureLabels) {
+    assert.doesNotMatch(screenTextTranslationCatalog("zh-Hans")[source], /语$/u, source);
+    assert.doesNotMatch(screenTextTranslationCatalog("zh-Hant")[source], /語$/u, source);
+    assert.doesNotMatch(screenTextTranslationCatalog("ja")[source], /語$/u, source);
+    assert.doesNotMatch(screenTextTranslationCatalog("ko")[source], /어$/u, source);
+  }
+});
+
+test("privateering, inland ports, and customs permits use their actual meanings", () => {
+  assert.equal(screenTextTranslationCatalog("ja")["Request letter of marque"], "私掠免許状を申請する");
+  assert.equal(screenTextTranslationCatalog("ko")["Without a letter of marque, this is an act of piracy."], "사략 허가장이 없으면 해적 행위입니다.");
+  assert.equal(screenTextTranslationCatalog("pl")["Your {0} letter of marque would authorize an attack."], "List kaperski od {0} uprawniałby do ataku.");
+  assert.equal(screenTextTranslationCatalog("es")["A {0} from the outer ocean has reached Gao. Boatmen on the Niger and court merchants crowd the landing to learn what route brought you here."], "Un {0} del océano abierto ha llegado a Gao. Los barqueros del Níger y los mercaderes de la corte se agolpan en el embarcadero para saber qué ruta te trajo.");
+  assert.match(screenTextTranslationCatalog("ja")["Silk, official seals, and calendars travel outward; sulfur and island wares return. Ceremony keeps the sea road in order."], /官印/);
+  assert.match(screenTextTranslationCatalog("de")["Your Portuguese cartaz pass is valid for {0} more days. It prevents Estado da Índia inspections, but local customs still apply."], /Cartaz-Pass/);
+  assert.match(screenTextTranslationCatalog("zh-Hans")["Your Portuguese cartaz pass is valid for one more day. It prevents Estado da Índia inspections, but local customs still apply."], /通行证还有效一天/);
+  assert.match(screenTextTranslationCatalog("zh-Hans")["Somewhere beyond this water, the white whale still breathes. So do I."], /^这片海域之外/u);
+  assert.match(screenTextTranslationCatalog("ru")["Somewhere beyond this water, the white whale still breathes. So do I."], /белый кит/u);
+  assert.match(screenTextTranslationCatalog("zh-Hant")["The raccoon has learned how the biscuit locker opens. Hand over the key."], /^浣熊/u);
+  assert.match(screenTextTranslationCatalog("fr")["The neighbors ask what it was like to be locked below a pirate deck. I tell them the better story starts when your sail appeared. Come to dinner."], /^Les voisins/u);
+  assert.match(screenTextTranslationCatalog("es")["The plans name it Ciudad de los Reyes, the City of Kings, with a plaza beside the Rimac and a road down to its harbor."], /Los planos la llaman Ciudad de los Reyes\. Tendrá/u);
+  assert.match(screenTextTranslationCatalog("pl")["Williams has negotiated with the Narragansett sachems at the Moshassuck. We will establish Providence by that agreement, beside the spring and salt cove."], /założymy Providence/u);
+  assert.match(screenTextTranslationCatalog("zh-Hans")["Welcome back, captain. Nagasaki's merchants still honor your {0}% trading discount."], /长崎商人/u);
+  assert.match(screenTextTranslationCatalog("de")["People this far upriver recognize your ship. Boatmen had spread word of your return before you reached the landing."], /^So weit flussaufwärts/u);
 });
 
 test("every authored screen-text template is committed to the localization catalog", () => {

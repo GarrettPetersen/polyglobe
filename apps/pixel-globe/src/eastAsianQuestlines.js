@@ -389,7 +389,7 @@ export function eastAsianMissionDialogue(plan) {
   if (plan.id === EAST_ASIAN_MISSION_RYUKYU) {
     return Object.freeze({
       offer: "The investiture patent for the king of Ryukyu is sealed at Fuzhou. Carry me and the imperial gifts to Naha, where Shuri's court is waiting.",
-      underway: "Silk, seals, and calendars travel outward; sulfur and island wares return. Ceremony keeps the sea road legible.",
+      underway: "Silk, official seals, and calendars travel outward; sulfur and island wares return. Ceremony keeps the sea road in order.",
       arrival: "Ryukyu's ministers receive the patent and imperial gifts. The investiture may proceed at Shuri."
     });
   }

@@ -133,7 +133,7 @@ const HISTORIES = Object.freeze([
     landing: "Matanzas Bay gives us a defensible harbor. We will lay out St. Augustine here while the army turns north toward Fort Caroline.",
     landingAction: "Found St. Augustine",
     resupply: resupply("grain", 12, "a large garrison and town in an uncertain food landscape", "St. Augustine needs grain before storms or war cut off the harbor.", "The planned town survives, but its soldiers and families have consumed the first stores.", "The granary is secure; St. Augustine can remain a town rather than another abandoned camp."),
-    established: "St. Augustine has survived where earlier Spanish ventures did not, a permanent planned town and naval base in Florida."
+    established: "St. Augustine endured where earlier Spanish attempts failed. It is a permanent planned town and naval base in Florida."
   }),
   history("caracas|venezuela", {
     sponsorRole: "captain of the Venezuela expedition",

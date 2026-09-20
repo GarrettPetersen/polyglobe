@@ -477,7 +477,7 @@ export const CHART_REFRAME_DIALOGUES = Object.freeze([
   ]),
   dialogue("fine-sailcloth", "item", 7, (c) => c.itemIds.some((id) => ["flemish-sailcloth", "lateen-sailcloth"].includes(id)) && c.hasCrew, [
     dialogueLine("crew", "That fine canvas draws cleanly. You can feel it in the deck.", "happy"),
-    dialogueLine("captain", "Treat it kindly. It cost enough to have opinions.", "amused")
+    dialogueLine("captain", "Be gentle with it. That canvas cost a small fortune.", "amused")
   ]),
   dialogue("bronze-hooks", "item", 7, (c) => c.itemIds.includes("bronze-fish-hooks") && c.hasCrew, [
     dialogueLine("crew", "The bronze hooks are polished, counted, and eager for work.", "happy"),

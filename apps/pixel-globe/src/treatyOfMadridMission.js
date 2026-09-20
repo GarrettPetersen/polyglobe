@@ -205,7 +205,7 @@ function treatyOfMadridDialogue(side, origin, target) {
       negotiation: "The envoys return with the Treaty of Madrid under seal. Francis accepts Charles's terms; at the Bidasoa, the king will be exchanged for his two sons.",
       returnUnderway: `The treaty is sealed. Carry us to ${originName}; Louise must arrange the exchange before Francis crosses into France.`,
       homecoming: "The treaty has reached the French court. Francis will cross the Bidasoa into France while his sons enter Imperial custody.",
-      intercession: "Stay your fire! This ship carries the Treaty of Madrid delegation under Imperial and French safe conduct.",
+      intercession: "Cease fire! This ship carries the Madrid Treaty delegation under imperial and French safe conduct.",
       journeyEvents: treatyTermsJourneyEvent(side)
     });
   }
@@ -216,7 +216,7 @@ function treatyOfMadridDialogue(side, origin, target) {
     negotiation: "Louise's agents accept negotiations on Charles's terms. Their sealed answer will go to Madrid, where the treaty and Francis's exchange can be completed.",
     returnUnderway: `We carry France's sealed answer to ${originName}. Charles's ministers in Madrid can now finish the treaty.`,
     homecoming: "Charles has received France's answer. The Treaty of Madrid is signed, and Francis will be exchanged for his sons at the Bidasoa.",
-    intercession: "Stay your fire! This ship carries the Treaty of Madrid delegation under Imperial and French safe conduct.",
+    intercession: "Cease fire! This ship carries the Madrid Treaty delegation under imperial and French safe conduct.",
     journeyEvents: treatyTermsJourneyEvent(side)
   });
 }

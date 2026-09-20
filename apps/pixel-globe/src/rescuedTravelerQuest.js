@@ -764,7 +764,7 @@ function rescuedTravelerReunionDialogues(rescueType, flirtatious) {
       ]
     : [
         "Captain! My family still drinks to the ship that carried me out of pirate hands. Tonight, the rescued traveler is buying supper.",
-        "The neighbors ask what it was like to be locked below a pirate deck. I tell them the better story begins when your sail appeared. Come to dinner.",
+        "The neighbors ask what it was like to be locked below a pirate deck. I tell them the better story starts when your sail appeared. Come to dinner.",
         "You brought me home from a pirate deck and asked for nothing but a fair wind. My family means to overpay you in food.",
         "I still wake grateful that the next footsteps above my cell were yours. Let us improve the memory with a loud supper."
       ];

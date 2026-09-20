@@ -49,7 +49,7 @@ const WORLD_REPORTS = new Map(Object.entries({
   ),
   "landmark-chichen-itza": exchange(
     "At Chichen Itza, a stepped pyramid dominates the city beside a deep natural well. Carved serpents descend its stair, and the courts seem built for crowds long vanished.",
-    "Stone, water, and ceremony bound into one place. That great well explains why a city could flourish there; the carvings explain what its people feared and honored."
+    "Stone, water, and ceremony meet here. The vast well shows how the city endured; its carvings reveal what the people feared and honored."
   ),
   "landmark-nazca-lines": exchange(
     "Across the Nazca desert, straight paths run farther than an arrow can fly. From the surrounding heights they join into birds and beasts, their pale lines untouched by the barren wind.",
@@ -152,7 +152,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
   ),
   "mountain-mount-hood": exchange(
     "Mount Hood is a clean snow cone above dark forests and the great river. Its shape stayed with us for days, changing color while the outline scarcely changed at all.",
-    "That is a pilot's mountain, visible enough to order an entire landscape. Put its bearings from the river and coast in the margin."
+    "That mountain is a landmark for pilots, visible from across the region. Mark its bearings from the river and coast."
   ),
   "mountain-mount-washington": exchange(
     "Mount Washington is not the tallest peak I have seen, but its weather is ferocious. Clear sky became cloud and driving sleet before we had crossed the upper rocks.",

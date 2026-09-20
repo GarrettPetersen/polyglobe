@@ -144,9 +144,32 @@ const REVIEWED_OVERRIDES = Object.freeze({
   "Powder, provisions, and silence are all for sale. Doubloons in the cove: {0} db.": Object.freeze({
     "zh-Hans": "海湾中的达布隆：{0} DB。", "ru": "Дублоны в бухте: {0} DB.", "es": "Doblonas en la cala: {0} DB.", "pt-BR": "Dobras na enseada: {0} DB.", "ja": "入り江のダブロン：{0} DB", "de": "Dublonen in der Bucht: {0} DB.", "fr": "Doblons dans la crique : {0} DB.", "pl": "Dublony w zatoce: {0} DB.", "zh-Hant": "灣中的達布隆：{0} DB。", "ko": "후미의 더블룬: {0} DB."
   }),
+  "Tea delivered. Delivery premium: {0} db.": Object.freeze({
+    "zh-Hans": "茶已送达。交货奖金：{0} DB。", ru: "Чай доставлен. Премия за доставку: {0} DB.",
+    es: "Té entregado. Prima por la entrega: {0} DB.", "pt-BR": "Chá entregue. Bônus de entrega: {0} DB.",
+    ja: "茶を届けました。配達報奨金：{0} DB。", de: "Tee geliefert. Zustellprämie: {0} DB.",
+    fr: "Thé livré. Prime de livraison : {0} DB.", pl: "Herbata dostarczona. Premia za dostawę: {0} DB.",
+    "zh-Hant": "茶已送達。交貨獎金：{0} DB。", ko: "차 배달 완료. 배송 보너스: {0} DB."
+  }),
+  "SE": Object.freeze({ "zh-Hans": "东南", "zh-Hant": "東南", ja: "南東", de: "SO", ko: "남동" }),
+  "SW": Object.freeze({ "zh-Hans": "西南", ru: "ЮЗ", es: "SO", "pt-BR": "SO", ja: "南西", fr: "SO", "zh-Hant": "西南", ko: "남서" }),
+  "Sikh": Object.freeze({ "zh-Hans": "锡克人", ja: "シク教徒", "zh-Hant": "錫克人", ko: "시크교도" }),
+  "Sinhalese": Object.freeze({ "zh-Hans": "僧伽罗人", "zh-Hant": "僧伽羅人", ko: "싱할라인" }),
+  "Somali": Object.freeze({ "zh-Hans": "索马里人", ru: "сомалийцы", ja: "ソマリ人", "zh-Hant": "索馬里人", ko: "소말리인" }),
+  "South Indian": Object.freeze({ "zh-Hans": "南印度人", "zh-Hant": "南印度人" }),
+  "Swahili": Object.freeze({ "zh-Hans": "斯瓦希里人", ja: "スワヒリ人", "zh-Hant": "斯瓦希里人", ko: "스와힐리인" }),
+  "Tatar": Object.freeze({ ru: "татары", ja: "タタール人", "zh-Hans": "鞑靼人", "zh-Hant": "韃靼人", ko: "타타르족" }),
+  "Thai": Object.freeze({ "zh-Hans": "泰国人", ja: "タイ人", "zh-Hant": "泰國人", ko: "태국인" }),
+  "Walleye": Object.freeze({ "zh-Hans": "玻璃梭鲈", ru: "Американский судак", es: "lucioperca amarilla", "pt-BR": "Walleye", ja: "ウォールアイ", de: "Amerikanischer Zander", fr: "Doré jaune", pl: "Sandacz amerykański", "zh-Hant": "玻璃梭鱸", ko: "월아이" }),
+  "Wendat": Object.freeze({ ko: "웬다트" }),
+  "Xebec": Object.freeze({ "zh-Hans": "吉贝克船", ru: "Шебека", es: "Jabeque", "pt-BR": "Xaveco", ja: "ジーベック", de: "Schebecke", fr: "Chébec", pl: "Szebeka", "zh-Hant": "吉貝克船", ko: "지벡" }),
+  "Yoruba": Object.freeze({ "zh-Hans": "约鲁巴人", ja: "ヨルバ人", "zh-Hant": "約魯巴人", ko: "요루바인" }),
+  "Shona": Object.freeze({ "zh-Hans": "绍纳人", ja: "ショナ人", "zh-Hant": "紹納人", ko: "쇼나인" }),
   ...reviewedSupplyAndBriefOverrides(),
   ...reviewedSpanishScreenOverrides(),
   ...reviewedStandingOverrides(),
+  ...reviewedNameCultureIdentityOverrides(),
+  ...reviewedLetterOfMarqueOverrides(),
   "PIRATE BOUNTY +{0} DB": Object.freeze({
     "zh-Hans": "海盗赏金 +{0} DB",
     ru: "НАГРАДА ЗА ПИРАТОВ +{0} DB",
@@ -181,7 +204,7 @@ const REVIEWED_OVERRIDES = Object.freeze({
     ja: "マラヤーリ人", ko: "말라얄리인"
   }),
   "Mon-Burmese": Object.freeze({
-    ja: "モン・ビルマ系", ko: "몬·버마계"
+    "zh-Hans": "孟缅族", "zh-Hant": "孟緬族", ja: "モン・ビルマ系", ko: "몬·버마계"
   }),
   "Kongo": Object.freeze({ ja: "コンゴ" }),
   "Visit inn": Object.freeze({
@@ -1557,7 +1580,11 @@ const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedCatalogRange1950Overrides(),
   ...reviewedCatalogRange2000Overrides(),
   ...reviewedCatalogRange1100Overrides(),
-  ...reviewedCatalogRange1050Overrides()
+  ...reviewedCatalogRange1050Overrides(),
+  ...reviewedTrailingContextOverrides(),
+  ...reviewedCorruptionContextOverrides(),
+  ...reviewedAdditionalMeaningOverrides(),
+  ...reviewedLetterOfMarqueOverrides()
 });
 
 function reviewedCatalogRange1200Overrides() {
@@ -1581,6 +1608,34 @@ function reviewedCatalogRange1200Overrides() {
     ["Crown commission: captured {0}", ["王室私掠委任：已俘获{0}", "Королевское каперское поручение: захвачен корабль «{0}»", "Patente de corso de la Corona: capturado {0}", "Carta de corso da Coroa: capturado {0}", "王室私掠委任：{0}を拿捕", "Kaperauftrag der Krone: {0} gekapert", "Commission de course de la Couronne : {0} capturé", "Królewskie zlecenie korsarskie: zdobyto {0}", "王室私掠委任：已俘獲{0}", "왕실 사략 허가 임무: {0} 나포"]]
   ];
   return Object.fromEntries(entries.map(([source, translations]) => [source, reviewedLocaleOverrides(source, translations)]));
+}
+
+function reviewedAdditionalMeaningOverrides() {
+  const entries = [
+    ["Spain has lost her ports, but many Spaniards still hunger for Peru. Panama remembers our pact. Give me until dawn to replace the fallen; we will carry the Crown in our hearts.", [
+      "西班牙失去了港口，但许多西班牙人仍渴望秘鲁。巴拿马记得我们的盟约。给我时间到黎明，我会补上阵亡者的空缺；我们会把王冠的事业铭记于心。", "Испания потеряла свои порты, но многие испанцы по-прежнему жаждут попасть в Перу. Панама помнит наш договор. Дайте мне время до рассвета, чтобы заменить павших; мы сохраним верность Короне в своих сердцах.", "España ha perdido sus puertos, pero muchos españoles aún ansían llegar al Perú. Panamá recuerda nuestro pacto. Dame hasta el amanecer para cubrir las bajas; llevaremos la Corona en el corazón.", "A Espanha perdeu seus portos, mas muitos espanhóis ainda anseiam pelo Peru. O Panamá se lembra do nosso pacto. Dê-me até o amanhecer para repor os que caíram; levaremos a Coroa no coração.", "スペインは港を失ったが、ペルーを望むスペイン人はまだ多い。パナマは我らの盟約を覚えている。夜明けまでに戦死者の穴を埋めさせてくれ。我らは心に王冠への忠誠を抱いて進む。", "Spanien hat seine Häfen verloren, doch viele Spanier wollen noch immer nach Peru. Panama erinnert sich an unseren Pakt. Gebt mir bis zum Morgengrauen, um die Gefallenen zu ersetzen; wir tragen die Krone im Herzen.", "L'Espagne a perdu ses ports, mais bien des Espagnols convoitent encore le Pérou. Panama se souvient de notre pacte. Laissez-moi jusqu'à l'aube pour remplacer les morts ; nous porterons la Couronne dans nos cœurs.", "Hiszpania straciła porty, lecz wielu Hiszpanów nadal pragnie dotrzeć do Peru. Panama pamięta nasz pakt. Daj mi czas do świtu, by uzupełnić straty; w sercach pozostaniemy wierni Koronie.", "西班牙失去了港口，但許多西班牙人仍渴望秘魯。巴拿馬記得我們的盟約。給我時間到黎明，我會補上陣亡者的空缺；我們會把王冠的事業銘記於心。", "스페인은 항구를 잃었지만 여전히 페루를 바라는 스페인인이 많습니다. 파나마는 우리의 맹약을 기억합니다. 동틀 때까지 전사자들의 자리를 채우게 해주십시오. 우리는 마음속에 왕관에 대한 충성을 품고 나아가겠습니다."
+    ]],
+    ["Spanish Manila now commands the bay from beside the old Tagalog port, drawing Chinese junks and Pacific shipping into a new imperial capital.", [
+      "西班牙马尼拉如今在旧他加禄港旁控制着海湾，吸引中国帆船和太平洋航运驶向这座新的帝国首都。", "Испанская Манила теперь господствует над заливом у старого тагальского порта, привлекая китайские джонки и корабли со всего Тихого океана в новую имперскую столицу.", "La Manila española domina ahora la bahía junto al antiguo puerto tagalo y atrae juncos chinos y barcos del Pacífico a la nueva capital imperial.", "A Manila espanhola agora domina a baía junto ao antigo porto tagalo e atrai juncos chineses e navios do Pacífico para a nova capital imperial.", "スペイン領マニラは旧タガログ港のそばで湾を支配し、中国のジャンク船や太平洋の船舶を新たな帝都へ引き寄せている。", "Das spanische Manila beherrscht nun neben dem alten tagalischen Hafen die Bucht und zieht chinesische Dschunken sowie Schiffe aus dem Pazifik in die neue kaiserliche Hauptstadt.", "Manille espagnole domine désormais la baie près de l'ancien port tagalog et attire les jonques chinoises et les navires du Pacifique vers cette nouvelle capitale impériale.", "Hiszpańska Manila panuje teraz nad zatoką przy dawnym porcie tagalskim, przyciągając chińskie dżonki i statki z Pacyfiku do nowej stolicy imperium.", "西班牙馬尼拉如今在舊他加祿港旁控制著海灣，吸引中國帆船和太平洋航運駛向這座新的帝國首都。", "스페인령 마닐라는 이제 옛 타갈로그 항구 옆에서 만을 장악하고, 중국 정크선과 태평양 선박을 새로운 제국 수도로 끌어들입니다."
+    ]],
+    ["St. Augustine endured where earlier Spanish attempts failed. It is a permanent planned town and naval base in Florida.", [
+      "圣奥古斯丁在早期西班牙殖民尝试失败之处存续下来，成为佛罗里达一座永久规划城镇和海军基地。", "Сент-Огастин устоял там, где потерпели неудачу прежние испанские попытки. Это постоянный, заранее спланированный город и военно-морская база во Флориде.", "San Agustín perduró allí donde fracasaron los intentos españoles anteriores. Es una ciudad permanente, trazada de antemano, y una base naval en Florida.", "Santo Agostinho resistiu onde as tentativas espanholas anteriores fracassaram. É uma cidade permanente, planejada desde o início, e uma base naval na Flórida.", "セントオーガスティンは、それ以前のスペインの試みが失敗した地で存続した。フロリダに計画的に築かれた恒久都市であり、海軍基地でもある。", "St. Augustine bestand dort fort, wo frühere spanische Versuche gescheitert waren. Es ist eine dauerhaft geplante Stadt und ein Marinestützpunkt in Florida.", "Saint Augustine a résisté là où les tentatives espagnoles précédentes avaient échoué. C'est une ville permanente, planifiée dès l'origine, et une base navale en Floride.", "St. Augustine przetrwało tam, gdzie wcześniejsze hiszpańskie próby zakończyły się niepowodzeniem. To trwale zaplanowane miasto i baza morska na Florydzie.", "세인트오거스틴은 이전 스페인의 시도가 실패한 곳에서 살아남았습니다. 플로리다에 계획적으로 세운 영구 도시이자 해군 기지입니다.", "聖奧古斯丁在早期西班牙殖民嘗試失敗之處存續下來，成為佛羅里達一座永久規劃城鎮和海軍基地。"
+    ]],
+    ["Cease fire! This ship carries the Madrid Treaty delegation under imperial and French safe conduct.", [
+      "停止射击！这艘船载有马德里条约代表团，享有帝国与法国的安全通行保障。", "Прекратите огонь! На этом корабле находится делегация для заключения Мадридского договора под охраной имперского и французского охранных свидетельств.", "¡Alto el fuego! Este barco transporta a la delegación del Tratado de Madrid bajo salvoconducto imperial y francés.", "Cessar fogo! Este navio transporta a delegação do Tratado de Madri sob salvo-conduto imperial e francês.", "撃つな！この船には、帝国とフランスの通行保証を受けたマドリード条約の代表団が乗っている。", "Feuer einstellen! Dieses Schiff bringt die Delegation des Vertrags von Madrid unter kaiserlichem und französischem Geleit.", "Cessez le feu ! Ce navire transporte la délégation du traité de Madrid sous sauf-conduit impérial et français.", "Wstrzymać ogień! Ten statek przewozi delegację traktatu madryckiego pod cesarską i francuską ochroną.", "停止射擊！這艘船載有馬德里條約代表團，享有帝國與法國的安全通行保障。", "사격 중지! 이 배에는 제국과 프랑스의 안전 통행 보장을 받은 마드리드 조약 대표단이 타고 있습니다."
+    ]],
+    ["Stone, water, and ceremony meet here. The vast well shows how the city endured; its carvings reveal what the people feared and honored.", [
+      "石、水与仪式在此交汇。巨大的天然井见证了这座城市如何延续；雕刻则揭示了人们敬畏与崇奉之物。", "Здесь соединяются камень, вода и обряд. Огромный колодец объясняет, как город мог существовать; резьба показывает, чего люди боялись и что чтили.", "Aquí se unen la piedra, el agua y el ritual. El gran cenote muestra cómo perduró la ciudad; sus relieves revelan qué temía y veneraba su gente.", "Aqui se encontram pedra, água e cerimônia. O grande poço mostra como a cidade perdurou; seus relevos revelam o que seu povo temia e venerava.", "ここでは石と水と儀式が一つになる。巨大な井戸は街が栄えた理由を物語り、彫刻は人々が何を恐れ、何を敬ったかを伝えている。", "Hier treffen Stein, Wasser und Zeremonie zusammen. Der gewaltige Brunnen zeigt, wie die Stadt bestehen konnte; die Reliefs verraten, was die Menschen fürchteten und verehrten.", "La pierre, l'eau et le rituel se rejoignent ici. Le vaste puits montre comment la ville a pu durer ; ses sculptures révèlent ce que les habitants craignaient et honoraient.", "Kamień, woda i obrzęd spotykają się w tym miejscu. Wielka studnia pokazuje, jak miasto mogło przetrwać; płaskorzeźby ukazują, czego ludzie się bali i co czcili.", "石、水與儀式在此交會。巨大的天然井見證了這座城市如何延續；雕刻則揭示了人們敬畏與崇奉之物。", "이곳에서 돌과 물, 의식이 하나로 어우러집니다. 거대한 우물은 도시가 어떻게 이어질 수 있었는지 보여 주고, 조각은 사람들이 무엇을 두려워하고 숭상했는지 드러냅니다."
+    ]],
+    ["Take an ocean-going ship and a reliable harpoon. Ask in every port and call to passing ships; sailors share strange news with a captain who listens.", [
+      "乘一艘远洋船，带上可靠的鱼叉。每到一座港口都打听消息，也向经过的船只呼喊；水手会把奇闻告诉愿意倾听的船长。", "Возьмите мореходное судно и надёжный гарпун. Расспрашивайте в каждом порту и окликайте проходящие корабли: моряки делятся необычными новостями с внимательным капитаном.", "Lleva un barco de alta mar y un arpón fiable. Pregunta en cada puerto y llama a los barcos que pasan; los marineros cuentan noticias extrañas a quien sabe escuchar.", "Leve um navio de alto-mar e um arpão confiável. Pergunte em cada porto e chame os navios que passam; os marinheiros contam novidades estranhas a quem sabe ouvir.", "外洋航行に耐える船と信頼できる銛を用意せよ。港ごとに話を聞き、通りかかる船にも呼びかけるのだ。耳を傾ける船長には、水夫たちが珍しい話を聞かせてくれる。", "Nehmt ein hochseetüchtiges Schiff und eine zuverlässige Harpune. Fragt in jedem Hafen nach und ruft vorbeifahrende Schiffe an; Seeleute erzählen einem aufmerksamen Kapitän von seltsamen Neuigkeiten.", "Embarquez sur un navire de haute mer avec un harpon fiable. Renseignez-vous dans chaque port et interpellez les navires de passage ; les marins confient d'étranges nouvelles à un capitaine attentif.", "Weź pełnomorski statek i niezawodny harpun. Pytaj w każdym porcie i nawołuj przepływające statki; marynarze dzielą się niezwykłymi wieściami z kapitanem, który słucha.", "乘一艘遠洋船，帶上可靠的魚叉。每到一座港口都打聽消息，也向經過的船隻呼喊；水手會把奇聞告訴願意傾聽的船長。", "원양 항해선과 믿을 만한 작살을 준비하십시오. 항구마다 소문을 묻고 지나가는 배를 불러 세우십시오. 귀 기울이는 선장에게 선원들은 기이한 소식을 들려줍니다."
+    ]],
+    ["That mountain is a landmark for pilots, visible from across the region. Mark its bearings from the river and coast.", [
+      "那座山是领航员辨认方位的地标，从整个地区都能看见。把它相对于河流和海岸的方位记在图上。", "Эта гора служит ориентиром для лоцманов и видна издалека. Отметьте её пеленги относительно реки и побережья.", "Esa montaña sirve de referencia a los pilotos y se ve desde toda la región. Anota sus marcaciones desde el río y la costa.", "Aquela montanha serve de referência aos pilotos e pode ser vista de toda a região. Anote suas marcações a partir do rio e da costa.", "あの山は水先案内人の目印で、広い範囲から見える。川と海岸を基準にした方位を記しておけ。", "Dieser Berg dient Lotsen als weithin sichtbare Landmarke. Notiert seine Peilungen vom Fluss und von der Küste aus.", "Cette montagne sert de repère aux pilotes et se voit de toute la région. Notez ses relèvements depuis le fleuve et la côte.", "Ta góra jest punktem orientacyjnym dla pilotów i widać ją z całej okolicy. Zaznacz jej namiary względem rzeki i wybrzeża.", "那座山是領航員辨認方位的地標，從整個地區都能看見。把它相對於河流和海岸的方位記在圖上。", "저 산은 도선사들의 표지이며 이 지역 어디서나 보입니다. 강과 해안에서 본 방위를 기록해 두십시오."
+    ]]
+  ];
+  const overrides = Object.fromEntries(entries.map(([source, values]) => [source, reviewedLocaleOverrides(source, values)]));
+  return overrides;
 }
 
 function reviewedCatalogRange1250Overrides() {
@@ -1815,6 +1870,129 @@ function reviewedCatalogRange2000Overrides() {
     ["Rainier loomed above the inland waters, a massive white volcano cut by rivers of ice. Even at great distance it made the forested ridges before it seem small.", ["雷尼尔山高踞内陆水域之上，巨大的白色火山被冰河切割。即使远在天边，它仍令前方的森林山脊显得渺小。", "Рейнир возвышался над внутренними водами — огромный белый вулкан, изборождённый ледниками. Даже издали он заставлял лесистые гряды перед ним казаться крошечными.", "El Rainier se alzaba sobre las aguas interiores, un enorme volcán blanco surcado por ríos de hielo. Aun desde lejos, hacía parecer pequeñas las crestas boscosas que tenía delante.", "O Rainier se erguia sobre as águas interiores, um enorme vulcão branco cortado por rios de gelo. Mesmo de longe, fazia as cristas cobertas de floresta à sua frente parecerem pequenas.", "レーニア山は内陸の湖水を見下ろし、氷河に削られた巨大な白い火山としてそびえていました。遠く離れていても、手前の森に覆われた尾根が小さく見えるほどです。", "Rainier ragte über den Binnengewässern auf, ein gewaltiger weißer, von Eisströmen durchzogener Vulkan. Selbst aus großer Entfernung ließ er die bewaldeten Rücken davor klein erscheinen.", "Le Rainier dominait les eaux intérieures, immense volcan blanc creusé de rivières de glace. Même de loin, il faisait paraître petites les crêtes boisées qui le précédaient.", "Rainier górował nad wodami śródlądowymi, ogromny biały wulkan przecięty lodowcami. Nawet z daleka sprawiał, że porośnięte lasem grzbiety na pierwszym planie wydawały się małe.", "雷尼爾山高踞內陸水域之上，巨大的白色火山被冰河切割。即使遠在天邊，它仍令前方的森林山脊顯得渺小。", "레이니어산은 내륙의 물 위로 우뚝 솟은 거대한 흰 화산으로, 빙하가 산허리를 가르고 있습니다. 멀리서도 앞쪽의 숲 능선이 작아 보일 만큼 웅장합니다."]]
   ];
   return Object.fromEntries(entries.map(([source, translations]) => [source, reviewedLocaleOverrides(source, translations)]));
+}
+
+function reviewedNameCultureIdentityOverrides() {
+  const entries = [
+    ["English", { "zh-Hans": "英格兰人", "zh-Hant": "英格蘭人", ja: "イングランド人", ko: "잉글랜드인" }],
+    ["Irish", { "zh-Hans": "爱尔兰人", "zh-Hant": "愛爾蘭人", ko: "아일랜드인" }],
+    ["French", { "zh-Hans": "法国人", "zh-Hant": "法國人", ja: "フランス人", ko: "프랑스인" }],
+    ["Spanish", { "zh-Hans": "西班牙人", "zh-Hant": "西班牙人", ja: "スペイン人", ko: "스페인인" }],
+    ["Basque", { "zh-Hans": "巴斯克人", "zh-Hant": "巴斯克人", ja: "バスク人", ko: "바스크인" }],
+    ["Portuguese", { "zh-Hans": "葡萄牙人", "zh-Hant": "葡萄牙人", ja: "ポルトガル人", ko: "포르투갈인" }],
+    ["Italian", { "zh-Hans": "意大利人", "zh-Hant": "義大利人", ja: "イタリア人", ko: "이탈리아인" }],
+    ["German", { "zh-Hans": "德国人", "zh-Hant": "德國人", ja: "ドイツ人", ko: "독일인" }],
+    ["Czech", { "zh-Hans": "捷克人", "zh-Hant": "捷克人", ja: "チェコ人", ko: "체코인" }],
+    ["Icelandic", { "zh-Hans": "冰岛人", "zh-Hant": "冰島人", ja: "アイスランド人", ko: "아이슬란드인" }],
+    ["Finnish", { "zh-Hans": "芬兰人", "zh-Hant": "芬蘭人", ja: "フィンランド人", ko: "핀란드인" }],
+    ["Slavic", { "zh-Hans": "斯拉夫人", "zh-Hant": "斯拉夫人", ja: "スラヴ人", ko: "슬라브인" }],
+    ["Polish", { "zh-Hans": "波兰人", "zh-Hant": "波蘭人", ja: "ポーランド人", ko: "폴란드인" }],
+    ["Lithuanian", { "zh-Hans": "立陶宛人", "zh-Hant": "立陶宛人", ja: "リトアニア人", ko: "리투아니아인" }],
+    ["Russian", { "zh-Hans": "俄罗斯人", "zh-Hant": "俄羅斯人", ja: "ロシア人", ko: "러시아인" }],
+    ["Ruthenian", { "zh-Hans": "鲁塞尼亚人", "zh-Hant": "魯塞尼亞人", ja: "ルテニア人", ko: "루테니아인" }],
+    ["Hungarian", { "zh-Hans": "匈牙利人", "zh-Hant": "匈牙利人", ja: "ハンガリー人", ko: "헝가리인" }],
+    ["Albanian", { "zh-Hans": "阿尔巴尼亚人", "zh-Hant": "阿爾巴尼亞人", ko: "알바니아인" }],
+    ["Bulgarian", { "zh-Hans": "保加利亚人", "zh-Hant": "保加利亞人", ja: "ブルガリア人", ko: "불가리아인" }],
+    ["Romanian", { "zh-Hans": "罗马尼亚人", "zh-Hant": "羅馬尼亞人", ja: "ルーマニア人", ko: "루마니아인" }],
+    ["Serbian", { "zh-Hans": "塞尔维亚人", "zh-Hant": "塞爾維亞人", ja: "セルビア人", ko: "세르비아인" }],
+    ["Greek", { "zh-Hans": "希腊人", "zh-Hant": "希臘人", ja: "ギリシャ人", ko: "그리스인" }],
+    ["Persian", { "zh-Hans": "波斯人", "zh-Hant": "波斯人", ja: "ペルシア人", ko: "페르시아인" }],
+    ["Gujarati", { "zh-Hans": "古吉拉特人", "zh-Hant": "古吉拉特人", ja: "グジャラート人", ko: "구자라트인" }],
+    ["Bengali", { "zh-Hans": "孟加拉人", "zh-Hant": "孟加拉人", ja: "ベンガル人", ko: "벵골인" }],
+    ["Malay", { "zh-Hans": "马来人", "zh-Hant": "馬來人", ja: "マレー人", ko: "말레이인" }],
+    ["Javanese", { "zh-Hans": "爪哇人", "zh-Hant": "爪哇人", ja: "ジャワ人", ko: "자바인" }],
+    ["Cebuano", { "zh-Hans": "宿务人", "zh-Hant": "宿霧人", ja: "セブアノ人", ko: "세부아노인" }],
+    ["Vietnamese", { "zh-Hans": "越南人", "zh-Hant": "越南人", ja: "ベトナム人", ko: "베트남인" }],
+    ["Lao", { "zh-Hans": "老挝人", "zh-Hant": "寮國人", ja: "ラオス人", ko: "라오스인" }],
+    ["Polynesian", { "zh-Hans": "波利尼西亚人", "zh-Hant": "波利尼西亞人" }],
+    ["Chinese", { "zh-Hans": "华人", "zh-Hant": "華人", ja: "中国人", ko: "중국인" }],
+    ["Japanese", { "zh-Hans": "日本人", "zh-Hant": "日本人", ja: "日本人", ko: "일본인" }],
+    ["Ryukyuan", { "zh-Hans": "琉球人", "zh-Hant": "琉球人", ja: "琉球人", ko: "류큐인" }],
+    ["Ainu", { "zh-Hans": "阿伊努人", "zh-Hant": "阿伊努人", ja: "アイヌ人", ko: "아이누인" }],
+    ["Hausa", { "zh-Hans": "豪萨人", "zh-Hant": "豪薩人", ja: "ハウサ人", ko: "하우사인" }],
+    ["Khoikhoi", { "zh-Hans": "科伊科伊人", "zh-Hant": "科伊科伊人", ja: "コイコイ人", ko: "코이코이인" }],
+    ["Crimean Tatar", { ko: "크림 타타르인" }]
+  ];
+  return Object.fromEntries(entries.map(([source, translations]) => [source, Object.freeze(translations)]));
+}
+
+function reviewedLetterOfMarqueOverrides() {
+  const entries = [
+    ["{0} letter of marque", ["{0}的私掠许可证", "Каперская грамота державы {0}", "Patente de corso de {0}", "Carta de corso de {0}", "{0}の私掠免許状", "Kaperbrief von {0}", "Lettre de marque de {0}", "List kaperski od {0}", "{0}的私掠許可證", "{0}의 사략 허가장"]],
+    ["Letter of marque", ["私掠许可证", "Каперская грамота", "Patente de corso", "Carta de corso", "私掠免許状", "Kaperbrief", "Lettre de marque", "List kaperski", "私掠許可證", "사략 허가장"]],
+    ["Accept the letter of marque", ["接受私掠许可证", "Принять каперскую грамоту", "Aceptar la patente de corso", "Aceitar a carta de corso", "私掠免許状を受け取る", "Kaperbrief annehmen", "Accepter la lettre de marque", "Przyjmij list kaperski", "接受私掠許可證", "사략 허가장을 받는다"]],
+    ["Request letter of marque", ["申请私掠许可证", "Запросить каперскую грамоту", "Solicitar una patente de corso", "Solicitar uma carta de corso", "私掠免許状を申請する", "Kaperbrief beantragen", "Demander une lettre de marque", "Poprosić o list kaperski", "申請私掠許可證", "사략 허가장을 신청한다"]],
+    ["Without a letter of marque, this is an act of piracy.", ["没有私掠许可证，这就是海盗行为。", "Без каперской грамоты это пиратство.", "Sin patente de corso, esto es piratería.", "Sem carta de corso, isso é pirataria.", "私掠免許状がなければ、これは海賊行為です。", "Ohne Kaperbrief ist das Piraterie.", "Sans lettre de marque, c'est de la piraterie.", "Bez listu kaperskiego to piractwo.", "沒有私掠許可證，這就是海盜行為。", "사략 허가장이 없으면 해적 행위입니다."]],
+    ["Your {0} letter of marque makes this a lawful prize.", ["{0}的私掠许可证使这艘船成为合法战利船。", "Каперская грамота державы {0} делает этот корабль законным призом.", "La patente de corso de {0} convierte este barco en presa legítima.", "A carta de corso de {0} torna esta embarcação uma presa legítima.", "{0}の私掠免許状により、この船は合法な拿捕船となります。", "Der Kaperbrief von {0} macht dieses Schiff zu einer rechtmäßigen Prise.", "La lettre de marque de {0} fait de ce navire une prise légitime.", "List kaperski od {0} uprawnia do zajęcia tego statku jako pryz.", "{0}的私掠許可證使這艘船成為合法戰利船。", "{0}의 사략 허가장에 따라 이 배를 합법적으로 나포할 수 있습니다."]],
+    ["Your {0} letter of marque would authorize an attack.", ["{0}的私掠许可证将授权发动攻击。", "Каперская грамота державы {0} разрешает нападение.", "La patente de corso de {0} autorizaría el ataque.", "A carta de corso de {0} autorizaria o ataque.", "{0}の私掠免許状があれば攻撃が認められます。", "Der Kaperbrief von {0} würde einen Angriff erlauben.", "La lettre de marque de {0} autoriserait l'attaque.", "List kaperski od {0} uprawniałby do ataku.", "{0}的私掠許可證將授權發動攻擊。", "{0}의 사략 허가장이 있으면 공격이 허용됩니다."]],
+    ["Attack would be lawful - {0} letter of marque", ["攻击合法——{0}的私掠许可证", "Нападение будет законным — каперская грамота державы {0}", "Ataque legal al amparo de la patente de corso de {0}", "Ataque legal ao amparo da carta de corso de {0}", "攻撃は合法——{0}の私掠免許状", "Angriff rechtmäßig – Kaperbrief von {0}", "Attaque autorisée – lettre de marque de {0}", "Atak zgodny z prawem – list kaperski od {0}", "攻擊合法——{0}的私掠許可證", "합법적 공격 — {0}의 사략 허가장"]],
+    ["Legal - {0} letter of marque", ["合法——{0}的私掠许可证", "Законно — каперская грамота державы {0}", "Legal: patente de corso de {0}", "Legal: carta de corso de {0}", "合法——{0}の私掠免許状", "Rechtmäßig – Kaperbrief von {0}", "Légal – lettre de marque de {0}", "Legalne – list kaperski od {0}", "合法——{0}的私掠許可證", "합법 — {0}의 사략 허가장"]],
+    ["Your letter of marque permits an attack on {0}, but it is not a conquest commission. You may plunder {1}, not annex it.", ["你的私掠许可证允许攻击{0}，但不授权征服。你可以掠夺{1}，不能将其吞并。", "Ваша каперская грамота разрешает нападение на {0}, но не завоевание. Вы можете разграбить {1}, но не присоединить его.", "Tu patente de corso permite atacar {0}, pero no conquistarlo. Puedes saquear {1}, no anexionarlo.", "Sua carta de corso permite atacar {0}, mas não conquistá-lo. Você pode saquear {1}, não anexá-lo.", "私掠免許状は{0}への攻撃を認めますが、征服までは認めません。{1}を略奪することはできますが、併合はできません。", "Euer Kaperbrief erlaubt einen Angriff auf {0}, aber keine Eroberung. Ihr dürft {1} plündern, nicht annektieren.", "Votre lettre de marque autorise l'attaque de {0}, mais pas sa conquête. Vous pouvez piller {1}, pas l'annexer.", "List kaperski pozwala zaatakować {0}, ale nie daje prawa do podboju. Możesz złupić {1}, lecz nie możesz go anektować.", "你的私掠許可證允許攻擊{0}，但不授權征服。你可以掠奪{1}，不能將其併吞。", "사략 허가장은 {0}에 대한 공격을 허용하지만 정복 권한은 주지 않습니다. {1}은 약탈할 수 있어도 병합할 수는 없습니다."]]
+  ];
+  return Object.fromEntries(entries.map(([source, values]) => [source, reviewedLocaleOverrides(source, values)]));
+}
+
+function reviewedTrailingContextOverrides() {
+  const entries = [
+    ["Silk, official seals, and calendars travel outward; sulfur and island wares return. Ceremony keeps the sea road in order.", [
+      "丝绸、官印和历法向外传送；硫磺与岛货运回。礼仪维系着海路秩序。", "Шёлк, официальные печати и календари уходят; сера и островные товары возвращаются. Церемониал упорядочивает морской путь.", "La seda, los sellos oficiales y los calendarios salen; regresan el azufre y los productos isleños. El ceremonial ordena la ruta marítima.", "Seda, selos oficiais e calendários seguem para fora; o enxofre e os produtos das ilhas retornam. A cerimônia mantém a rota marítima em ordem.", "絹、官印、暦が外へ運ばれ、硫黄や島の産品が戻ってくる。儀礼によって海路の秩序が保たれる。", "Seide, Amtssiegel und Kalender werden ausgeführt; Schwefel und Inselwaren kehren zurück. Zeremonien sorgen für Ordnung auf der Seestraße.", "La soie, les sceaux officiels et les calendriers partent ; le soufre et les marchandises insulaires reviennent. Le cérémonial ordonne la route maritime.", "Jedwab, urzędowe pieczęcie i kalendarze płyną na zewnątrz; wracają siarka i towary wyspiarskie. Ceremoniał porządkuje szlak morski.", "絲綢、官印和曆法向外傳送；硫磺與島貨運回。禮儀維繫著海路秩序。", "비단과 관인, 역법은 밖으로 나가고 유황과 섬의 물품은 돌아옵니다. 의례가 바닷길의 질서를 지켜 줍니다."
+    ]],
+    ["Your gold has been weighed and witnessed, Captain. Spend it generously, so Panama remembers who opened the way to Peru.", [
+      "船长，你的黄金已经过秤并有见证人在场。花得慷慨些，好让巴拿马记住是谁开辟了通往秘鲁的道路。", "Капитан, ваше золото взвесили и засвидетельствовали. Тратьте его щедро, чтобы Панама помнила, кто открыл путь в Перу.", "Capitán, su oro ya ha sido pesado y certificado. Gástelo con generosidad, para que Panamá recuerde quién abrió el camino a Perú.", "Capitão, seu ouro já foi pesado e conferido. Gaste-o com generosidade, para que o Panamá se lembre de quem abriu caminho para o Peru.", "船長、金は秤にかけられ、立会人もおります。気前よく使い、誰がペルーへの道を開いたかパナマに覚えさせましょう。", "Kapitän, Euer Gold wurde gewogen und bezeugt. Gebt es großzügig aus, damit Panama sich daran erinnert, wer den Weg nach Peru geöffnet hat.", "Capitaine, votre or a été pesé et attesté. Dépensez-le généreusement, pour que Panama se souvienne de qui a ouvert la voie au Pérou.", "Kapitanie, twoje złoto zważono i poświadczono. Wydawaj je hojnie, aby Panama pamiętała, kto otworzył drogę do Peru.", "船長，你的黃金已經過秤並有見證人在場。花得慷慨些，好讓巴拿馬記住是誰開闢了通往秘魯的道路。", "선장님, 금은 저울에 달아 증인 앞에서 확인했습니다. 후하게 써서 누가 페루로 가는 길을 열었는지 파나마가 기억하게 하십시오."
+    ]],
+    ["Your Portuguese cartaz pass is valid for one more day. It prevents Estado da Índia inspections, but local customs still apply.", [
+      "你的葡萄牙卡塔兹通行证还有效一天。它可免受印度国家机构查验，但仍须遵守当地海关规定。", "Португальский картас действует ещё один день. Он освобождает от проверок Estado da Índia, но местные таможенные правила сохраняются.", "Tu salvoconducto cartaz portugués seguirá vigente un día más. Te exime de las inspecciones del Estado da Índia, pero no de las aduanas locales.", "Seu salvo-conduto cartaz português ainda vale por um dia. Ele dispensa as inspeções do Estado da Índia, mas não as alfândegas locais.", "ポルトガルのカルタス通行証は、あと一日有効です。エスタド・ダ・インディアの検査は免除されますが、現地の税関は適用されます。", "Euer portugiesischer Cartaz-Pass gilt noch einen Tag. Er befreit von Kontrollen des Estado da Índia; die örtlichen Zollvorschriften gelten weiterhin.", "Votre cartaz portugais reste valable un jour de plus. Il vous exempte des contrôles de l’Estado da Índia, mais pas des douanes locales.", "Portugalski glejt cartaz zachowuje ważność jeszcze przez jeden dzień. Zwalnia z kontroli Estado da Índia, lecz nie z lokalnych opłat celnych.", "你的葡萄牙卡塔茲通行證還有效一天。它可免受印度國家機構查驗，但仍須遵守當地海關規定。", "포르투갈 카르타스 통행증은 하루 더 유효합니다. Estado da Índia의 검사는 면제되지만 현지 세관 규정은 계속 적용됩니다."
+    ]],
+    ["Your Portuguese cartaz pass is valid for {0} more days. It prevents Estado da Índia inspections, but local customs still apply.", [
+      "你的葡萄牙卡塔兹通行证还有效 {0} 天。它可免受印度国家机构查验，但仍须遵守当地海关规定。", "Португальский картас действует ещё {0} дн. Он освобождает от проверок Estado da Índia, но местные таможенные правила сохраняются.", "Tu salvoconducto cartaz portugués seguirá vigente {0} días más. Te exime de las inspecciones del Estado da Índia, pero no de las aduanas locales.", "Seu salvo-conduto cartaz português ainda vale por mais {0} dias. Ele dispensa as inspeções do Estado da Índia, mas não as alfândegas locais.", "ポルトガルのカルタス通行証は、あと{0}日有効です。エスタド・ダ・インディアの検査は免除されますが、現地の税関は適用されます。", "Euer portugiesischer Cartaz-Pass gilt noch {0} Tage. Er befreit von Kontrollen des Estado da Índia; die örtlichen Zollvorschriften gelten weiterhin.", "Votre cartaz portugais reste valable {0} jours de plus. Il vous exempte des contrôles de l’Estado da Índia, mais pas des douanes locales.", "Portugalski glejt cartaz zachowuje ważność jeszcze przez {0} dni. Zwalnia z kontroli Estado da Índia, lecz nie z lokalnych opłat celnych.", "你的葡萄牙卡塔茲通行證還有效 {0} 天。它可免受印度國家機構查驗，但仍須遵守當地海關規定。", "포르투갈 카르타스 통행증은 {0}일 더 유효합니다. Estado da Índia의 검사는 면제되지만 현지 세관 규정은 계속 적용됩니다."
+    ]],
+    ["People in Dongola know your ship now. News of your return has spread between the Nile landing and the market.", [
+      "栋戈拉人如今已认得你的船。你返航的消息已从尼罗河码头传到市场。", "В Донголе теперь знают ваш корабль. Весть о вашем возвращении уже разошлась от пристани на Ниле до рынка.", "En Dongola ya conocen tu barco. La noticia de tu regreso corre entre el embarcadero del Nilo y el mercado.", "Em Dongola, seu navio já é conhecido. A notícia de seu retorno circula entre o cais do Nilo e o mercado.", "ドンゴラではあなたの船はもうおなじみです。帰還の知らせはナイル川の船着き場から市場へ広がっています。", "In Dongola kennt man Euer Schiff inzwischen. Die Nachricht von Eurer Rückkehr verbreitet sich vom Nillandeplatz bis zum Markt.", "À Dongola, on connaît désormais votre navire. La nouvelle de votre retour circule entre le débarcadère du Nil et le marché.", "W Dongoli znają już twój statek. Wieść o twoim powrocie dotarła z przystani nad Nilem na rynek.", "棟戈拉人如今已認得你的船。你返航的消息已從尼羅河碼頭傳到市場。", "동골라 사람들은 이제 당신의 배를 압니다. 귀환 소식은 나일강 선착장에서 시장까지 퍼졌습니다."
+    ]],
+    ["Boatmen on the Niger have brought word of your return to Gao's river landing.", [
+      "尼日尔河上的船夫已把你返航的消息带到加奥的河埠头。", "Лодочники на Нигере принесли весть о вашем возвращении на речную пристань Гао.", "Los barqueros del Níger han llevado la noticia de tu regreso al embarcadero fluvial de Gao.", "Os barqueiros do Níger levaram a notícia do seu retorno ao cais fluvial de Gao.", "ニジェール川の船頭たちが、あなたの帰還を知らせにガオの河岸へやって来ました。", "Bootsleute auf dem Niger haben die Nachricht Eurer Rückkehr zum Flusshafen von Gao gebracht.", "Les bateliers du Niger ont apporté la nouvelle de votre retour au débarcadère fluvial de Gao.", "Przewoźnicy na Nigrze przynieśli wieść o twoim powrocie do nadrzecznej przystani w Gao.", "尼日爾河上的船夫已把你返航的消息帶到加奧的河埠頭。", "니제르강의 뱃사공들이 귀환 소식을 가오의 강변 선착장에 전했습니다."
+    ]],
+    ["A {0} from the outer ocean has reached Gao. Boatmen on the Niger and court merchants crowd the landing to learn what route brought you here.", [
+      "一艘来自外海的{0}抵达加奥。尼日尔河上的船夫和宫廷商人挤在河埠头，打听你走了哪条航路。", "{0} из открытого моря достиг Гао. Лодочники на Нигере и придворные купцы собрались у пристани узнать, каким путём вы сюда пришли.", "Un {0} del océano abierto ha llegado a Gao. Los barqueros del Níger y los mercaderes de la corte se agolpan en el embarcadero para saber qué ruta te trajo.", "Um {0} vindo do mar aberto chegou a Gao. Barqueiros do Níger e mercadores da corte se reúnem no cais para saber que rota o trouxe até aqui.", "外洋から来た{0}がガオに到着しました。ニジェール川の船頭や宮廷商人が船着場に集まり、どの航路で来たのか尋ねています。", "Ein {0} aus dem offenen Meer ist in Gao angekommen. Bootsleute auf dem Niger und Hofkaufleute drängen sich am Flusshafen und fragen nach Eurer Route.", "Un {0} venu du large est arrivé à Gao. Les bateliers du Niger et les marchands de la cour se pressent au débarcadère pour connaître votre route.", "{0} z otwartego morza dotarł do Gao. Przewoźnicy na Nigrze i kupcy dworscy gromadzą się przy przystani, by poznać twoją trasę.", "一艘來自外海的{0}抵達加奧。尼日爾河上的船夫和宮廷商人擠在河埠頭，打聽你走了哪條航路。", "먼바다에서 온 {0}이 가오에 도착했습니다. 니제르강 뱃사공과 궁정 상인들이 선착장에 모여 어떤 항로로 왔는지 묻습니다."
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, values]) => [source, reviewedLocaleOverrides(source, values)]));
+}
+
+function reviewedCorruptionContextOverrides() {
+  const entries = [
+    ["Somewhere beyond this water, the white whale still breathes. So do I.", [
+      "这片海域之外，白鲸仍在呼吸。我也一样。", "Где-то за этими водами белый кит всё ещё дышит. И я тоже.", "Más allá de estas aguas, la ballena blanca aún respira. Yo también.", "Além destas águas, a baleia branca ainda respira. Eu também.", "この海域の向こうで、白鯨はまだ息づいている。私も同じだ。", "Irgendwo jenseits dieser Gewässer atmet der weiße Wal noch. Ich auch.", "Quelque part au-delà de ces eaux, la baleine blanche respire encore. Moi aussi.", "Gdzieś za tymi wodami biały wieloryb wciąż oddycha. Ja też.", "這片海域之外，白鯨仍在呼吸。我也一樣。", "이 바다 너머 어딘가에서 흰고래는 여전히 숨 쉬고 있다. 나도 그렇다."
+    ]],
+    ["Be gentle with it. That canvas cost a small fortune.", [
+      "轻拿轻放。那块帆布可花了不少钱。", "Обращайтесь с ним бережно. Это полотно обошлось в целое состояние.", "Trátala con cuidado. Esa lona costó una fortuna.", "Tenha cuidado com ela. Essa lona custou uma fortuna.", "大切に扱えよ。その帆布はかなり高かったんだからな。", "Geht vorsichtig damit um. Dieses Segeltuch hat ein Vermögen gekostet.", "Ménagez-la. Cette toile a coûté une petite fortune.", "Obchodź się z nią delikatnie. To płótno kosztowało majątek.", "小心使用。那塊帆布可花了不少錢。", "조심히 다뤄. 그 돛천은 꽤 비쌌으니까."
+    ]],
+    ["The neighbors ask what it was like to be locked below a pirate deck. I tell them the better story starts when your sail appeared. Come to dinner.", [
+      "邻居们问我被关在海盗船甲板下是什么滋味。我告诉他们，真正精彩的故事从你的船帆出现时才开始。来吃晚饭吧。", "Соседи спрашивают, каково было сидеть взаперти под пиратской палубой. Я отвечаю, что лучшая история началась, когда показался ваш парус. Приходите к нам на ужин.", "Los vecinos preguntan cómo fue estar encerrado bajo la cubierta de un barco pirata. Les digo que la mejor historia empieza cuando apareció tu vela. Ven a cenar.", "Os vizinhos perguntam como foi ficar preso sob o convés de um navio pirata. Digo que a melhor história começa quando sua vela apareceu. Venha jantar.", "近所の人たちは、海賊船の甲板下に閉じ込められたのはどんな気分だったか尋ねます。あなたの帆が見えたときから、もっといい話が始まるのだと答えています。夕食に来ませんか。", "Die Nachbarn fragen, wie es war, unter dem Deck eines Piratenschiffs eingesperrt zu sein. Ich erzähle ihnen, dass die bessere Geschichte begann, als Euer Segel auftauchte. Komm zum Abendessen.", "Les voisins me demandent ce que cela faisait d'être enfermé sous le pont d'un navire pirate. Je leur réponds que la meilleure histoire commence quand votre voile est apparue. Venez dîner.", "Sąsiedzi pytają, jak to było być zamkniętym pod pokładem pirackiego statku. Mówię im, że lepsza historia zaczyna się, gdy pojawił się twój żagiel. Wpadnij na kolację.", "鄰居們問我被關在海盜船甲板下是什麼滋味。我告訴他們，真正精彩的故事從你的船帆出現時才開始。來吃晚餐吧。", "이웃들은 해적선 갑판 아래에 갇혀 있던 기분이 어땠는지 묻습니다. 당신의 돛이 나타난 순간부터 더 좋은 이야기가 시작됐다고 답하죠. 저녁 식사에 오세요."
+    ]],
+    ["The plans name it Ciudad de los Reyes, the City of Kings, with a plaza beside the Rimac and a road down to its harbor.", [
+      "规划称它为“国王之城”（Ciudad de los Reyes），并在里马克河畔设广场、修建通往港口的道路。", "В планах город назван Сьюдад-де-лос-Рейес — «Городом королей». У Римака будет площадь и дорога к гавани.", "Los planos la llaman Ciudad de los Reyes. Tendrá una plaza junto al Rímac y un camino hasta el puerto.", "Os planos a chamam de Ciudad de los Reyes, a Cidade dos Reis. Haverá uma praça junto ao Rímac e uma estrada até o porto.", "計画ではシウダー・デ・ロス・レイエス（王の都）と名付けられ、リマック川のそばに広場を置き、港へ道を通します。", "Die Pläne nennen die Stadt Ciudad de los Reyes, die Stadt der Könige. Am Rimac soll ein Platz entstehen, dazu eine Straße hinunter zum Hafen.", "Les plans la nomment Ciudad de los Reyes, la Cité des Rois. Une place sera aménagée près du Rímac, avec une route jusqu'au port.", "Plany nadają jej nazwę Ciudad de los Reyes, Miasto Królów. Nad Rímakiem powstanie plac i droga do portu.", "規劃稱它為「國王之城」（Ciudad de los Reyes），並在里馬克河畔設廣場、修建通往港口的道路。", "계획에는 시우다드 데 로스 레예스(Ciudad de los Reyes), 곧 왕들의 도시라고 이름 붙이고, 리막강 옆에 광장과 항구로 이어지는 길을 놓습니다."
+    ]],
+    ["Williams has negotiated with the Narragansett sachems at the Moshassuck. We will establish Providence by that agreement, beside the spring and salt cove.", [
+      "威廉姆斯已在莫沙苏克与纳拉甘西特酋长谈妥。双方达成协议，要在泉水和盐湾旁建立普罗维登斯。", "Уильямс договорился с сахемами наррагансеттов в Мошассаке. По соглашению поселение Провиденс заложат у источника, рядом с солёной бухтой.", "Williams negoció con los sachems narragansett en Moshassuck. Por acuerdo, fundaremos Providence junto al manantial y la ensenada salada.", "Williams negociou com os sachems dos Narragansett em Moshassuck. Pelo acordo, fundaremos Providence junto à nascente e à enseada salgada.", "ウィリアムズはモシャサックでナラガンセットのサケムたちと交渉しました。この合意に従い、泉と塩入り江のそばにプロビデンスを築きます。", "Williams hat mit den Sachems der Narragansett am Moshassuck verhandelt. Dem Abkommen zufolge gründen wir Providence an der Quelle und der Salzbucht.", "Williams a négocié avec les sachems narragansetts au Moshassuck. L'accord prévoit la fondation de Providence près de la source et de l'anse salée.", "Williams negocjował z sachemami Narragansett nad Moshassuck. Na mocy porozumienia założymy Providence przy źródle i słonej zatoce.", "威廉斯已在莫沙蘇克與納拉甘西特酋長談妥。雙方達成協議，要在泉水和鹽灣旁建立普羅維登斯。", "윌리엄스는 모샤서크에서 나라간셋 족장들과 협상했습니다. 합의에 따라 샘과 염수 만 옆에 프로비던스를 세울 것입니다."
+    ]],
+    ["Welcome back, captain. Nagasaki's merchants still honor your {0}% trading discount.", [
+      "欢迎回来，船长。长崎商人仍为你提供{0}%的贸易折扣。", "С возвращением, капитан. Торговцы Нагасаки по-прежнему дают вам скидку {0}%.", "Bienvenido de nuevo, capitán. Los comerciantes de Nagasaki aún respetan tu descuento del {0}%.", "Bem-vindo de volta, capitão. Os comerciantes de Nagasaki ainda mantêm seu desconto de {0}%.", "お帰りなさい、船長。長崎の商人は引き続き{0}%の取引割引を適用します。", "Willkommen zurück, Kapitän. Die Händler in Nagasaki gewähren Euch weiterhin {0} % Rabatt.", "Bon retour, capitaine. Les marchands de Nagasaki vous accordent toujours {0} % de réduction.", "Witaj ponownie, kapitanie. Kupcy w Nagasaki nadal udzielają ci {0}% zniżki.", "歡迎回來，船長。長崎商人仍為你提供{0}%的貿易折扣。", "돌아오신 걸 환영합니다, 선장님. 나가사키 상인들은 여전히 선장님께 {0}% 할인을 제공합니다."
+    ]],
+    ["Welcome home, founder. Every merchant here gives you {0}% off goods you buy.", [
+      "欢迎回家，建城者。这里的商人都会给你所购商品打{0}%折扣。", "Добро пожаловать домой, основатель. Каждый здешний торговец делает скидку {0}% на ваши покупки.", "Bienvenido a casa, fundador. Aquí todos los comerciantes te descuentan un {0}% en tus compras.", "Bem-vindo de volta, fundador. Todos os comerciantes daqui dão {0}% de desconto nas suas compras.", "お帰りなさい、開拓者。ここではどの商人も、購入品を{0}%割引してくれます。", "Willkommen daheim, Gründer. Alle Händler hier geben Euch {0} % Rabatt auf Eure Einkäufe.", "Bienvenue chez vous, fondateur. Tous les marchands d'ici vous accordent {0} % de réduction sur vos achats.", "Witaj w domu, założycielu. Każdy tutejszy kupiec daje ci {0}% zniżki na zakupy.", "歡迎回家，建城者。這裡的商人都會為你的購物提供{0}%折扣。", "집에 오신 걸 환영합니다, 건설자님. 이곳의 모든 상인이 구매 상품을 {0}% 할인해 드립니다."
+    ]],
+    ["People this far upriver recognize your ship. Boatmen had spread word of your return before you reached the landing.", [
+      "你航行到这么远的上游，人们也认得你的船了。你还没到码头，船夫们就已传开你返航的消息。", "Даже так далеко вверх по реке люди узнают ваш корабль. Лодочники разнесли весть о вашем возвращении ещё до того, как вы добрались до пристани.", "Incluso tan río arriba reconocen tu barco. Los barqueros ya habían difundido la noticia de tu regreso antes de que llegaras al desembarcadero.", "Mesmo tão rio acima, as pessoas reconhecem seu navio. Os barqueiros já haviam espalhado a notícia do seu retorno antes de você chegar ao cais.", "これほど上流でも、あなたの船は知られています。船頭たちは、あなたが船着き場に着く前に帰還の知らせを広めていました。", "So weit flussaufwärts erkennt man Euer Schiff. Die Bootsleute hatten Eure Rückkehr schon verkündet, bevor Ihr den Anleger erreicht habt.", "Même si loin en amont, on reconnaît votre navire. Les bateliers avaient annoncé votre retour avant que vous n'atteigniez le débarcadère.", "Tak daleko w górę rzeki rozpoznają już twój statek. Przewoźnicy roznieśli wieść o twoim powrocie, zanim dotarłeś do przystani.", "你航行到這麼遠的上游，人們也認得你的船了。你還沒到碼頭，船夫們就已傳開你返航的消息。", "이렇게 강 상류에서도 사람들이 당신의 배를 알아봅니다. 당신이 선착장에 도착하기 전에 뱃사공들이 귀환 소식을 퍼뜨렸습니다."
+    ]]
+  ];
+  const overrides = Object.fromEntries(entries.map(([source, values]) => [source, reviewedLocaleOverrides(source, values)]));
+  Object.assign(overrides, {
+    "The raccoon has learned how the biscuit locker opens. Hand over the key.": Object.freeze({ "zh-Hant": "浣熊已經學會怎麼打開餅乾櫃了。把鑰匙交出來。" }),
+    "The wind smells of rain and spice. It knows the Indian Ocean better than we do.": Object.freeze({ "zh-Hant": "風裡帶著雨水和香料的氣味。它比我們更熟悉印度洋。" }),
+    "Warm stone, pine smoke, and somebody's supper on the wind. The Mediterranean again.": Object.freeze({ "zh-Hant": "溫暖的石頭、松木煙，還有隨風飄來的晚餐香氣。又回到地中海了。" })
+  });
+  return overrides;
 }
 
 function reviewedSupplyAndBriefOverrides() {
