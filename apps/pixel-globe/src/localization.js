@@ -657,7 +657,7 @@ const ENGLISH = Object.freeze({
   "status.mughalsTakeDelhi": "MUGHALS TAKE DELHI",
   "dialogue.mughalSuccessionPlayer": "Ibrahim Lodi is dead. Babur rules Delhi now, and I sail beneath Mughal colours.",
   "status.whaleSpeciesExtinctBlubber": "SPECIES EXTINCT: {species}  BLUBBER +{quantity}",
-  "status.whaleSpeciesExtinctHoldFull": "SPECIES EXTINCT: {species}  HOLD FULL",
+  "status.whaleSpeciesExtinctHoldFull": "SPECIES EXTINCT: {species}  CARGO HOLD FULL",
   "storm.manOverboardLabel": "MAN OVERBOARD",
   "storm.manOverboardFirst": "Hard over! A breaking sea has swept crew overboard. Bring us alongside before the sea takes them.",
   "storm.manOverboardNoticeOne": "MAN OVERBOARD",

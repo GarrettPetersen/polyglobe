@@ -418,7 +418,7 @@ test("family debt dialogue gives the creditor a concise recurring voice", () => 
   const homecoming = campaignHomecomingSteps(goal, outcome, CHARACTER, new Map());
   assert.equal(homecoming.length, 3);
   assert.match(homecoming[0].text, /the sea may ignore calendars\. i do not/i);
-  assert.match(homecoming[1].text, /respectable enough to delay my plans/i);
+  assert.match(homecoming[1].text, /enough to delay my plans, not enough to settle your debt/i);
   assert.match(homecoming[2].text, /count how far i have come/i);
   assert.ok([...intro, ...homecoming].every((entry) => entry.text.length < 300));
 });

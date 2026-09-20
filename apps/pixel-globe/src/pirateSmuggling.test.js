@@ -17,12 +17,12 @@ function campaign() {
   acceptPirateHavenQuest(state.memory.pirateHavens, offer);
   return state;
 }
-test("the offer names the real pickup contact and the nighttime rendezvous", () => {
+test("the offer names the pickup port and nighttime rendezvous", () => {
   const state = createGameState({ cargoCapacity: 20 });
   const offer = pirateHavenQuestOffer(state.memory.pirateHavens, haven, context);
   const view = pirateHavenCommissionView(state, haven, { pirateHavenQuestOffer: offer });
-  assert.match(view.text, /Joao Pereira.*Lisbon/);
-  assert.match(view.text, /eight in the evening until five in the morning/);
+  assert.match(view.text, /stolen chest.*Lisbon/);
+  assert.match(view.text, /eight at night and five in the morning/);
   assert.equal(offer.pickupContactId, "port-staff:lisbon:merchant");
 });
 test("pickup availability and mutation agree at every day/night boundary and city", () => {

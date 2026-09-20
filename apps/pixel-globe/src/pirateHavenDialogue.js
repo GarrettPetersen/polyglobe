@@ -22,8 +22,8 @@ export function pirateHavenCommissionView(state, city, context) {
   if (offer === undefined) throw new Error("Pirate audience requires an evaluated commission offer");
   return { speaker: city.isPirateHideout ? "Pirate captain" : "Harbour captain", expressionId: "stern",
     text: !offer ? "I have no business for you today."
-      : kind === "revenge" ? `${offer.targetCaptainName} cheated me of my share. Take my silver cup from ${offer.targetShipName}, last seen near ${offer.targetPortName}. Bring it here for ${offer.reward} doubloons.`
-      : kind === "smuggling" ? `${offer.pickupContactName} in ${offer.pickupName} has a stolen chest for us. Meet him by the waterfront, from eight in the evening until five in the morning. Bring it here for ${offer.reward} doubloons. Quietly.`
+      : kind === "revenge" ? `${offer.targetCaptainName} stole my share. My silver cup was last seen aboard ${offer.targetShipName} near ${offer.targetPortName}. Bring it here; I'll pay ${offer.reward} doubloons.`
+      : kind === "smuggling" ? `A stolen chest is waiting for us in ${offer.pickupName}. Collect it from the waterfront between eight at night and five in the morning, then bring it here for ${offer.reward} doubloons. Keep it quiet.`
       : `I will mark ${offer.havenName} on your chart: ${offer.distanceKm} kilometres by sea. Silence its shore guns and storm the camp. Return for ${offer.reward} doubloons.`,
     options: [...(offer ? [{ label: "I will undertake it", action: { type: "accept-pirate-haven-quest", offer } }] : []), back] };
 }

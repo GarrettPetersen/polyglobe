@@ -1041,7 +1041,7 @@ function debtHomecomingSteps(goal, outcome, playerCharacter, { buildEditionId })
       ));
     }
   } else if (outcome.payment > 0) {
-    steps.push(step("contact", "stern", `${formatDoubloons(outcome.payment)} doubloons. Respectable enough to delay my plans, not enough to end them. I have left you ${outcome.protectedPurse}; the remaining balance is ${formatDoubloons(outcome.remainingBalance)}.`));
+    steps.push(step("contact", "stern", `${formatDoubloons(outcome.payment)} doubloons. Enough to delay my plans, not enough to settle your debt. You keep ${outcome.protectedPurse}; ${formatDoubloons(outcome.remainingBalance)} remains due.`));
     steps.push(step("player", "determined", "You count what remains. I count how far I have come. The next payment will be larger."));
   } else if (outcome.insufficientPurse) {
     steps.push(step("contact", "angry", `Not even ${outcome.protectedPurse} doubloons in your purse? Did the ocean swallow your profit, or did you never find any? Your family chose a poor champion.`));

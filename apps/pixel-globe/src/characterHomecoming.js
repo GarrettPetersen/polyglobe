@@ -123,7 +123,7 @@ function characterHomecomingDialogues(character) {
   if (character.role === "historian") {
     return [
       (cityName) => homecomingLine(
-        `${cityName} at last. I left to chase history and return with enough of it to empty a tavern.`,
+        `${cityName} at last. I went looking for stories from the past and came back with enough to fill a tavern.`,
         "pleased"
       ),
       (cityName) => homecomingLine(

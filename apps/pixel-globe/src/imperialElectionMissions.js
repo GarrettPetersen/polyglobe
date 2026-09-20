@@ -57,7 +57,7 @@ export function imperialElectionMissionDialogue(plan, reward) {
   const home = plan.origin.city;
   const destination = plan.destination.city;
   return Object.freeze({
-    offer: `${plan.ruler.displayName} has sealed instructions for the election of a ${officeLabel}. Carry me to ${destination} and home for ${reward} db. My prince alone chooses; your duty is only our passage.`,
+    offer: `${plan.ruler.displayName} has sealed instructions for the election of a ${officeLabel}. Carry me to ${destination} and back home for a payment of ${reward} doubloons. My prince alone chooses; your duty is to carry us safely.`,
     underway: `My prince's instructions remain under seal. I shall present them at ${destination}; neither of us may change his vote.`,
     negotiationOpening: `I present my prince's letters of authority and sealed instructions. The captain brought me faithfully and has no voice in this council.`,
     negotiation: `The chancery has received the instructions and sealed its receipt. The electors will judge the candidates; carry me and the receipt home.`,

@@ -237,7 +237,7 @@ export function ningboMissionJournalPresentation(quest) {
   if (stage === "failed") {
     return Object.freeze({
       title: "NINGBO TRADE DISPUTE",
-      summary: `${origin.toUpperCase()} DELEGATION DEFEATED`
+      summary: `${origin.toUpperCase()} FLEET DEFEATED`
     });
   }
   throw new Error(`Unknown Ningbo mission stage: ${stage}`);

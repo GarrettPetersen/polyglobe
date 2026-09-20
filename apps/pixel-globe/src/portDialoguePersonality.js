@@ -243,7 +243,7 @@ function rulerRumorLine(personalityId, rumor) {
   if (personalityId === "austere") return `Court notice: ${former} is gone. ${current} now rules ${realm}.`;
   if (personalityId === "enterprising") return `${current} now rules ${realm}. A new ruler always means new contracts.`;
   if (personalityId === "reflective") return `Crowns change hands: ${current} now rules ${realm} after ${former}.`;
-  if (personalityId === "vigilant") return `${current} has taken power in ${realm}. The harbor watch expects policy to follow.`;
+  if (personalityId === "vigilant") return `${current} has taken power in ${realm}. The harbor watch waits to see whether port policy will change.`;
   if (personalityId === "cordial") return `News from ${realm}: ${current} has succeeded ${former}. May the change be peaceful.`;
   return `Have you heard? ${former} is gone, and ${current} now rules ${realm}.`;
 }

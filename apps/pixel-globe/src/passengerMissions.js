@@ -725,24 +725,24 @@ function diplomaticEnvoyDialogueText(kind, origin, target, reward, seed, originR
   if (kind === TRIBUTE_ENVOY_QUEST_KIND) {
     const cargoText = tributeCargoSummary(options.tributeCargoRequirements);
     return {
-      offer: `${originRuler.displayName} entrusts you with ${options.tributeCargoLabel}. Carry me and the sealed cargo to ${cityLabel(target)}, then return with the court's receipt. Payment is ${reward} db. Cargo: ${cargoText}.`,
+      offer: `${originRuler.displayName} entrusts you with ${options.tributeCargoLabel}. Carry me and the sealed cargo to ${cityLabel(target)}, then return with the receiving court's acknowledgment. Payment is ${reward} doubloons. Cargo: ${cargoText}.`,
       underway: `The tribute remains under seal. It belongs to the court, not to us, until it is entered at ${cityLabel(target)}.`,
       negotiationOpening: `I present ${originRuler.displayName}'s tribute and ask that it be entered faithfully in the register.`,
       negotiation: "The tribute is accepted. Carry the receipt home.",
       returnUnderway: `The tribute is delivered. We carry its receipt home to ${cityLabel(origin)}.`,
-      homecoming: `${originRuler.displayName} has received the court's receipt. The treasury will pay ${reward} db.`,
+      homecoming: `${originRuler.displayName} has received the receiving court's acknowledgment. The treasury will pay ${reward} doubloons.`,
       intercession: "Hold your fire! This vessel carries tribute under the seals of both courts."
     };
   }
   if (kind === STATUS_ENVOY_QUEST_KIND) {
     const proposalText = statusProposalText(options.statusProposal);
     return {
-      offer: `${originRuler.displayName} has chosen negotiation before war. Carry me to ${cityLabel(target)} with articles concerning tribute and allegiance, then return for ${reward} db.`,
+      offer: `${originRuler.displayName} seeks terms before resorting to war. Carry me to ${cityLabel(target)} with a proposal setting out tribute and allegiance, then return for ${reward} doubloons.`,
       underway: `The articles remain sealed. Our audience awaits in ${cityLabel(target)}.`,
       negotiationOpening: `Under ${originRuler.displayName}'s seal, I place these articles before the court.`,
       negotiation: "The court has considered the articles. Carry its answer home.",
       returnUnderway: `The answer is sealed. Set our course back to ${cityLabel(origin)}.`,
-      homecoming: `${originRuler.displayName} has received the answer. The treasury releases ${reward} db.`,
+      homecoming: `${originRuler.displayName} has received the answer. The treasury pays you ${reward} doubloons.`,
       intercession: "Stay your weapons! This ship carries articles of allegiance under diplomatic seal.",
       journeyEvents: outboundJourneyBriefing(
         "status-articles",
@@ -1123,21 +1123,21 @@ function passengerDialogueText(scenarioId, origin, destination, reward, religiou
     return {
       offer: `For years I have saved to make the Hajj to Mecca. Jeddah is its sea gate; from there I will join the road inland. Carry me to ${destinationName} and I will pay ${reward} db.`,
       underway: `Each day brings us nearer to ${destinationName} and the road to Mecca. I have waited years for the Hajj; I pray our passage remains safe.`,
-      arrival: `${destinationName} at last—the sea gate to Mecca. From here the pilgrims take the road inland. You have carried me to the threshold of the Hajj.`
+      arrival: `At last, ${destinationName}—the sea gate to Mecca. Pilgrims take the inland road from here. You have brought me to the threshold of the Hajj.`
     };
   }
   if (scenarioId === HAJJ_RETURN_PASSENGER_SCENARIO_ID) {
     return {
       offer: `Praise be to God, my Hajj is complete. Now I need passage home to ${destinationName}. Carry me there and I will pay ${reward} db.`,
       underway: `After the crowds of Mecca, the quiet sea is welcome. I am returning home to ${destinationName} from the Hajj.`,
-      arrival: `${destinationName} at last. I left home a pilgrim and return from the Hajj. You have my thanks.`
+      arrival: `${destinationName} at last. I left home as a pilgrim and now return from the Hajj. Thank you.`
     };
   }
   if (scenarioId === "return-home") {
     return {
       offer: `Captain, I was born in ${destinationName}. My last berth ended here, and I have no kin in this harbor. Carry me home and I will pay ${reward} db.`,
       underway: `Every league toward ${destinationName} feels like a debt lifting. Tell me when we make the harbor.`,
-      arrival: `${destinationName}. I know that smell of water and smoke. You have brought me home; here is the fare I promised.`
+      arrival: `${destinationName}. I know that smell of water and smoke. You have brought me home; here is the payment I promised.`
     };
   }
   if (scenarioId === "shipwrecked-sailor") {
@@ -1151,7 +1151,7 @@ function passengerDialogueText(scenarioId, origin, destination, reward, religiou
     return {
       offer: `A letter found me in ${originName}. My family in ${destinationName} needs me before the season turns. Please take me there; I can pay ${reward} db.`,
       underway: `If the wind holds, ${destinationName} is close enough to hope for. I will not forget this passage.`,
-      arrival: `${destinationName} at last. My family will hear your name kindly. Here is the ${reward} db I owe.`
+      arrival: `${destinationName} at last. My family will remember your kindness. Here are the ${reward} db I owe.`
     };
   }
   const sameLandmass = Number.isInteger(origin.landmassId) &&

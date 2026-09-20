@@ -1,7 +1,7 @@
 export function hospitallerMaltaOfferText({ tripoliAvailable }) {
   return "Rhodes has fallen, but the Order's vows have not. His Holiness would have you carry " +
     "a petition to Charles, King of Spain and Emperor, that Malta be granted as a new seat" +
-    (tripoliAvailable ? ", together with the charge of Tripoli" : "") + ".";
+    (tripoliAvailable ? ", together with command of Tripoli" : "") + ".";
 }
 
 export function hospitallerMaltaAcceptanceText(grantorCapitalName) {

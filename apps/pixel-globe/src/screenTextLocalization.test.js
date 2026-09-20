@@ -271,6 +271,64 @@ test("privateering, inland ports, and customs permits use their actual meanings"
   assert.match(screenTextTranslationCatalog("de")["People this far upriver recognize your ship. Boatmen had spread word of your return before you reached the landing."], /^So weit flussaufwärts/u);
 });
 
+test("Tripoli command and papal peace commissions avoid literal false friends", () => {
+  const catalog = Object.fromEntries(SUPPORTED_LANGUAGES
+    .filter(({ id }) => id !== LANGUAGE_ENGLISH)
+    .map(({ id }) => [id, screenTextTranslationCatalog(id)]));
+  assert.equal(catalog.ja[", together with command of Tripoli"], "そしてトリポリの指揮権");
+  assert.equal(catalog.ru[", together with command of Tripoli"], ", а также командование Триполи");
+  assert.equal(catalog["pt-BR"]["{0} and {1} are spilling one another's Christian blood."], "{0} e {1} se enfrentam, derramando sangue cristão.");
+  assert.equal(catalog.de["{0} and {1} are spilling one another's Christian blood."], "{0} und {1} bekämpfen einander und vergießen dabei christliches Blut.");
+  assert.match(catalog.ja["{0} and {1} are spilling one another's Christian blood. Carry a Papal nuncio from one ruler's court to the other, and bring back both replies."], /君主の宮廷/u);
+  assert.match(catalog.pl["{0} and {1} are spilling one another's Christian blood. Carry a Papal nuncio from one ruler's court to the other, and bring back both replies."], /dworu jednego władcy/u);
+  assert.match(catalog["pt-BR"]["{0} is ruled by its own sovereign. Turn back; you will find no provisions for sale here."], /Volte; aqui não se vendem mantimentos/u);
+});
+
+test("tribute, feast day, market comparison, and survival labels retain their domain meaning", () => {
+  const catalog = screenTextTranslationCatalog("zh-Hans");
+  assert.equal(catalog["{0} agrees to pay tribute to {1}."], "{0}同意向{1}缴纳贡礼。");
+  assert.equal(catalog["{0}{1} remains independent but agrees to pay tribute to {2}."], "{0}{1}保持独立，但同意向{2}缴纳贡礼。");
+  assert.equal(catalog[". Each year, on All Saints' Day, one falcon shall be rendered to the Viceroy of Sicily."], "。每年諸聖日，須向西西里副王進獻一隻獵鷹。");
+  assert.equal(catalog["{0}% ABOVE WORLD"], "高于世界价格{0}%");
+  assert.equal(catalog["{0}% BELOW WORLD"], "低于世界价格{0}%");
+  assert.equal(screenTextTranslationCatalog("ja")["{0}% ABOVE WORLD"], "世界価格より{0}%高い");
+  assert.equal(screenTextTranslationCatalog("ja")["{0}% BELOW WORLD"], "世界価格より{0}%安い");
+  assert.equal(screenTextTranslationCatalog("ko")["{0}% BUILT"], "{0}% 건설 완료");
+  assert.equal(screenTextTranslationCatalog("pt-BR")["{0}% casualty resistance"], "{0}% de chance de evitar baixas na tripulação");
+  assert.doesNotMatch(catalog[". Each year, on All Saints' Day, one falcon shall be rendered to the Viceroy of Sicily."], /万圣节/u);
+});
+
+test("crew, countdown, customs, and pirate-haven labels use their gameplay meaning", () => {
+  assert.equal(screenTextTranslationCatalog("ko")["{0} courier"], "{0} 사절");
+  assert.equal(screenTextTranslationCatalog("ja")["{0} crew muster"], "{0}乗組員の点呼");
+  assert.equal(screenTextTranslationCatalog("zh-Hans")["{0} DAYS LEFT"], "剩余{0}天");
+  assert.equal(screenTextTranslationCatalog("pl")["{0} DAYS TO LAUNCH"], "DO WODOWANIA: {0} DNI");
+  assert.match(screenTextTranslationCatalog("fr")["{0} customs have gathered {1} of {2} doubloons."], /sur les \{2\} prévus/u);
+  assert.equal(screenTextTranslationCatalog("ja")["{0} CASKS FULL"], "{0}の樽は満杯");
+  assert.match(screenTextTranslationCatalog("de")["{0} stole my share. My silver cup was last seen aboard {1} near {2}. Bring it here; I'll pay {3} doubloons."], /an Bord der \{1\} nahe \{2\}/u);
+  assert.equal(screenTextTranslationCatalog("ru")["{0} CREW LOST"], "ПОТЕРИ ЭКИПАЖА: {0}");
+});
+
+test("fleet battle, safe passage, cargo space, papal pay, and debt text stay precise", () => {
+  assert.equal(screenTextTranslationCatalog("de")["{0} DELEGATION DEFEATED"], undefined);
+  assert.equal(screenTextTranslationCatalog("de")["{0} FLEET DEFEATED"], "FLOTTE VON {0} BESIEGT");
+  assert.equal(screenTextTranslationCatalog("ja")["{0} FLEET ENGAGED"], "{0}艦隊と交戦");
+  assert.match(screenTextTranslationCatalog("ko")["{0} demands {1} doubloons for safe passage through {2} for {3}."], /안전하게 통과하는 대가/u);
+  assert.match(screenTextTranslationCatalog("es")["{0} Doubloons {1}. Cargo space {2}/{3}."], /Espacio de carga/u);
+  assert.match(screenTextTranslationCatalog("ja")["{0}. The Pope's treasury pays {1} doubloons for completing the commission."], /教皇庁の金庫/u);
+  assert.match(screenTextTranslationCatalog("fr")["{0} doubloons. Enough to delay my plans, not enough to settle your debt. You keep {1}; {2} remains due."], /Gardez \{1\} ; il reste \{2\} à payer/u);
+});
+
+test("church sanctions, embargo warnings, permits, and resisted hits keep their meanings", () => {
+  assert.equal(screenTextTranslationCatalog("ru")["{0} EXCOMMUNICATED BY {1}"], "ЦЕРКОВНОЕ ОТЛУЧЕНИЕ: {0} ({1})");
+  assert.match(screenTextTranslationCatalog("pt-BR")["{0} EXPEDITION OFFICE MOVED FROM {1} TO {2} AFTER THE PORT CHANGED HANDS"], /transferido de \{1\} para \{2\}/u);
+  assert.equal(screenTextTranslationCatalog("ja")["{0} ATTACK DEFLECTED"], "{0}の攻撃を弾いた");
+  assert.match(screenTextTranslationCatalog("ja")["{0} authorizes you to take ships belonging to enemies of {1} as prizes."], /敵船を拿捕船/u);
+  assert.match(screenTextTranslationCatalog("ko")["The sale of this cargo is forbidden here by {0}, captain."], /판매하지 못하게/u);
+  assert.match(screenTextTranslationCatalog("fr")["The customs books will record your name, and their agents will hear of the bargain."], /registres douaniers/u);
+  assert.equal(screenTextTranslationCatalog("de")["Seek permission in {0} first, then sail to {1}."], "Holt zuerst in {0} die Erlaubnis ein und segelt dann nach {1}.");
+});
+
 test("every authored screen-text template is committed to the localization catalog", () => {
   const baseEnglish = new Set(Object.values(localizationCatalog(LANGUAGE_ENGLISH)));
   const authored = extractScreenTextSourceCatalog(SOURCE_ROOT)

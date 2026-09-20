@@ -594,7 +594,7 @@ export function releaseDiplomaticVassal(state, {
     factionBId: suzerainFactionId,
     relationshipKind: existing.kind,
     reason: source,
-    headline: `${factionName(vassalFactionId)} is released from ${factionName(suzerainFactionId)}'s overlordship.`
+    headline: `${factionName(vassalFactionId)} is freed from ${factionName(suzerainFactionId)}'s rule.`
   });
   recordDiplomacyEvents(state, [event]);
   return event;

@@ -38,8 +38,8 @@ export function papalCommissionOfferText(matter, simMinute, {
   }
   if (matter.commissionKind === PAPAL_COMMISSION_PEACE) {
     const partner = factionById(matter.partnerFactionId);
-    return `${target.name} and ${partner.name} spend Christian blood against one another. ` +
-      "Carry a Papal nuncio between their courts and return with both answers.";
+    return `${target.name} and ${partner.name} are spilling one another's Christian blood. ` +
+      "Carry a Papal nuncio from one ruler's court to the other, and bring back both replies.";
   }
   if (matter.commissionKind === PAPAL_COMMISSION_ADMONITION) {
     return `${ruler.displayName} has drawn grave notice in Rome. Carry the Pope's sealed admonition ` +
@@ -108,7 +108,7 @@ export function papalCommissionAudienceText(matter, destination, { finalAudience
     `${target.adjective} officials receive it under the law of embassies.`;
   if (!finalAudience) return opening + " Their written answer is placed beneath the Papal seal.";
   if (matter.commissionKind === PAPAL_COMMISSION_PEACE) {
-    return opening + " Both courts have now spoken. Rome will act upon the counsel you carry home.";
+    return opening + " Both rulers' courts have answered. Rome will act on the counsel you bring back.";
   }
   if (matter.commissionKind === PAPAL_COMMISSION_RELIEF) {
     return opening + " The grain is counted into the granaries and the gunpowder into the magazines. " +
@@ -173,8 +173,8 @@ export function papalCommissionCompletionText(completion) {
   if (!completion?.action || !Number.isInteger(completion.rewardDoubloons)) {
     throw new Error("Papal commission completion requires an action and reward");
   }
-  return `${papalActionNotice(completion.action)}. The Apostolic Camera pays ` +
-    `${completion.rewardDoubloons.toLocaleString("en-US")} doubloons for the completed legation.`;
+  return `${papalActionNotice(completion.action)}. The Pope's treasury pays ` +
+    `${completion.rewardDoubloons.toLocaleString("en-US")} doubloons for completing the commission.`;
 }
 
 function validateMatterView(matter) {

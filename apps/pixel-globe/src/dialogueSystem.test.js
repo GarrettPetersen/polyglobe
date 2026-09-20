@@ -560,7 +560,7 @@ test("hostile shore batteries sell civilian passage for the whole empire", () =>
     canAffordToll: true
   });
   const view = shoreBatteryDialogueView(session, city);
-  assert.match(view.text, /one month of safe passage/);
+  assert.match(view.text, /demands 55 doubloons for safe passage through Ottoman Empire for one month/);
   assert.deepEqual(view.options.map((entry) => entry.label), ["Pay 55 db", "Turn away"]);
   assert.deepEqual(
     selectShoreBatteryDialogueOption(session, city, 0),
@@ -2546,8 +2546,8 @@ test("a factor warns before delivering Papally prohibited arms to Ottoman buyers
   selectPortDialogueOption(session, city, gameState, economy, [city], saleIndex, context);
 
   const warning = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.match(warning.text, /Holy See forbid this cargo to the buyers here/i);
-  assert.match(warning.text, /customs books will bear your name/i);
+  assert.match(warning.text, /sale of this cargo is forbidden here by the Holy See/i);
+  assert.match(warning.text, /customs books will record your name/i);
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
   assert.equal(result.marketSale.embargoOrders[0].restrictionKind, "strategic-exports");
   assert.equal(factionReputation(gameState, "papal-states"), papalStanding - 5);
@@ -5561,7 +5561,7 @@ test("a rare equipment offer persists after declining and remembers the player",
   assert.equal(result.perkItemPurchase.item.id, offeredItemId);
   assert.equal(gameState.inventory.items[offeredItemId], 1);
   assert.equal(gameState.doubloons, 5000 - offeredItem.price);
-  assert.ok(session.feedback.includes(`${offeredItem.label} brought aboard`));
+  assert.ok(session.feedback.includes(`Purchased ${offeredItem.label} and brought it aboard`));
   assert.throws(
     () => purchasePerkItem(gameState, city, offeredItemId),
     /already aboard/
@@ -8468,7 +8468,7 @@ test("capital port dialogue can grant a letter of marque", () => {
   selectPortDialogueOption(session, city, gameState, economy, [city], requestIndex, context);
   assert.equal(hasLetterOfMarqueFrom(gameState, "england"), true);
   const issued = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.match(issued.text, /King Henry VIII grants you authority/);
+  assert.match(issued.text, /King Henry VIII authorizes you to take ships .* as prizes/);
   assert.doesNotMatch(issued.text, /already carry/i);
   assert.equal(issued.feedback, null);
 
@@ -8478,7 +8478,7 @@ test("capital port dialogue can grant a letter of marque", () => {
   const revisitIndex = revisitedRoot.options.findIndex((entry) => entry.action.nodeId === "marque");
   selectPortDialogueOption(session, city, gameState, economy, [city], revisitIndex, context);
   const alreadyHeld = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.match(alreadyHeld.text, /already carry King Henry VIII's authority/i);
+  assert.match(alreadyHeld.text, /already hold King Henry VIII's commission to take enemy ships/i);
   assert.equal(alreadyHeld.feedback, null);
 });
 

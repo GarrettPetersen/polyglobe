@@ -1020,7 +1020,7 @@ export function shoreBatteryDialogueView(session, city, state) {
   return {
     speaker: `${characterName(city.character)}, ${cityName}`,
     expressionId: "stern",
-    text: `${session.rulerName} demands ${session.toll} doubloons for ${safePassageDurationLabel()} of safe passage throughout ${faction.name}.`,
+    text: `${session.rulerName} demands ${session.toll} doubloons for safe passage through ${faction.name} for ${safePassageDurationLabel()}.`,
     feedback: null,
     options: [
       option(`Pay ${session.toll} db`, { type: "purchase-safe-passage" }, {
@@ -2143,7 +2143,7 @@ function recoveringPortView(city, context) {
   return {
     speaker: speakerName(city),
     expressionId: "sad",
-    text: `${recovery.attackerShipLabel.charAt(0).toUpperCase() + recovery.attackerShipLabel.slice(1)} bombarded ${cityLabel(city)} and silenced its guns. The quays remain closed for ${dayLabel}; you must put back to sea.`,
+    text: `${recovery.attackerShipLabel.charAt(0).toUpperCase() + recovery.attackerShipLabel.slice(1)} bombarded ${cityLabel(city)} and silenced its guns. The quays remain closed for ${dayLabel}; you must leave port.`,
     feedback: null,
     options: [option("Leave", { type: "close" })]
   };
@@ -3692,7 +3692,7 @@ export function selectPortDialogueAction(
   }
   if (action.type === "buy-perk-item") {
     const result = purchasePerkItem(gameState, city, action.itemId, context);
-    session.feedback = `${result.item.label} brought aboard for ${result.price} db.`;
+    session.feedback = `Purchased ${result.item.label} and brought it aboard for ${result.price} db.`;
     session.specialEquipmentOffer = null;
     session.nodeId = "equipment";
     session.selectedIndex = 0;
@@ -4237,8 +4237,8 @@ function passengerDialogueContentView(session, city, quest, gameState) {
       expressionId: "attentive",
       text: arsenalStop
         ? "Nanjing's founders are ready to measure the captured guns. Once the patterns are copied, we must carry them to the batteries at Ningbo, Fuzhou, and Guangzhou."
-        : `${cityLabel(city)} has a battery crew waiting for the Portuguese patterns and proof pieces. ` +
-          `${PORTUGUESE_GUNS_STOP_COUNT - legNumber} refits will remain after this one.`,
+        : `${cityLabel(city)}'s artillery crews are waiting for the Portuguese gun patterns and test pieces. ` +
+          `${PORTUGUESE_GUNS_STOP_COUNT - legNumber} batteries will remain to refit after this one.`,
       feedback: session.feedback,
       options: [
         option(
@@ -4297,7 +4297,7 @@ function passengerDialogueContentView(session, city, quest, gameState) {
         ? hajjArrivalDialogueText(quest, gameState)
         : isEnvoyQuest(quest)
           ? quest.dialogue?.homecoming || `${cityLabel(city)} at last. The treasury will settle our account.`
-          : quest.dialogue?.arrival || `${cityLabel(city)} at last. Here is the fare I promised.`,
+          : quest.dialogue?.arrival || `${cityLabel(city)} at last. Here is the payment I promised.`,
       feedback: session.feedback,
       options: [
         ...(captainCanJoinHajj
@@ -4910,7 +4910,7 @@ function barredPortView(city, gameState, context) {
         ? `The harbor guns are silent. ${cityLabel(city)} is exposed to plunder, though no sovereign will recognize its annexation.`
         : `The harbor guns are silent. ${cityLabel(city)} is exposed, but ${conquest.capital ? "the capital garrison" : "the garrison"} still bars the quays.`
       : conquest?.playerRaidActive
-      ? `${cityLabel(city)} has already been stripped of portable wealth. The battered harbor remains under arms until its defenses recover.`
+      ? `${cityLabel(city)} has already been stripped of its valuables. Damaged harbor defenses remain under military guard until they recover.`
       : attack?.commissioned && !batteryDisabled
       ? `Your commission is known. ${cityLabel(city)} has closed its gates and trained its harbor batteries on your ship.`
       : status.catholicContraband
@@ -4920,7 +4920,7 @@ function barredPortView(city, gameState, context) {
       : batteryDisabled || conquest?.playerAssaultActive
       ? `You think to take ${cityLabel(city)} with that handful? We will drive every one of you into the sea.`
       : independentTarget
-        ? `${cityLabel(city)} answers to its own rulers. Turn about. No supplies will be sold to you.`
+        ? `${cityLabel(city)} is ruled by its own sovereign. Turn back; you will find no provisions for sale here.`
         : `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
     feedback: null,
     options
@@ -5095,7 +5095,7 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
       nodeId: "loadout"
     })] : []),
     ...(tradeAccess.allowed
-      ? [option(pirateHideout ? "Visit the hidden yard" : "Visit shipyard", {
+      ? [option(pirateHideout ? "Visit the hidden shipyard" : "Visit shipyard", {
         type: "node",
         nodeId: "shipyard"
       })]
@@ -6240,7 +6240,7 @@ function colonizationView(session, city, gameState, context) {
   if (quest.stage === COLONIZATION_STAGE_OUTBOUND) {
     if (!atTarget) {
       const route = quest.approval && !quest.approvalGranted
-        ? `${quest.approval.city} first for permission, then ${targetName}`
+        ? `Seek permission in ${quest.approval.city} first, then sail to ${targetName}.`
         : targetName;
       return {
         speaker: `${organizer}, ${history.sponsorRole}`,
@@ -6322,7 +6322,7 @@ function colonizationView(session, city, gameState, context) {
 
   if (quest.stage === COLONIZATION_STAGE_DEFEND) {
     const remaining = quest.defenseRemaining;
-    const remainingText = `${remaining} attacking canoe${remaining === 1 ? " remains" : "s remain"}.`;
+    const remainingText = `Hostile canoes still attacking: ${remaining}.`;
     return {
       speaker: `${organizer}, ${atTarget ? history.settlementLeaderRole : history.sponsorRole}`,
       expressionId: "concerned",
@@ -6897,7 +6897,7 @@ function shipyardView(session, city, gameState, economy, context) {
     return shipyardListingView(session, city, gameState, context, listings[0], "root");
   }
   return {
-    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
+    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden shipyard` : `${cityLabel(city)} shipyard`,
     expressionId: "attentive",
     text: `${listings.length} vessels are ready for inspection.`,
     feedback: session.feedback,
@@ -6928,7 +6928,7 @@ function shipyardListingView(session, city, gameState, context, listing, backNod
   const purchase = shipyardPurchaseOffer(listing, gameState, context);
   const condition = shipyardListingCondition(listing.source);
   return {
-    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
+    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden shipyard` : `${cityLabel(city)} shipyard`,
     expressionId: "attentive",
     text: `${condition.sentenceLead} ${listing.shipLabel} is offered for ${listing.price} doubloons. Your ${purchase.currentShipLabel} is worth ${purchase.purchaseTerms.tradeInValue} in trade.`,
     feedback: session.feedback,
@@ -6966,7 +6966,7 @@ function shipyardPurchaseConfirmationView(session, city, gameState, context) {
     : `Trade your ${purchase.currentShipLabel} for the ${listing.shipLabel} and receive ${-purchase.purchaseTerms.netPrice} doubloons`;
   const pending = session.shipyardPurchasePending === true;
   return {
-    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
+    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden shipyard` : `${cityLabel(city)} shipyard`,
     expressionId: "attentive",
     text: pending
       ? "The shipwrights are readying the vessel for inspection."
@@ -7656,7 +7656,7 @@ function tradeEmbargoWarningView(session, city) {
   )))];
   const prohibition = orders.length === 1
     ? `${authorityNames[0]} has forbidden ${tradeEmbargoScopeLabel(orders[0].scope)} from ${targetNames[0]}`
-    : `${authorityNames.join(" and ")} have laid prohibitions upon merchandise from ${targetNames.join(" and ")}`;
+    : `${authorityNames.join(" and ")} have banned merchandise from ${targetNames.join(" and ")}`;
   const detail = orders.map((order) => (
     `${order.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
       ? "HOLY SEE"
@@ -7699,8 +7699,8 @@ function tradeEmbargoSaleWarningView(session, city) {
   return {
     speaker: speakerName(city),
     expressionId: "concerned",
-    text: `${authorityNames.join(" and ")} forbid this cargo to the buyers here, captain. ` +
-      `The customs books will bear your name, and their agents will learn of the bargain. ` +
+    text: `The sale of this cargo is forbidden here by ${authorityNames.join(" and ")}, captain. ` +
+      `The customs books will record your name, and their agents will hear of the bargain. ` +
       `Will you still sell the ${good.label.toLowerCase()}?`,
     bodyTone: "danger",
     feedback: session.feedback,
@@ -8632,7 +8632,7 @@ function cargoView(session, city, gameState) {
   return {
     speaker: speakerName(city),
     expressionId: "neutral",
-    text: `${cargoText} Doubloons ${gameState.doubloons}. Space ${hold.physicalWholeUnits}/${hold.capacity}.`,
+    text: `${cargoText} Doubloons ${gameState.doubloons}. Cargo space ${hold.physicalWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
     options: [
       option("Back", { type: "node", nodeId: "root" }),
@@ -8673,7 +8673,7 @@ function questView(session, city, gameState, portCities, context) {
         speaker: speakerName(city),
         expressionId: "happy",
         text: envoy
-          ? `${passengerName(questState.quest)} is ready for the court at ${questState.quest.destinationName}.`
+          ? `${passengerName(questState.quest)} is ready to attend the ruler's court at ${questState.quest.destinationName}.`
           : `${passengerName(questState.quest)} has reached ${questState.quest.destinationName}. ` +
             `Speak with the ${roleLabel} before they go ashore.`,
         feedback: session.feedback,
@@ -9102,8 +9102,8 @@ function captureCapitalQuestView(session, questState, returnNodeId, gameState) {
     return {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "pleased",
-      text: `${quest.targetName} has fallen. The commissioners brought its court to terms, and the ` +
-        `princes and envoys sealed peace. The treasury will honor ` +
+      text: `${quest.targetName} has fallen. The commissioners negotiated terms with its rulers, and the ` +
+        `princes and envoys made peace. The treasury will pay the reward for ` +
         `${quest.originRulerName}'s extraordinary commission.`,
       feedback: session.feedback,
       options: [
@@ -9130,7 +9130,7 @@ function captureCapitalQuestView(session, questState, returnNodeId, gameState) {
     text: quest.stage === "return"
       ? quest.captureCommissionResolution
         ? `The final commission for ${quest.targetName} has been recalled. Return to ${quest.originName} to close the account.`
-        : `${quest.targetName} has submitted to the commissioners and the rulers have sealed peace. Carry the final dispatches to ${quest.originName}.`
+        : `${quest.targetName} has agreed to the commissioners' terms, and the rulers have made peace. Carry the final peace dispatches to ${quest.originName}.`
       : `The enemy is nearly spent. Your final commission is to take ${quest.targetName} and hold its court until the commissioners arrive.`,
     feedback: session.feedback,
     options: [back]
@@ -9143,10 +9143,10 @@ function activeTravelMissionBusyText(quest) {
     return `You are carrying ${traveler} from ${quest.originName} to ${quest.destinationName}; finish that passage first.`;
   }
   if (quest.stage === "outbound") {
-    return `${traveler} is aboard on an embassy from ${quest.originName} to ${quest.targetName}; finish that mission first.`;
+    return `${traveler} is aboard as an envoy traveling from ${quest.originName} to ${quest.targetName}; finish that voyage first.`;
   }
   if (quest.stage === "return") {
-    return `${traveler} is aboard, returning from ${quest.targetName} to ${quest.originName}; finish that embassy first.`;
+    return `${traveler} is aboard as an envoy returning from ${quest.targetName} to ${quest.originName}; finish that voyage first.`;
   }
   throw new Error(`Unknown envoy mission stage: ${quest.stage ?? "missing"}`);
 }
@@ -9168,9 +9168,9 @@ function marqueView(session, city, gameState, context) {
   if (!ruler) throw new Error(`Letter of marque faction has no ruler: ${status.factionId}`);
   const newlyGranted = session.marqueGrantedFactionId === status.factionId;
   const text = newlyGranted
-    ? `${ruler.displayName} grants you authority to prize enemies of ${factionNounPhrase(status.factionId)}.`
+    ? `${ruler.displayName} authorizes you to take ships belonging to enemies of ${factionNounPhrase(status.factionId)} as prizes.`
     : status.granted
-    ? `You already carry ${ruler.displayName}'s authority to prize enemies of ${factionNounPhrase(status.factionId)}.`
+    ? `You already hold ${ruler.displayName}'s commission to take enemy ships of ${factionNounPhrase(status.factionId)} as prizes.`
     : `${ruler.displayName}'s court requires sufficient standing and ship strength. Standing ${formatSignedReputation(status.reputation)}/${formatSignedReputation(status.reputationRequired)}. Strength ${Math.round(status.shipPower)}/${status.shipPowerRequired}.`;
   const disabledReason = status.missing.length > 0
     ? `Need ${status.missing.join(" and ")}.`

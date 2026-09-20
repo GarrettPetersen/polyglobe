@@ -99,7 +99,7 @@ test("an election creates an elector's transport commission without granting the
   assert.ok(offer);
   assert.equal(offer.targetTileId, COLOGNE.tileId);
   assert.equal(offer.passengerRoleLabel, "electoral envoy");
-  assert.match(offer.dialogue.offer, /my prince alone chooses; your duty is only our passage/i);
+  assert.match(offer.dialogue.offer, /my prince alone chooses; your duty is to carry us safely/i);
   assert.match(offer.dialogue.negotiationOpening, /has no voice in this council/i);
   for (const line of Object.values(offer.dialogue)) {
     assert.doesNotMatch(line, /in later years|will become|modern|historically|player/i);

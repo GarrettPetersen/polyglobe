@@ -9039,7 +9039,7 @@ function activateNingboMissionBattle(questId) {
   }
   ensureNingboMissionEncounters();
   showSurvivalNotice(
-    `${ningboDelegationFactionLabel(quest.eastAsianBattleFactionId).toUpperCase()} DELEGATION ENGAGED`,
+    `${ningboDelegationFactionLabel(quest.eastAsianBattleFactionId).toUpperCase()} FLEET ENGAGED`,
     "warning"
   );
   saveVoyageNow("began Ningbo delegation battle");
@@ -9049,10 +9049,10 @@ function resolveNingboDelegationShipLoss(shipId) {
   const result = recordNingboMissionShipDefeated(gameState, shipId);
   if (!result) return null;
   if (result.status === "victory") {
-    showSurvivalNotice("RIVAL DELEGATION DEFEATED - RETURN TO NINGBO", "good");
+    showSurvivalNotice("RIVAL FLEET DEFEATED - RETURN TO NINGBO", "good");
     saveVoyageNow("won Ningbo delegation battle");
   } else if (result.status === "defeat") {
-    showSurvivalNotice("YOUR DELEGATION WAS DEFEATED - NINGBO MISSION FAILED", "warning");
+    showSurvivalNotice("YOUR FLEET WAS DEFEATED - NINGBO MISSION FAILED", "warning");
     saveVoyageNow("lost Ningbo delegation battle");
   } else {
     showSurvivalNotice(`NINGBO BATTLE  ${result.remaining.length} SHIP${result.remaining.length === 1 ? "" : "S"} REMAIN`, "warning");
@@ -26480,8 +26480,8 @@ function completePlayerPortConquest(
       : `${cityLabelText(capturedCity).toUpperCase()} CAPTURED  +${prize.amount} DB`,
     "good"
   );
-  const conquestMessage = `${cityLabelText(capturedCity)} has surrendered. The captured treasury yields ` +
-    `${prize.amount} doubloons.${treatyText || ` The port now flies the ${newFaction.adjective} flag.`}` +
+  const conquestMessage = `${cityLabelText(capturedCity)} has surrendered. You seize ` +
+    `${prize.amount} doubloons from its treasury.${treatyText || ` The port now flies the ${newFaction.adjective} flag.`}` +
     commissionText;
   if (conquistadorCapture) {
     openCharacterAlertModal(
@@ -27631,7 +27631,7 @@ function updateShoreScavenge(nowMs) {
       openCrewAlertModal(`${narrative} We gained ${found} food.`, "happy");
     } else {
       playScavengeFailureSound();
-      showSurvivalNotice(`CAUGHT ${article.toUpperCase()} ${bird.name.toUpperCase()}  HOLD FULL`, "warn");
+      showSurvivalNotice(`CAUGHT ${article.toUpperCase()} ${bird.name.toUpperCase()}  CARGO HOLD FULL`, "warn");
       openCrewAlertModal(`${narrative} There was no room in the hold.`, "concerned");
     }
   } else {
@@ -27689,7 +27689,7 @@ function resolveBeaverScavenge() {
   }
 
   playScavengeFailureSound();
-  showSurvivalNotice("TRAPPED BEAVER  HOLD FULL", "warn");
+  showSurvivalNotice("TRAPPED BEAVER  CARGO HOLD FULL", "warn");
   openCrewAlertModal(`${narrative} There was no room to carry back either meat or pelt.`, "concerned");
 }
 
@@ -27710,7 +27710,7 @@ function resolveOrdinaryShoreScavenge(outcome, context) {
       openCrewAlertModal(`${narrative} We filled the casks.`, "happy");
     } else {
       playScavengeFailureSound();
-      showSurvivalNotice(`${noticeLabel}  CASKS CANNOT TAKE MORE`, "warn");
+      showSurvivalNotice(`${noticeLabel}  CASKS FULL`, "warn");
       openCrewAlertModal(`${narrative} Every cask was already full.`, "concerned");
     }
   } else if (outcome === SHORE_SCAVENGE_FOOD) {
@@ -27724,7 +27724,7 @@ function resolveOrdinaryShoreScavenge(outcome, context) {
       openCrewAlertModal(`${narrative} We gained ${found} food.`, "happy");
     } else {
       playScavengeFailureSound();
-      showSurvivalNotice(`${noticeLabel}  HOLD FULL`, "warn");
+      showSurvivalNotice(`${noticeLabel}  CARGO HOLD FULL`, "warn");
       openCrewAlertModal(`${narrative} There was no room in the hold.`, "concerned");
     }
   } else if (outcome === SHORE_SCAVENGE_NOTHING) {
@@ -30497,7 +30497,7 @@ function landWhaleKillingBlow() {
         )
       : result.quantity > 0
         ? `${label.toUpperCase()} TAKEN  +${result.quantity} WHALE BLUBBER`
-        : `${label.toUpperCase()} TAKEN  HOLD FULL`,
+        : `${label.toUpperCase()} TAKEN  CARGO HOLD FULL`,
     speciesExtinct ? "warn" : "good"
   );
   syncShipCargoFromGameState();
@@ -31024,7 +31024,7 @@ function catchFishAtFishery(call) {
   }
   const catchCapacity = playerFishCatchCapacity();
   if (!canStartFishing(catchCapacity)) {
-    showFishCatchNotice("HOLD FULL", "warn");
+    showFishCatchNotice("CARGO HOLD FULL", "warn");
     return false;
   }
   const net = playerFishingNet(gameState);
@@ -31072,7 +31072,7 @@ function resolveFishingAction(action) {
   const catchCapacity = playerFishCatchCapacity();
   if (!canStartFishing(catchCapacity)) {
     playFishingFailureSound();
-    showFishCatchNotice("HOLD FULL", "warn");
+    showFishCatchNotice("CARGO HOLD FULL", "warn");
     return;
   }
   const haulMultiplier = currentPlayerPerkTotals().fishingHaulMultiplier;
@@ -42383,7 +42383,7 @@ function playerHullDamageWasResisted(
     roll: Math.random()
   });
   if (!resisted) return false;
-  if (notify) showSurvivalNotice(`${sourceLabel} GLANCED OFF`, "good");
+  if (notify) showSurvivalNotice(`${sourceLabel} ATTACK DEFLECTED`, "good");
   return true;
 }
 
