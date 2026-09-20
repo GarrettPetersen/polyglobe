@@ -141,6 +141,7 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  ...reviewedSupplyAndBriefOverrides(),
   "PIRATE BOUNTY +{0} DB": Object.freeze({
     "zh-Hans": "海盗赏金 +{0} DB",
     ru: "НАГРАДА ЗА ПИРАТОВ +{0} DB",
@@ -1524,6 +1525,52 @@ const REVIEWED_OVERRIDES = Object.freeze({
     pl: "Concepcion trwa w Penco jako ośrodek wojskowy i administracyjny, zaopatrywany z Peru na pograniczu, którego Hiszpania nie podporządkowała."
   })
 });
+
+function reviewedSupplyAndBriefOverrides() {
+  const entries = [
+    ["{0} comes aboard with the briefs.{1}", [
+      "{0}携密封文书登船。{1}", "{0} поднимается на борт с запечатанными бумагами.{1}",
+      "{0} sube a bordo con los despachos.{1}", "{0} sobe a bordo com os despachos.{1}",
+      "{0}が封印文書を携えて乗船します。{1}", "{0} kommt mit den versiegelten Schriftstücken an Bord.{1}",
+      "{0} monte à bord avec les dépêches scellées.{1}", "{0} wchodzi na pokład z zapieczętowanymi pismami.{1}",
+      "{0}攜密封文書登船。{1}", "{0}이 봉인된 문서를 가지고 승선합니다.{1}"
+    ]],
+    ["{0} accepted. Monsignor {1} comes aboard with the briefs.{2}", [
+      "{0}已接受。蒙席{1}携密封文书登船。{2}", "{0} принято. Монсеньор {1} поднимается на борт с запечатанными бумагами.{2}",
+      "{0} aceptado. Monseñor {1} sube a bordo con los despachos.{2}", "{0} aceito. Monsenhor {1} sobe a bordo com os despachos.{2}",
+      "{0}を受諾しました。モンシニョール{1}が封印文書を携えて乗船します。{2}", "{0} angenommen. Monsignore {1} kommt mit den versiegelten Schriftstücken an Bord.{2}",
+      "{0} accepté. Monseigneur {1} monte à bord avec les dépêches scellées.{2}", "{0} przyjęto. Monsignore {1} wchodzi na pokład z zapieczętowanymi pismami.{2}",
+      "{0}已接受。蒙席{1}攜密封文書登船。{2}", "{0} 수락. 몬시뇰 {1}이 봉인된 문서를 가지고 승선합니다.{2}"
+    ]],
+    ["{0} accepted. Monsignor {1} comes aboard with the briefs.{2} Set a course for {3}.", [
+      "{0}已接受。蒙席{1}携密封文书登船。{2}驶往{3}。", "{0} принято. Монсеньор {1} поднимается на борт с запечатанными бумагами.{2} Держите курс на {3}.",
+      "{0} aceptado. Monseñor {1} sube a bordo con los despachos.{2} Poned rumbo a {3}.", "{0} aceito. Monsenhor {1} sobe a bordo com os despachos.{2} Traçai o rumo para {3}.",
+      "{0}を受諾しました。モンシニョール{1}が封印文書を携えて乗船します。{2}{3}へ針路を取ってください。", "{0} angenommen. Monsignore {1} kommt mit den versiegelten Schriftstücken an Bord.{2} Nehmt Kurs auf {3}.",
+      "{0} accepté. Monseigneur {1} monte à bord avec les dépêches scellées.{2} Mettez le cap sur {3}.", "{0} przyjęto. Monsignore {1} wchodzi na pokład z zapieczętowanymi pismami.{2} Obierzcie kurs na {3}.",
+      "{0}已接受。蒙席{1}攜密封文書登船。{2}駛往{3}。", "{0} 수락. 몬시뇰 {1}이 봉인된 문서를 가지고 승선합니다.{2} {3}(으)로 항로를 잡으십시오."
+    ]],
+    ["{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.", [
+      "{0}及时补给可获得{1}达布隆，并为{2}提供成为永久城市所需的物资。", "{0}Своевременное снабжение принесёт {1} дублонов и даст {2} необходимые припасы, чтобы стать постоянным городом.",
+      "{0}Un reabastecimiento a tiempo otorga {1} doblones y proporciona a {2} los suministros necesarios para convertirse en una ciudad permanente.", "{0}Um reabastecimento a tempo rende {1} dobrões e fornece a {2} os mantimentos necessários para se tornar uma cidade permanente.",
+      "{0}期日どおりの補給で{1}ダブロンを得られ、{2}が恒久都市となるために必要な物資も届けられます。", "{0}Eine rechtzeitige Versorgung bringt {1} Dublonen ein und liefert {2} die Vorräte, die es für den Status einer dauerhaften Stadt benötigt.",
+      "{0}Un ravitaillement effectué à temps rapporte {1} doublons et fournit à {2} les provisions nécessaires pour devenir une ville permanente.", "{0}Terminowe zaopatrzenie przynosi {1} dublonów i dostarcza {2} zapasów potrzebnych, by stało się stałym miastem.",
+      "{0}及時補給可獲得{1}達布隆，並為{2}提供成為永久城市所需的物資。", "{0}제때 보급하면 더블룬 {1}닢을 얻고 {2}이 영구 도시가 되는 데 필요한 물자를 공급합니다."
+    ]]
+  ];
+  const resupplySource = "{0} A timely resupply earns {1} doubloons and gives {2} the stores it needs to become a permanent city.";
+  const resupplyTranslations = entries.find(([source]) => source === resupplySource)[1];
+  for (const suffix of ["{3}", "{3}{4}"]) {
+    entries.push([`${resupplySource}${suffix}`, resupplyTranslations.map((translation) => `${translation}${suffix}`)]);
+  }
+  entries.push(["gives {0} the stores it needs to become a permanent city.", [
+    "为{0}提供成为永久城市所需的物资。", "даёт {0} необходимые припасы, чтобы стать постоянным городом.",
+    "proporciona a {0} los suministros necesarios para convertirse en una ciudad permanente.", "fornece a {0} os mantimentos necessários para se tornar uma cidade permanente.",
+    "{0}が恒久都市となるために必要な物資を届けます。", "liefert {0} die Vorräte, die es für den Status einer dauerhaften Stadt benötigt.",
+    "fournit à {0} les provisions nécessaires pour devenir une ville permanente.", "dostarcza {0} zapasów potrzebnych, by stało się stałym miastem.",
+    "為{0}提供成為永久城市所需的物資。", "{0}이 영구 도시가 되는 데 필요한 물자를 공급합니다."
+  ]]);
+  return Object.fromEntries(entries.map(([source, values]) => [source, reviewedLocaleOverrides(source, values)]));
+}
 
 function reviewedShipTypeOverrides() {
   for (const locale of LOCALES) {
