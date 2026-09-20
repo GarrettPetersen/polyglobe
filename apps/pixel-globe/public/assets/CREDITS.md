@@ -123,7 +123,7 @@
 - LYASeeK - "MiniFolks" (itch.io asset license; palette-adapted and modified for cultural variants)
 
 ## City-view Pixel Art
-- ray_d_ash - "Trees 100px by 150px" (itch.io asset license; source for every tree in `city-view/trees.aseprite` except the original palm tree by Garrett Petersen)
+- ray_d_ash - "Trees 100px by 150px" (itch.io asset license; source for the tree set in `city-view/trees.aseprite`; original palm and cherry artwork and the Larch Bare seasonal variant by Garrett Petersen)
 
 ## Pixel Art Effects
 - InfectedTribe - "Pixel Animated Lightning Strike Effect" (itch.io asset license)

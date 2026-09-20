@@ -90,7 +90,15 @@ import {
   placedCityBuildingChimneySmokeEmitter
 } from "./cityChimneySmoke.js";
 import { cityStreetBuildingPlacements } from "./cityStreetBuildings.js";
-import { cityTreePlacements } from "./cityTrees.js";
+import {
+  cityForestSeason,
+  cityForestSeasonalPaletteRgb
+} from "./cityForestSeason.js";
+import {
+  cityTreeParticleSprites,
+  cityTreePlacements,
+  cityTreePresentation
+} from "./cityTrees.js";
 import { cityQuayCargoPlacements } from "./cityQuayCargo.js";
 import {
   CITY_SHIPYARD_SALE_SHIP_MAX_COUNT,
@@ -311,6 +319,7 @@ const frameCanvasCache = new WeakMap();
 const assaultHitFlashes = new CityAssaultHitFlashes();
 const backgroundCityAtmosphereCanvasCache = new WeakMap();
 const regionalStaticFrameCanvasCache = new Map();
+const seasonalForestFrameCache = new Map();
 const alphaCache = new WeakMap();
 const imageAlphaCache = new WeakMap();
 const animatedRowEdgeCache = new WeakMap();
@@ -420,6 +429,11 @@ const state = {
   backgroundCityBaseTopYByX: null,
   streetBuildings: [],
   treePlacements: [],
+  treeDayOfYear: 180,
+  treeSeasonSignature: null,
+  treePresentationByPlacementId: new Map(),
+  treeParticleFrameCache: new Map(),
+  forestSeason: Object.freeze({ kind: "foliage", coverage: 0 }),
   quayCargoPlacements: [],
   npcAgents: [],
   renderCount: 0,
@@ -860,6 +874,7 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
     features: state.features,
     trees: state.treeManifest.trees
   });
+  refreshCityTreePresentations();
   state.quayCargoPlacements = cityQuayCargoPlacements({
     city: state.city,
     features: state.features,
@@ -1411,6 +1426,9 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
     drawCityStreetBuildingSmoke(entry.placement, entry.emitter, timeMs);
   }
   else if (entry.kind === "tree") drawCityTree(entry.placement, targetContext);
+  else if (entry.kind === "tree-particles") {
+    drawCityTreeParticles(entry.placement, timeMs, targetContext);
+  }
   else if (entry.kind === "tree-shadow") drawCityTreeShadow(entry.placement, targetContext);
   else if (entry.kind === "quay-cargo") drawQuayCargo(entry.placement, targetContext);
   else if (entry.kind === "gate-front") drawGateFront(entry.frame, targetContext);
@@ -1775,6 +1793,12 @@ function createSceneRenderEntries() {
       authoredOrder: 14 + placementOrder / 100
     });
     entries.push({
+      kind: "tree-particles",
+      placement,
+      z: placement.z + 0.001,
+      authoredOrder: 14.001 + placementOrder / 100
+    });
+    entries.push({
       kind: "tree-shadow",
       placement,
       z: placement.shadowZ,
@@ -1914,7 +1938,77 @@ function createSceneRenderEntries() {
 
 function drawCityTree(placement, targetContext) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
-  drawCityTreePart(placement, placement.tree.frame, window, targetContext);
+  const presentation = activeCityTreePresentation(placement);
+  drawCityTreePart(placement, presentation.frame, window, targetContext);
+}
+
+function drawCityTreeParticles(placement, timeMs, targetContext) {
+  const presentation = activeCityTreePresentation(placement);
+  if (presentation.particleKind === null) return;
+  const colors = presentation.particleColors;
+  const animationTimeMs = prefersReducedMotion.matches ? 0 : Math.floor(timeMs / 50) * 50;
+  const cacheKey = `${presentation.particleKind}:${animationTimeMs}`;
+  let cached = state.treeParticleFrameCache.get(placement.id);
+  if (cached?.key !== cacheKey) {
+    cached = Object.freeze({
+      key: cacheKey,
+      particles: cityTreeParticleSprites({
+        placementId: placement.id,
+        kind: presentation.particleKind,
+        timeMs: animationTimeMs,
+        colorCount: colors.length,
+        emitters: presentation.particleEmitters
+      })
+    });
+    state.treeParticleFrameCache.set(placement.id, cached);
+  }
+  const particles = cached.particles;
+  const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
+  targetContext.save();
+  for (const particle of particles) {
+    targetContext.fillStyle = `#${colors[particle.colorIndex]}`;
+    targetContext.fillRect(
+      Math.round(placement.originX + particle.x * placement.scale - window.x),
+      Math.round(placement.originY + particle.y * placement.scale - window.y),
+      Math.max(1, Math.round(particle.width * placement.scale)),
+      Math.max(1, Math.round(particle.height * placement.scale))
+    );
+  }
+  targetContext.restore();
+}
+
+function activeCityTreePresentation(placement) {
+  const presentation = state.treePresentationByPlacementId.get(placement.id);
+  if (!presentation) throw new Error(`Missing city tree presentation: ${placement.id}`);
+  return presentation;
+}
+
+function refreshCityTreePresentations() {
+  const snapshot = currentCityTreePresentationSnapshot();
+  state.treePresentationByPlacementId = snapshot.presentations;
+  state.treeSeasonSignature = snapshot.signature;
+  state.forestSeason = snapshot.forestSeason;
+  state.treeParticleFrameCache.clear();
+  seasonalForestFrameCache.clear();
+}
+
+function currentCityTreePresentationSnapshot() {
+  const presentations = new Map(state.treePlacements.map((placement) => [
+    placement.id,
+    cityTreePresentation(placement.tree, {
+      presentationPolicy: placement.presentationPolicy,
+      latitudeDeg: state.city.lat,
+      dayOfYear: state.treeDayOfYear
+    })
+  ]));
+  const signature = state.treePlacements.map((placement) => (
+    `${placement.tree.id}:${placement.presentationPolicy}:${presentations.get(placement.id).phase}`
+  )).join("|");
+  const forestSeason = cityForestSeason({
+    placements: state.treePlacements,
+    presentations
+  });
+  return Object.freeze({ presentations, signature, forestSeason });
 }
 
 function drawFeastPart(frame, x, y, targetContext) {
@@ -2684,7 +2778,8 @@ function drawStaticFrame(frame, layerName, occurrence, targetContext) {
     layerParallaxAnchor(layerName, occurrence)
   );
   const regionalFrame = regionalStaticFrame(frame, layerName);
-  const baseSource = regionalFrame || { atlas: state.staticAtlas, frame };
+  const regionalSource = regionalFrame || { atlas: state.staticAtlas, frame };
+  const baseSource = seasonalForestFrame(regionalSource, layerName) || regionalSource;
   const source = buildingEdgeContrastFrame(baseSource, {
     layerName,
     masterY: baseSource.frame.spriteSourceSize.y + offsetY,
@@ -2853,6 +2948,77 @@ function regionalStaticFrame(frame, layerName) {
   };
   regionalStaticFrameCanvasCache.set(cacheKey, regionalFrame);
   return regionalFrame;
+}
+
+function seasonalForestFrame(source, layerName) {
+  if (
+    !["Distant Forest", "Distant Forest Left Bank"].includes(layerName) ||
+    state.forestSeason.kind === "foliage"
+  ) {
+    return null;
+  }
+  const cacheKey = [
+    state.city.id,
+    layerName,
+    source.frame.id,
+    state.forestSeason.kind,
+    state.forestSeason.coverage
+  ].join(":");
+  if (seasonalForestFrameCache.has(cacheKey)) {
+    return seasonalForestFrameCache.get(cacheKey);
+  }
+
+  const buffer = document.createElement("canvas");
+  buffer.width = source.frame.frame.w;
+  buffer.height = source.frame.frame.h;
+  const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
+  if (!bufferContext) throw new Error("Could not read distant forest frame pixels");
+  bufferContext.imageSmoothingEnabled = false;
+  bufferContext.drawImage(
+    source.atlas,
+    source.frame.frame.x,
+    source.frame.frame.y,
+    source.frame.frame.w,
+    source.frame.frame.h,
+    0,
+    0,
+    source.frame.frame.w,
+    source.frame.frame.h
+  );
+  const imageData = bufferContext.getImageData(0, 0, buffer.width, buffer.height);
+  for (let y = 0; y < buffer.height; y++) {
+    for (let x = 0; x < buffer.width; x++) {
+      const offset = (y * buffer.width + x) * 4;
+      if (imageData.data[offset + 3] <= 16) continue;
+      const shifted = cityForestSeasonalPaletteRgb({
+        season: state.forestSeason,
+        seed: `${state.city.id}:${layerName}`,
+        x,
+        y,
+        red: imageData.data[offset],
+        green: imageData.data[offset + 1],
+        blue: imageData.data[offset + 2]
+      });
+      imageData.data[offset] = shifted.red;
+      imageData.data[offset + 1] = shifted.green;
+      imageData.data[offset + 2] = shifted.blue;
+    }
+  }
+  bufferContext.putImageData(imageData, 0, 0);
+
+  const seasonalFrame = Object.freeze({
+    atlas: buffer,
+    frame: Object.freeze({
+      ...source.frame,
+      frame: Object.freeze({
+        ...source.frame.frame,
+        x: 0,
+        y: 0
+      })
+    })
+  });
+  seasonalForestFrameCache.set(cacheKey, seasonalFrame);
+  return seasonalFrame;
 }
 
 function drawAnimatedLayer(layerName, timeMs, occurrence) {
@@ -5348,6 +5514,22 @@ return Object.freeze({
       intensity: precipitation.intensity
     });
     state.precipitationFrameCache = null;
+  },
+  setDayOfYear(dayOfYear) {
+    if (!Number.isInteger(dayOfYear) || dayOfYear < 0 || dayOfYear >= 365) {
+      throw new Error(`Invalid live city day of year: ${dayOfYear}`);
+    }
+    if (state.treeDayOfYear === dayOfYear) return;
+    state.treeDayOfYear = dayOfYear;
+    if (!state.city || state.treePlacements.length === 0) return;
+    const snapshot = currentCityTreePresentationSnapshot();
+    if (snapshot.signature === state.treeSeasonSignature) return;
+    state.treeSeasonSignature = snapshot.signature;
+    state.treePresentationByPlacementId = snapshot.presentations;
+    state.forestSeason = snapshot.forestSeason;
+    state.treeParticleFrameCache.clear();
+    seasonalForestFrameCache.clear();
+    rebuildCitySceneRenderPlan();
   },
   setPointer(x, y) {
     if (x === null && y === null) state.pointer = null;

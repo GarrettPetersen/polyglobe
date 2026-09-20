@@ -44619,6 +44619,7 @@ function drawPortCityScene(nowMs) {
   if (!portCityView?.sceneReady || !portCityRuntime) {
     throw new Error("Port city scene rendered before it was ready");
   }
+  portCityRuntime.setDayOfYear(weatherParts.dayIndex);
   measurePerformanceBenchmarkStage("render.city.weather", () => {
     portCityRuntime.setWeather(currentPortCityWeatherPresentation());
   });

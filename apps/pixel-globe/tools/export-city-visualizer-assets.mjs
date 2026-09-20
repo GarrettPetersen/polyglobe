@@ -31,6 +31,20 @@ const treeOutputRoot = resolve(outputRoot, "trees");
 const aseprite = resolveAsepriteBinary();
 const ASEPRITE_EXPORT_TIMEOUT_MS = 30_000;
 const ASEPRITE_EXPORT_MAX_ATTEMPTS = 3;
+const TREE_SOURCE_WIDTH = 100;
+const TREE_SOURCE_HEIGHT = 150;
+const TREE_ATLAS_COLUMNS = 6;
+const TREE_PARTICLE_EMITTER_COUNT = 64;
+const LARCH_AUTUMN_PALETTE = Object.freeze({
+  "165a4c": "676633",
+  "239063": "a2a947",
+  "91db69": "d5e04b"
+});
+const DECIDUOUS_AUTUMN_PALETTE = Object.freeze({
+  "165a4c": "9e4539",
+  "239063": "cd683d",
+  "91db69": "fbb954"
+});
 // A few gunner combat cels retain near-identical pre-conversion colors, plus
 // one half-opacity layer composite. Keep the repairs explicit so any other
 // out-of-palette source color still fails.
@@ -710,21 +724,95 @@ async function exportTreeAssets() {
     layer: layerNameFromFilename(frame.filename),
     ...portableFrame(frame)
   }));
-  const treeLayers = frames.filter(({ layer }) => !layer.endsWith(" Shadow"));
-  const trees = treeLayers.map((tree) => {
-    const shadow = frames.find(({ layer }) => layer === `${tree.layer} Shadow`);
-    if (!shadow) throw new Error(`Missing tree shadow layer: ${tree.layer}`);
+  const frameByLayer = new Map(frames.map((frame) => [frame.layer, frame]));
+  if (frameByLayer.size !== frames.length) throw new Error("City tree source has duplicate layer names");
+  const sourceAtlas = await loadImage(sheetPath);
+  const ordinaryTreeLayers = frames.filter(({ layer }) => (
+    !layer.endsWith(" Shadow") && frameByLayer.has(`${layer} Shadow`)
+  ));
+  const rasterEntries = [];
+  const treeSpecs = ordinaryTreeLayers.map((tree) => {
+    const id = treeLayerId(tree.layer);
+    const variants = { foliage: addTreeRaster(rasterEntries, `${id}:foliage`,
+      composeTreeLayers(sourceAtlas, frameByLayer, [tree.layer])) };
+    if (tree.layer === "Larch") {
+      variants.autumn = addTreeRaster(rasterEntries, `${id}:autumn`,
+        composeTreeLayers(sourceAtlas, frameByLayer, [tree.layer], LARCH_AUTUMN_PALETTE));
+      variants.bare = addTreeRaster(rasterEntries, `${id}:bare`,
+        composeTreeLayers(sourceAtlas, frameByLayer, ["Larch Bare"]));
+    }
     return Object.freeze({
-      id: tree.layer.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, ""),
+      id,
       name: tree.layer,
-      frame: portableTreeFrame(tree),
-      shadow: portableTreeFrame(shadow)
+      variants,
+      shadow: addTreeRaster(rasterEntries, `${id}:shadow`,
+        composeTreeLayers(sourceAtlas, frameByLayer, [`${tree.layer} Shadow`]))
+    });
+  });
+  const cherryVariants = {
+    foliage: addTreeRaster(rasterEntries, "cherry:foliage",
+      composeTreeLayers(sourceAtlas, frameByLayer, ["Cherry Trunk", "Cherry Leaves"])),
+    blossom: addTreeRaster(rasterEntries, "cherry:blossom",
+      composeTreeLayers(sourceAtlas, frameByLayer, ["Cherry Trunk", "Cherry Blossoms"])),
+    autumn: addTreeRaster(rasterEntries, "cherry:autumn",
+      composeTreeLayers(
+        sourceAtlas,
+        frameByLayer,
+        ["Cherry Trunk", "Cherry Leaves"],
+        DECIDUOUS_AUTUMN_PALETTE
+      )),
+    bare: addTreeRaster(rasterEntries, "cherry:bare",
+      composeTreeLayers(sourceAtlas, frameByLayer, ["Cherry Trunk"]))
+  };
+  treeSpecs.push(Object.freeze({
+    id: "cherry",
+    name: "Cherry",
+    variants: cherryVariants,
+    shadow: addTreeRaster(rasterEntries, "cherry:shadow",
+      composeTreeLayers(sourceAtlas, frameByLayer, ["Cherry Shadow"])),
+    particleColors: Object.freeze({
+      blossom: Object.freeze(["eaaded", "f04f78"]),
+      leaf: Object.freeze(["cd683d", "fbb954"])
+    }),
+    particleEmitters: Object.freeze({
+      blossom: treeParticleEmitterPoints(
+        sourceAtlas,
+        frameByLayer,
+        "Cherry Blossoms",
+        ["eaaded", "f04f78"]
+      ),
+      leaf: treeParticleEmitterPoints(
+        sourceAtlas,
+        frameByLayer,
+        "Cherry Leaves",
+        ["165a4c", "239063", "91db69"]
+      )
+    })
+  }));
+  const packedAtlas = packTreeRasters(rasterEntries);
+  await writeFile(sheetPath, packedAtlas.canvas.toBuffer("image/png"));
+  const trees = treeSpecs.map((tree) => {
+    const variants = Object.freeze(Object.fromEntries(
+      Object.entries(tree.variants).map(([season, entry]) => [season, packedAtlas.frameByKey.get(entry.key)])
+    ));
+    const foliage = variants.foliage;
+    if (!foliage) throw new Error(`City tree has no foliage frame: ${tree.id}`);
+    return Object.freeze({
+      id: tree.id,
+      name: tree.name,
+      // Retain frame as the canonical placement dimensions while variants
+      // express the actual seasonal presentation.
+      frame: foliage,
+      variants,
+      shadow: packedAtlas.frameByKey.get(tree.shadow.key),
+      ...(tree.particleColors ? { particleColors: tree.particleColors } : {}),
+      ...(tree.particleEmitters ? { particleEmitters: tree.particleEmitters } : {})
     });
   });
   if (trees.length === 0) throw new Error("City tree source exports no tree layers");
   const manifest = Object.freeze({
     format: "marque-city-tree-atlas",
-    version: 1,
+    version: 2,
     source: "apps/pixel-globe/public/assets/city-view/trees.aseprite",
     sheet: "trees.png",
     palette: "Resurrect 64",
@@ -734,12 +822,133 @@ async function exportTreeAssets() {
   await rm(dataPath);
 }
 
-function portableTreeFrame(frame) {
-  return Object.freeze({
-    frame: frame.frame,
-    spriteSourceSize: frame.spriteSourceSize,
-    sourceSize: frame.sourceSize
+function treeLayerId(layer) {
+  return layer.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "");
+}
+
+function addTreeRaster(entries, key, canvas) {
+  if (entries.some((entry) => entry.key === key)) throw new Error(`Duplicate tree raster: ${key}`);
+  const entry = Object.freeze({ key, canvas });
+  entries.push(entry);
+  return entry;
+}
+
+function composeTreeLayers(sourceAtlas, frameByLayer, layerNames, palette = null) {
+  const canvas = createCanvas(TREE_SOURCE_WIDTH, TREE_SOURCE_HEIGHT);
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  for (const layerName of layerNames) {
+    const layer = frameByLayer.get(layerName);
+    if (!layer) throw new Error(`Missing authored city tree layer: ${layerName}`);
+    if (layer.sourceSize.w !== TREE_SOURCE_WIDTH || layer.sourceSize.h !== TREE_SOURCE_HEIGHT) {
+      throw new Error(
+        `City tree layer ${layerName} is ${layer.sourceSize.w}x${layer.sourceSize.h}; ` +
+        `expected ${TREE_SOURCE_WIDTH}x${TREE_SOURCE_HEIGHT}`
+      );
+    }
+    context.drawImage(
+      sourceAtlas,
+      layer.frame.x,
+      layer.frame.y,
+      layer.frame.w,
+      layer.frame.h,
+      layer.spriteSourceSize.x,
+      layer.spriteSourceSize.y,
+      layer.frame.w,
+      layer.frame.h
+    );
+  }
+  if (palette) applyExactPaletteSwap(context, palette, layerNames.join(" + "));
+  return canvas;
+}
+
+function applyExactPaletteSwap(context, palette, label) {
+  const imageData = context.getImageData(0, 0, TREE_SOURCE_WIDTH, TREE_SOURCE_HEIGHT);
+  const replacements = new Map(Object.entries(palette));
+  const replaced = new Set();
+  for (let offset = 0; offset < imageData.data.length; offset += 4) {
+    if (imageData.data[offset + 3] === 0) continue;
+    const source = rgbKey(imageData.data, offset);
+    const target = replacements.get(source);
+    if (!target) continue;
+    replaced.add(source);
+    imageData.data[offset] = Number.parseInt(target.slice(0, 2), 16);
+    imageData.data[offset + 1] = Number.parseInt(target.slice(2, 4), 16);
+    imageData.data[offset + 2] = Number.parseInt(target.slice(4, 6), 16);
+  }
+  const missing = [...replacements.keys()].filter((source) => !replaced.has(source));
+  if (missing.length > 0) {
+    throw new Error(`City tree palette sources absent from ${label}: ${missing.join(", ")}`);
+  }
+  context.putImageData(imageData, 0, 0);
+}
+
+function treeParticleEmitterPoints(sourceAtlas, frameByLayer, layerName, expectedColors) {
+  const layer = frameByLayer.get(layerName);
+  if (!layer) throw new Error(`Missing authored city tree particle layer: ${layerName}`);
+  const canvas = createCanvas(layer.frame.w, layer.frame.h);
+  const context = canvas.getContext("2d");
+  context.drawImage(
+    sourceAtlas,
+    layer.frame.x,
+    layer.frame.y,
+    layer.frame.w,
+    layer.frame.h,
+    0,
+    0,
+    layer.frame.w,
+    layer.frame.h
+  );
+  const pixels = context.getImageData(0, 0, layer.frame.w, layer.frame.h).data;
+  const expected = new Set(expectedColors);
+  const observed = new Set();
+  const candidates = [];
+  for (let y = 0; y < layer.frame.h; y++) {
+    for (let x = 0; x < layer.frame.w; x++) {
+      const offset = (y * layer.frame.w + x) * 4;
+      if (pixels[offset + 3] === 0) continue;
+      const color = rgbKey(pixels, offset);
+      if (!expected.has(color)) {
+        throw new Error(`Unexpected city tree particle color #${color} in ${layerName}`);
+      }
+      observed.add(color);
+      candidates.push(Object.freeze({
+        x: layer.spriteSourceSize.x + x,
+        y: layer.spriteSourceSize.y + y
+      }));
+    }
+  }
+  const missingColors = [...expected].filter((color) => !observed.has(color));
+  if (missingColors.length > 0 || candidates.length < TREE_PARTICLE_EMITTER_COUNT) {
+    throw new Error(
+      `City tree particle layer ${layerName} lacks required authored pixels: ` +
+      `${missingColors.join(", ") || `${candidates.length} candidates`}`
+    );
+  }
+  return Object.freeze(Array.from({ length: TREE_PARTICLE_EMITTER_COUNT }, (_, index) => (
+    candidates[Math.floor(index * candidates.length / TREE_PARTICLE_EMITTER_COUNT)]
+  )));
+}
+
+function packTreeRasters(entries) {
+  if (entries.length === 0) throw new Error("City tree atlas has no rasters to pack");
+  const columns = Math.min(TREE_ATLAS_COLUMNS, entries.length);
+  const rows = Math.ceil(entries.length / columns);
+  const canvas = createCanvas(columns * TREE_SOURCE_WIDTH, rows * TREE_SOURCE_HEIGHT);
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  const frameByKey = new Map();
+  entries.forEach((entry, index) => {
+    const x = index % columns * TREE_SOURCE_WIDTH;
+    const y = Math.floor(index / columns) * TREE_SOURCE_HEIGHT;
+    context.drawImage(entry.canvas, x, y);
+    frameByKey.set(entry.key, Object.freeze({
+      frame: Object.freeze({ x, y, w: TREE_SOURCE_WIDTH, h: TREE_SOURCE_HEIGHT }),
+      spriteSourceSize: Object.freeze({ x: 0, y: 0, w: TREE_SOURCE_WIDTH, h: TREE_SOURCE_HEIGHT }),
+      sourceSize: Object.freeze({ w: TREE_SOURCE_WIDTH, h: TREE_SOURCE_HEIGHT })
+    }));
   });
+  return Object.freeze({ canvas, frameByKey });
 }
 
 function layerNameFromFilename(filename) {
