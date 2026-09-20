@@ -7,7 +7,9 @@ import * as fleet from "../../src/npcSeaRoutes.js";
 
 // Materialize the political/worker boundary that ordinary merchant journeys
 // never reached. Continue past demobilization rather than checking just the
-// snapshot's shape. Repeat with both worker-owned and visible preserved ships.
+// snapshot's shape. A deployed sortie whose finite slot disappears is already
+// at sea, so it becomes ordinary non-replacing patrol traffic rather than
+// vanishing. Repeat with both worker-owned and visible preserved ships.
 export async function exerciseReserveDemobilization() {
   let scenarios = 0;
   for (const factionId of ["inca", "portugal", "ottoman", "ming"]) {
@@ -27,12 +29,21 @@ export async function exerciseReserveDemobilization() {
       fleet.applyNpcSeaRouteSimulationSnapshot(routes, snapshot, {
         preserveShipIds: preserveVisible ? [ship.id] : []
       });
-      assert.equal(routes.shipById.has(ship.id), false, "Abolished reserve became an autonomous patrol");
+      const detached = routes.shipById.get(ship.id);
+      assert.ok(detached, "Abolished deployed reserve disappeared at sea");
+      assert.equal(detached.capitalNavalReserveSlotId, null);
+      assert.equal(detached.portResponse, null);
+      assert.equal(detached.replaceOnSink, false);
+      assert.equal(
+        detached.encounter?.routePolicy,
+        fleet.NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL
+      );
       fleet.updateNpcSeaRouteEvents(routes, oldArrival + 1, [ship.id]);
       assert.equal(routes.replacementQueue.some(entry => entry.shipId === ship.id), false);
       const saved = JSON.parse(JSON.stringify(fleet.snapshotNpcSeaRouteSystem(routes)));
       fleet.restoreNpcSeaRouteSystem(routes, saved, { economy: voyage.worldEconomy });
-      assert.equal(routes.shipById.has(ship.id), false);
+      assert.equal(routes.shipById.has(ship.id), true);
+      assert.equal(routes.shipById.get(ship.id).capitalNavalReserveSlotId, null);
       const driver = createWorkerDriver();
       try {
         await driver.reset(voyage);
