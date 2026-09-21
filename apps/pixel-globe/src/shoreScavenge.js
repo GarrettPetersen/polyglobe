@@ -114,7 +114,7 @@ const FROZEN_NARRATIVES = Object.freeze({
   [SHORE_SCAVENGE_FOOD]: Object.freeze([
     "The shore party cut a hole through the ice and returned with a small catch of fish.",
     "Hunters followed tracks along the snowy bank and returned with winter game.",
-    "A flock of waterfowl resting beside open water provided meat for the stores."
+    "A flock of waterfowl resting beside open water provided meat for the ship's stores."
   ]),
   [SHORE_SCAVENGE_NOTHING]: Object.freeze([
     "The party searched the frozen shore until dusk and returned with empty sledges.",
@@ -137,7 +137,7 @@ const DESERT_NARRATIVES = Object.freeze({
   [SHORE_SCAVENGE_FOOD]: Object.freeze([
     "The shore party gathered shellfish from the tidal rocks and carried the small catch back aboard.",
     "Hunters found desert hares among the scrub and returned with a little fresh meat.",
-    "A nesting colony of shore birds yielded eggs and meat enough to add to the stores."
+    "A nesting colony of shore birds yielded enough eggs and meat to replenish the ship's stores."
   ]),
   [SHORE_SCAVENGE_NOTHING]: Object.freeze([
     "The party searched the wadis until dusk and returned with empty casks beneath a pitiless sun.",

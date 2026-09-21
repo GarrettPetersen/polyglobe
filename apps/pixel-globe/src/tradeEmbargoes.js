@@ -497,11 +497,11 @@ export function tradeEmbargoEventNotice(event) {
   }
   if (event.kind === "lifted") {
     if (event.restrictionKind === TRADE_EMBARGO_RESTRICTION_BLOCKADE) {
-      return `${issuer.shortName.toUpperCase()} RAISES THE BLOCKADE OF ${target.shortName.toUpperCase()}`;
+      return `${issuer.shortName.toUpperCase()} ENDS THE BLOCKADE OF ${target.shortName.toUpperCase()}`;
     }
     return event.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
       ? `THE HOLY SEE LIFTS ITS PROHIBITION AGAINST ${target.shortName.toUpperCase()}`
-      : `${issuer.shortName.toUpperCase()} LIFTS ITS BAN ON ${target.adjective.toUpperCase()} MERCHANDISE`;
+      : `${issuer.shortName.toUpperCase()} ENDS ITS BAN ON ${target.adjective.toUpperCase()} GOODS`;
   }
   if (event.kind === "followers-changed") {
     if (event.previousFollowerFactionIds !== null) {

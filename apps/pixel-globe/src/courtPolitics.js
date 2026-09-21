@@ -293,7 +293,7 @@ export function courtMatterNotice(matter) {
   if (view.authorityFactionId === JAPAN_FACTION_ID) {
     return `THE ASHIKAGA BAKUFU SENDS ORDERS TOWARD ${destination}`;
   }
-  return `${factionById(view.authorityFactionId).shortName.toUpperCase()} PREPARES A DISPATCH FOR ${destination}`;
+  return `${factionById(view.authorityFactionId).shortName.toUpperCase()} PREPARES AN OFFICIAL MESSAGE FOR ${destination}`;
 }
 
 export function courtActionNotice(action) {
@@ -359,7 +359,7 @@ export function courtMatterDialogue(matter, { origin, destination, reward, ruler
     intercession: "Stand down! This vessel carries royal dispatches and colonial returns.",
     journeyEvents: courtJourneyBriefing(
       "overseas-administration",
-      `A distant possession is held by ships, stores, accounts, and orders that actually arrive. These papers bind ${target} to the court at ${home}.`,
+      `A distant colony depends on ships, stores, accounts, and orders that actually arrive. These papers bind ${target} to the court at ${home}.`,
       "attentive"
     )
   });

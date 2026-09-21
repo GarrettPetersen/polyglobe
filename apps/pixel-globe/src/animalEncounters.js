@@ -17,7 +17,7 @@ export const ANIMAL_CATALOG = Object.freeze([
     ["That bear has the confident walk of a creature that has never paid a harbor toll."], "Hrrrroooof!"),
   animal("elephant", "Elephant", "The immense long-nosed animal of Africa and Asia.", "trumpet", "elephant.png", elephantRange,
     ["Pliny wrote of elephants as the wisest of beasts. This one has already found our biscuit barrel."], "Prrrraaaah!"),
-  animal("rhinoceros", "Rhinoceros", "A heavy horned browser of warm grasslands and forests.", "grunt", "rhinoceros.png", rhinoRange,
+  animal("rhinoceros", "Rhinoceros", "A large horned grazer of warm grasslands and forests.", "grunt", "rhinoceros.png", rhinoRange,
     ["I begin to understand why old bestiaries drew it wearing armor."], "Hrrumph!"),
   animal("otter", "Otter", "A playful fisher of rivers, lakes, and sheltered coasts.", "chirp", "otter.png", wetTemperateHabitat,
     ["It catches fish without a net and looks unbearably pleased with itself."], "Chrrrp-chrrp!"),
@@ -31,7 +31,7 @@ export const ANIMAL_CATALOG = Object.freeze([
     ["It carries its young in a pouch. A sensible arrangement, though poor for cargo capacity."], "Chuff!"),
   animal("parrot", "Parrot", "A bright, loud bird of tropical forests.", "squawk", "parrot.png", tropicalForest,
     ["It has learned three sailors' oaths and not one useful word."], "AWK! Fair wind! AWK!"),
-  animal("lion", "Lion", "A formidable great cat of Africa and western India.", "roar", "lion.png", lionRange,
+  animal("lion", "Lion", "A formidable large feline of Africa and western India.", "roar", "lion.png", lionRange,
     ["The lion regards us as if deciding whether sailors count as red meat."], "Rrrrroaaaah!"),
   animal("eagle", "Eagle", "A vast bird of prey seen over mountains and open country.", "screech", "eagle.png", eagleRange,
     ["It can see leagues of country from up there. A useful talent in a navigator."], "Kreeee!"),
@@ -70,7 +70,7 @@ export const ANIMAL_CATALOG = Object.freeze([
       reactionExpression: "happy",
       reactionText: "The panda rolls onto its back, hugs the bamboo closer, and resumes chewing."
     }),
-  animalWithExpressions("raccoon", "Raccoon", "A nimble masked forager of the Americas.", "chitter", raccoonRange,
+  animalWithExpressions("raccoon", "Raccoon", "A nimble masked mammal that forages in the Americas.", "chitter", raccoonRange,
     ["That little masked thief is aboard! Count the biscuits."], "Chrrr-chrrr-chrrr!", {
       neutral: 4, happy: 5, surprised: 13, sad: 1, angry: 9, amused: 10, mischievous: 15
     }, {

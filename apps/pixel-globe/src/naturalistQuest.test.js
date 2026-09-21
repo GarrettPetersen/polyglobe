@@ -99,7 +99,7 @@ test("the demo completes a regional natural history while the full game keeps th
     idleObjective: "DOCUMENT MEDITERRANEAN ANIMALS (4/18)",
     reportSummary: "MEDITERRANEAN REPORTS 4/18",
     ongoingDialogue:
-      "4 of 18 creatures of these seas now have a place in my book. Keep watch whenever you make landfall.",
+      "My book now records 4 of 18 creatures in these seas. Stay alert whenever you go ashore.",
     completionLedgerLabel: "Completed Mediterranean natural history",
     completionDialogue:
       "Splendid! You have recorded every creature in these waters. The full game opens distant " +
@@ -111,7 +111,7 @@ test("the demo completes a regional natural history while the full game keeps th
     idleObjective: "DOCUMENT EXOTIC ANIMALS (4/18)",
     reportSummary: "BESTIARY REPORTED 4/18",
     ongoingDialogue:
-      "4 of 18 creatures now have a place in my book. Keep watch whenever you make landfall.",
+      "My book now records 4 of 18 creatures. Stay alert whenever you go ashore.",
     completionLedgerLabel: "Completed the great bestiary",
     completionDialogue:
       "At last, the book is complete: not a cabinet of travelers' fables, but a bestiary " +

@@ -458,7 +458,7 @@ test("family debt origins use faction-specific recent history", () => {
     ["safavid", /Chaldiran/i, /Tabriz/i],
     ["songhai", /Agadez/i, /Askia's march/i],
     ["vijayanagara", /Raichur/i, /Arabian horses/i],
-    ["joseon", /reformer's office/i, /memorials before the purge/i]
+    ["joseon", /reformer's office/i, /petitions before the purge/i]
   ];
   for (const [nationalityId, expectedCreditor, expectedPlayer] of cases) {
     const exchange = familyDebtOriginExchange({ ...CHARACTER, nationalityId });

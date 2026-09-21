@@ -20,8 +20,8 @@ export function naturalistQuestPresentation(view, buildEditionId = "full") {
       idleObjective: `DOCUMENT EXOTIC ANIMALS (${view.reportedCount}/${view.totalCount})`,
       reportSummary: `BESTIARY REPORTED ${view.reportedCount}/${view.totalCount}`,
       ongoingDialogue:
-        `${view.reportedCount} of ${view.totalCount} creatures now have a place in my book. ` +
-        "Keep watch whenever you make landfall.",
+        `My book now records ${view.reportedCount} of ${view.totalCount} creatures. ` +
+        "Stay alert whenever you go ashore.",
       completionLedgerLabel: "Completed the great bestiary",
       completionDialogue:
         "At last, the book is complete: not a cabinet of travelers' fables, but a bestiary " +
@@ -36,9 +36,8 @@ export function naturalistQuestPresentation(view, buildEditionId = "full") {
         `DOCUMENT MEDITERRANEAN ANIMALS (${view.reportedCount}/${view.totalCount})`,
       reportSummary: `MEDITERRANEAN REPORTS ${view.reportedCount}/${view.totalCount}`,
       ongoingDialogue:
-        `${view.reportedCount} of ${view.totalCount} creatures of these seas now have a place ` +
-        "in my book. " +
-        "Keep watch whenever you make landfall.",
+        `My book now records ${view.reportedCount} of ${view.totalCount} creatures in these seas. ` +
+        "Stay alert whenever you go ashore.",
       completionLedgerLabel: "Completed Mediterranean natural history",
       completionDialogue:
         "Splendid! You have recorded every creature in these waters. The full game opens distant " +

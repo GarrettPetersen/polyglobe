@@ -36,7 +36,7 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   "square-rigged-caravel":
     "an ocean-going caravel carrying square canvas for stronger following winds while retaining the handy hull of its lateen-rigged forebears",
   brigantine:
-    "a quick, handy two-master from a family of rigs long favored for scouting, dispatch work, coastal trade, and the occasional less lawful errand",
+    "a quick, handy two-masted sailing vessel long favored for scouting, carrying dispatches, coastal trade, and the occasional less lawful errand",
   "small-junk":
     "a compact junk in the old East Asian coastal tradition, with a shallow hull and easily managed battened sail suited to a modest crew",
   felucca:
@@ -44,13 +44,13 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   cutter:
     "a small pinnace suited to coasting, scouting, and carrying messages, the kind of useful tender a larger fleet always finds work for",
   ketch:
-    "a practical coastal trader whose divided lateen sail plan can be shortened by a small crew when a sudden squall comes down",
+    "a practical coastal trader whose divided triangular lateen sails can be reefed by a small crew when a sudden squall comes down",
   "mediterranean-galley":
     "the oared warship that still ruled much of the sixteenth-century Mediterranean, able to advance in a calm or drive straight into the wind",
   fusta:
     "a light one-masted Mediterranean galley, built for speed under oars and quick coastal fighting rather than the cargo or artillery of larger warships",
   galleass:
-    "a great broad-beamed galley enlarged into a floating gun platform, sacrificing the ordinary galley's speed for heavy artillery and a powerful fighting crew",
+    "a large broad-beamed galley enlarged into a floating gun platform, sacrificing the ordinary galley's speed for heavy artillery and a powerful fighting crew",
   "joseon-turtle-ship":
     "a roofed Joseon warship of the late sixteenth century, remembered for fighting in Admiral Yi Sun-sin's fleets among Korea's narrow tidal seas",
   "joseon-hyeopseon":
@@ -74,7 +74,7 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   "polynesian-voyaging-canoe":
     "a double-hulled ocean canoe descended from the vessels that carried Polynesian navigators, families, and provisions between distant islands",
   "mesoamerican-dugout-canoe":
-    "a great paddled dugout like those Mesoamerican mariners used for fishing and coastal commerce long before European ships reached their shores",
+    "a broad paddled Mesoamerican craft used for fishing and coastal trade, centuries before European ships came ashore",
   "nusantaran-outrigger":
     "an island Southeast Asian outrigger whose stabilizing float lets a narrow, swift hull carry sail safely through reef passages and open water",
   kelulus:
@@ -84,7 +84,7 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   lancaran:
     "a two-masted Malay fighting vessel built to maneuver under oars in confined straits while carrying enough sail and ordnance for longer patrols",
   "royal-lancaran":
-    "a great three-masted command lancaran, richly finished but entirely practical, with the crew, guns, and oar power expected of a sultan's flagship",
+    "a large three-masted command lancaran, richly finished but entirely practical, with the crew, guns, and oar power expected of a sultan's flagship",
   "ottoman-coastal-trader":
     "a workmanlike Ottoman coastal trader with a hooked bow, built to carry cargo between the Marmara, the Aegean, and the Black Sea"
 });

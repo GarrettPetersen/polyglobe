@@ -168,8 +168,8 @@ function familyDebtReminder(goal, {
   const variants = [
     `The family debt stands at about ${roundedBalance.toLocaleString("en-US")} doubloons. ` +
       `I must earn enough to settle with ${contactName} in ${homePortName}.`,
-    `${contactName} is still owed about ${roundedBalance.toLocaleString("en-US")} doubloons. ` +
-      `Every profitable voyage brings the family estate closer to safety.`
+    `I still owe ${contactName} about ${roundedBalance.toLocaleString("en-US")} doubloons. ` +
+      `Every profitable voyage brings the family estate closer to being debt-free.`
   ];
   return {
     text: variants[reminderInterval % variants.length],
@@ -223,8 +223,8 @@ function treasureReminder(goal, { homePortName, reminderInterval }) {
   if (!treasureAmbushComplete(goal)) {
     const remaining = TREASURE_MAP_PIECE_COUNT - goal.ambushDefeatedPirateIds.length;
     return {
-      text: `The treasure is aboard, but ${remaining} of Captain ${goal.treasureCaptainName}'s old crew ` +
-        `${remaining === 1 ? "still bars" : "still bar"} the way home to ${homePortName}.`,
+      text: `The treasure is aboard, but ${remaining} former crew members of Captain ` +
+        `${goal.treasureCaptainName} still block the way home to ${homePortName}.`,
       expressionId: "stern"
     };
   }

@@ -227,7 +227,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     id: CROSSBOWS_ITEM_ID,
     label: "Crossbows",
     grammaticalNumber: GRAMMATICAL_NUMBER_PLURAL,
-    detail: "A chest of crossbows trades a slow spanning time for an easier, harder shot.",
+    detail: "A chest of crossbows trades a slow reload for an easier, harder-hitting shot.",
     price: 1150,
     tier: 2,
     iconId: "item:crossbows",

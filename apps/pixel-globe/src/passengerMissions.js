@@ -836,7 +836,7 @@ function tradeAccessOpeningDialogueText(origin, target, reward, originRuler, tar
     offer: `${originRuler.displayName} seeks ${policy.envoyPurpose}. Carry me to ${foreign} and home again; the treasury will pay ${reward} db.`,
     underway: `The memorial remains sealed. Our audience awaits in ${foreign}.`,
     negotiationOpening: `I present ${originRuler.displayName}'s memorial in friendship and await the court's answer.`,
-    negotiation: `${targetRuler.displayName}'s ministers accept your embassy. ${policy.envoyGrant}; carry our sealed answer home.`,
+    negotiation: `${targetRuler.displayName}'s ministers receive your envoy. ${policy.envoyGrant}; carry our sealed answer home.`,
     returnUnderway: `The ${policy.permitLabel} is granted. Set our course back to ${home} so ${originRuler.displayName} can publish the accord.`,
     homecoming: `${originRuler.displayName} has received the ${policy.permitLabel}. Your ${reward} db is waiting at the treasury.`,
     intercession: "Hold your fire! This vessel carries an accredited trade embassy between our nations.",

@@ -6170,7 +6170,7 @@ test("a wealthy captain sees and can begin the major-port shipyard project", () 
   selectPortDialogueOption(session, city, gameState, economy, [city], offerIndex, context);
   assert.equal(session.nodeId, "shipyard-investment-offer");
   const offer = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.match(offer.text, /A deepwater yard needs 100000 doubloons/);
+  assert.match(offer.text, /A deepwater shipyard needs 100000 doubloons/);
   selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
   assert.equal(session.nodeId, "shipyard-investment");
 

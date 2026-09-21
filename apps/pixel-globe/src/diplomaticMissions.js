@@ -224,8 +224,8 @@ export function statusProposalText(status) {
   const vassal = factionById(status.vassalFactionId).name;
   const suzerain = factionById(status.suzerainFactionId).name;
   if (status.type === "seek-independence") return `${vassal} asks to be released from ${suzerain}'s overlordship.`;
-  if (status.type === "offer-protection") return `${suzerain} offers protection to ${vassal} in return for tribute and allegiance.`;
-  if (status.type === "offer-submission") return `${vassal} offers tribute and allegiance to ${suzerain} in return for recognition and protection.`;
+  if (status.type === "offer-protection") return `${suzerain} offers protection to ${vassal} in exchange for tribute payments and allegiance.`;
+  if (status.type === "offer-submission") return `${vassal} offers to pay tribute to and swear allegiance to ${suzerain} in exchange for recognition and protection.`;
   if (status.type === "demand-closer-submission") return `${suzerain} demands firmer obedience from ${vassal}.`;
   return `${suzerain} demands tribute from ${vassal}.`;
 }

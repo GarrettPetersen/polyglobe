@@ -132,7 +132,7 @@ const HISTORIES = Object.freeze([
     departed: "Families, soldiers, clergy, and Africans both free and slave crowd the decks of the Florida expedition.",
     landing: "Matanzas Bay gives us a defensible harbor. We will lay out St. Augustine here while the army turns north toward Fort Caroline.",
     landingAction: "Found St. Augustine",
-    resupply: resupply("grain", 12, "a large garrison and town in an uncertain food landscape", "St. Augustine needs grain before storms or war cut off the harbor.", "The planned town survives, but its soldiers and families have consumed the first stores.", "The granary is secure; St. Augustine can remain a town rather than another abandoned camp."),
+    resupply: resupply("grain", 12, "a large garrison and town where food supplies are uncertain", "St. Augustine needs grain before storms or war cut off the harbor.", "The planned town survives, but its soldiers and families have consumed the first stores.", "The granary is secure; St. Augustine can remain a town rather than another abandoned camp."),
     established: "St. Augustine endured where earlier Spanish attempts failed. It is a permanent planned town and naval base in Florida."
   }),
   history("caracas|venezuela", {
@@ -347,7 +347,7 @@ const HISTORIES = Object.freeze([
     basis: "The Dutch West India Company built Fort Orange in 1624 at the head of Hudson navigation as a fur-trade post near Mahican and Mohawk exchange routes.",
     pitch: "The old Fort Nassau was damaged by floods. The West India Company wants a stronger post at the head of Hudson navigation, where Mahican and Mohawk trade routes meet the river.",
     fetch: [
-      stage("orange-stockade", "timber", 10, "a flood-conscious stockade, warehouse, and river dock", "The first Dutch fort sat too low and the river punished it. Bring"),
+      stage("orange-stockade", "timber", 10, "a stockade, warehouse, and river dock built to withstand floods", "The first Dutch fort sat too low and the river punished it. Bring"),
       stage("orange-trade", "wool-cloth", 8, "honest exchange in the beaver trade", "The Company's whole calculation rests on Mahican and Mohawk trade. Its factors need"),
       stage("orange-goods", "glassware", 4, "durable, visible trade goods for the upriver market", "A bare fort cannot command commerce. Complete the factor's stock with")
     ],
@@ -435,7 +435,7 @@ const HISTORIES = Object.freeze([
     basis: "Champlain sent Laviolette in 1634 to build a fortified post at the Saint-Maurice confluence, already a longstanding Indian fur-trade rendezvous.",
     pitch: "Champlain wants Laviolette to fortify the Saint-Maurice confluence. Algonquin and Innu traders already gather there for the fur trade.",
     fetch: [
-      stage("three-rivers-fort", "timber", 10, "a palisade, house, store, and raised river landing", "The elevated Platon overlooks both river approaches. Build it with"),
+      stage("three-rivers-fort", "timber", 10, "a palisade, house, storehouse, and raised river dock", "The elevated Platon overlooks both river approaches. Build it with"),
       stage("three-rivers-trade", "wool-cloth", 8, "the annual Algonquin and Innu fur rendezvous", "A post at an old meeting place must arrive ready to exchange, not merely command. Bring"),
       stage("three-rivers-tools", "iron", 5, "fort fittings, axes, and repairs", "The small garrison and its artisans will be far from Quebec's workshops. Supply")
     ],

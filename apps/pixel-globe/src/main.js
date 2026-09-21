@@ -25036,7 +25036,7 @@ function acceptPapalCommissionOffer(rome, matter, itinerary, nuncio) {
       speakerCharacter: nuncio,
       expressionId: "stern",
       message: `Until these briefs return to Rome, do not attack the powers receiving us. ` +
-        "The law of embassies protects the ship only while we honor it."
+        "We enjoy safe-conduct only while we respect our hosts; break it, and we lose that protection."
     })
   ], () => {
     saveVoyageNow("accepted a Papal commission");
@@ -26141,7 +26141,7 @@ function finishPlayerPortAssault(cityCall, status, battle, crewFates) {
     restorePortAssaultDialogue();
     playCoinClinkSound();
     showSurvivalNotice(
-      `${cityLabelText(cityCall).toUpperCase()} PLUNDERED  +${prize.amount} DB`,
+      `${cityLabelText(cityCall).toUpperCase()} LOOTED  +${prize.amount} DB`,
       "good"
     );
     openCaptainAlertModal(
@@ -26481,7 +26481,7 @@ function completePlayerPortConquest(
     "good"
   );
   const conquestMessage = `${cityLabelText(capturedCity)} has surrendered. You seize ` +
-    `${prize.amount} doubloons from its treasury.${treatyText || ` The port now flies the ${newFaction.adjective} flag.`}` +
+    `${prize.amount} doubloons from its treasury.${treatyText || ` The flag of ${newFaction.adjective} now flies over the port.`}` +
     commissionText;
   if (conquistadorCapture) {
     openCharacterAlertModal(
@@ -26500,7 +26500,7 @@ function completePlayerPortConquest(
       : `${cityLabelText(capturedCity)} captured`,
     description: treaty
       ? capitalPeaceTreatyDescription(treaty)
-      : `${cityLabelText(capturedCity)} now flies the ${newFaction.adjective} flag.`,
+      : `The flag of ${newFaction.adjective} now flies over ${cityLabelText(capturedCity)}.`,
     icon: "steam_flag",
     priority: treaty ? 1000 : 800,
     durationSeconds: 0,
@@ -26663,7 +26663,7 @@ function capitalPeaceTreatyDescription(treaty) {
     return `${sovereigns}${loser.name} remains independent but cedes ${treatyConcessionLabel(treaty)} to ${winner.name}.`;
   }
   if (treaty.term === CAPITAL_PEACE_TERM_PAPAL_FAVOUR) {
-    return `${sovereigns}Rome remains independent, and the Pope issues a bull in favour of ${winner.name}.`;
+    return `${sovereigns}Rome remains independent, and the Pope issues a papal decree in favour of ${winner.name}.`;
   }
   if (treaty.term === CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION) {
     return `${sovereigns}Rome remains independent, and the Pope excommunicates the ruler of ${factionById(treaty.papalActionTargetFactionId).name}.`;
@@ -28013,7 +28013,7 @@ function completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOr
     },
     "crew-hire": () => {
       spawnCrewRecruitmentEffect(result.crewHire.member, purchaseIconOrigin, lastFrameMs);
-      showSurvivalNotice(`${result.crewHire.member.name.toUpperCase()} JOINED THE CREW`, "good");
+      showSurvivalNotice(`CREW MEMBER ADDED: ${result.crewHire.member.name.toUpperCase()}`, "good");
     },
   });
 }
@@ -28080,11 +28080,11 @@ function performDialogueOption(optionIndex, displayedOption) {
       const city = currentDialogueCity();
       const character = ensureBanquetChef(gameState, city);
       completeChefRecruitment(gameState, city, character);
-      dialogueState.feedback = `${character.name} joined the crew as Master Chef.`;
+      dialogueState.feedback = `${character.name} joined the crew as ship's cook.`;
       dialogueState.selectedIndex = 0;
       syncShipCargoFromGameState();
       playCollectionDingSound();
-      showSurvivalNotice(`${character.name.toUpperCase()} JOINED THE CREW`, "good");
+      showSurvivalNotice(`CREW MEMBER ADDED: ${character.name.toUpperCase()}`, "good");
       saveVoyageNow("recruited master chef");
     }
     if (result.action?.type === "wait-in-port") {
@@ -28198,7 +28198,7 @@ function performDialogueOption(optionIndex, displayedOption) {
           battery.playerAttackActive = false;
         }
         playCoinClinkSound();
-        showSurvivalNotice(`${factionById(passage.factionId).adjective.toUpperCase()} PASSAGE  ${passage.days} DAYS`, "good");
+        showSurvivalNotice(`${factionById(passage.factionId).adjective.toUpperCase()} SAFE PASSAGE  ${passage.days} DAYS`, "good");
         saveVoyageNow("purchased faction safe passage");
       }
       result.action = null;
@@ -28266,7 +28266,7 @@ function performDialogueOption(optionIndex, displayedOption) {
       });
       syncShipCargoFromGameState();
       playCollectionDingSound();
-      showSurvivalNotice(`${quest.character.name.toUpperCase()} JOINED THE CREW`, "good");
+      showSurvivalNotice(`CREW MEMBER ADDED: ${quest.character.name.toUpperCase()}`, "good");
       saveVoyageNow(`${rescuedTravelerLabel(quest).toLowerCase()} joined crew`);
     } else if (result.action?.type === "complete-pirate-captive-handover") {
       const city = currentDialogueCity();
@@ -30496,7 +30496,7 @@ function landWhaleKillingBlow() {
           }
         )
       : result.quantity > 0
-        ? `${label.toUpperCase()} TAKEN  +${result.quantity} WHALE BLUBBER`
+        ? `${label.toUpperCase()} SECURED  +${result.quantity} WHALE BLUBBER`
         : `${label.toUpperCase()} TAKEN  CARGO HOLD FULL`,
     speciesExtinct ? "warn" : "good"
   );
@@ -39905,7 +39905,7 @@ function attemptEnvoyIntercession(factionId, counterpart) {
       message: passage.warning
     })
   ]);
-  showSurvivalNotice(`${factionById(factionId).adjective.toUpperCase()} DIPLOMATIC PASSAGE  ${passage.days} DAYS`, "good");
+  showSurvivalNotice(`${factionById(factionId).adjective.toUpperCase()} DIPLOMATIC SAFE PASSAGE  ${passage.days} DAYS`, "good");
   saveVoyageNow("envoy claimed diplomatic passage");
   return true;
 }
@@ -46710,7 +46710,7 @@ function queueDiscovery(discovery, nowMs) {
   });
   publishPlatformTimelineEvent({
     title: `Discovered ${discovery.displayName || discovery.name || discovery.id}`,
-    description: discovery.kind === "achievement" ? "A rare feat was completed." : "A new wonder was added to the chart.",
+    description: discovery.kind === "achievement" ? "A rare feat was completed." : "A new wonder was added to the map.",
     icon: "steam_star",
     priority: discovery.kind === "achievement" ? 850 : 550,
     durationSeconds: 0,

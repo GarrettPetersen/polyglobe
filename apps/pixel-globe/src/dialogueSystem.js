@@ -5964,7 +5964,7 @@ function chefQuestView(session, city, gameState, context) {
     return {
       speaker,
       expressionId: "happy",
-      text: `${quest.event.successText} My thanks, Captain; our guests have eaten well. Now I long for adventure beyond this shore. Give me a berth, and I will make your provisions last.`,
+      text: `${quest.event.successText} Thank you, Captain. Our guests have eaten well. Now I long for adventure beyond this shore. Take me aboard, and I will make your provisions last longer.`,
       feedback: session.feedback,
       options: [
         option("Welcome aboard", { type: "recruit-chef" }, {
@@ -6245,7 +6245,7 @@ function colonizationView(session, city, gameState, context) {
       return {
         speaker: `${organizer}, ${history.sponsorRole}`,
         expressionId: "attentive",
-        text: `${history.departed} Let us make for ${route}.`,
+        text: `${history.departed} Let us sail to ${route}.`,
         feedback: session.feedback,
         options: [back]
       };
@@ -7441,7 +7441,7 @@ function shipyardInvestmentOfferView(session, city, gameState, context) {
   return {
     speaker: `${cityLabel(city)} master shipwright`,
     expressionId: "pleased",
-    text: `A deepwater yard needs ${SHIPYARD_INVESTMENT_CAPITAL} doubloons, timber, iron, and naval stores. Back it, and your share of every vessel sold will be entered in the yard's books.`,
+    text: `A deepwater shipyard needs ${SHIPYARD_INVESTMENT_CAPITAL} doubloons, timber, iron, and naval stores. Support the shipyard, and your share of every vessel sold will be entered in its books.`,
     feedback: null,
     options: [
       option("Meet the shipyard syndicate", { type: "begin-shipyard-investment" }),
@@ -7500,7 +7500,7 @@ function shipyardInvestmentView(session, city, gameState, context) {
   return {
     speaker: `${cityLabel(city)} master shipwright`,
     expressionId: "attentive",
-    text: `A deepwater yard needs ${SHIPYARD_INVESTMENT_CAPITAL} doubloons, timber, iron, and naval stores. Back it, and your share of every vessel sold will be entered in the yard's books.`,
+    text: `A deepwater shipyard needs ${SHIPYARD_INVESTMENT_CAPITAL} doubloons, timber, iron, and naval stores. Support the shipyard, and your share of every vessel sold will be entered in its books.`,
     feedback: session.feedback,
     options: rows
   };
@@ -8561,9 +8561,9 @@ function tributeTheftWarningView(session, city, gameState) {
   return {
     speaker: speakerName(city),
     expressionId: "stern",
-    text: `Those ${good.label.toLowerCase()} are sealed tribute, not your cargo. Selling ` +
-      `${pending.theft.stolenQuantity} is theft from the court. Your mission will fail and your standing ` +
-      `will fall ${formatSignedReputation(pending.theft.originPenalty)} with ${origin}${secondPenalty}.`,
+    text: `Those ${good.label.toLowerCase()} are sealed tribute, not yours to sell. Selling ` +
+      `${pending.theft.stolenQuantity} would steal from the court, fail your mission, and lower your standing ` +
+      `by ${formatSignedReputation(pending.theft.originPenalty)} with ${origin}${secondPenalty}.`,
     bodyTone: "danger",
     feedback: session.feedback,
     options: [
@@ -8798,7 +8798,7 @@ function questView(session, city, gameState, portCities, context) {
       speaker: speakerName(city),
       expressionId: questState.kind === "in-progress-here" ? "attentive" : "concerned",
       text: questState.kind === "in-progress-here"
-        ? `${passengerName(quest)} is waiting aboard for passage to ${quest.destinationName}.`
+        ? `${passengerName(quest)} is aboard, waiting to sail to ${quest.destinationName}.`
         : activeTravelMissionBusyText(quest),
       feedback: session.feedback,
       options: [
@@ -8899,7 +8899,7 @@ function capturePetitionDisabledReasonText({ reason, blockingQuest }, city, port
     if (blockingQuest.kind === "passenger") return `Your passenger awaits passage to ${blockingQuest.destinationName}, Captain. Set them ashore before seeking a capture warrant.`;
     return `Fulfil your commission at ${blockingQuest.destinationName} first, Captain. Then the council can hear your petition.`;
   }
-  if (reason === "pending-offer") return "A capture warrant already awaits your answer. Ask about commissions at the inn.";
+  if (reason === "pending-offer") return "A warrant to capture a port already awaits your answer. Ask about other commissions at the inn.";
   throw new Error(`Unknown capture petition eligibility: ${reason}`);
 }
 
@@ -9039,7 +9039,7 @@ function capturePortQuestView(session, questState, returnNodeId, gameState) {
     text: quest.stage === "return"
       ? quest.captureCommissionResolution
         ? `The commission for ${quest.targetName} has been recalled. Return to ${quest.originName} to close the account.`
-        : `${quest.targetName} is taken. Carry the victory dispatches back to ${quest.originName}; the crown's debt must be settled there.`
+        : `You have taken ${quest.targetName}. Carry the victory dispatches back to ${quest.originName}; the crown's debt must be settled there.`
       : quest.independentTarget
         ? `The sealed warrant names ${quest.targetName}. The council chose the harbor; your charge is to take it, not to alter the terms.`
         : `Your commission is to seize ${quest.targetName} from ${quest.targetFactionNoun}. Other business must wait upon that service.`,

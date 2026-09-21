@@ -201,7 +201,7 @@ function recognitionText(candidate, variant, voiceId) {
   }
   if (candidate.kind === "colonial-founder") {
     return variant === 0
-      ? `${candidate.count} new harbors owe their first roofs and storehouses to your voyages. Few captains leave such marks upon the map.`
+      ? `${candidate.count} new harbors owe their first homes and storehouses to your voyages. Few captains leave such a mark on the map.`
       : `Word comes from ${candidate.count} settlements founded in your wake. Their factors already reckon by your name.`;
   }
   if (candidate.kind === "pirate-scourge") {

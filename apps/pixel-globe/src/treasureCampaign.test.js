@@ -220,10 +220,9 @@ test("recovering the treasure names home and marks the return course before the 
     homePortName: "Nanjing",
     goldQuantity: 17
   });
-  assert.match(ladenMessage, /17 units of gold/i);
-  assert.match(ladenMessage, /set course for Nanjing/i);
-  assert.match(ladenMessage, /marked it on the chart/i);
-  assert.match(ladenMessage, /old crew bars the way/i);
+  assert.match(ladenMessage, /17 gold/i);
+  assert.match(ladenMessage, /sail for Nanjing/i);
+  assert.match(ladenMessage, /former crew of Captain .* block the way home/i);
   assert.deepEqual(campaignGoalDestination(goal), {
     kind: "home",
     homePortCityId: "test home|test",
@@ -235,8 +234,8 @@ test("recovering the treasure names home and marks the return course before the 
     homePortName: "Nanjing",
     goldQuantity: 0
   });
-  assert.match(fullHoldMessage, /hold cannot take another coin/i);
-  assert.match(fullHoldMessage, /set course for Nanjing/i);
+  assert.match(fullHoldMessage, /hold is full/i);
+  assert.match(fullHoldMessage, /sail for Nanjing/i);
 });
 
 function initializedGoal() {

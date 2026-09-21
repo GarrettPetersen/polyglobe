@@ -9,7 +9,7 @@ const ANIMAL_REPORTS = new Map(Object.entries({
   ),
   elephant: exchange(
     "The elephant used its trunk like a hand: lifting branches, drawing water, and touching another elephant in greeting. The whole herd guarded its young.",
-    "A nose that serves as hand, cup, and trumpet deserves more than a marginal sketch. Your account also supports the old claim that elephants possess uncommon social sense."
+    "A nose that serves as hand, cup, and trumpet deserves more than a marginal sketch. Your report also supports the old claim that elephants possess uncommon social intelligence."
   ),
   rhinoceros: exchange(
     "The rhinoceros carried a horn upon its nose and skin folded like plates of armor. It watched poorly, but turned toward the faintest unfamiliar sound.",
@@ -49,7 +49,7 @@ const ANIMAL_REPORTS = new Map(Object.entries({
   ),
   moose: exchange(
     "The moose stood shoulder-deep in a northern marsh, pulling water plants from below the surface. Its antlers spread nearly as wide as our ship's boat.",
-    "A gigantic deer that feeds in water. Include the marsh in your drawing; an animal described without its country is only half described."
+    "A gigantic deer that forages in water. Include the marsh in your drawing; an animal described without its country is only half described."
   ),
   "wild-dog": exchange(
     "The wild dogs hunted as a company, relieving one another during the chase until faster prey tired. They shared the kill rather than fighting over it.",

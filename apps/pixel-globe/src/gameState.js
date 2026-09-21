@@ -3645,7 +3645,7 @@ function restockShipLoadoutPlanAtPort(
   if (spent > 0) {
     recordLedgerEntry(state, city, context, {
       kind: "provision",
-      description: `${plan.label} loadout restock`,
+      description: `${plan.label} ship supplies and armament restock`,
       goodId: null,
       quantity: additions.crew + additions.cannons + additions.food + additions.water,
       amount: -spent,
@@ -5597,7 +5597,7 @@ export function purchaseFactionSafePassage(state, city, simMinute) {
   delete state.relations.safePassageRefusalUntilMinute[factionId];
   recordLedgerEntry(state, city, { simMinute }, {
     kind: "expense",
-    description: `${cityLabel(city)} passage toll`,
+    description: `${cityLabel(city)} safe-passage toll`,
     goodId: null,
     quantity: 1,
     amount: -toll,

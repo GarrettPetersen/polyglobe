@@ -49,8 +49,8 @@ export function papalCommissionOfferText(matter, simMinute, {
     return "Adrian VI has sealed a reform brief for the northern clergy. Carry it north and return " +
       "with their answer.";
   }
-  return `${ruler.displayName} may receive a public mark of Papal favor. ` +
-    "His Holiness first wants a captain whose eyes are not those of a courtier.";
+  return `The Pope may publicly commend ${ruler.displayName}. ` +
+    "His Holiness first seeks a captain with an independent view of the world.";
 }
 
 export function papalCommissionJourneyDialogueEvent(matter, simMinute) {
@@ -105,7 +105,7 @@ export function papalCommissionAudienceText(matter, destination, { finalAudience
   }
   const target = factionById(destination.factionId);
   const opening = `The nuncio presents his sealed brief at ${destination.portName}. ` +
-    `${target.adjective} officials receive it under the law of embassies.`;
+    `Under diplomatic safe-conduct, ${target.adjective} officials receive it.`;
   if (!finalAudience) return opening + " Their written answer is placed beneath the Papal seal.";
   if (matter.commissionKind === PAPAL_COMMISSION_PEACE) {
     return opening + " Both rulers' courts have answered. Rome will act on the counsel you bring back.";

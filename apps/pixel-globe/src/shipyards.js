@@ -1487,7 +1487,7 @@ function shipyardConstructionProgressEntries({
     })),
     {
       kind: "construction-labor-progress",
-      description: `${shipLabel} labor in progress`,
+      description: `${shipLabel} construction labor underway`,
       cost: costBreakdown.laborCost
     }
   ];

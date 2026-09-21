@@ -9,7 +9,7 @@ const WORLD_REPORTS = new Map(Object.entries({
   ),
   "landmark-stonehenge": exchange(
     "The stones stand in a ring on the open plain, with great lintels balanced across their tops. No mortar binds them, and no nearby hill explains how they were brought there.",
-    "A people without a surviving name arranged stone as carefully as an astronomer arranges numbers. Record the openings in the ring; perhaps they watched the heavens through them."
+    "The people who built this stone ring left no written name, yet arranged the stones with an astronomer's precision. Record its openings; perhaps they watched the heavens through them."
   ),
   "landmark-pyramids-of-meroe": exchange(
     "Beyond the Nile I found a field of steep, narrow pyramids rising from the red earth. They are smaller than Giza's giant, but so numerous they resemble a stone fleet under sail.",
@@ -21,7 +21,7 @@ const WORLD_REPORTS = new Map(Object.entries({
   ),
   "landmark-petra": exchange(
     "We entered Petra through a cleft barely wide enough for the road. Then a rose-colored facade appeared, carved straight into the cliff, with channels cut to gather every rare drop of rain.",
-    "A city made from both stone and scarcity. Copy those water channels carefully. The builders' conquest of the desert may be the greater wonder."
+    "A city built of stone in a land of scarcity. Copy those water channels carefully. The builders' conquest of the desert may be the greater wonder."
   ),
   "landmark-mohenjo-daro": exchange(
     "The ruined streets cross one another with deliberate order. Houses, wells, and drains were laid in baked brick as though the whole city had first been drawn upon a single board.",
@@ -148,7 +148,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
   ),
   "mountain-grand-teton": exchange(
     "The Grand Teton leaps from the valley without a screen of foothills, all sharp granite and snow-filled gullies. Its summit is a narrow point among a row of jagged neighbors.",
-    "A mountain whose drama comes from suddenness. Preserve the flat valley at its foot; without that calm foreground, readers will not understand the ascent."
+    "A mountain that rises abruptly from the plain. Preserve the flat valley at its foot; without that calm foreground, readers will not understand its height."
   ),
   "mountain-mount-hood": exchange(
     "Mount Hood is a clean snow cone above dark forests and the great river. Its shape stayed with us for days, changing color while the outline scarcely changed at all.",
@@ -196,7 +196,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
   ),
   "mountain-ben-nevis": exchange(
     "Ben Nevis rises dark above the sea lochs, its broad upper slopes vanishing into rain. The northern cliffs hold snow in deep gullies even when the lower glens are green.",
-    "A mountain shaped as much by Atlantic weather as by stone. Your harbor approaches and cloud notes will make this a useful page as well as a handsome one."
+    "Atlantic weather has shaped this mountain as surely as stone. Add notes on harbor approaches and clouds; they will make this page useful as well as handsome."
   ),
   "mountain-kanchenjunga": exchange(
     "Kanchenjunga showed five great snowy summits, sometimes appearing together and sometimes separated by cloud. The whole massif glowed at sunrise before the valleys saw daylight.",
@@ -204,7 +204,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
   ),
   "mountain-nanga-parbat": exchange(
     "Nanga Parbat rises in one overwhelming sweep above the Indus country, its bare lower slopes giving way to hanging ice. Its immense face seemed to contain several climates.",
-    "A naked mountain indeed, displaying its structure instead of hiding among neighboring peaks. Your section of the valley and face may be our most instructive mountain drawing."
+    "A bare mountain stands apart from its neighbors, exposing its structure. Your cross-section of the valley and mountainside may be our most instructive drawing."
   ),
   "mountain-mount-ararat": exchange(
     "Ararat stands alone above the Armenian highlands, a vast snow-capped cone with a lesser cone beside it. Stories of the ancient flood cling to it in every village.",
@@ -212,7 +212,7 @@ const MOUNTAIN_REPORTS = new Map(Object.entries({
   ),
   "mountain-mount-rainier": exchange(
     "Rainier loomed above the inland waters, a massive white volcano cut by rivers of ice. Even at great distance it made the forested ridges before it seem small.",
-    "A glacier-clad beacon for the whole sound. Note the river mouths below; all that ice must send its influence far beyond the mountain."
+    "A glacier-clad beacon for the whole inlet. Note the river mouths below; all that ice must send its influence far beyond the mountain."
   )
 }));
 

@@ -449,7 +449,7 @@ test("war notices identify opponents and which side an ally joins", () => {
   for (const causes of [["gujarat", "portugal"], ["portugal", "gujarat"]]) {
     const joined = { ...event, kind: "alliance-war", factionAId: "england", factionBId: "gujarat",
       causeFactionAId: causes[0], causeFactionBId: causes[1] };
-    assert.equal(diplomacyEventNotice(JSON.parse(JSON.stringify(joined))), "ENGLAND JOINS PORTUGAL VS. GUJARAT");
+    assert.equal(diplomacyEventNotice(JSON.parse(JSON.stringify(joined))), "ENGLAND JOINS PORTUGAL IN WAR AGAINST GUJARAT");
     assert.throws(() => diplomacyEventNotice({ ...joined, factionBId: "france" }), /enemy outside its original war/);
   }
 });

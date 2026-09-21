@@ -736,7 +736,7 @@ export function papalActionNotice(action) {
       return `${action.popeName.toUpperCase()} WITHDRAWS THE CRUSADE AGAINST ${target.shortName.toUpperCase()}`;
     }
     if (action.revokedActionKind === PAPAL_ACTION_FAVOUR) {
-      return `${action.popeName.toUpperCase()} WITHDRAWS THE BULL IN FAVOUR OF ${target.shortName.toUpperCase()}`;
+      return `${action.popeName.toUpperCase()} WITHDRAWS THE PAPAL DECREE IN FAVOUR OF ${target.shortName.toUpperCase()}`;
     }
     return `${action.popeName.toUpperCase()} WITHDRAWS THE CONDEMNATION OF ${target.shortName.toUpperCase()}`;
   }
@@ -750,7 +750,7 @@ export function papalActionNotice(action) {
     return `ROME SENDS GRAIN ALMS TO ${recipient.shortName.toUpperCase()}`;
   }
   if (action.kind === PAPAL_ACTION_FAVOUR) {
-    return `${action.popeName.toUpperCase()} ISSUES A BULL IN FAVOUR OF ${target.shortName.toUpperCase()}`;
+    return `${action.popeName.toUpperCase()} ISSUES A PAPAL BULL FOR ${target.shortName.toUpperCase()}`;
   }
   if (action.kind === PAPAL_ACTION_EXCOMMUNICATION) {
     return `${action.targetRulerName.toUpperCase()} EXCOMMUNICATED BY ${action.popeName.toUpperCase()}`;

@@ -458,7 +458,7 @@ export const CHART_REFRAME_DIALOGUES = Object.freeze([
     dialogueLine("captain", "Then this great ship may finally be large enough for the crew's gossip.", "happy")
   ]),
   dialogue("turtle-ship", "ship", 8, (c) => c.shipSlug === "joseon-turtle-ship", [
-    dialogueLine("captain", "A floating turtle, iron-backed and stubborn. I begin to understand the name.", "proud")
+    dialogueLine("captain", "A floating turtle with a shell like iron, and just as stubborn. I begin to understand the name.", "proud")
   ]),
   dialogue("viking-longship", "ship", 8, (c) => c.shipSlug === "viking-longship" && c.hasCrew, [
     dialogueLine("crew", "These oar benches have outlived kingdoms. My back may not outlive the watch.", "annoyed"),
@@ -490,7 +490,7 @@ export const CHART_REFRAME_DIALOGUES = Object.freeze([
     dialogueLine("captain", "The casks are nearly dry. No wasted cup, no wasted hour.", "concerned")
   ]),
   dialogue("night-stars", "weather", 3, (c) => c.localHour >= 20 || c.localHour < 4, [
-    dialogueLine("captain", "A clear star, a steady bearing, and another mile made good. That is enough for tonight.", "thoughtful")
+    dialogueLine("captain", "A clear star, a steady bearing, and another stretch of passage behind us. That is enough for tonight.", "thoughtful")
   ]),
   dialogue("dawn-watch", "weather", 3, (c) => c.localHour >= 4 && c.localHour < 7, [
     dialogueLine("captain", "Dawn watch. The sea changes color before it changes its mind.", "attentive")

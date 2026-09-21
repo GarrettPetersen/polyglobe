@@ -147,8 +147,8 @@ export function treasureRecoveryCaptainMessage(goal, {
 }) {
   validateTreasureRecoveryGuidance(goal, homePortName, goldQuantity);
   return goldQuantity > 0
-    ? `The hoard is ours: ${goldQuantity} units of gold and Captain ${goal.treasureCaptainName}'s treasure. Every pirate afloat will hunt us. Set course for ${homePortName}; I marked it on the chart. The old crew bars the way.`
-    : `The hold cannot take another coin, but Captain ${goal.treasureCaptainName}'s treasure is ours. Every pirate afloat will hunt us. Set course for ${homePortName}; I marked it on the chart. The old crew bars the way.`;
+    ? `The hoard is ours: ${goldQuantity} gold and Captain ${goal.treasureCaptainName}'s treasure. Pirates will hunt us. Sail for ${homePortName}; former crew of Captain ${goal.treasureCaptainName} block the way home.`
+    : `The hold is full, but we have Captain ${goal.treasureCaptainName}'s treasure. Pirates will hunt us. Sail for ${homePortName}; former crew of Captain ${goal.treasureCaptainName} block the way home.`;
 }
 
 function validateTreasureRecoveryGuidance(goal, homePortName, goldQuantity) {

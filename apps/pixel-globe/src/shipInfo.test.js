@@ -341,7 +341,7 @@ test("special item details expose the same canonical perk effect shown when acqu
   }, gameState);
   const hooks = view.papers.find((paper) => paper.title === "Bronze Fish Hooks");
 
-  assert.equal(hooks.detail, "A case of strong hooks improves both line fishing and net work.");
+  assert.equal(hooks.detail, "A set of sturdy hooks improves both line fishing and net work.");
   assert.equal(hooks.effect, "Fishing odds +8% / Fishing haul +10%");
   assert.equal(
     view.papers.find((paper) => paper.title === "Basic cast net").effect,

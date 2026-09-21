@@ -1411,7 +1411,7 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
   ),
   joseon: debtOrigin(
     "The court erased a reformer's office. It left the family obligations untouched.",
-    "A cousin signed their memorials before the purge. Saving the clan lands cost everything else."
+    "A cousin signed their petitions before the purge. Saving the clan lands cost everything else."
   )
 });
 

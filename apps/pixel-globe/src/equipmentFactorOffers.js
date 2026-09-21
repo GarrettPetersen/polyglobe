@@ -174,7 +174,7 @@ function equipmentFactorCandidates({
         kind: EQUIPMENT_FACTOR_KIND_CANNON,
         item: equipment,
         currentTier: currentCannon.tier,
-        salesPitch: "A quicker, harder-hitting battery can settle a broadside before the enemy has reloaded.",
+        salesPitch: "Quicker-firing, heavier broadside guns can decide the exchange before the enemy reloads.",
         effectDetail: `Reload ${equipment.reloadSeconds.toFixed(2)}s / ` +
           `Damage x${equipment.damageMultiplier.toFixed(2)} / Range x${equipment.rangeMultiplier.toFixed(2)}`
       }));

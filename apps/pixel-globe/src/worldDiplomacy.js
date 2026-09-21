@@ -752,7 +752,7 @@ export function diplomacyEventNotice(event) {
       : event.factionBId === event.causeFactionBId ? event.causeFactionAId : null;
     if (supportedId === null) throw new Error(`Alliance war ${event.id} has an enemy outside its original war`);
     const supported = factionShortName(supportedId).toUpperCase();
-    return `${a} JOINS ${supported} VS. ${b}`;
+    return `${a} JOINS ${supported} IN WAR AGAINST ${b}`;
   }
   if (event.kind === "vassalage") {
     if (event.relationshipKind === SUZERAINTY_KIND_TRIBUTARY) {

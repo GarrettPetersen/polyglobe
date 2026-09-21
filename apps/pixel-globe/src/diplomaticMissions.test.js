@@ -173,7 +173,7 @@ test("the market warns before selling sealed tribute and cancellation leaves it 
   selectPortDialogueOption(session, SEOUL, state, economy, [SEOUL], sellAllIndex, { simMinute: 10 });
   const warning = portDialogueView(session, SEOUL, state, economy, [SEOUL]);
   assert.match(warning.text, /sealed tribute/i);
-  assert.match(warning.text, /theft/i);
+  assert.match(warning.text, /steal/i);
   assert.equal(warning.options[1].label, "Keep the tribute aboard");
 
   selectPortDialogueOption(session, SEOUL, state, economy, [SEOUL], 1, { simMinute: 10 });
