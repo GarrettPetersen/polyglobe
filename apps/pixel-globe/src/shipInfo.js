@@ -424,6 +424,17 @@ export function shipPropulsionSummary(stats) {
   return `SAIL / ${stats.upwindStallAngleDeg} DEG`;
 }
 
+export function shipPropulsionSummaryLines(summary) {
+  if (typeof summary !== "string" || summary.trim() === "") {
+    throw new Error("Ship propulsion summary lines require text");
+  }
+  const lines = summary.split(/\s*[\/／]\s*/u).map((line) => line.trim()).filter(Boolean);
+  if (lines.length !== 2) {
+    throw new Error(`Ship propulsion summary requires two clauses: ${summary}`);
+  }
+  return Object.freeze(lines);
+}
+
 export function shipInfoCargoPage(view, page, rowsPerPage = SHIP_INFO_CARGO_ROWS_PER_PAGE) {
   if (!view || !Array.isArray(view.cargo)) throw new Error("Invalid ship information view");
   assertRowsPerPage(rowsPerPage, "ship cargo manifest");

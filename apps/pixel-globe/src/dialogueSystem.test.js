@@ -327,6 +327,8 @@ test("hailing a hostile pirate offers combat without friendly gossip", () => {
   assert.equal(view.expressionId, "angry");
   assert.equal(view.text, "Heave to. Your cargo or your life.");
   assert.deepEqual(view.options.map((entry) => entry.label), ["Attack", "Leave"]);
+  assert.equal(view.options[0].detail, "Legal attack");
+  assert.equal(view.options[0].detailTone, "success");
   assert.deepEqual(selectShipDialogueOption(session, ship, 0), {
     closed: true,
     action: { type: "attack" }
@@ -1201,6 +1203,53 @@ test("a capable ship defies the threat but can still be attacked", () => {
   });
 });
 
+test("attack buttons combine piracy status with a dangerous matchup warning", () => {
+  const makeShip = ({ id, piracy, targetPower }) => ({
+    id,
+    label: "Galleon",
+    roleLabel: "Warship",
+    faction: { adjective: "French" },
+    character: { name: "Claude Martin" },
+    combatStrength: { playerPower: 100, targetPower },
+    attackEligibility: shipAttackEligibility({
+      shipId: id,
+      ownNationAtWar: !piracy
+    })
+  });
+  const dangerousPiracyShip = makeShip({ id: "dangerous-piracy", piracy: true, targetPower: 126 });
+  const dangerousLegalShip = makeShip({ id: "dangerous-legal", piracy: false, targetPower: 126 });
+  const evenPiracyShip = makeShip({ id: "even-piracy", piracy: true, targetPower: 125 });
+
+  const dangerousPiracySession = createShipDialogueSession(dangerousPiracyShip, {
+    hostileHail: true,
+    rumorText: null
+  });
+  const dangerousLegalSession = createShipDialogueSession(dangerousLegalShip, {
+    hostileHail: true,
+    rumorText: null
+  });
+  const evenPiracySession = createShipDialogueSession(evenPiracyShip, {
+    hostileHail: true,
+    rumorText: null
+  });
+
+  const dangerousPiracyOption = shipDialogueView(
+    dangerousPiracySession,
+    dangerousPiracyShip
+  ).options[0];
+  const dangerousLegalOption = shipDialogueView(
+    dangerousLegalSession,
+    dangerousLegalShip
+  ).options[0];
+  const evenPiracyOption = shipDialogueView(evenPiracySession, evenPiracyShip).options[0];
+  assert.equal(dangerousPiracyOption.detail, "Piracy — stronger ship");
+  assert.equal(dangerousPiracyOption.detailTone, "danger");
+  assert.equal(dangerousLegalOption.detail, "Legal attack — stronger ship");
+  assert.equal(dangerousLegalOption.detailTone, "danger");
+  assert.equal(evenPiracyOption.detail, "Piracy");
+  assert.equal(evenPiracyOption.detailTone, "danger");
+});
+
 test("ship dialogue rejects a different NPC ship", () => {
   const session = createShipDialogueSession({ id: "ship-a" });
   assert.throws(
@@ -1538,13 +1587,10 @@ test("a foreign settlement is explained by the factor and supplies its resident 
   const root = portDialogueView(rootSession, city, gameState, economy, [city]);
   assert.match(root.text, /enters Portuguese cargo under its own privileges/i);
   assert.equal(playerTradeTerms(gameState, city, "cloves").customsRate, 0);
-  const factory = root.options.findIndex(({ action }) => action.nodeId === "foreign-settlements");
-  assert.ok(factory >= 0);
-  selectPortDialogueOption(rootSession, city, gameState, economy, [city], factory);
-  const account = portDialogueView(rootSession, city, gameState, economy, [city]);
-  assert.match(account.text, /Portuguese masons are raising a fort and factory/i);
-  selectPortDialogueOption(rootSession, city, gameState, economy, [city], 0);
-  assert.equal(rootSession.nodeId, "root");
+  assert.equal(
+    root.options.some(({ action }) => action.nodeId === "foreign-settlements"),
+    false
+  );
 
   expelHostileForeignSettlements({
     memory: gameState.relations.foreignSettlementExpulsions,
@@ -3859,7 +3905,7 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
     "CUSTOM"
   ]);
   assert.ok(view.options.slice(0, 4).every(
-    (option) => /CREW \d+  GUNS \d+  FOOD \d+D  WATER \d+D/.test(option.detail)
+    (option) => /BUNKS \d+\/\d+  GUNS \d+  FOOD \d+D  WATER \d+D/.test(option.detail)
   ));
   assert.equal(view.options[4].detail, "SET CREW, GUNS, FOOD, AND WATER");
   assert.deepEqual(
@@ -3879,6 +3925,36 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
   assert.ok(result.loadoutResult.plan.totalSpace <= stats.cargoCapacity);
   assert.ok(gameState.doubloons <= before);
   assert.match(session.feedback, /Balanced:/);
+});
+
+test("selected loadouts distinguish actual crew from their automatic restock target", () => {
+  const city = {
+    tileId: 9,
+    cityId: "cadiz|spain",
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    population: 60000,
+    character: { name: "Isabel Mendez", role: "harbour-master" }
+  };
+  const stats = shipStatsForSlug("fusta");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(gameState, stats);
+  setTestCrewCount(gameState, 10);
+  gameState.ship.loadoutId = "short-haul";
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "loadout" });
+  const view = portDialogueView(session, city, gameState, economy, [city], {
+    shipStats: stats,
+    simMinute: 120
+  });
+
+  assert.match(view.text, /^10 crew aboard\./);
+  assert.match(view.text, /automatic port-restock targets/);
+  assert.match(view.text, /never dismissed automatically/);
+  assert.match(view.options[1].detail, /^BUNKS 6\/12  GUNS/);
+  assert.equal(view.options[1].label.startsWith("* "), true);
 });
 
 for (const returnNodeId of [null, "greeting", "root"]) {

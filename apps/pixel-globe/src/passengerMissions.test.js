@@ -10,6 +10,7 @@ import {
   createGameState,
   deliveryOfferForCity,
   diplomacyBetweenForState,
+  ENVOY_SAFE_PASSAGE_WARNING_COOLDOWN_DAYS,
   factionReputation,
   grantEnvoySafePassage,
   ledgerEntries,
@@ -847,6 +848,10 @@ test("an envoy can claim seven days of passage from either participating nation"
 
   assert.equal(homePassage.days, 7);
   assert.equal(foreignPassage.days, 7);
+  assert.equal(homePassage.granted, true);
+  assert.equal(homePassage.warningDue, true);
+  assert.equal(foreignPassage.granted, true);
+  assert.equal(foreignPassage.warningDue, true);
   assert.match(foreignPassage.message, /diplomatic|envoy|official/i);
   assert.match(foreignPassage.warning, /do not attack English ships or ports/i);
   assert.match(foreignPassage.warning, /safe passage would be forfeit/i);
@@ -856,6 +861,37 @@ test("an envoy can claim seven days of passage from either participating nation"
   assert.deepEqual(activeFactionSafePassageIds(state, 202), ["portugal"]);
   assert.equal(state.memory.decisions["safe-passage.revoked.attack.england"], 1);
   assert.deepEqual(activeFactionSafePassageIds(state, 200 + 7 * 24 * 60), []);
+});
+
+test("envoy intercession warnings have a persisted cooldown and cannot extend active passage", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const offer = envoyOfferForCapital(state, LISBON, [LISBON, LONDON], {
+    sailingDistanceKm: testSailingDistanceKm,
+    envoySpawnChance: 1,
+    envoyKind: "hostile-envoy",
+    destinationCityId: LONDON.cityId,
+    relationBetween: diplomacyBetween,
+    simMinute: 0,
+    createCharacter: () => ({ id: "envoy:warning-cooldown", name: "Rui de Sousa" })
+  });
+  acceptQuest(state, offer);
+
+  const first = grantEnvoySafePassage(state, "england", 100);
+  const repeated = grantEnvoySafePassage(state, "england", 101);
+  assert.equal(first.granted, true);
+  assert.equal(first.warningDue, true);
+  assert.equal(repeated.granted, false);
+  assert.equal(repeated.warningDue, false);
+  assert.equal(repeated.untilMinute, first.untilMinute);
+
+  const restored = migrateGameState(JSON.parse(JSON.stringify(state)), null);
+  const cooldownMinutes = ENVOY_SAFE_PASSAGE_WARNING_COOLDOWN_DAYS * 24 * 60;
+  const beforeCooldownEnds = grantEnvoySafePassage(restored, "england", 100 + cooldownMinutes - 1);
+  const afterCooldownEnds = grantEnvoySafePassage(restored, "england", 100 + cooldownMinutes);
+  assert.equal(beforeCooldownEnds.warningDue, false);
+  assert.equal(afterCooldownEnds.warningDue, true);
+  assert.equal(afterCooldownEnds.granted, false);
+  assert.equal(afterCooldownEnds.untilMinute, first.untilMinute);
 });
 
 function port(tileId, city, country, cityType, factionId, lat, lon) {

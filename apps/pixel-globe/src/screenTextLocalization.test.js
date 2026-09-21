@@ -137,7 +137,9 @@ test("captured-ship, provisioning, and nautical material terms keep their contex
   const reviewed = [
     ["ja", "Chimborazo lifts an ice-covered dome almost directly above the equatorial country. Its broad white mass seems to push higher because tropical fields lie within sight below.", "チンボラソ山は赤道地帯のほぼ真上にそびえ、頂は氷に覆われています。眼下に熱帯の畑が見えるため、広い白い山体はひときわ高く感じられます。"],
     ["fr", "Choose {0} crew members to leave behind before transferring to the smaller captured ship. No dismissal is permanent until you confirm.", "Avant de passer sur le plus petit navire capturé, choisissez les {0} membres d'équipage qui resteront à terre. Personne ne sera renvoyé avant votre confirmation."],
-    ["pl", "Choose the crew, cannon, food, and water levels your ship should restore automatically at each port.", "Wybierz docelowe ilości załogi, dział, żywności i wody, które statek ma automatycznie uzupełniać w każdym porcie."],
+    ["pl", "BUNKS {0}/{1} GUNS {2} FOOD {3}D WATER {4}D", "KOJE: {0}/{1} • DZIAŁA: {2} • ŻYWNOŚĆ: {3} DNI • WODA: {4} DNI"],
+    ["ja", "BUNKS", "寝台"],
+    ["de", "{0} crew aboard. Loadouts set automatic port-restock targets; extra hands are never dismissed automatically.", "{0} Mann sind an Bord. Ausrüstungspläne legen Ziele für die automatische Auffüllung im Hafen fest; zusätzliche Leute werden nie automatisch entlassen."],
     ["ru", "clinker rivets and roves", "Заклёпки и шайбы для обшивки внакрой"],
     ["de", "Close recalled commission {0} db", "Zurückgezogenen Auftrag abrechnen: {0} Dublonen"],
     ["ko", "Coastal canoe crews recognized your sail offshore. Market runners are already spreading word of your return.", "해안 카누 선원들이 먼바다에서 당신의 돛을 알아보았습니다. 장터의 전령들은 이미 귀환 소식을 퍼뜨리고 있습니다."]
@@ -540,6 +542,25 @@ test("short diplomacy and ship labels are localized rather than mistaken for ide
       assert.notEqual(localizeText(language, label), label, `${language}: ${label}`);
     }
   }
+});
+
+test("dangerous attack buttons preserve piracy and relative-strength meaning in every locale", () => {
+  assertReviewedTranslations(new Map([
+    ["Piracy — stronger ship", [
+      "海盗行为 — 对方船只更强", "Пиратство — корабль противника сильнее",
+      "Piratería — barco enemigo más fuerte", "Pirataria — navio inimigo mais forte",
+      "海賊行為 — 相手の船の方が強い", "Piraterie — gegnerisches Schiff stärker",
+      "Piraterie — navire adverse plus puissant", "Piractwo — silniejszy statek przeciwnika",
+      "海盜行為 — 對方船隻更強", "해적 행위 — 상대 함선이 더 강함"
+    ]],
+    ["Legal attack — stronger ship", [
+      "合法攻击 — 对方船只更强", "Законное нападение — корабль противника сильнее",
+      "Ataque legal — barco enemigo más fuerte", "Ataque legal — navio inimigo mais forte",
+      "合法的な攻撃 — 相手の船の方が強い", "Rechtmäßiger Angriff — gegnerisches Schiff stärker",
+      "Attaque légale — navire adverse plus puissant", "Legalny atak — silniejszy statek przeciwnika",
+      "合法攻擊 — 對方船隻更強", "합법적 공격 — 상대 함선이 더 강함"
+    ]]
+  ]), "dangerous ship attack warning");
 });
 
 function placeholders(value) {

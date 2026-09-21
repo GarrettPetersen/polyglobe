@@ -33,6 +33,7 @@ import {
   shipPapersPage,
   shipPerformanceRating,
   shipPapersRowsPerPageForPanel,
+  shipPropulsionSummaryLines,
   shipRatingCellCount,
   stepShipPaperSelectionIndex
 } from "./shipInfo.js";
@@ -224,6 +225,18 @@ test("ship specifications explain oar and combined propulsion", () => {
   assert.equal(longship.armamentLabel, "GUNS");
   assert.equal(longship.armamentSummary, "0/0");
   assert.equal(longship.crewProtection, 35);
+});
+
+test("localized propulsion summaries split into semantic notebook lines", () => {
+  assert.deepEqual(shipPropulsionSummaryLines("OAR + SAIL / ROW TO BOOST"), [
+    "OAR + SAIL",
+    "ROW TO BOOST"
+  ]);
+  assert.deepEqual(shipPropulsionSummaryLines("槳帆並用／划槳加速"), ["槳帆並用", "划槳加速"]);
+  assert.throws(
+    () => shipPropulsionSummaryLines("OAR + SAIL"),
+    /requires two clauses/
+  );
 });
 
 test("ship ledger pages newest entries first and uses the 1522 game calendar", () => {

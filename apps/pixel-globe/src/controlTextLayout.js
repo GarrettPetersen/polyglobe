@@ -5,7 +5,8 @@ export function controlTextLayout({
   maxWidth,
   measurePrimary,
   measureCompact,
-  maximumLines = 2
+  maximumLines = 2,
+  onTruncate = null
 }) {
   if (typeof label !== "string" || label.trim().length === 0) {
     throw new Error("Control text requires a label");
@@ -19,6 +20,9 @@ export function controlTextLayout({
   if (!Number.isInteger(maximumLines) || maximumLines <= 0) {
     throw new Error(`Control text requires a positive line limit: ${maximumLines}`);
   }
+  if (onTruncate !== null && typeof onTruncate !== "function") {
+    throw new Error("Control text truncation observer must be a function");
+  }
 
   if (measurePrimary(label) <= maxWidth) {
     return layout("primary", [label]);
@@ -26,7 +30,13 @@ export function controlTextLayout({
   if (measureCompact(label) <= maxWidth) {
     return layout("compact", [label]);
   }
-  return layout("compact", wrapMeasuredText(label, maxWidth, maximumLines, measureCompact));
+  return layout("compact", wrapMeasuredText(
+    label,
+    maxWidth,
+    maximumLines,
+    measureCompact,
+    onTruncate
+  ));
 }
 
 export function equalWidthControlRects({

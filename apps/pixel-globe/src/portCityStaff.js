@@ -52,7 +52,6 @@ const SMITH_NODES = new Set([
 
 const MERCHANT_NODES = new Set([
   "pirate-goods", "pirate-goods-day",
-  "foreign-settlements",
   "market",
   "market-undo-confirm",
   "portuguese-cartaz-market-declined",

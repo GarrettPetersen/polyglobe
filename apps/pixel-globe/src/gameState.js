@@ -711,6 +711,7 @@ export const STARTING_HARDTACK_RATIONS = 10;
 export const EMERGENCY_SHIP_AID_UNITS = 3;
 export const ALLIED_SHIP_AID_THRESHOLD_DAYS = 2;
 export const ENVOY_SAFE_PASSAGE_DAYS = 7;
+export const ENVOY_SAFE_PASSAGE_WARNING_COOLDOWN_DAYS = 1;
 export const ENVOY_TARGET_FRIENDLY_REPUTATION = 5;
 export const ENVOY_TARGET_HOSTILE_REPUTATION = -8;
 export const ENVOY_HOME_REPUTATION = 8;
@@ -724,6 +725,8 @@ const PORT_DISGUISE_LOCK_MINUTES = PORT_DISGUISE_LOCK_DAYS * MINUTES_PER_DAY;
 const FACTION_SAFE_PASSAGE_MINUTES = FACTION_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
 const FACTION_SAFE_PASSAGE_REFUSAL_MINUTES = FACTION_SAFE_PASSAGE_REFUSAL_DAYS * MINUTES_PER_DAY;
 const ENVOY_SAFE_PASSAGE_MINUTES = ENVOY_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
+const ENVOY_SAFE_PASSAGE_WARNING_COOLDOWN_MINUTES =
+  ENVOY_SAFE_PASSAGE_WARNING_COOLDOWN_DAYS * MINUTES_PER_DAY;
 const TRADE_EMBARGO_WARNING_COOLDOWN_MINUTES =
   TRADE_EMBARGO_WARNING_COOLDOWN_DAYS * MINUTES_PER_DAY;
 const ENVOY_QUEST_KINDS = new Set([
@@ -5229,21 +5232,51 @@ export function grantEnvoySafePassage(state, factionId, simMinute) {
   if (!active.envoySafePassageUntilMinute || typeof active.envoySafePassageUntilMinute !== "object") {
     active.envoySafePassageUntilMinute = {};
   }
-  const previousUntilMinute = active.envoySafePassageUntilMinute[id] || 0;
-  const untilMinute = Math.max(previousUntilMinute, simMinute + ENVOY_SAFE_PASSAGE_MINUTES);
-  active.envoySafePassageUntilMinute[id] = untilMinute;
-  recordDecision(state, `quest.envoy.safe-passage.${active.id}.${id}`, 1);
+  const previousUntilMinute = active.envoySafePassageUntilMinute[id];
+  if (previousUntilMinute !== undefined &&
+      (!Number.isFinite(previousUntilMinute) || previousUntilMinute < 0)) {
+    throw new Error(`Invalid envoy safe-passage expiry minute: ${previousUntilMinute}`);
+  }
+  const warningKey = envoySafePassageWarningKey(active.id, id);
+  const previousWarningMinuteValue = state.memory.decisions[warningKey];
+  if (previousWarningMinuteValue !== undefined &&
+      (!Number.isFinite(previousWarningMinuteValue) || previousWarningMinuteValue < 1)) {
+    throw new Error(`Invalid envoy safe-passage warning minute: ${previousWarningMinuteValue}`);
+  }
+  const previousWarningMinute = previousWarningMinuteValue === undefined
+    ? null
+    : previousWarningMinuteValue - 1;
+  const warningDue = previousWarningMinute === null ||
+    simMinute - previousWarningMinute >= ENVOY_SAFE_PASSAGE_WARNING_COOLDOWN_MINUTES;
+  const granted = previousUntilMinute === undefined || previousUntilMinute <= simMinute;
+  const untilMinute = granted
+    ? simMinute + ENVOY_SAFE_PASSAGE_MINUTES
+    : previousUntilMinute;
+  if (granted) {
+    active.envoySafePassageUntilMinute[id] = untilMinute;
+    recordDecision(state, `quest.envoy.safe-passage.${active.id}.${id}`, 1);
+  }
+  if (warningDue) state.memory.decisions[warningKey] = simMinute + 1;
   const faction = factionById(id);
   return {
     quest: active,
     factionId: id,
     untilMinute,
     days: ENVOY_SAFE_PASSAGE_DAYS,
+    granted,
+    warningDue,
     message: active.dialogue?.intercession ||
       "Hold your fire! This vessel carries an accredited envoy on a diplomatic mission.",
     warning: `Captain, do not attack ${faction.adjective} ships or ports while we travel under ` +
       "this protection. Our safe passage would be forfeit."
   };
+}
+
+function envoySafePassageWarningKey(questId, factionId) {
+  if (typeof questId !== "string" || questId === "") {
+    throw new Error("Envoy safe-passage warning requires a canonical quest id");
+  }
+  return `quest.envoy.safe-passage-warning.${questId}.${assertFactionId(factionId)}`;
 }
 
 export function activeEnvoySafePassageIds(state, simMinute) {

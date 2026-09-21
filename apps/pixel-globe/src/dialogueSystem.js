@@ -1165,7 +1165,11 @@ function shipDialogueContentView(session, ship, gameState = null) {
       feedback: null,
       options: [
         option("Back down", { type: "close" }),
-        option(piracyProceedLabel(session.pendingPiracyAction), { type: "confirm-piracy" })
+        option(
+          piracyProceedLabel(session.pendingPiracyAction),
+          { type: "confirm-piracy" },
+          session.pendingPiracyAction === "attack" ? shipAttackOptionPresentation(ship) : {}
+        )
       ]
     };
   }
@@ -1179,7 +1183,7 @@ function shipDialogueContentView(session, ship, gameState = null) {
       feedbackTone: prizeLegality?.tone,
       options: [
         option("Accept surrender", { type: "surrender" }),
-        option("Refuse and attack", { type: "attack" })
+        shipAttackOption(ship, "Refuse and attack")
       ]
     };
   }
@@ -1245,7 +1249,6 @@ function shipDialogueContentView(session, ship, gameState = null) {
     };
   }
   if (session.nodeId === "defiance") {
-    const attackEligibility = shipAttackEligibilityForDialogue(ship);
     const attackLegality = shipAttackLegalityNotice(ship);
     return {
       speaker,
@@ -1254,7 +1257,7 @@ function shipDialogueContentView(session, ship, gameState = null) {
       feedback: attackLegality?.text || null,
       feedbackTone: attackLegality?.tone,
       options: [
-        option("Attack", { type: "attack" }, shipAttackOptionAvailability(attackEligibility)),
+        shipAttackOption(ship, "Attack"),
         option("Back down", { type: "close" })
       ]
     };
@@ -1273,7 +1276,6 @@ function shipDialogueContentView(session, ship, gameState = null) {
   }
   if (session.nodeId !== "root") throw new Error(`Unknown ship dialogue node: ${session.nodeId}`);
   if (session.hostileHail) {
-    const attackEligibility = shipAttackEligibilityForDialogue(ship);
     const attackLegality = shipAttackLegalityNotice(ship);
     return {
       speaker,
@@ -1286,7 +1288,7 @@ function shipDialogueContentView(session, ship, gameState = null) {
       feedback: attackLegality?.text || null,
       feedbackTone: attackLegality?.tone,
       options: [
-        option("Attack", { type: "attack" }, shipAttackOptionAvailability(attackEligibility)),
+        shipAttackOption(ship, "Attack"),
         option("Leave", { type: "close" })
       ]
     };
@@ -1391,6 +1393,26 @@ function shipAttackOptionAvailability(eligibility) {
   return eligibility.available
     ? {}
     : { disabled: true, disabledReason: "This ship is protected after surrendering." };
+}
+
+function shipAttackOption(ship, label) {
+  if (typeof label !== "string" || label === "") {
+    throw new Error("Ship attack option requires a label");
+  }
+  return option(label, { type: "attack" }, shipAttackOptionPresentation(ship));
+}
+
+function shipAttackOptionPresentation(ship) {
+  const eligibility = shipAttackEligibilityForDialogue(ship);
+  const dangerous = shipCombatStrengthAssessment(ship.combatStrength)?.id === "dangerous";
+  const detail = eligibility.piracy
+    ? dangerous ? "Piracy — stronger ship" : "Piracy"
+    : dangerous ? "Legal attack — stronger ship" : "Legal attack";
+  return {
+    ...shipAttackOptionAvailability(eligibility),
+    detail,
+    detailTone: eligibility.piracy || dangerous ? "danger" : "success"
+  };
 }
 
 function shipAttackEligibilityForDialogue(ship) {
@@ -2046,12 +2068,6 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
     return tradeEmbargoSaleWarningView(session, city);
   }
   if (session.nodeId === "trade-tip") return tradeTipView(session, city);
-  if (session.nodeId === "foreign-settlements") {
-    const text = foreignSettlementFactorLine(city, gameState);
-    if (!text) throw new Error(`Port has no foreign settlement account: ${city.cityId}`);
-    return { speaker: speakerName(city), expressionId: "attentive", text,
-      feedback: null, options: [option("Back", { type: "node", nodeId: "root" })] };
-  }
   if (session.nodeId === "quest-cargo-tip") return questCargoTipView(session, city);
   if (session.nodeId === "equipment") return equipmentView(session, city, gameState, economy);
   if (session.nodeId === "equipment-nets") return fishingNetView(session, city, gameState, economy);
@@ -5132,9 +5148,6 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
     options.splice(4, 0, entry);
   }
   options.splice(2, 0, ...passengerInnRootOptions(session, context, pirateHideout));
-  if (foreignSettlementFactorLine(city, gameState)) {
-    options.push(option("Resident foreign settlements", { type: "node", nodeId: "foreign-settlements" }));
-  }
   if (!session.disguisedEntry && letterOfMarqueStatus(gameState, city, context.shipPower || 0).available) {
     options.push(option("Letter of marque", { type: "node", nodeId: "marque" }));
   }
@@ -8315,7 +8328,7 @@ function loadoutView(session, city, gameState, context) {
       type: "select-loadout",
       loadoutId: preset.id
     }, {
-      detail: `CREW ${plan.crew}  GUNS ${plan.cannons}  FOOD ${Math.floor(plan.foodDays)}D  WATER ${Math.floor(plan.waterDays)}D`,
+      detail: `BUNKS ${plan.crew}/${plan.crewCapacity}  GUNS ${plan.cannons}  FOOD ${Math.floor(plan.foodDays)}D  WATER ${Math.floor(plan.waterDays)}D`,
       detailTone: dismissal.canApply ? undefined : "danger",
       rowId: `loadout-presets-${Math.floor(index / 2)}`
     });
@@ -8328,7 +8341,7 @@ function loadoutView(session, city, gameState, context) {
     : null;
   rows.push(option(`${customSelected ? "* " : ""}CUSTOM`, { type: "open-custom-loadout" }, {
     detail: customPlan
-      ? `CREW ${customPlan.crew}  GUNS ${customPlan.cannons}  FOOD ${Math.floor(customPlan.foodDays)}D  WATER ${Math.floor(customPlan.waterDays)}D`
+      ? `BUNKS ${customPlan.crew}/${customPlan.crewCapacity}  GUNS ${customPlan.cannons}  FOOD ${Math.floor(customPlan.foodDays)}D  WATER ${Math.floor(customPlan.waterDays)}D`
       : "SET CREW, GUNS, FOOD, AND WATER"
   }));
   if (currentId) rows.push(option("Back", { type: "node", nodeId: "root" }, {
@@ -8338,7 +8351,7 @@ function loadoutView(session, city, gameState, context) {
     speaker: speakerName(city),
     expressionId: "attentive",
     text: currentId
-      ? "Choose the crew, cannon, food, and water levels your ship should restore automatically at each port."
+      ? `${gameState.ship.crew} crew aboard. Loadouts set automatic port-restock targets; extra hands are never dismissed automatically.`
       : "Before I provision your ship, choose how you intend to use her.",
     feedback: session.feedback,
     optionHeight: 34,
@@ -8374,7 +8387,7 @@ function customLoadoutView(session, city, gameState, context) {
   const minimumCrew = permanentCrewFloor(gameState);
   const plan = shipCustomLoadoutPlan(context.shipStats, session.customLoadoutDraft, { minimumCrew });
   const projectedCrew = projectedCrewExperienceSummary(gameState, plan.crew);
-  const labels = { crew: "Crew", cannons: "Guns", foodUnits: "Food", waterUnits: "Water" };
+  const labels = { crew: "BUNKS", cannons: "Guns", foodUnits: "Food", waterUnits: "Water" };
   return {
     speaker: speakerName(city),
     expressionId: "attentive",

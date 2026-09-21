@@ -2079,6 +2079,7 @@ import {
   shipLedgerRowsPerPageForPanel,
   shipPapersPage,
   shipPapersRowsPerPageForPanel,
+  shipPropulsionSummaryLines,
   shipRatingCellCount,
   stepShipPaperSelectionIndex
 } from "./shipInfo.js";
@@ -39946,6 +39947,7 @@ function attemptEnvoyIntercession(factionId, counterpart) {
   if (!envoy) throw new Error(`Envoy mission has no character: ${passage.quest.id}`);
   if (!counterpart) throw new Error(`Envoy intercession has no ${factionId} listener`);
   clearCombatForShip(PLAYER_COMBAT_ID);
+  if (!passage.warningDue) return true;
   startCharacterAlertSequence([
     pairedCharacterAlertStep({
       leftCharacter: envoy,
@@ -50803,15 +50805,13 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
     leftColor: view.survival.drinkDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
     rightColor: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
-  const holdY = supplyY + compactLineHeight;
+  const coverY = supplyY + compactLineHeight;
   drawSplitShipInfoTextRow({
-    leftText: `${uiText("ship.cargoHold")} ${view.cargoUsedLabel}/${view.cargoCapacity}`,
-    rightText: uiText("crew.salaryPerMonth", {
-      amount: view.monthlyCrewSalaryDoubloons
-    }),
+    leftText: "COVER",
+    rightText: `${view.crewProtection}%`,
     leftX: artX,
     rightX: leftValueX,
-    y: holdY,
+    y: coverY,
     leftColor: PIRATE_MENU_INK,
     rightColor: PIRATE_MENU_INK
   });
@@ -50837,10 +50837,18 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
     statsY
   );
   statsY += statLineHeight;
-  drawShipInfoValueRow("PROPULSION", view.propulsionSummary, statsX, valueX, statsY);
-  statsY += statLineHeight + 1;
-  drawShipInfoValueRow("COVER", `${view.crewProtection}%`, statsX, valueX, statsY);
+  const propulsionLines = shipPropulsionSummaryLines(renderedUiText(view.propulsionSummary));
+  drawOptionsText("PROPULSION", statsX, statsY, { color: PIRATE_MENU_INK });
+  drawOptionsText(propulsionLines[0], valueX, statsY, {
+    align: "right",
+    color: PIRATE_MENU_INK
+  });
   statsY += statLineHeight;
+  drawOptionsText(propulsionLines[1], valueX, statsY, {
+    align: "right",
+    color: PIRATE_MENU_INK
+  });
+  statsY += statLineHeight + 1;
   const ratings = [
     ["SPEED", view.ratings.speed],
     ["ACCEL", view.ratings.acceleration],
@@ -50853,10 +50861,20 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
     statsY += statLineHeight;
   }
 
-  const cargoY = Math.max(panel.y + 152, statsY + 4, holdY + compactLineHeight + 2);
+  const cargoY = Math.max(panel.y + 152, statsY + 4, coverY + compactLineHeight + 2);
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, cargoY, panel.w - 20, 1);
-  drawOptionsText("CARGO MANIFEST", panel.x + 12, cargoY + 6, { color: PIRATE_MENU_INK });
+  drawSplitShipInfoTextRow({
+    leftText: `${uiText("ship.cargoHold")} ${view.cargoUsedLabel}/${view.cargoCapacity}`,
+    rightText: uiText("crew.salaryPerMonth", {
+      amount: view.monthlyCrewSalaryDoubloons
+    }),
+    leftX: panel.x + 12,
+    rightX: valueX,
+    y: cargoY + 6,
+    leftColor: PIRATE_MENU_INK,
+    rightColor: PIRATE_MENU_INK
+  });
   cargoPage.rows.forEach((row, index) => {
     const rowY = cargoY + 23 + index * 17;
     drawGameIcon(tradeGoodIconId(row.id), panel.x + 12, rowY - 4);
@@ -51577,6 +51595,13 @@ function ledgerPnlColor(value) {
 
 function drawShipInfoValueRow(label, value, x, valueX, y) {
   const availableWidth = valueX - x;
+  const naturalLabelWidth = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8);
+  const naturalValueWidth = measurePixelTextWidth(value, PIXEL_FONT_SMALL_8);
+  if (naturalLabelWidth + naturalValueWidth + 5 <= availableWidth) {
+    drawOptionsText(label, x, y, { color: PIRATE_MENU_INK });
+    drawOptionsText(value, valueX, y, { align: "right", color: PIRATE_MENU_INK });
+    return;
+  }
   const maxValueWidth = Math.max(24, Math.floor(availableWidth * 0.52));
   const fittedValue = fitPixelText(value, PIXEL_FONT_SMALL_8, maxValueWidth);
   const valueWidth = measurePixelTextWidth(fittedValue, PIXEL_FONT_SMALL_8);
@@ -65207,7 +65232,17 @@ function drawControlIconLabel(rect, label, iconId, {
     label: renderedLabel,
     maxWidth: labelWidth,
     measurePrimary: (text) => measurePixelTextWidth(text, font),
-    measureCompact: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8)
+    measureCompact: (text) => measurePixelTextWidth(text, PIXEL_FONT_SMALL_8),
+    onTruncate: ({ requiredLineCount, maximumLineCount }) => gameTelemetry.recordUiTextLayout({
+      kind: "line-truncation",
+      containerId: "control-icon-label",
+      text: renderedLabel,
+      availableWidthPx: labelWidth,
+      requiredLineCount,
+      maximumLineCount,
+      viewportWidthPx: SCREEN_W,
+      viewportHeightPx: SCREEN_H
+    }, telemetryCrashContext())
   });
   const labelFont = textLayout.fontRole === "compact" ? PIXEL_FONT_SMALL_8 : font;
   const lineStep = 9;
@@ -67726,7 +67761,7 @@ function crewDialogueGridColumns(panelWidth) {
 }
 
 function customLoadoutFieldLabel(key) {
-  if (key === "crew") return "CREW";
+  if (key === "crew") return "BUNKS";
   if (key === "cannons") return "CANNONS";
   if (key === "foodUnits") return "HARDTACK";
   if (key === "waterUnits") return "WATER";

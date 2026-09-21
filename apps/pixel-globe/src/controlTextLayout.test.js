@@ -43,15 +43,18 @@ test("control text wraps complete words before truncating", () => {
 });
 
 test("control text truncates only when two compact lines cannot fit", () => {
+  const truncations = [];
   assert.deepEqual(controlTextLayout({
     label: "FISH FOR EXTRAORDINARILYLONGFISH",
     maxWidth: 60,
     measurePrimary: primaryWidth,
-    measureCompact: compactWidth
+    measureCompact: compactWidth,
+    onTruncate: (incident) => truncations.push(incident)
   }), {
     fontRole: "compact",
     lines: ["FISH FOR", "EXTRAORDI..."]
   });
+  assert.deepEqual(truncations, [{ requiredLineCount: 3, maximumLineCount: 2 }]);
 });
 
 test("control text rejects invalid layout inputs", () => {

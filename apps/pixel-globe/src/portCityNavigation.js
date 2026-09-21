@@ -117,7 +117,7 @@ export function portCityLocationForRootAction(action) {
     throw new Error(`Unmapped port root action type: ${action.type}`);
   }
   if (["pirate-goods", "pirate-goods-day"].includes(action.nodeId)) return PORT_CITY_LOCATION.ILLICIT_MERCHANT;
-  if (["market", "foreign-settlements"].includes(action.nodeId)) return PORT_CITY_LOCATION.MARKET;
+  if (action.nodeId === "market") return PORT_CITY_LOCATION.MARKET;
   if (action.nodeId === "equipment") return PORT_CITY_LOCATION.EQUIPMENT;
   if (SHIP_NODE_IDS.has(action.nodeId)) return PORT_CITY_LOCATION.SHIP;
   if (SHIPYARD_NODE_IDS.has(action.nodeId)) return PORT_CITY_LOCATION.SHIPYARD;

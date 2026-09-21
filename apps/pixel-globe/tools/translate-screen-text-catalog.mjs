@@ -141,6 +141,52 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "BUNKS": Object.freeze({
+    "zh-Hans": "船位", ru: "КОЙКИ", es: "LITERAS", "pt-BR": "BELICHES", ja: "寝台",
+    de: "KOJEN", fr: "COUCHETTES", pl: "KOJE", "zh-Hant": "船位", ko: "침상"
+  }),
+  "BUNKS {0}/{1} GUNS {2} FOOD {3}D WATER {4}D": Object.freeze({
+    "zh-Hans": "船位 {0}/{1} • 火炮 {2} • 食物 {3}天 • 淡水 {4}天",
+    ru: "Койки: {0}/{1} • Пушки: {2} • Провиант: {3} дн. • Вода: {4} дн.",
+    es: "Literas: {0}/{1} • Cañones: {2} • Comida: {3} días • Agua: {4} días",
+    "pt-BR": "Beliches: {0}/{1} • Canhões: {2} • Comida: {3} dias • Água: {4} dias",
+    ja: "寝台 {0}/{1} • 大砲 {2} • 食料 {3}日分 • 水 {4}日分",
+    de: "Kojen: {0}/{1} • Kanonen: {2} • Proviant: {3} Tage • Wasser: {4} Tage",
+    fr: "Couchettes : {0}/{1} • Canons : {2} • Vivres : {3} jours • Eau : {4} jours",
+    pl: "Koje: {0}/{1} • Działa: {2} • Żywność: {3} dni • Woda: {4} dni",
+    "zh-Hant": "船位 {0}/{1} • 火砲 {2} • 食物 {3}天 • 淡水 {4}天",
+    ko: "침상 {0}/{1} • 대포 {2} • 식량 {3}일분 • 물 {4}일분"
+  }),
+  "{0} crew aboard. Loadouts set automatic port-restock targets; extra hands are never dismissed automatically.": Object.freeze({
+    "zh-Hans": "船上有 {0} 名船员。配载方案设定靠港时的自动补充目标；不会自动遣散多出的船员。",
+    ru: "На борту {0} моряков. Схемы загрузки задают цели автоматического пополнения в порту; лишних матросов автоматически не увольняют.",
+    es: "Hay {0} tripulantes a bordo. Las configuraciones fijan objetivos de reposición automática en puerto; nunca se despide automáticamente al personal sobrante.",
+    "pt-BR": "Há {0} tripulantes a bordo. As configurações definem metas de reposição automática no porto; tripulantes excedentes nunca são dispensados automaticamente.",
+    ja: "乗組員は{0}人乗船中です。配載設定は寄港時の自動補充目標を定めます。余分な乗組員が自動で下船させられることはありません。",
+    de: "{0} Mann sind an Bord. Ausrüstungspläne legen Ziele für die automatische Auffüllung im Hafen fest; zusätzliche Leute werden nie automatisch entlassen.",
+    fr: "{0} marins sont à bord. Les configurations fixent les objectifs de réapprovisionnement automatique au port ; les hommes en surplus ne sont jamais congédiés automatiquement.",
+    pl: "Na pokładzie jest {0} członków załogi. Plany wyposażenia wyznaczają cele automatycznego uzupełniania w porcie; nadmiarowi marynarze nigdy nie są zwalniani automatycznie.",
+    "zh-Hant": "船上有 {0} 名船員。配載方案設定靠港時的自動補充目標；不會自動遣散多出的船員。",
+    ko: "선원 {0}명이 승선 중입니다. 적재 설정은 항구 자동 보충 목표를 정하며, 초과 선원을 자동으로 해고하지 않습니다."
+  }),
+  "Attack": Object.freeze({
+    "zh-Hans": "攻击", ru: "Атака", es: "ataque", "pt-BR": "Ataque", ja: "攻撃",
+    de: "Angriff", fr: "Attaque", pl: "Atak", "zh-Hant": "攻擊", ko: "공격"
+  }),
+  "Piracy — stronger ship": Object.freeze({
+    "zh-Hans": "海盗行为 — 对方船只更强", ru: "Пиратство — корабль противника сильнее",
+    es: "Piratería — barco enemigo más fuerte", "pt-BR": "Pirataria — navio inimigo mais forte",
+    ja: "海賊行為 — 相手の船の方が強い", de: "Piraterie — gegnerisches Schiff stärker",
+    fr: "Piraterie — navire adverse plus puissant", pl: "Piractwo — silniejszy statek przeciwnika",
+    "zh-Hant": "海盜行為 — 對方船隻更強", ko: "해적 행위 — 상대 함선이 더 강함"
+  }),
+  "Legal attack — stronger ship": Object.freeze({
+    "zh-Hans": "合法攻击 — 对方船只更强", ru: "Законное нападение — корабль противника сильнее",
+    es: "Ataque legal — barco enemigo más fuerte", "pt-BR": "Ataque legal — navio inimigo mais forte",
+    ja: "合法的な攻撃 — 相手の船の方が強い", de: "Rechtmäßiger Angriff — gegnerisches Schiff stärker",
+    fr: "Attaque légale — navire adverse plus puissant", pl: "Legalny atak — silniejszy statek przeciwnika",
+    "zh-Hant": "合法攻擊 — 對方船隻更強", ko: "합법적 공격 — 상대 함선이 더 강함"
+  }),
   "Powder, provisions, and silence are all for sale. Doubloons in the cove: {0} db.": Object.freeze({
     "zh-Hans": "海湾中的达布隆：{0} DB。", "ru": "Дублоны в бухте: {0} DB.", "es": "Doblonas en la cala: {0} DB.", "pt-BR": "Dobras na enseada: {0} DB.", "ja": "入り江のダブロン：{0} DB", "de": "Dublonen in der Bucht: {0} DB.", "fr": "Doblons dans la crique : {0} DB.", "pl": "Dublony w zatoce: {0} DB.", "zh-Hant": "灣中的達布隆：{0} DB。", "ko": "후미의 더블룬: {0} DB."
   }),
