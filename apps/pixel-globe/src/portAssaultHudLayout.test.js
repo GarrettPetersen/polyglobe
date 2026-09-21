@@ -10,9 +10,9 @@ test("port assault status occupies a compact upper-left panel", () => {
   });
   assert.deepEqual(layout.panel, { x: 6, y: 6, w: 73, h: 36 });
   assert.deepEqual(layout.rows, [
-    { x: 42, y: 11, width: 42 },
-    { x: 42, y: 21, width: 61 },
-    { x: 42, y: 31, width: 48 }
+    { x: 42, y: 10, width: 42 },
+    { x: 42, y: 20, width: 61 },
+    { x: 42, y: 30, width: 48 }
   ]);
   const narrowLayout = portAssaultHudLayout({
     viewportWidth: 320,

@@ -2,7 +2,7 @@ const HUD_MARGIN_PX = 6;
 const HUD_HORIZONTAL_PADDING_PX = 6;
 const HUD_MIN_WIDTH_PX = 72;
 const HUD_HEIGHT_PX = 36;
-const HUD_FIRST_LINE_Y_PX = 5;
+const HUD_FIRST_LINE_Y_PX = 4;
 const HUD_LINE_SPACING_PX = 10;
 
 export function portAssaultHudLayout({ viewportWidth, viewportHeight, rowWidths }) {
