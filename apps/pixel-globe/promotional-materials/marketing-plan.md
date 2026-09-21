@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **September 15, 2026**.
+Last updated: **September 21, 2026**.
 
 ## Dated marketing calendar
 
@@ -45,11 +45,20 @@ Last updated: **September 15, 2026**.
   the press preview opens. It is not a condition of Next Fest participation.
   Demo approvals and Next Fest registration were rechecked September 13.
   Complete the player-support field and verify press-preview opt-in.
-- **September 17:** Target the coordinated public Steam demo launch only if
-  the Windows, macOS and Linux QA matrix is green. Publish the human-authored
-  launch package, use the one-time demo wishlist notification, release the
-  demo trailer, republish the base-game page if needed, and verify the
-  logged-out install flow before promotion begins.
+- **September 17:** Original coordinated demo-launch target. The public demo
+  did not receive the full campaign push on this date.
+- **September 21:** The Steam demo is publicly playable in a quiet soft launch.
+  Incorporate feedback and stabilize the build before using the one-time
+  **Steam demo release notification** button. That button is on the demo app's
+  Steamworks landing page and sends email and mobile notifications to eligible
+  players who wishlisted the associated full game. It is the deliberately held
+  demo-launch marketing beat, not a creator email blast. Record the demo's exact
+  initial release time: Steam only exposes the button for the first 14 days,
+  and it can be used once. If the demo first became playable September 21, the
+  operational send deadline is October 5. Before pressing it, verify the current
+  build, logged-out install flow, launch trailer, Steam page and human-authored
+  posts. Record baseline wishlists, installs and players immediately before the
+  notification, then record the same metrics after it.
 - **September 24:** Release-date commitment gate. Confirm that the build and
   remaining launch work support a November 20 release before spending the
   date-announcement beat.
@@ -106,13 +115,15 @@ Last updated: **September 15, 2026**.
   ends. If the Steam discount dashboard permits it as expected, manually join
   the Winter Sale already in progress; it runs through January 4, 2027.
 
-Garrett confirmed **September 17** as the demo launch target and authorized
-its use in the press release. Platform QA remains a launch gate. Garrett will
-test macOS and Windows September 13; Linux testing still needs coverage. Before launch, obtain Garrett's exact human-authored
-wording for Steam, X, Reddit, press, creators and GamesPress; do not publish the
-legacy agent-written drafts. Garrett sent IGN the demo-launch trailer update
-on September 13 with the confirmed date, downloadable trailer, Steam page and
-press-kit links. Do not wait for an IGN response before launching.
+The Steam demo was publicly released in a quiet soft launch by September 21.
+Garrett is incorporating player feedback before spending Steam's one-time demo
+release notification. Do not press that Steamworks button until Garrett gives
+explicit approval and the current build and campaign package are ready. The
+notification is still the coordinated public demo-launch beat even though the
+demo itself is already playable. Creator outreach can proceed separately with
+stable full-game press keys and Garrett's exact human-authored wording. Garrett
+sent IGN the demo-launch trailer update September 13 with the downloadable
+trailer, Steam page and press-kit links; do not wait for an IGN response.
 
 ## Store and build
 
@@ -120,28 +131,25 @@ press-kit links. Do not wait for an IGN response before launching.
   - Status: Launched.
   - Store page: https://store.steampowered.com/app/4516500/Marque__Reprisal/
 
-- [ ] **Make the approved Steam demo public**
-  - Status: Valve approved the demo page and build. The associated demo has
-    been marked ready in Steamworks. September 13 account check confirms
-    both checklists complete and **Approved for release**, but the app remains
-    **Prerelease / Coming Soon**.
-    The public launch and logged-out install flow still need to be completed
-    and verified.
+- [x] **Make the approved Steam demo public**
+  - Status: Publicly playable in a quiet soft launch by September 21. The
+    one-time Steam demo release notification has intentionally not been sent
+    while Garrett incorporates feedback.
   - A current stable build has been uploaded to Steam. Beta-testing keys have
     been obtained; three demo QA keys were approved September 11. Assign one full
     game key and one demo key to each Windows, macOS and Linux tester.
-  - Confirmed campaign target: **September 17**, conditional on a clean
-    platform-test matrix and no release-blocking defect.
   - Steam App: `5029880`.
   - The demo has no timer and retains the full feature set, but its voyages are
     centered on the family-debt quest and limited to the Mediterranean, Black
     Sea and connected rivers.
-  - After releasing the demo, republish the base-game store page so Steam adds
-    the demo install button. Verify the associated-demo prominence setting and
-    both logged-in and logged-out install flows.
-  - Use Steam's one-time demo wishlist notification for the coordinated launch
-    beat. It can be sent within two weeks after the demo first becomes playable;
-    do not spend it on an unannounced soft launch.
+  - Verify that the base-game page shows the demo install button, the associated
+    demo prominence setting is correct, and both logged-in and logged-out install
+    flows work against the current public build.
+  - Use Steam's one-time demo release notification for the coordinated launch
+    beat. Pressing the button on the demo app's Steamworks landing page sends
+    email and mobile notifications to eligible wishlisters of the full game.
+    It must be used within 14 days after the demo first became playable and can
+    only be used once. Do not press it without Garrett's explicit approval.
 
 - [ ] **Update the main-game and demo Steam descriptions for the larger world**
   - As of September 2, the public English pages still describe a 164k-hex
@@ -777,10 +785,10 @@ Work through these in order; outreach preparation can proceed while testers work
    13. Complete the unchecked Single-player field, recheck press-contact email
    and locate/verify press-preview opt-in. No new demo review submission is
    needed for the September 14 optional target.
-2. **Complete QA for the September 17 target:** Garrett will test macOS and
-   Windows September 13; Linux coverage remains open. Record demo/full-game build
-   IDs and Windows, macOS and Linux clean-install, gameplay and save/load results.
-   Resolve blocking defects and keep the last known good build available.
+2. **Stabilize the quietly launched demo:** Incorporate current player feedback,
+   record demo/full-game build IDs and complete Windows, macOS and Linux
+   clean-install, gameplay and save/load checks. Resolve blocking defects and
+   keep the last known good build available.
 3. **Finish the launch package:** Correct outdated Steam world descriptions;
    complete final claim review for the dated Bumblebee release;
    assemble human-authored Steam/X/Reddit/creator messages; verify the new trailer
@@ -790,9 +798,11 @@ Work through these in order; outreach preparation can proceed while testers work
    human-authored message. Track delivery, replies, redemptions and coverage
    before scaling. Every send still requires Garrett's authorization.
    IGN's demo-launch trailer update was sent September 13 without exclusivity.
-5. **Launch execution:** Record wishlist/traffic baseline; release the demo;
-   republish the base-game page if needed; verify public install and play flows;
-   then send the wishlist notification and publish/send approved campaign copy.
+5. **Spend the held demo-launch beat:** Record the exact demo release timestamp
+   and the 14-day notification deadline. Record wishlist/traffic baseline;
+   verify public install and play flows; then, only after Garrett explicitly
+   approves it, press the one-time Steam demo release notification button and
+   publish/send the approved campaign material.
 6. **First 24 and 72 hours:** Garrett covers player support and reviews crashes,
    install problems, demo playtime, wishlists, tracked visits and creator replies.
    Record findings and continue outreach in small batches. Fix blocking problems
