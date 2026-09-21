@@ -5,8 +5,7 @@ import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 import { cityChimneySmokeParticles } from "./cityChimneySmoke.js";
 import {
   CITY_BOMBARDMENT_SMOKE_FRAME_MS,
-  cityBombardmentEffectGeometry,
-  cityBombardmentEffectIntersectsViewport
+  cityBombardmentEffectGeometry
 } from "./cityBombardmentEffects.js";
 
 const effect = () => cityBombardmentEffectGeometry({
@@ -62,24 +61,6 @@ test("distant burning buildings retain smoke but scale its render cost", () => {
   assert.ok(smoke.length >= 10);
   assert.ok(smoke.length < cityChimneySmokeParticles(effect().smokeEmitter, 5000).length);
   assert.equal(geometry.smokeEmitter.maximumSize, 1);
-});
-
-test("bombardment effects cull distant work but retain smoke drifting in from an edge", () => {
-  assert.equal(cityBombardmentEffectIntersectsViewport({
-    destination: { x: 460, y: 100, width: 30, height: 40 },
-    viewportWidth: 455,
-    viewportHeight: 256
-  }), true);
-  assert.equal(cityBombardmentEffectIntersectsViewport({
-    destination: { x: 700, y: 100, width: 30, height: 40 },
-    viewportWidth: 455,
-    viewportHeight: 256
-  }), false);
-  assert.equal(cityBombardmentEffectIntersectsViewport({
-    destination: { x: 100, y: 500, width: 30, height: 40 },
-    viewportWidth: 455,
-    viewportHeight: 256
-  }), false);
 });
 
 test("bombardment effect geometry rejects malformed openings and destinations", () => {

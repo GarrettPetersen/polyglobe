@@ -232,6 +232,34 @@ export function cityChimneySmokeFrameParticles(
   return particles;
 }
 
+export function citySmokeParticleBounds(particles) {
+  if (!Array.isArray(particles)) {
+    throw new TypeError("City smoke bounds require particles");
+  }
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (const [index, particle] of particles.entries()) {
+    if (!particle || !Number.isFinite(particle.x) || !Number.isFinite(particle.y) ||
+        !Number.isInteger(particle.size) || particle.size <= 0 ||
+        !Number.isFinite(particle.alpha) || particle.alpha < 0 || particle.alpha > 1) {
+      throw new TypeError(`Invalid city smoke particle ${index}`);
+    }
+    if (particle.alpha <= 0) continue;
+    const particleLeft = Math.floor(particle.x);
+    const particleTop = Math.floor(particle.y);
+    const particleRight = Math.ceil(particle.x + particle.size);
+    const particleBottom = Math.ceil(particle.y + particle.size);
+    left = Math.min(left, particleLeft);
+    top = Math.min(top, particleTop);
+    right = Math.max(right, particleRight);
+    bottom = Math.max(bottom, particleBottom);
+  }
+  if (!Number.isFinite(left)) return null;
+  return Object.freeze({ x: left, y: top, width: right - left, height: bottom - top });
+}
+
 function chimneyEmitter(emitter) {
   requireEmitter(emitter);
   return Object.freeze(emitter);

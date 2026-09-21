@@ -5,32 +5,19 @@ const BOMBARDMENT_SMOKE_COLORS = Object.freeze([
 ]);
 
 export const CITY_BOMBARDMENT_SMOKE_FRAME_MS = 100;
-const BOMBARDMENT_EFFECT_OVERFLOW_PX = 120;
 
-export function cityBombardmentEffectIntersectsViewport({
-  destination,
-  viewportWidth,
-  viewportHeight
-}) {
-  if (
-    !destination ||
-    !Number.isFinite(destination.x) ||
-    !Number.isFinite(destination.y) ||
-    !Number.isFinite(destination.width) ||
-    destination.width <= 0 ||
-    !Number.isFinite(destination.height) ||
-    destination.height <= 0 ||
-    !Number.isInteger(viewportWidth) ||
-    viewportWidth <= 0 ||
-    !Number.isInteger(viewportHeight) ||
-    viewportHeight <= 0
-  ) {
-    throw new Error("Invalid city bombardment effect viewport");
+export function burningCityBombardmentSpecs(specs) {
+  if (!Array.isArray(specs)) {
+    throw new TypeError("City bombardment effects require presentation specs");
   }
-  return destination.x < viewportWidth + BOMBARDMENT_EFFECT_OVERFLOW_PX &&
-    destination.x + destination.width > -BOMBARDMENT_EFFECT_OVERFLOW_PX &&
-    destination.y < viewportHeight + BOMBARDMENT_EFFECT_OVERFLOW_PX &&
-    destination.y + destination.height > -BOMBARDMENT_EFFECT_OVERFLOW_PX;
+  const burning = [];
+  for (const [index, spec] of specs.entries()) {
+    if (!spec?.presentation || typeof spec.presentation.burning !== "boolean") {
+      throw new TypeError(`Invalid city bombardment presentation spec ${index}`);
+    }
+    if (spec.presentation.burning) burning.push(spec);
+  }
+  return Object.freeze(burning);
 }
 
 export function cityBombardmentEffectGeometry({

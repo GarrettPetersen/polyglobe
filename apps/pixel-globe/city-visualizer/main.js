@@ -63,7 +63,11 @@ import {
   cityBackgroundPainterOrder,
   oppositeBankCityBackgroundLayout
 } from "./cityBackground.js";
-import { cityOceanParallaxDepth, cityOceanRowOffset } from "./cityOceanMotion.js";
+import {
+  cityOceanAnimationFrameTime,
+  cityOceanParallaxDepth,
+  cityOceanRowOffset
+} from "./cityOceanMotion.js";
 import {
   citySceneCacheBounds,
   contiguousCityProjectionGroups
@@ -91,6 +95,7 @@ import {
   CITY_CHIMNEY_SMOKE_EMITTERS,
   backgroundCityChimneySmokeEmitters,
   cityChimneySmokeFrameParticles,
+  citySmokeParticleBounds,
   placedCityBuildingChimneySmokeEmitter
 } from "./cityChimneySmoke.js";
 import { cityStreetBuildingPlacements } from "./cityStreetBuildings.js";
@@ -256,8 +261,8 @@ import {
 } from "./cityBombardmentDamage.js";
 import {
   CITY_BOMBARDMENT_SMOKE_FRAME_MS,
-  cityBombardmentEffectGeometry,
-  cityBombardmentEffectIntersectsViewport
+  burningCityBombardmentSpecs,
+  cityBombardmentEffectGeometry
 } from "./cityBombardmentEffects.js";
 import {
   applyCityBuildingEdgeContrast,
@@ -338,6 +343,7 @@ const backgroundCityStaticLayerCache = new Map();
 const buildingEdgeContrastFrameCache = new WeakMap();
 const readStaticFramePixels = createRasterFramePixelReader(readAtlasFramePixels);
 const MAX_DOCKSIDE_SHIP_PRESENTATIONS = 4;
+const UNSET_OCEAN_ROW_OFFSET = 32767;
 const CITY_VISUALIZER_BENCHMARK = benchmark ?? (
   externalFrameClock ? null : cityVisualizerBenchmarkFromSearch(window.location.search)
 );
@@ -353,10 +359,13 @@ let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
 let assaultBeachFrame = null;
 let renderFrameId = null;
-let bombardmentOverlayFrameCache = null;
+let bombardmentMasterSmokeLayerCache = null;
 let bombardmentPresentationSpecsCache = null;
 const bombardmentMasterFireLayersByFrame = new Map();
 let assaultFrameLayoutCache = null;
+let oceanRowOffsetFrameTimeMs = null;
+const oceanRowOffsetByMasterY = new Int16Array(PORT_SCENE_MASTER.height);
+oceanRowOffsetByMasterY.fill(UNSET_OCEAN_ROW_OFFSET);
 let skySourceColorsByRow = null;
 let skyMasterY = null;
 const state = {
@@ -681,7 +690,7 @@ async function selectCity(cityId, {
   state.colonistLanding = null;
   state.feast = null;
   bombardmentFrameCache.clear();
-  bombardmentOverlayFrameCache = null;
+  bombardmentMasterSmokeLayerCache = null;
   state.focusedDestinationId = null;
   state.pinnedDestinationLabel = null;
   state.hoverPanDestinationId = null;
@@ -818,7 +827,7 @@ function updateBombardmentEventId(eventId) {
   state.bombardmentEventId = eventId;
   rebuildCityPeopleAgents();
   bombardmentFrameCache.clear();
-  bombardmentOverlayFrameCache = null;
+  bombardmentMasterSmokeLayerCache = null;
   rebuildCitySceneRenderPlan();
   if (!externalFrameClock) {
     const url = new URL(location.href);
@@ -863,7 +872,7 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
   if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
     throw new TypeError("City scene feature overrides must be an object");
   }
-  bombardmentOverlayFrameCache = null;
+  bombardmentMasterSmokeLayerCache = null;
   state.pinnedDestinationLabel = null;
   state.hoverPanDestinationId = null;
   state.featureOverrides = Object.freeze({ ...overrides });
@@ -1658,6 +1667,7 @@ function rebuildCitySceneRenderPlan() {
   if (!state.features || !state.portManifest) return;
   backgroundCityStaticLayerCache.clear();
   bombardmentPresentationSpecsCache = null;
+  bombardmentMasterSmokeLayerCache = null;
   bombardmentMasterFireLayersByFrame.clear();
   const entries = createSceneRenderEntries();
   citySceneRenderer.setEntries(entries);
@@ -2338,8 +2348,16 @@ function drawBackgroundCityChimneySmoke(emitter, timeMs, window) {
 
 function drawCitySmokeParticles(emitter, timeMs, window, targetContext) {
   const smokeTimeMs = prefersReducedMotion.matches ? 4800 : timeMs;
+  drawCitySmokeParticleList(
+    cityChimneySmokeFrameParticles(emitter, smokeTimeMs, state.wind),
+    targetContext,
+    window
+  );
+}
+
+function drawCitySmokeParticleList(particles, targetContext, window) {
   targetContext.save();
-  for (const particle of cityChimneySmokeFrameParticles(emitter, smokeTimeMs, state.wind)) {
+  for (const particle of particles) {
     if (particle.alpha <= 0) continue;
     targetContext.globalAlpha = particle.alpha;
     targetContext.fillStyle = particle.color;
@@ -2554,81 +2572,6 @@ function drawBombardmentFireOverlay(timeMs) {
   const fireTargetContext = separateEmissiveOverlay ? emissiveContext : context;
   if (!fireTargetContext) throw new Error("Bombarded city has no emissive render target");
   fireTargetContext.imageSmoothingEnabled = false;
-  if (cityStaticCacheIsUsable()) {
-    const projectionKey = measureStage(
-      "bombardment.projection",
-      bombardmentOverlayProjectionKey
-    );
-    const baseKey = [
-      state.city.id,
-      state.bombardmentEventId,
-      canvas.width,
-      canvas.height,
-      projectionKey,
-      state.wind.flowDirectionRad,
-      state.wind.strength
-    ].join("|");
-    if (!bombardmentOverlayFrameCache) {
-      bombardmentOverlayFrameCache = {
-        baseKey: null,
-        fireFrames: new Map(),
-        smokeOverlay: document.createElement("canvas"),
-        smokeContext: null,
-        smokeTimeMs: null
-      };
-    }
-    if (bombardmentOverlayFrameCache.baseKey !== baseKey) {
-      bombardmentOverlayFrameCache.baseKey = baseKey;
-      bombardmentOverlayFrameCache.fireFrames.clear();
-      bombardmentOverlayFrameCache.smokeTimeMs = null;
-    }
-    const smokeOverlay = bombardmentOverlayFrameCache.smokeOverlay;
-    if (
-      !bombardmentOverlayFrameCache.smokeContext ||
-      smokeOverlay.width !== canvas.width ||
-      smokeOverlay.height !== canvas.height
-    ) {
-      if (smokeOverlay.width !== canvas.width) smokeOverlay.width = canvas.width;
-      if (smokeOverlay.height !== canvas.height) smokeOverlay.height = canvas.height;
-      bombardmentOverlayFrameCache.smokeContext = smokeOverlay.getContext("2d");
-      if (!bombardmentOverlayFrameCache.smokeContext) {
-        throw new Error("Could not cache city bombardment smoke overlay");
-      }
-    }
-    const smokeTimeMs = prefersReducedMotion.matches
-      ? 5000
-      : Math.floor(timeMs / CITY_BOMBARDMENT_SMOKE_FRAME_MS) * CITY_BOMBARDMENT_SMOKE_FRAME_MS;
-    if (bombardmentOverlayFrameCache.smokeTimeMs !== smokeTimeMs) {
-      const smokeContext = bombardmentOverlayFrameCache.smokeContext;
-      if (!smokeContext) throw new Error("City bombardment smoke cache has no render context");
-      smokeContext.imageSmoothingEnabled = false;
-      smokeContext.clearRect(0, 0, smokeOverlay.width, smokeOverlay.height);
-      measureStage(
-        "bombardment.smoke",
-        () => drawBombardmentSmokeSources(smokeTimeMs, smokeContext)
-      );
-      bombardmentOverlayFrameCache.smokeTimeMs = smokeTimeMs;
-    }
-    context.drawImage(smokeOverlay, 0, 0);
-    const animationFrame = Math.floor((prefersReducedMotion.matches ? 0 : timeMs) / FIRE_FRAME_MS) %
-      FIRE_FRAME_COUNT;
-    let overlay = bombardmentOverlayFrameCache.fireFrames.get(animationFrame);
-    if (!overlay) {
-      overlay = document.createElement("canvas");
-      overlay.width = canvas.width;
-      overlay.height = canvas.height;
-      const overlayContext = overlay.getContext("2d");
-      if (!overlayContext) throw new Error("Could not cache city bombardment fire overlay");
-      overlayContext.imageSmoothingEnabled = false;
-      measureStage(
-        "bombardment.fire",
-        () => drawBombardmentFireSources(timeMs, overlayContext)
-      );
-      bombardmentOverlayFrameCache.fireFrames.set(animationFrame, overlay);
-    }
-    fireTargetContext.drawImage(overlay, 0, 0);
-    return;
-  }
   const smokeTimeMs = prefersReducedMotion.matches
     ? 5000
     : Math.floor(timeMs / CITY_BOMBARDMENT_SMOKE_FRAME_MS) * CITY_BOMBARDMENT_SMOKE_FRAME_MS;
@@ -2642,26 +2585,14 @@ function drawBombardmentFireOverlay(timeMs) {
   );
 }
 
-function bombardmentOverlayProjectionKey() {
-  const destinations = [];
-  forEachBombardmentPresentation((presentation, destination) => {
-    destinations.push([
-      presentation.seed,
-      Math.round(destination.x),
-      Math.round(destination.y),
-      Math.max(1, Math.round(destination.width)),
-      Math.max(1, Math.round(destination.height))
-    ].join(":"));
-  });
-  return destinations.join(";");
-}
-
 function drawBombardmentFireSources(timeMs, targetContext) {
   const animationTimeMs = prefersReducedMotion.matches ? 0 : timeMs;
   const animationFrame = Math.floor(animationTimeMs / FIRE_FRAME_MS) % FIRE_FRAME_COUNT;
   let layers = bombardmentMasterFireLayersByFrame.get(animationFrame);
   if (!layers) {
-    const groups = contiguousCityProjectionGroups(bombardmentPresentationSpecs());
+    const groups = contiguousCityProjectionGroups(
+      burningCityBombardmentSpecs(bombardmentPresentationSpecs())
+    );
     layers = Object.freeze(groups.map((group) => {
       const placements = group.entries.map((spec) => {
         const mask = cachedBombardmentFireMask(
@@ -2711,26 +2642,77 @@ function drawBombardmentFireSources(timeMs, targetContext) {
 }
 
 function drawBombardmentSmokeSources(timeMs, targetContext) {
-  forEachBombardmentPresentation((presentation, destination) => {
-    drawBombardmentPresentationSmoke(presentation, destination, timeMs, targetContext);
-  });
-}
-
-function forEachBombardmentPresentation(visit, specs = null) {
-  if (typeof visit !== "function") throw new TypeError("Bombardment presentation visitor is required");
-  const resolvedSpecs = specs ?? bombardmentPresentationSpecs();
-  if (!Array.isArray(resolvedSpecs)) {
-    throw new TypeError("Bombardment presentation specs must be an array");
+  if (!bombardmentMasterSmokeLayerCache) {
+    bombardmentMasterSmokeLayerCache = {
+      groups: contiguousCityProjectionGroups(
+        burningCityBombardmentSpecs(bombardmentPresentationSpecs())
+      ),
+      surfaces: [],
+      smokeTimeMs: null,
+      windKey: null,
+      layers: Object.freeze([])
+    };
   }
-  for (const spec of resolvedSpecs) {
-    if (!spec?.presentation?.burning) continue;
-    const window = sceneWindow(spec.depth, 0, 0, spec.parallaxAnchor);
-    visit(spec.presentation, {
-      x: spec.x - window.x,
-      y: spec.y - window.y,
-      width: spec.width,
-      height: spec.height
-    });
+  const windKey = `${state.wind.flowDirectionRad}:${state.wind.strength}`;
+  if (bombardmentMasterSmokeLayerCache.smokeTimeMs !== timeMs ||
+      bombardmentMasterSmokeLayerCache.windKey !== windKey) {
+    const layers = [];
+    for (const [groupIndex, group] of bombardmentMasterSmokeLayerCache.groups.entries()) {
+      const particles = [];
+      for (const spec of group.entries) {
+        const destination = {
+          x: Math.round(spec.x),
+          y: Math.round(spec.y),
+          width: Math.max(1, Math.round(spec.width)),
+          height: Math.max(1, Math.round(spec.height))
+        };
+        const geometry = cityBombardmentEffectGeometry({
+          damage: spec.presentation.damage,
+          sourceWidth: spec.presentation.frame.frame.w,
+          sourceHeight: spec.presentation.frame.frame.h,
+          destination,
+          seed: spec.presentation.seed
+        });
+        particles.push(...cityChimneySmokeFrameParticles(
+          geometry.smokeEmitter,
+          timeMs,
+          state.wind
+        ));
+      }
+      const bounds = citySmokeParticleBounds(particles);
+      if (!bounds) continue;
+      let surface = bombardmentMasterSmokeLayerCache.surfaces[groupIndex];
+      if (!surface) {
+        const canvas = createCitySceneCacheSurface(bounds.width, bounds.height);
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Could not cache a master city bombardment smoke layer");
+        surface = { canvas, context };
+        bombardmentMasterSmokeLayerCache.surfaces[groupIndex] = surface;
+      }
+      if (surface.canvas.width < bounds.width) surface.canvas.width = bounds.width;
+      if (surface.canvas.height < bounds.height) surface.canvas.height = bounds.height;
+      surface.context.imageSmoothingEnabled = false;
+      surface.context.clearRect(0, 0, surface.canvas.width, surface.canvas.height);
+      drawCitySmokeParticleList(particles, surface.context, bounds);
+      layers.push(Object.freeze({
+        canvas: surface.canvas,
+        x: bounds.x,
+        y: bounds.y,
+        depth: group.depth,
+        parallaxAnchor: group.parallaxAnchor
+      }));
+    }
+    bombardmentMasterSmokeLayerCache.smokeTimeMs = timeMs;
+    bombardmentMasterSmokeLayerCache.windKey = windKey;
+    bombardmentMasterSmokeLayerCache.layers = Object.freeze(layers);
+  }
+  for (const layer of bombardmentMasterSmokeLayerCache.layers) {
+    const window = sceneWindow(layer.depth, 0, 0, layer.parallaxAnchor);
+    targetContext.drawImage(
+      layer.canvas,
+      layer.x + Math.round(-window.x),
+      layer.y + Math.round(-window.y)
+    );
   }
 }
 
@@ -2802,36 +2784,6 @@ function bombardmentPresentationSpecs() {
   return bombardmentPresentationSpecsCache;
 }
 
-function drawBombardmentPresentationFire(presentation, destination, timeMs, targetContext) {
-  if (!presentation) return;
-  const destinationX = Math.round(destination.x);
-  const destinationY = Math.round(destination.y);
-  const destinationWidth = Math.max(1, Math.round(destination.width));
-  const destinationHeight = Math.max(1, Math.round(destination.height));
-  const normalizedDestination = Object.freeze({
-    x: destinationX,
-    y: destinationY,
-    width: destinationWidth,
-    height: destinationHeight
-  });
-  if (!cityBombardmentEffectIntersectsViewport({
-    destination: normalizedDestination,
-    viewportWidth: canvas.width,
-    viewportHeight: canvas.height
-  })) return;
-  const mask = cachedBombardmentFireMask(
-    presentation,
-    destinationWidth,
-    destinationHeight,
-    timeMs
-  );
-  targetContext.drawImage(
-    mask.canvas,
-    destinationX + mask.offsetX,
-    destinationY + mask.offsetY
-  );
-}
-
 function cachedBombardmentFireMask(presentation, destinationWidth, destinationHeight, timeMs) {
   const animationTimeMs = prefersReducedMotion.matches ? 0 : timeMs;
   const animationFrame = fireAnimationFrame(animationTimeMs, presentation.seed);
@@ -2887,29 +2839,6 @@ function cachedBombardmentFireMask(presentation, destinationWidth, destinationHe
   const mask = Object.freeze({ canvas, offsetX: flame.x, offsetY: flame.y });
   frames.set(key, mask);
   return mask;
-}
-
-function drawBombardmentPresentationSmoke(presentation, destination, timeMs, targetContext) {
-  if (!presentation) return;
-  const normalizedDestination = {
-    x: Math.round(destination.x),
-    y: Math.round(destination.y),
-    width: Math.max(1, Math.round(destination.width)),
-    height: Math.max(1, Math.round(destination.height))
-  };
-  if (!cityBombardmentEffectIntersectsViewport({
-    destination: normalizedDestination,
-    viewportWidth: canvas.width,
-    viewportHeight: canvas.height
-  })) return;
-  const geometry = cityBombardmentEffectGeometry({
-    damage: presentation.damage,
-    sourceWidth: presentation.frame.frame.w,
-    sourceHeight: presentation.frame.frame.h,
-    destination: normalizedDestination,
-    seed: presentation.seed
-  });
-  drawCitySmokeParticles(geometry.smokeEmitter, timeMs, { x: 0, y: 0 }, targetContext);
 }
 
 function drawBombardmentFireSprite(destination, seed, timeMs, targetContext) {
@@ -3517,7 +3446,16 @@ function drawOceanSlice(frame, slice, timeMs) {
 
 function oceanRowOffset(masterY, timeMs) {
   if (prefersReducedMotion.matches) return 0;
-  return cityOceanRowOffset(masterY, timeMs);
+  const frameTimeMs = cityOceanAnimationFrameTime(timeMs);
+  if (oceanRowOffsetFrameTimeMs !== frameTimeMs) {
+    oceanRowOffsetFrameTimeMs = frameTimeMs;
+    oceanRowOffsetByMasterY.fill(UNSET_OCEAN_ROW_OFFSET);
+  }
+  const cached = oceanRowOffsetByMasterY[masterY];
+  if (cached !== UNSET_OCEAN_ROW_OFFSET) return cached;
+  const offset = cityOceanRowOffset(masterY, frameTimeMs);
+  oceanRowOffsetByMasterY[masterY] = offset;
+  return offset;
 }
 
 function drawWrappedOceanBand(atlas, frame, window, masterY, height, offset) {

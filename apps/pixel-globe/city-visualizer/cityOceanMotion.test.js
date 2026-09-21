@@ -2,12 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PORT_SCENE_OCEAN_SLICES } from "./citySceneRules.js";
 import {
+  CITY_OCEAN_FRAME_MS,
   CITY_OCEAN_WAVE_MAX_AMPLITUDE_PX,
   CITY_OCEAN_WAVE_MIN_AMPLITUDE_PX,
+  cityOceanAnimationFrameTime,
   cityOceanParallaxDepth,
   cityOceanRowOffset,
   cityOceanWaveAmplitude
 } from "./cityOceanMotion.js";
+
+test("city ocean animation shares one pixel-art pose across a 20 fps frame", () => {
+  assert.equal(CITY_OCEAN_FRAME_MS, 50);
+  assert.equal(cityOceanAnimationFrameTime(1234), 1200);
+  assert.equal(cityOceanAnimationFrameTime(1249), 1200);
+  assert.equal(cityOceanAnimationFrameTime(1250), 1250);
+  assert.throws(() => cityOceanAnimationFrameTime(-1), /non-negative and finite/);
+});
 
 test("each ocean row interpolates between the parallax plane beside it", () => {
   const horizonY = PORT_SCENE_OCEAN_SLICES[0].top;

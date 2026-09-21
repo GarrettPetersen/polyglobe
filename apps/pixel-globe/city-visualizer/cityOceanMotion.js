@@ -8,6 +8,14 @@ import { PORT_SCENE_DEPTH, PORT_SCENE_OCEAN_SLICES } from "./citySceneRules.js";
 
 export const CITY_OCEAN_WAVE_MIN_AMPLITUDE_PX = 1;
 export const CITY_OCEAN_WAVE_MAX_AMPLITUDE_PX = 20;
+export const CITY_OCEAN_FRAME_MS = 50;
+
+export function cityOceanAnimationFrameTime(timeMs) {
+  if (!Number.isFinite(timeMs) || timeMs < 0) {
+    throw new Error(`City ocean animation time must be non-negative and finite, got ${timeMs}`);
+  }
+  return Math.floor(timeMs / CITY_OCEAN_FRAME_MS) * CITY_OCEAN_FRAME_MS;
+}
 
 export function cityOceanParallaxDepth(masterY) {
   assertFiniteRow(masterY);

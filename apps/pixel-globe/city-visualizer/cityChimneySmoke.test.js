@@ -10,6 +10,7 @@ import {
   backgroundCityChimneySmokeEmitters,
   cityChimneySmokeFrameParticles,
   cityChimneySmokeParticles,
+  citySmokeParticleBounds,
   placedCityBuildingChimneySmokeEmitter
 } from "./cityChimneySmoke.js";
 
@@ -105,6 +106,20 @@ test("render-frame smoke snapshots reuse one allocation within each pixel-art ca
   assert.equal(sameFrame, first);
   assert.notEqual(nextFrame, first);
   assert.notEqual(changedWind, nextFrame);
+});
+
+test("smoke particle bounds tightly enclose visible pixels", () => {
+  assert.deepEqual(citySmokeParticleBounds([
+    { x: -4, y: 8, size: 2, alpha: 0.5 },
+    { x: 7, y: 2, size: 4, alpha: 1 },
+    { x: 100, y: 100, size: 3, alpha: 0 }
+  ]), { x: -4, y: 2, width: 15, height: 8 });
+  assert.equal(citySmokeParticleBounds([
+    { x: 0, y: 0, size: 1, alpha: 0 }
+  ]), null);
+  assert.throws(() => citySmokeParticleBounds([
+    { x: 0, y: 0, size: 0, alpha: 1 }
+  ]), /smoke particle/);
 });
 
 test("background cities deterministically smoke from exactly half their scaled chimneys", async () => {
