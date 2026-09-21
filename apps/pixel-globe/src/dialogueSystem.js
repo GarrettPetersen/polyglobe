@@ -2500,6 +2500,7 @@ export function selectPortDialogueAction(
     }
     session.marketMode = action.mode;
     session.selectedIndex = marketModeOptionIndex(session);
+    session.feedback = null;
     return { closed: false };
   }
   if (action.type === "select-shipyard-upgrade" || action.type === "buy-shipyard-upgrade") {

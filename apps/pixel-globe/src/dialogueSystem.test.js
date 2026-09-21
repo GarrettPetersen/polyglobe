@@ -2523,6 +2523,53 @@ test("one market ledger undoes alternating purchases and sales together", () => 
   assert.equal(portMarketTransactionSessionOpen(session), false);
 });
 
+test("switching from a completed sale restores buy-row market context", () => {
+  const city = {
+    tileId: 305,
+    cityId: "lisbon|portugal",
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 70000,
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.wool = 2;
+  gameState.accounts.cargoCostBasis.wool = 20;
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "market",
+    marketMode: "sell"
+  });
+
+  let view = portDialogueView(session, city, gameState, economy, [city]);
+  const saleIndex = view.options.findIndex((entry) => (
+    entry.action.type === "sell" && entry.action.goodId === "wool"
+  ));
+  selectPortDialogueOption(session, city, gameState, economy, [city], saleIndex);
+  assert.match(session.feedback, /^Sold Wool/);
+  const undoSnapshot = session.marketUndoSnapshot;
+
+  view = portDialogueView(session, city, gameState, economy, [city]);
+  const buyModeIndex = view.options.findIndex((entry) => (
+    entry.action.type === "switch-market-mode" && entry.action.mode === "buy"
+  ));
+  selectPortDialogueOption(session, city, gameState, economy, [city], buyModeIndex);
+
+  assert.equal(session.marketMode, "buy");
+  assert.equal(session.feedback, null);
+  assert.equal(session.marketUndoSnapshot, undoSnapshot);
+  assert.equal(portMarketTransactionSessionOpen(session), true);
+  view = portDialogueView(session, city, gameState, economy, [city]);
+  assert.equal(view.feedback, null);
+  const buyRow = view.options.find((entry) => entry.action.type === "buy" && !entry.disabled);
+  assert.ok(buyRow);
+  assert.match(buyRow.detail, /DUTY/);
+  assert.match(buyRow.detail, /WORLD/);
+  assert.match(buyRow.detail, /STOCK/);
+});
+
 test("sell all remains actionable when only one unit is held", () => {
   const city = {
     tileId: 303,
