@@ -140,7 +140,7 @@ function characterHomecomingDialogues(character) {
   if (hasAnySkill(skills, SEAFARING_SKILLS)) {
     return [
       () => homecomingLine(
-        "Home waters. I have steered by strange stars for months, but this channel still sits in the hands.",
+        "Home waters. I have steered by strange stars for months, but I know this channel by heart.",
         "pleased"
       ),
       (cityName) => homecomingLine(

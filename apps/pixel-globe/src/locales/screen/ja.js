@@ -1792,7 +1792,7 @@ export default Object.freeze({
   "Home at last. The world's spices are splendid, but in {0} I know which cook is lying about the stew.": "ついに帰宅。世界のスパイスは素晴らしいですが、{0} では、どの料理人がそのシチューについて嘘をついているかがわかります。",
   "Home waters, captain. Even the gulls sound as though they are insulting me personally.": "ホームウォーター、船長。カモメさえも私を個人的に侮辱しているように聞こえます。",
   "Home waters, captain. They will not believe half our voyage, so I shall begin with the least impossible parts.": "ホームウォーター、船長。彼らは私たちの航海の半分も信じないだろうから、私は最も不可能な部分から始めよう。",
-  "Home waters. I have steered by strange stars for months, but this channel still sits in the hands.": "家庭用水。私は何ヶ月もの間、奇妙な星に導かれてきましたが、このチャンネルはまだ手の中にあります。",
+  "Home waters. I have steered by strange stars for months, but I know this channel by heart.": "故郷の海だ。何か月も見知らぬ星を頼りに航海してきたが、この水路は熟知している。",
   "homes, meetinghouse, barns, and river boats": "家、集会所、納屋、川船",
   "honest exchange in the beaver trade": "ビーバー取引における誠実な交換",
   "Honk-hraaa!": "ホンクラ！",

@@ -1792,7 +1792,7 @@ export default Object.freeze({
   "Home at last. The world's spices are splendid, but in {0} I know which cook is lying about the stew.": "Por fin en casa. Las especias del mundo son espléndidas, pero en {0} sé qué cocinero miente sobre el guiso.",
   "Home waters, captain. Even the gulls sound as though they are insulting me personally.": "Aguas de casa, capitán. Incluso las gaviotas suenan como si me estuvieran insultando personalmente.",
   "Home waters, captain. They will not believe half our voyage, so I shall begin with the least impossible parts.": "Aguas de casa, capitán. No creerán la mitad de nuestro viaje, así que comenzaré con las partes menos imposibles.",
-  "Home waters. I have steered by strange stars for months, but this channel still sits in the hands.": "Aguas de origen. Llevo meses guiado por estrellas extrañas, pero este canal todavía está en mis manos.",
+  "Home waters. I have steered by strange stars for months, but I know this channel by heart.": "Aguas familiares. Durante meses he navegado guiándome por estrellas desconocidas, pero conozco este canal de memoria.",
   "homes, meetinghouse, barns, and river boats": "casas, centros de reuniones, graneros y barcos fluviales",
   "honest exchange in the beaver trade": "intercambio honesto en el comercio de castores",
   "Honk-hraaa!": "¡Bocinazo-hraaa!",

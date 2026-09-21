@@ -1792,7 +1792,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Home at last. The world's spices are splendid, but in {0} I know which cook is lying about the stew.",
   "Home waters, captain. Even the gulls sound as though they are insulting me personally.",
   "Home waters, captain. They will not believe half our voyage, so I shall begin with the least impossible parts.",
-  "Home waters. I have steered by strange stars for months, but this channel still sits in the hands.",
+  "Home waters. I have steered by strange stars for months, but I know this channel by heart.",
   "homes, meetinghouse, barns, and river boats",
   "honest exchange in the beaver trade",
   "Honk-hraaa!",

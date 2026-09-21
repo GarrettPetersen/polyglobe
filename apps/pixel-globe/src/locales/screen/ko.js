@@ -1792,7 +1792,7 @@ export default Object.freeze({
   "Home at last. The world's spices are splendid, but in {0} I know which cook is lying about the stew.": "마침내 집. 세상의 향신료는 훌륭하지만 {0}에서는 스튜에 대해 거짓말을 하고 있는 요리사가 누군지 알 수 있습니다.",
   "Home waters, captain. Even the gulls sound as though they are insulting me personally.": "집 물이에요, 선장님. 갈매기 소리마저도 나를 개인적으로 모욕하는 것처럼 들린다.",
   "Home waters, captain. They will not believe half our voyage, so I shall begin with the least impossible parts.": "집 물이에요, 선장님. 그들은 우리 항해의 절반도 믿지 않을 것이므로 최소한의 불가능한 부분부터 시작하겠습니다.",
-  "Home waters. I have steered by strange stars for months, but this channel still sits in the hands.": "집 물. 나는 몇 달 동안 이상한 별들을 조종해 왔지만 이 채널은 여전히 ​​손에 쥐고 있습니다.",
+  "Home waters. I have steered by strange stars for months, but I know this channel by heart.": "고향 바다다. 몇 달 동안 낯선 별을 길잡이 삼아 항해했지만, 이 물길은 눈감고도 안다.",
   "homes, meetinghouse, barns, and river boats": "집, 집회소, 헛간, 강 보트",
   "honest exchange in the beaver trade": "비버 무역의 정직한 교환",
   "Honk-hraaa!": "쾅-쾅!",

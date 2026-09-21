@@ -89,6 +89,10 @@ test("a homecoming has a thirty-day per-character cooldown", () => {
 
 test("homecoming dialogue reflects a crewmate's work aboard", () => {
   assert.match(
+    characterHomecomingDialogue(NAVIGATOR, "Lisbon", 0).message,
+    /know this channel by heart/
+  );
+  assert.match(
     characterHomecomingDialogue(NAVIGATOR, "Lisbon", 1).message,
     /find this harbor/
   );

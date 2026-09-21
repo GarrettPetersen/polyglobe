@@ -1792,7 +1792,7 @@ export default Object.freeze({
   "Home at last. The world's spices are splendid, but in {0} I know which cook is lying about the stew.": "終於到家了世界上的香料很美妙，但在{0}我知道哪個廚師在燉菜上撒了謊。",
   "Home waters, captain. Even the gulls sound as though they are insulting me personally.": "家鄉水域，船長。就連海鷗聽起來也像是在侮辱我個人。",
   "Home waters, captain. They will not believe half our voyage, so I shall begin with the least impossible parts.": "家鄉水域，船長。他們不會相信我們的一半航程，所以我將從最不可能的部分開始。",
-  "Home waters. I have steered by strange stars for months, but this channel still sits in the hands.": "家鄉水域。我已經被奇怪的星星引導了幾個月，但這條通道仍然掌握在手中。",
+  "Home waters. I have steered by strange stars for months, but I know this channel by heart.": "故鄉海域。我已憑藉陌生的星辰航行數月，卻對這條航道瞭如指掌。",
   "homes, meetinghouse, barns, and river boats": "住宅、教堂、穀倉和河船",
   "honest exchange in the beaver trade": "海狸貿易中的誠實交換",
   "Honk-hraaa!": "鳴喇叭！",
