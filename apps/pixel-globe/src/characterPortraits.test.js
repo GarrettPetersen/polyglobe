@@ -910,6 +910,72 @@ test("player generation is deterministic for an identity key", () => {
   assert.deepEqual(generate(), generate());
 });
 
+test("persisted portrait and name seeds remain stable across character construction refactors", () => {
+  const lisbon = {
+    tileId: 7,
+    cityId: "lisbon|portugal",
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    lat: 38.72,
+    lon: -9.14
+  };
+  const nagasaki = {
+    tileId: 8,
+    cityId: "nagasaki|japan",
+    city: "Nagasaki",
+    displayCity: "Nagasaki",
+    country: "Japan",
+    cityType: "east-asian",
+    factionId: "japan",
+    lat: 32.75,
+    lon: 129.88
+  };
+  const stableIdentity = (character) => ({
+    id: character.id,
+    name: character.name,
+    sourceId: character.sourceId,
+    age: character.age,
+    religionId: character.religionId,
+    nameCulture: character.nameCulture,
+    region: character.region
+  });
+
+  assert.deepEqual(stableIdentity(generatePlayerCharacter({
+    identityKey: "identity-contract",
+    homePort: lisbon,
+    manifest: GENERATED_MANIFEST,
+    usedNames: new Set()
+  })), {
+    id: "ultimate-portrait-pack-v1-0-man-knight-man-knight-portrait-8dec0b37",
+    name: "Jorge de Barros",
+    sourceId: "ultimate-portrait-pack-v1-0-man-knight-man-knight-portrait",
+    age: 23,
+    religionId: "roman-catholic",
+    nameCulture: "portuguese",
+    region: "mediterranean"
+  });
+  assert.deepEqual(stableIdentity(generatePassengerCharacter({
+    identityKey: "identity-contract",
+    originPort: lisbon,
+    destinationPort: nagasaki,
+    scenarioId: "return-home",
+    namePortPreference: "destination",
+    manifest: GENERATED_MANIFEST,
+    usedNames: new Set()
+  })), {
+    id: "japanese-portrait-pack-by-openai-japanese-2-f9de1308",
+    name: "Arima Saki",
+    sourceId: "japanese-portrait-pack-by-openai-japanese-2",
+    age: 31,
+    religionId: "kami-buddhist",
+    nameCulture: "japanese",
+    region: "japan"
+  });
+});
+
 test("campaign contacts are distinct people from the home port factor", () => {
   const homePort = {
     tileId: 11,
@@ -1565,6 +1631,75 @@ test("a retained supply captain keeps his homeland and identity after visiting a
     ...options, captainIdentitiesByShipId: new Map([[ship.id, { id: initial.id, name: initial.name }]])
   }).get(ship.id);
   for (const key of ["id", "name", "sourceId", "nameCulture"]) assert.equal(restored[key], initial[key], key);
+  assert.equal(initial.homePortCityId, home.cityId);
+  assert.equal(restored.homePortCityId, home.cityId);
+  assert.notEqual(restored.homePortCityId, destination.cityId);
+});
+
+test("all generated port characters bind their identity to one canonical home", () => {
+  const homePort = {
+    tileId: 91,
+    cityId: "ternate|indonesia",
+    city: "Ternate",
+    displayCity: "Ternate",
+    country: "Indonesia",
+    cityType: "southeast-asian",
+    factionId: "ternate",
+    routeRegion: "southeast-asia",
+    lat: 0.79,
+    lon: 127.39
+  };
+  const destinationPort = {
+    tileId: 92,
+    cityId: "lisbon|portugal",
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    routeRegion: "europe",
+    lat: 38.72,
+    lon: -9.14
+  };
+  const player = generatePlayerCharacter({
+    identityKey: "origin-contract-player",
+    homePort,
+    manifest: GENERATED_MANIFEST,
+    usedNames: new Set()
+  });
+  const staff = assignPortCityStaffMember(
+    homePort,
+    PORT_CITY_STAFF_ROLE.MERCHANT,
+    GENERATED_MANIFEST,
+    new Set()
+  );
+  const passenger = generatePassengerCharacter({
+    identityKey: "origin-contract-passenger",
+    originPort: homePort,
+    destinationPort,
+    manifest: GENERATED_MANIFEST,
+    usedNames: new Set()
+  });
+  const ship = {
+    id: "origin-contract-captain",
+    role: "merchant",
+    profileId: "indian-ocean",
+    currentPort: homePort,
+    captainHomeCityId: homePort.cityId
+  };
+  const captain = assignNpcShipCaptains(
+    [ship],
+    GENERATED_MANIFEST,
+    new Set(),
+    { homeCitiesById: new Map([[homePort.cityId, homePort]]) }
+  ).get(ship.id);
+
+  for (const character of [player, staff, passenger, captain]) {
+    assert.equal(character.homePortCityId, homePort.cityId);
+    assert.equal(character.homePortTileId, homePort.tileId);
+    assert.equal(character.nameCulture, "malukan");
+    assert.equal(character.sex, character.gender);
+  }
 });
 
 test("reported Mediterranean captain survives changed portrait eligibility on restore", () => {

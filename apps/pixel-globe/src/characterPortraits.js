@@ -275,7 +275,7 @@ export function assignPortCityStaff(
       if (sourcePool.length === 0) {
         throw new Error(`${city.cityId} has no distinct portrait source for ${role}`);
       }
-      const character = createPortCityStaffMember(city, role, region, sourcePool, usedNames);
+      const character = createPortCityStaffMember(city, role, sourcePool, usedNames);
       usedSourceIds.add(character.sourceId);
       staff[role] = character;
     }
@@ -298,28 +298,25 @@ export function assignPortCityStaffMember(
   const region = portraitRegionForCity(city);
   const sourcePool = city.isPirateHideout ? piratePortraitSources(manifest, city, excludedSourceIds)
     : portCityStaffSources(manifest, role, region, excludedSourceIds);
-  return createPortCityStaffMember(city, role, region, sourcePool, usedNames);
+  return createPortCityStaffMember(city, role, sourcePool, usedNames);
 }
 
-function createPortCityStaffMember(city, role, region, sourcePool, usedNames) {
+function createPortCityStaffMember(city, role, sourcePool, usedNames) {
   const key = stableCityKey(city);
   const identityKey = `${key}|staff:${role}`;
-  const character = assignCharacterSprite(identityKey, region, sourcePool, new Set());
+  const character = assignPortCharacterIdentity({
+    identityKey,
+    homePort: city,
+    sourcePool,
+    usedNames
+  });
   return Object.freeze(characterWithBiography({
     ...character,
-    ...assignRegionalCharacterIdentity({
-      identityKey,
-      city,
-      character,
-      usedNames
-    }),
     cityKey: key,
     role,
     personalityId: role === PORT_CITY_STAFF_ROLE.HARBOUR_MASTER
       ? portPersonalityForKey(key)
-      : null,
-    homePortCityId: city.cityId,
-    homePortTileId: city.tileId
+      : null
   }, portBiographyOptions(identityKey, city)));
 }
 
@@ -346,22 +343,19 @@ export function assignPortCityStaffMemberFromSource(
     throw new Error(`Fixed ${role} portrait source is not valid for ${region}: ${sourceId}`);
   }
   const identityKey = `${key}|staff:${role}`;
-  const character = assignCharacterSprite(identityKey, region, [source], new Set());
+  const character = assignPortCharacterIdentity({
+    identityKey,
+    homePort: city,
+    sourcePool: [source],
+    usedNames
+  });
   return Object.freeze(characterWithBiography({
     ...character,
-    ...assignRegionalCharacterIdentity({
-      identityKey,
-      city,
-      character,
-      usedNames
-    }),
     cityKey: key,
     role,
     personalityId: role === PORT_CITY_STAFF_ROLE.HARBOUR_MASTER
       ? portPersonalityForKey(key)
-      : null,
-    homePortCityId: city.cityId,
-    homePortTileId: city.tileId
+      : null
   }, portBiographyOptions(identityKey, city)));
 }
 
@@ -400,18 +394,18 @@ export function assignNpcShipCaptains(
       });
     const identityKey = `captain|${ship.id}`;
     const storedIdentity = captainIdentitiesByShipId.get(ship.id) || null;
-    const character = storedIdentity
-      ? assignStoredCharacterSprite(identityKey, region, manifest.sourceCharacters, used, storedIdentity)
-      : assignCharacterSprite(identityKey, region, sourcePool, used);
+    const character = assignPortCharacterIdentity({
+      identityKey,
+      homePort: homeCity,
+      portraitRegionOverride: region,
+      sourcePool,
+      sourceCatalog: manifest.sourceCharacters,
+      storedIdentity,
+      usedPortraitTickets: used,
+      usedNames
+    });
     assignments.set(ship.id, {
       ...character,
-      ...assignRegionalCharacterIdentity({
-        identityKey,
-        city: homeCity,
-        character,
-        usedNames
-      }),
-      ...(storedIdentity ? { name: storedIdentity.name } : {}),
       npcShipId: ship.id,
       role: "captain"
     });
@@ -493,22 +487,19 @@ export function generatePlayerCharacter({
     portraitSourceId,
     "player character"
   );
-  const character = assignCharacterSprite(`player|${identityKey}`, region, sourcePool, new Set());
-  const name = assignRegionalCharacterIdentity({
-    identityKey: `player|${identityKey}`,
-    city: homePort,
-    character,
+  const key = `player|${identityKey}`;
+  const character = assignPortCharacterIdentity({
+    identityKey: key,
+    homePort,
+    sourcePool,
     usedNames
   });
   return Object.freeze(characterWithBiography({
     ...character,
-    ...name,
-    skillIds: characterSkillIdsForIdentity(`player|${identityKey}`),
+    skillIds: characterSkillIdsForIdentity(key),
     role: "player-captain",
-    homePortCityId: homePort.cityId,
-    homePortTileId: homePort.tileId,
     homePortName: homePort.displayCity || homePort.city
-  }, portBiographyOptions(`player|${identityKey}`, homePort)));
+  }, portBiographyOptions(key, homePort)));
 }
 
 export function generateCampaignContactCharacter({
@@ -574,22 +565,18 @@ export function generateSpecialPortCharacter({
     portraitSourceId,
     role
   );
-  const character = assignCharacterSprite(identityKey, region, sourcePool, new Set(), {
+  const character = assignPortCharacterIdentity({
+    identityKey,
+    homePort: port,
+    sourcePool,
+    usedNames,
+    religionId,
     minimumAge: role === "old-buccaneer" ? OLD_BUCCANEER_MINIMUM_AGE : null
   });
   return Object.freeze(characterWithBiography({
     ...character,
-    ...assignRegionalCharacterIdentity({
-      identityKey,
-      city: port,
-      character,
-      religionId,
-      usedNames
-    }),
     skillIds: characterSkillIdsForIdentity(identityKey, { traveler: true }),
-    role,
-    homePortCityId: port.cityId,
-    homePortTileId: port.tileId
+    role
   }, portBiographyOptions(identityKey, port)));
 }
 
@@ -636,22 +623,18 @@ export function generatePassengerCharacter({
     throw new Error(`Character portrait manifest has no ${region} passenger compatible with ${religionId}`);
   }
   const key = `passenger|${identityKey}`;
-  const character = assignCharacterSprite(key, region, sourcePool, new Set());
-  const name = assignRegionalCharacterIdentity({
+  const character = assignPortCharacterIdentity({
     identityKey: key,
-    city: namePort,
-    character,
+    homePort: namePort,
+    sourcePool,
     religionId,
     usedNames
   });
   return Object.freeze(characterWithBiography({
     ...character,
-    ...name,
     ...(religionId === null ? {} : { religionId }),
     skillIds: characterSkillIdsForIdentity(key, { traveler: true }),
     role: "passenger",
-    homePortCityId: namePort.cityId,
-    homePortTileId: namePort.tileId,
     homePortName: namePort.displayCity || namePort.city,
     homePortCountry: namePort.country || "",
     originPortCityId: originPort.cityId,
@@ -714,23 +697,18 @@ function generateRescuedTravelerCharacter({
   if (rescueType !== "pirate-captive" && rescueType !== "castaway") {
     throw new Error(`Unknown rescued traveler character type: ${rescueType}`);
   }
-  const region = portraitRegionForCity(homePort);
   const sourcePool = expressiveCivilianSources(manifest, excludedSourceIds);
   const key = `${rescueType}|${identityKey}`;
-  const character = assignCharacterSprite(key, region, sourcePool, new Set());
-  const name = assignRegionalCharacterIdentity({
+  const character = assignPortCharacterIdentity({
     identityKey: key,
-    city: homePort,
-    character,
+    homePort,
+    sourcePool,
     usedNames
   });
   return Object.freeze(characterWithBiography({
     ...character,
-    ...name,
     skillIds: characterSkillIdsForIdentity(key, { traveler: true }),
     role: rescueType,
-    homePortCityId: homePort.cityId,
-    homePortTileId: homePort.tileId,
     homePortName: homePort.displayCity || homePort.city,
     homePortCountry: homePort.country,
     goal: `Reunite with family in ${homePort.displayCity || homePort.city}`
@@ -798,23 +776,19 @@ function generateRescuedTravelerFamilyMember({
   if (rescueType !== "pirate-captive" && rescueType !== "castaway") {
     throw new Error(`Unknown rescued traveler family type: ${rescueType}`);
   }
-  const region = portraitRegionForCity(homePort);
   const sourcePool = expressiveCivilianSources(manifest, [captive.sourceId, ...excludedSourceIds]);
   const key = `${rescueType}-family|${identityKey}`;
-  const character = assignCharacterSprite(key, region, sourcePool, new Set());
-  const name = assignRegionalFamilyMemberName({
+  const character = assignPortCharacterIdentity({
     identityKey: key,
-    relative: captive,
-    sex: character.sex,
+    homePort,
+    sourcePool,
+    familyRelative: captive,
     usedNames
   });
   return Object.freeze(characterWithBiography({
     ...character,
-    ...name,
     skillIds: characterSkillIdsForIdentity(key, { traveler: true }),
     role: "family",
-    homePortCityId: homePort.cityId,
-    homePortTileId: homePort.tileId,
     homePortName: homePort.displayCity || homePort.city,
     homePortCountry: homePort.country
   }, portBiographyOptions(key, homePort)));
@@ -834,6 +808,73 @@ function portBiographyOptions(identityKey, port) {
 
 function assertUsedNames(usedNames) {
   if (!(usedNames instanceof Set)) throw new Error("Character assignment requires a shared used-name Set");
+}
+
+function assignPortCharacterIdentity({
+  identityKey,
+  homePort,
+  portraitRegionOverride = null,
+  sourcePool,
+  sourceCatalog = sourcePool,
+  storedIdentity = null,
+  usedPortraitTickets = new Set(),
+  usedNames,
+  religionId = null,
+  minimumAge = null,
+  familyRelative = null
+}) {
+  requireEntityId(identityKey, "Port character identity");
+  const homePortCityId = requireCityId(homePort, `Character ${identityKey} home port`);
+  const portraitRegion = portraitRegionOverride ?? portraitRegionForCity(homePort);
+  assertUsedNames(usedNames);
+  if (!(usedPortraitTickets instanceof Set)) {
+    throw new Error(`Character ${identityKey} portrait assignment requires a used-ticket Set`);
+  }
+  if (!Array.isArray(sourcePool) || sourcePool.length === 0) {
+    throw new Error(`Character ${identityKey} requires an eligible portrait source pool`);
+  }
+  if (!Array.isArray(sourceCatalog) || sourceCatalog.length === 0) {
+    throw new Error(`Character ${identityKey} requires a portrait source catalog`);
+  }
+  if (typeof portraitRegion !== "string" || portraitRegion === "") {
+    throw new Error(`Character ${identityKey} requires a portrait region`);
+  }
+  const character = storedIdentity
+    ? assignStoredCharacterSprite(
+        identityKey,
+        portraitRegion,
+        sourceCatalog,
+        usedPortraitTickets,
+        storedIdentity
+      )
+    : assignCharacterSprite(
+        identityKey,
+        portraitRegion,
+        sourcePool,
+        usedPortraitTickets,
+        { minimumAge }
+      );
+  const assignedName = familyRelative
+    ? assignRegionalFamilyMemberName({
+        identityKey,
+        relative: familyRelative,
+        sex: character.sex,
+        usedNames
+      })
+    : assignRegionalCharacterIdentity({
+        identityKey,
+        city: homePort,
+        character,
+        religionId,
+        usedNames
+      });
+  return {
+    ...character,
+    ...assignedName,
+    ...(storedIdentity ? { name: storedIdentity.name } : {}),
+    homePortCityId,
+    homePortTileId: homePort.tileId
+  };
 }
 
 function assignCharacterSprite(key, region, sourcePool, used, { minimumAge = null } = {}) {
