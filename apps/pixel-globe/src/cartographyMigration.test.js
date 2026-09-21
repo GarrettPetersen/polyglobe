@@ -4,7 +4,12 @@ import test from "node:test";
 
 import { buildGeodesicGraph } from "./geodesic.js";
 import { decodeGeodesicGraphBake } from "./geodesicBake.js";
-import { reconcileCartographyTileMask } from "./cartographyMigration.js";
+import {
+  assertCartographyMaskProgression,
+  forEachPackedCartographyTile,
+  mergeCartographyMaskProgression,
+  reconcileCartographyTileMask
+} from "./cartographyMigration.js";
 import { WORLD_GLOBE_SUBDIVISIONS, geodesicTileCount } from "./worldScale.js";
 
 const repoRoot = new URL("../../../", import.meta.url);
@@ -106,4 +111,56 @@ test("cartography migration rejects corrupt masks and unsupported topology jumps
     }),
     /No cartography migration exists/
   );
+});
+
+test("cartography persistence accepts only supersets of the durable map", () => {
+  assert.doesNotThrow(() => assertCartographyMaskProgression(
+    Uint8Array.from([0b00000101]),
+    2,
+    Uint8Array.from([0b00001111, 0b00000001]),
+    5
+  ));
+  assert.throws(
+    () => assertCartographyMaskProgression(
+      Uint8Array.from([0b00000101]),
+      2,
+      Uint8Array.from([0b00000110]),
+      2
+    ),
+    /discard .*mapped tiles/
+  );
+  assert.throws(
+    () => assertCartographyMaskProgression(
+      Uint8Array.from([0b00000101]),
+      2,
+      Uint8Array.from([0b00000101]),
+      1
+    ),
+    /count mismatch/
+  );
+});
+
+test("cartography persistence unions a last good map with newly explored runtime tiles", () => {
+  const result = mergeCartographyMaskProgression(
+    Uint8Array.from([0b00000101, 0b00000001]),
+    3,
+    Uint8Array.from([0b00000110, 0b00000010]),
+    3
+  );
+
+  assert.deepEqual([...result.packedMask], [0b00000111, 0b00000011]);
+  assert.equal(result.seenTileCount, 5);
+  assert.deepEqual(result.restoredTileIds, [0, 8]);
+  assert.equal(result.changed, true);
+});
+
+test("packed cartography restoration visits only mapped tile IDs", () => {
+  const visited = [];
+  const count = forEachPackedCartographyTile(
+    Uint8Array.from([0b10000101, 0b00000010]),
+    10,
+    (tileId) => visited.push(tileId)
+  );
+  assert.equal(count, 4);
+  assert.deepEqual(visited, [0, 2, 7, 9]);
 });

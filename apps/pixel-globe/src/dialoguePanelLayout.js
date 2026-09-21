@@ -206,14 +206,16 @@ export function dialoguePanelGeometry({
   const x = 6;
   const preferredY = screenHeight > screenWidth ? 96 : 78;
   const minimumY = 6;
+  const portraitSize = 64;
+  const portraitOverlap = 8;
+  const minimumPanelY = minimumY + portraitSize - portraitOverlap;
   const w = screenWidth - x * 2;
   const requiredHeight = Math.max(108, contentHeight);
-  const y = Math.min(preferredY, Math.max(minimumY, screenHeight - 7 - requiredHeight));
+  const y = Math.min(preferredY, Math.max(minimumPanelY, screenHeight - 7 - requiredHeight));
   const maximumHeight = screenHeight - y - 7;
   const h = Math.min(maximumHeight, requiredHeight);
-  const portraitY = Math.max(minimumY, y - 56);
+  const portraitY = y - portraitSize + portraitOverlap;
   const portraitInset = 16;
-  const portraitSize = 64;
   return Object.freeze({
     panel: Object.freeze({ x, y, w, h }),
     portraits: Object.freeze({
@@ -221,6 +223,17 @@ export function dialoguePanelGeometry({
       right: Object.freeze({ x: x + w - portraitInset - portraitSize, y: portraitY })
     })
   });
+}
+
+export function dialogueBackdropLayerOrder({ hasFactionBlock }) {
+  if (typeof hasFactionBlock !== "boolean") {
+    throw new Error("Dialogue backdrop layer order requires a faction-block decision");
+  }
+  return Object.freeze([
+    "portraits",
+    "panel",
+    ...(hasFactionBlock ? ["faction"] : [])
+  ]);
 }
 
 export function marketModeSwitchLayout({ panel, activeMode, width = 104, height = 22 }) {

@@ -15,20 +15,20 @@ test("assault foundations never enter burning-building fire or smoke geometry", 
     frame: { frame: { w: 20, h: 20 } }, seed: 2 };
   const destination = { x: 0, y: 0, width: 20, height: 20 };
   const context = vm.createContext({
-    state: { features: { leftBankCity: true }, staticAtlas: {}, streetBuildings: [{ id: "inn", frame: {},
-      layerName: "Inn", x: 0, y: 0, width: 20, height: 20 }] },
-    visitAuthoredBombardmentPresentations: (visit) => { visit(burning, destination); visit(null, destination); },
-    visitBackgroundCityBombardmentPresentations: (_side, visit) => visit(burning, destination),
-    cityStreetBombardmentPresentation: () => foundation,
-    regionalStaticFrame: () => null,
     sceneWindow: () => ({ x: 0, y: 0 })
   });
   vm.runInContext(source.slice(start, end), context);
   let effects = 0;
+  const specs = [burning, burning, burning, foundation].map((presentation) => ({
+    presentation,
+    ...destination,
+    depth: 0.5,
+    parallaxAnchor: 0
+  }));
   context.forEachBombardmentPresentation((presentation, destination) => {
     cityBombardmentEffectGeometry({ damage: presentation.damage, destination,
       sourceWidth: presentation.frame.frame.w, sourceHeight: presentation.frame.frame.h, seed: presentation.seed });
     effects++;
-  });
+  }, specs);
   assert.equal(effects, 3, "authored and both background banks still burn");
 });

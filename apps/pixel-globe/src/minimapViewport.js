@@ -237,6 +237,50 @@ export function minimapViewportPixel({
   return Object.freeze({ x, y, pixel: x + y * pixelWidth });
 }
 
+export function minimapExplorationTrace({
+  seenTileIds,
+  tileProjectedX,
+  tileProjectedY,
+  viewport,
+  worldWidth,
+  pixelWidth,
+  pixelHeight
+}) {
+  if (!Array.isArray(seenTileIds) ||
+      !(tileProjectedX instanceof Float32Array) ||
+      !(tileProjectedY instanceof Float32Array) ||
+      tileProjectedX.length !== tileProjectedY.length) {
+    throw new Error("Minimap exploration trace requires tile IDs and matching projected coordinates");
+  }
+  const tileByPixel = new Map();
+  for (const tileId of seenTileIds) {
+    if (!Number.isInteger(tileId) || tileId < 0 || tileId >= tileProjectedX.length) {
+      throw new Error(`Invalid explored minimap tile: ${tileId}`);
+    }
+    const point = minimapViewportPixel({
+      viewport,
+      projectedX: tileProjectedX[tileId],
+      projectedY: tileProjectedY[tileId],
+      worldWidth,
+      pixelWidth,
+      pixelHeight
+    });
+    if (!point) continue;
+    const existingTileId = tileByPixel.get(point.pixel);
+    if (existingTileId === undefined || tileId < existingTileId) {
+      tileByPixel.set(point.pixel, tileId);
+    }
+  }
+  return Object.freeze([...tileByPixel]
+    .sort(([leftPixel], [rightPixel]) => leftPixel - rightPixel)
+    .map(([pixel, tileId]) => Object.freeze({
+      x: pixel % pixelWidth,
+      y: Math.floor(pixel / pixelWidth),
+      pixel,
+      tileId
+    })));
+}
+
 function occupiedLongitudeArc(binCounts, worldWidth) {
   const occupied = [];
   for (let index = 0; index < binCounts.length; index++) {

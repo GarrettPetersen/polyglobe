@@ -80,7 +80,13 @@ import {
   buildFineToCoarseTileMapping,
   geodesicTileCount
 } from "./worldScale.js";
-import { reconcileCartographyTileMask } from "./cartographyMigration.js";
+import {
+  assertCartographyMaskProgression,
+  forEachPackedCartographyTile,
+  mergeCartographyMaskProgression,
+  reconcileCartographyTileMask
+} from "./cartographyMigration.js";
+import { advanceCartographyRecovery } from "./cartographyRecovery.js";
 import {
   coarseMaskHasWorldTile,
   coarseTileIdForWorldTile,
@@ -1589,6 +1595,7 @@ import {
 import {
   MINIMAP_LONGITUDE_BIN_COUNT,
   exploredMinimapViewport,
+  minimapExplorationTrace,
   minimapLandWeight,
   minimapLongitudeBin,
   minimapProjectLatitude,
@@ -1608,6 +1615,7 @@ import {
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
   dialogueFeedbackTextLines,
+  dialogueBackdropLayerOrder,
   dialogueOverlayIsVisible,
   dialogueOptionGroups,
   dialogueRegularOptionRows,
@@ -3302,6 +3310,8 @@ const MINIMAP_PARTIAL_LAND_FLOOR = 0.18;
 const MINIMAP_PARTIAL_LAND_GAMMA = 0.62;
 const MINIMAP_PARTIAL_DITHER = 0.08;
 const MINIMAP_SAMPLE_OFFSETS = Object.freeze([1 / 6, 3 / 6, 5 / 6]);
+const CARTOGRAPHY_RECOVERY_CHUNK_TILES = 2048;
+const CARTOGRAPHY_RECOVERY_IDLE_TIMEOUT_MS = 250;
 const HISTORICAL_BATTLE_WORLD_MAP_W = 160;
 const HISTORICAL_BATTLE_WORLD_MAP_H = 58;
 const HISTORICAL_BATTLE_PORTRAIT_SIZE = 64;
@@ -4300,6 +4310,7 @@ let lastAutosaveMs = 0;
 let deferredAutosaveRequest = null;
 let deferredAutosaveDueMs = null;
 let pendingIdleSaveReason = null;
+let cartographyRecoveryJob = null;
 let captainAlertModal = null;
 let characterAlertPortraitStage = createDialoguePortraitStageState();
 let familyDebtReturnReminderDelivered = false;
@@ -4653,6 +4664,10 @@ async function main() {
       initialShipSlug: START_SHIP_SLUG,
       externalFrameClock: true,
       separateEmissiveOverlay: true,
+      measureStage: (name, operation) => measurePerformanceBenchmarkStage(
+        `render.city.raster.${name}`,
+        operation
+      ),
       onDestination: activatePortCityDestination,
       renderText: renderedUiText,
       smallFontForText: (text) => resolvedPixelFont(PIXEL_FONT_SMALL_8, text),
@@ -11518,6 +11533,13 @@ function setupPerformanceBenchmark() {
   gameState.memory.flags.oarTutorialShown = true;
   gameState.memory.flags.sailingBasicsTutorialShown = true;
   gameState.memory.flags.tackingTutorialShown = true;
+  if (PERFORMANCE_BENCHMARK.runCaptureSequence) {
+    if (!CAPTURE_SCENARIO.sequence) {
+      throw new Error(`Performance benchmark ${PERFORMANCE_BENCHMARK.id} requires a capture sequence`);
+    }
+    captureDirector = createCaptureDirector(CAPTURE_SCENARIO.sequence);
+    stageCaptureSequence();
+  }
   if (PERFORMANCE_BENCHMARK.initialScreen === "politics") openPoliticsMenu();
   else if (PERFORMANCE_BENCHMARK.initialScreen === "aboard") openAboardMenu();
   else if (PERFORMANCE_BENCHMARK.initialScreen === "start-menu") {
@@ -11549,6 +11571,13 @@ function setupPerformanceBenchmark() {
 function updatePerformanceBenchmark(nowMs, cpuMs) {
   const state = performanceBenchmarkState;
   if (!state || state.result) return;
+  if (state.config.runCaptureSequence && !portAssaultState) {
+    state.startedAtMs = nowMs;
+    state.measurementAnchorMs = null;
+    state.previousFrameAtMs = null;
+    state.currentFrameStageMs = {};
+    return;
+  }
   const result = recordPerformanceBenchmarkFrame(
     state,
     nowMs,
@@ -11630,6 +11659,14 @@ function performanceBenchmarkSceneSnapshot(state) {
       goldTreasureActive: Boolean(goldTreasureSequence),
       surfaceIceEntrapmentActive
     }),
+    portAssault: portAssaultState ? Object.freeze({
+      cityId: portAssaultState.cityCall.cityId,
+      combatants: portAssaultState.battle.combatants.length,
+      events: portAssaultState.battle.events.length,
+      elapsedMs: Math.round(portAssaultElapsedMs()),
+      durationMs: portAssaultState.battle.durationMs,
+      outcome: portAssaultState.battle.outcome
+    }) : null,
     gpuRenderer: worldRenderer.stats()
   };
 }
@@ -12228,6 +12265,7 @@ function updateCaptureDirectorFrame(nowMs) {
 
   if (!captureDirector.stopping && captureDirectorComplete(captureDirector)) {
     captureDirector.stopping = true;
+    if (PERFORMANCE_BENCHMARK) return;
     capturePlaybackPaused = true;
     if (CAPTURE_FRAME_PASS) {
       emitCaptureEvent("capture-stop", { reason: "sequence-complete" });
@@ -48079,6 +48117,7 @@ function buildMinimap() {
     ...buildMinimapRaster(MINIMAP_W, MINIMAP_H, { trackSampledTiles: true }),
     background: createCaptainChartBackground(),
     seenTiles: new Uint8Array(graph.tileCount),
+    seenTileIds: [],
     packedSeenTiles: new Uint8Array(Math.ceil(graph.tileCount / 8)),
     packedSeenTilesBase64: "",
     packedSeenTileCount: 0,
@@ -48235,6 +48274,7 @@ function revealMinimapTile(tileId) {
     return false;
   }
   minimap.seenTiles[tileId] = 1;
+  minimap.seenTileIds.push(tileId);
   paintCaptainChartBackgroundTile(tileId);
   minimap.packedSeenTiles[tileId >> 3] |= 1 << (tileId & 7);
   minimap.seenTileCount += 1;
@@ -48259,15 +48299,14 @@ function revealMinimapTile(tileId) {
     return true;
   }
   const sampledPixels = minimap.sampledPixelsByTile.get(tileId);
-  if (!sampledPixels) {
-    minimap.sourceRevision = minimap.rasterRevision;
-    return true;
+  if (sampledPixels) {
+    for (const pixel of sampledPixels) {
+      if (minimap.revealedPixels[pixel] !== 0) continue;
+      minimap.revealedPixels[pixel] = 1;
+      paintMinimapPixel(minimap, pixel);
+    }
   }
-  for (const pixel of sampledPixels) {
-    if (minimap.revealedPixels[pixel] !== 0) continue;
-    minimap.revealedPixels[pixel] = 1;
-    paintMinimapPixel(minimap, pixel);
-  }
+  paintMinimapExplorationTile(minimap, tileId);
   minimap.sourceRevision = minimap.rasterRevision;
   return true;
 }
@@ -48392,7 +48431,44 @@ function completeMinimapRasterRender(raster) {
   raster.sourceRevision = pending.sourceRevision;
   raster.renderedViewport = pending.viewport;
   raster.renderedViewportKey = pending.viewportKey;
+  paintMinimapExplorationTrace(raster, pending.viewport);
   raster.pendingRender = null;
+}
+
+function paintMinimapExplorationTrace(raster, viewport) {
+  if (!minimap || !viewport) return;
+  // Once the explored set is denser than the output raster, ordinary sampling
+  // already covers it well; the trace exists to preserve sparse voyage routes.
+  if (minimap.seenTileIds.length >= raster.width * raster.height) return;
+  const trace = minimapExplorationTrace({
+    seenTileIds: minimap.seenTileIds,
+    tileProjectedX: minimap.tileProjectedX,
+    tileProjectedY: minimap.tileProjectedY,
+    viewport,
+    worldWidth: MINIMAP_W,
+    pixelWidth: raster.width,
+    pixelHeight: raster.height
+  });
+  for (const entry of trace) paintMinimapExplorationTile(raster, entry.tileId, entry);
+}
+
+function paintMinimapExplorationTile(raster, tileId, knownPixel = null) {
+  const point = knownPixel || minimapViewportPixel({
+    viewport: raster.renderedViewport,
+    projectedX: minimap.tileProjectedX[tileId],
+    projectedY: minimap.tileProjectedY[tileId],
+    worldWidth: MINIMAP_W,
+    pixelWidth: raster.width,
+    pixelHeight: raster.height
+  });
+  if (!point) return false;
+  raster.revealedPixels[point.pixel] = 1;
+  raster.ctx.fillStyle = rgbColor(minimapColor(minimapLandWeight(
+    earthById[tileId],
+    (riverMasks?.[tileId] || 0) !== 0
+  ), tileId));
+  raster.ctx.fillRect(point.x, point.y, 1, 1);
+  return true;
 }
 
 function minimapViewportRenderKey(viewport) {
@@ -48507,15 +48583,100 @@ function syncCartographyToGameState() {
       `Packed cartography mask has ${minimap.packedSeenTiles.length} bytes; expected ${expectedBytes}`
     );
   }
-  if (minimap.packedSeenTileCount !== minimap.seenTileCount) {
-    minimap.packedSeenTilesBase64 = bytesToBase64(minimap.packedSeenTiles);
+  const durableCartography = gameState.memory.cartography;
+  const durablePackedMask = durableCartography.seenTilesBase64 === ""
+    ? new Uint8Array(0)
+    : base64ToBytes(durableCartography.seenTilesBase64);
+  const merged = mergeCartographyMaskProgression(
+    durablePackedMask,
+    durableCartography.seenTileCount,
+    minimap.packedSeenTiles,
+    minimap.seenTileCount
+  );
+  if (merged.changed) {
+    scheduleCartographyRuntimeRecovery(merged.restoredTileIds);
+    console.warn(
+      `[pixel-globe] preserved ${merged.restoredTileIds.length} mapped tiles from durable cartography; ` +
+        `live chart recovery scheduled`
+    );
+  }
+  const packedForSave = merged.packedMask;
+  const seenTileCountForSave = merged.seenTileCount;
+  const packedBase64ForSave = !merged.changed &&
+    minimap.packedSeenTileCount === minimap.seenTileCount
+    ? minimap.packedSeenTilesBase64
+    : bytesToBase64(packedForSave);
+  if (!merged.changed) {
+    minimap.packedSeenTilesBase64 = packedBase64ForSave;
     minimap.packedSeenTileCount = minimap.seenTileCount;
   }
   updateCartographyMemory(
     gameState,
-    minimap.packedSeenTilesBase64,
-    minimap.seenTileCount
+    packedBase64ForSave,
+    seenTileCountForSave
   );
+}
+
+function scheduleCartographyRuntimeRecovery(tileIds) {
+  if (tileIds.length === 0) return;
+  if (cartographyRecoveryJob?.gameState === gameState &&
+      cartographyRecoveryJob?.minimap === minimap) return;
+  cancelCartographyRuntimeRecovery();
+  const job = {
+    gameState,
+    minimap,
+    tileIds: [...tileIds],
+    nextIndex: 0,
+    request: null
+  };
+  const callback = (deadline) => {
+    job.request = null;
+    if (cartographyRecoveryJob !== job || job.gameState !== gameState || job.minimap !== minimap) {
+      if (cartographyRecoveryJob === job) cartographyRecoveryJob = null;
+      return;
+    }
+    const advance = advanceCartographyRecovery(job.tileIds, job.nextIndex, {
+      maxTiles: CARTOGRAPHY_RECOVERY_CHUNK_TILES,
+      revealTile: revealMinimapTile,
+      shouldYield: () => !deadline.didTimeout && deadline.timeRemaining() < 1
+    });
+    job.nextIndex = advance.nextIndex;
+    if (advance.processed > 0) dirty = true;
+    if (advance.complete) {
+      cartographyRecoveryJob = null;
+      refreshMinimapViewport();
+      console.info(
+        `[pixel-globe] restored ${job.tileIds.length} durable mapped tiles into the live chart`
+      );
+      return;
+    }
+    job.request = queueCartographyRecoveryCallback(callback);
+  };
+  cartographyRecoveryJob = job;
+  job.request = queueCartographyRecoveryCallback(callback);
+}
+
+function queueCartographyRecoveryCallback(callback) {
+  if (typeof window.requestIdleCallback === "function") {
+    return {
+      kind: "idle",
+      id: window.requestIdleCallback(callback, { timeout: CARTOGRAPHY_RECOVERY_IDLE_TIMEOUT_MS })
+    };
+  }
+  return {
+    kind: "timeout",
+    id: window.setTimeout(() => callback({
+      didTimeout: false,
+      timeRemaining: () => 4
+    }), 16)
+  };
+}
+
+function cancelCartographyRuntimeRecovery() {
+  const request = cartographyRecoveryJob?.request;
+  if (request?.kind === "idle") window.cancelIdleCallback(request.id);
+  else if (request?.kind === "timeout") window.clearTimeout(request.id);
+  cartographyRecoveryJob = null;
 }
 
 function restoreCartographyFromGameState(savedWorldTopology) {
@@ -48523,8 +48684,10 @@ function restoreCartographyFromGameState(savedWorldTopology) {
   if (!savedWorldTopology || typeof savedWorldTopology.changed !== "boolean") {
     throw new Error("Cannot restore cartography without saved world topology");
   }
+  cancelCartographyRuntimeRecovery();
   const memory = gameState.memory.cartography;
   minimap.seenTiles.fill(0);
+  minimap.seenTileIds.length = 0;
   minimap.background.cache.reset();
   minimap.packedSeenTiles.fill(0);
   minimap.packedSeenTilesBase64 = "";
@@ -48558,6 +48721,12 @@ function restoreCartographyFromGameState(savedWorldTopology) {
     ? bytesToBase64(packed)
     : memory.seenTilesBase64;
   if (reconciliation.migrated) {
+    assertCartographyMaskProgression(
+      base64ToBytes(memory.seenTilesBase64),
+      memory.seenTileCount,
+      packed,
+      savedSeenTileCount
+    );
     updateCartographyMemory(gameState, packedBase64, savedSeenTileCount);
     console.info(
       `[pixel-globe] migrated captain chart from subdivision ` +
@@ -48566,11 +48735,23 @@ function restoreCartographyFromGameState(savedWorldTopology) {
     );
   }
   minimap.packedSeenTiles.set(packed);
-  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
-    if ((packed[tileId >> 3] & (1 << (tileId & 7))) !== 0) revealMinimapTile(tileId);
+  const restoredTileCount = forEachPackedCartographyTile(
+    packed,
+    graph.tileCount,
+    revealMinimapTile
+  );
+  if (restoredTileCount !== savedSeenTileCount) {
+    throw new Error(
+      `Cartography packed iteration mismatch: mask=${restoredTileCount} state=${savedSeenTileCount}`
+    );
   }
   if (minimap.seenTileCount !== savedSeenTileCount) {
     throw new Error(`Cartography count mismatch: mask=${minimap.seenTileCount} state=${savedSeenTileCount}`);
+  }
+  if (minimap.seenTileIds.length !== savedSeenTileCount) {
+    throw new Error(
+      `Cartography tile index mismatch: ids=${minimap.seenTileIds.length} state=${savedSeenTileCount}`
+    );
   }
   minimap.packedSeenTilesBase64 = packedBase64;
   minimap.packedSeenTileCount = minimap.seenTileCount;
@@ -49803,6 +49984,8 @@ function drawCachedCaptainChart(targetRaster, viewport) {
     first/spanX*targetRaster.width,targetRaster.height);
   if (first < spanX) targetRaster.ctx.drawImage(background.canvas,0,startY,spanX-first,spanY,
     first/spanX*targetRaster.width,0,(spanX-first)/spanX*targetRaster.width,targetRaster.height);
+  targetRaster.renderedViewport = viewport;
+  paintMinimapExplorationTrace(targetRaster, viewport);
   return true;
 }
 
@@ -66951,33 +67134,40 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
       : [];
   }
 
-  drawPiratePaperPanel(panel);
-  ctx.strokeStyle = PIRATE_MENU_INK;
-  ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
-  ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
-  ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
-
-  // The panel and authority flag sit behind the speakers. On short viewports the
-  // dialogue panel rises into the portrait area; painting it last used to hide
-  // the port official completely.
-  if (portFaction && !compactMarketSwitch) {
-    drawDialogueFactionFlag(portFaction, panel, nowMs, subject, factionBlockW);
-  }
   const stagedPortraits = [...portraitStage.frames].sort((a, b) => (
     Number(a.characterId === subject.character.id) - Number(b.characterId === subject.character.id)
   ));
-  for (const frame of stagedPortraits) {
-    const anchor = geometry.portraits[frame.side];
-    drawDialoguePortrait(
-      frame.character,
-      frame.expressionId,
-      anchor.x,
-      anchor.y + frame.offsetY,
-      {
-        flipX: frame.side === "left",
-        tone: frame.tone
+  const hasFactionBlock = Boolean(portFaction && !compactMarketSwitch);
+  for (const layer of dialogueBackdropLayerOrder({ hasFactionBlock })) {
+    if (layer === "portraits") {
+      for (const frame of stagedPortraits) {
+        const anchor = geometry.portraits[frame.side];
+        drawDialoguePortrait(
+          frame.character,
+          frame.expressionId,
+          anchor.x,
+          anchor.y + frame.offsetY,
+          {
+            flipX: frame.side === "left",
+            tone: frame.tone
+          }
+        );
       }
-    );
+      continue;
+    }
+    if (layer === "panel") {
+      drawPiratePaperPanel(panel);
+      ctx.strokeStyle = PIRATE_MENU_INK;
+      ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1);
+      ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
+      ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
+      continue;
+    }
+    if (layer === "faction") {
+      drawDialogueFactionFlag(portFaction, panel, nowMs, subject, factionBlockW);
+      continue;
+    }
+    throw new Error(`Unknown dialogue backdrop layer: ${layer}`);
   }
   if (portraitStage.animating) dirty = true;
 
@@ -68691,7 +68881,7 @@ function drawDialogueFactionFlag(faction, panel, nowMs, city, factionBlockW) {
   const hasFlag = factionHasFlag(faction.id);
   if (hasFlag) {
     ctx.fillStyle = "#4c3e24";
-    ctx.fillRect(flagX - 1, flagY - 1, 1, DIALOGUE_FLAG_H + 2);
+    ctx.fillRect(flagX - 1, flagY, 1, DIALOGUE_FLAG_H + 1);
     drawWavingFactionFlag(
       faction.id,
       flagX,

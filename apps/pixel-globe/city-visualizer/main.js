@@ -65,6 +65,10 @@ import {
 } from "./cityBackground.js";
 import { cityOceanParallaxDepth, cityOceanRowOffset } from "./cityOceanMotion.js";
 import {
+  citySceneCacheBounds,
+  contiguousCityProjectionGroups
+} from "./cityProjectionGroups.js";
+import {
   cityWaterAnimatedLayerUsesPalette,
   cityWaterDepthIndex,
   cityWaterLatitudeBand,
@@ -227,7 +231,8 @@ import {
 import { darkerResurrect64Hex } from "../src/waterLatitudePalette.js";
 import { shipyardConstructionFillPixels } from "../src/shipyardConstructionArt.js";
 import {
-  CITY_STATIC_SCENE_ENTRY_KINDS
+  CITY_STATIC_SCENE_ENTRY_KINDS,
+  cityStaticSceneProjectionInstruction
 } from "./cityStaticSceneProjection.js";
 import {
   CITY_DOCKSIDE_SHADOW_STATES,
@@ -285,6 +290,7 @@ export async function createCitySceneRuntime({
   externalFrameClock = false,
   separateEmissiveOverlay = false,
   benchmark = null,
+  measureStage = (_name, operation) => operation(),
   onDestination = null,
   renderText = (text) => text,
   smallFontForText = (_text) => CITY_PIXEL_FONT_SMALL_8,
@@ -296,7 +302,7 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 if (typeof separateEmissiveOverlay !== "boolean") {
   throw new TypeError("City scene runtime requires an explicit emissive-overlay mode");
 }
-for (const [label, callback] of Object.entries({ renderText, smallFontForText, titleFontForText })) {
+for (const [label, callback] of Object.entries({ renderText, smallFontForText, titleFontForText, measureStage })) {
   if (typeof callback !== "function") throw new TypeError(`City scene runtime requires ${label}`);
 }
 if (typeof onDestination !== "function") {
@@ -327,11 +333,8 @@ const latitudeWaterFrameCanvasCache = new WeakMap();
 const latitudeWaterCssColorCache = new Map();
 const docksideShipPresentationPromiseCache = new Map();
 const bombardmentFrameCache = new Map();
-const bombardmentFireMaskCanvas = document.createElement("canvas");
-const bombardmentFireMaskContext = bombardmentFireMaskCanvas.getContext("2d");
-if (!bombardmentFireMaskContext) {
-  throw new Error("City scene could not create its bombardment fire mask context");
-}
+const bombardmentFireMaskCache = new WeakMap();
+const backgroundCityStaticLayerCache = new Map();
 const buildingEdgeContrastFrameCache = new WeakMap();
 const readStaticFramePixels = createRasterFramePixelReader(readAtlasFramePixels);
 const MAX_DOCKSIDE_SHIP_PRESENTATIONS = 4;
@@ -351,6 +354,9 @@ let beachOpaqueRowRuns = null;
 let assaultBeachFrame = null;
 let renderFrameId = null;
 let bombardmentOverlayFrameCache = null;
+let bombardmentPresentationSpecsCache = null;
+const bombardmentMasterFireLayersByFrame = new Map();
+let assaultFrameLayoutCache = null;
 let skySourceColorsByRow = null;
 let skyMasterY = null;
 const state = {
@@ -1295,20 +1301,22 @@ function prepareEmissiveFrame() {
 }
 
 function renderCityFrame(timeMs) {
-  advanceCityFrame(timeMs);
-  prepareEmissiveFrame();
+  measureStage("update", () => advanceCityFrame(timeMs));
+  measureStage("emissive.prepare", prepareEmissiveFrame);
   context.imageSmoothingEnabled = false;
-  context.fillStyle = "#6385c5";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  citySceneRenderer.renderFrame({
+  measureStage("clear", () => {
+    context.fillStyle = "#6385c5";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  });
+  measureStage("scene", () => citySceneRenderer.renderFrame({
     timeMs,
     width: canvas.width,
     height: canvas.height,
     staticCacheKey: staticSceneCacheKey,
     useStaticCache: cityStaticCacheIsUsable()
-  });
-  drawCityPrecipitation(timeMs);
-  drawSceneLabels();
+  }));
+  measureStage("precipitation", () => drawCityPrecipitation(timeMs));
+  measureStage("labels", drawSceneLabels);
 }
 
 function renderBenchmarkedCityFrame(timeMs) {
@@ -1457,7 +1465,9 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
 }
 
 function drawMeasuredSceneEntry(entry, timeMs, targetContext) {
-  if (!state.benchmarkState) return drawSceneEntry(entry, timeMs, targetContext);
+  if (!state.benchmarkState) {
+    return measureStage(`entry.${entry.kind}`, () => drawSceneEntry(entry, timeMs, targetContext));
+  }
   const startedAtMs = performance.now();
   try {
     return drawSceneEntry(entry, timeMs, targetContext);
@@ -1577,10 +1587,46 @@ function staticSceneCacheKey(entries) {
   return [
     `${canvas.width}x${canvas.height}`,
     `assault=${state.assaultPresentation !== null}`,
-    `camera=${state.parallax}`,
+    `projection=${staticSceneProjectionKey(entries)}`,
     `bombardment=${state.bombardmentEventId || "none"}`,
     hoveredDestinationId
   ].join("|");
+}
+
+function staticSceneProjectionKey(entries) {
+  return entries.map((entry) => {
+    const instruction = cityStaticSceneProjectionInstruction(entry);
+    if (instruction.kind === "layer") {
+      const occurrence = instruction.occurrence ?? 0;
+      const parallaxAnchor = instruction.parallax === "river-default"
+        ? PORT_SCENE_CAMERA.riverDefaultParallax
+        : layerParallaxAnchor(instruction.layerName, occurrence);
+      const offsetX = instruction.parallax === "river-default"
+        ? 0
+        : layerSceneOffsetX(instruction.layerName, occurrence, state.features.approach);
+      const offsetY = instruction.parallax === "river-default"
+        ? 0
+        : layerSceneOffsetY(instruction.layerName, occurrence, state.features.approach);
+      const window = sceneWindow(
+        layerParallaxDepth(instruction.layerName, occurrence),
+        offsetX,
+        offsetY,
+        parallaxAnchor
+      );
+      return `${entry.kind}:${Math.round(-window.x)}`;
+    }
+    if (instruction.kind === "explicit") {
+      const window = sceneWindow(instruction.depth, 0, 0, instruction.parallaxAnchor);
+      return `${entry.kind}:${Math.round(-window.x)}`;
+    }
+    if (instruction.kind === "background-city") {
+      const { painterOrder } = backgroundCityRenderState(instruction.side);
+      return `${entry.kind}:${painterOrder.map(({ depth, parallaxAnchor }) => (
+        Math.round(-sceneWindow(depth, 0, 0, parallaxAnchor).x)
+      )).join(",")}`;
+    }
+    throw new Error(`Unknown city static projection instruction: ${instruction.kind}`);
+  }).join(";");
 }
 
 function cityStaticCacheIsUsable() {
@@ -1610,6 +1656,9 @@ function advanceCloudMotion(timeMs) {
 
 function rebuildCitySceneRenderPlan() {
   if (!state.features || !state.portManifest) return;
+  backgroundCityStaticLayerCache.clear();
+  bombardmentPresentationSpecsCache = null;
+  bombardmentMasterFireLayersByFrame.clear();
   const entries = createSceneRenderEntries();
   citySceneRenderer.setEntries(entries);
 }
@@ -2193,12 +2242,51 @@ function backgroundCityRenderState(side) {
 }
 
 function drawBackgroundCityStatic(side, targetContext) {
-  const { rows, painterOrder } = backgroundCityRenderState(side);
+  const { rows } = backgroundCityRenderState(side);
   if (rows.length === 0) return;
-  for (const entry of painterOrder) {
+  for (const layer of cachedBackgroundCityStaticLayers(side)) {
+    const window = sceneWindow(layer.depth, 0, 0, layer.parallaxAnchor);
+    targetContext.drawImage(
+      layer.canvas,
+      layer.x + Math.round(-window.x),
+      layer.y + Math.round(-window.y)
+    );
+  }
+}
+
+function cachedBackgroundCityStaticLayers(side) {
+  if (backgroundCityStaticLayerCache.has(side)) return backgroundCityStaticLayerCache.get(side);
+  const { rows, painterOrder } = backgroundCityRenderState(side);
+  const groups = contiguousCityProjectionGroups(painterOrder);
+  const layers = Object.freeze(groups.map((group) => {
+    const bounds = citySceneCacheBounds(group.entries.map(({ building }) => ({
+      x: Math.round(building.x),
+      y: Math.round(building.y),
+      width: building.width,
+      height: building.height
+    })));
+    const canvas = createCitySceneCacheSurface(bounds.width, bounds.height);
+    const layerContext = canvas.getContext("2d");
+    if (!layerContext) throw new Error(`Could not cache background city ${side} layer`);
+    layerContext.imageSmoothingEnabled = false;
+    for (const entry of group.entries) {
+      drawBackgroundCityBuildingInMasterSpace(side, rows, entry, layerContext, bounds);
+    }
+    return Object.freeze({
+      canvas,
+      x: bounds.x,
+      y: bounds.y,
+      depth: group.depth,
+      parallaxAnchor: group.parallaxAnchor
+    });
+  }));
+  backgroundCityStaticLayerCache.set(side, layers);
+  return layers;
+}
+
+function drawBackgroundCityBuildingInMasterSpace(side, rows, entry, targetContext, bounds) {
     const building = entry.building;
     const frame = building.frame;
-    const window = sceneWindow(entry.depth, 0, 0, entry.parallaxAnchor);
     const atmosphereLevel = building.atmosphereLevel ?? cityBackgroundAtmosphereLevel(
       entry.distanceFromFront,
       rows.length
@@ -2220,12 +2308,11 @@ function drawBackgroundCityStatic(side, targetContext) {
       displayed.frame.frame.y,
       frame.frame.w,
       frame.frame.h,
-      Math.round(building.x - window.x),
-      Math.round(building.y - window.y),
+      Math.round(building.x) - bounds.x,
+      Math.round(building.y) - bounds.y,
       building.width,
       building.height
     );
-  }
 }
 
 function drawBackgroundCitySmoke(side, timeMs) {
@@ -2468,12 +2555,16 @@ function drawBombardmentFireOverlay(timeMs) {
   if (!fireTargetContext) throw new Error("Bombarded city has no emissive render target");
   fireTargetContext.imageSmoothingEnabled = false;
   if (cityStaticCacheIsUsable()) {
+    const projectionKey = measureStage(
+      "bombardment.projection",
+      bombardmentOverlayProjectionKey
+    );
     const baseKey = [
       state.city.id,
       state.bombardmentEventId,
       canvas.width,
       canvas.height,
-      state.parallax,
+      projectionKey,
       state.wind.flowDirectionRad,
       state.wind.strength
     ].join("|");
@@ -2512,7 +2603,10 @@ function drawBombardmentFireOverlay(timeMs) {
       if (!smokeContext) throw new Error("City bombardment smoke cache has no render context");
       smokeContext.imageSmoothingEnabled = false;
       smokeContext.clearRect(0, 0, smokeOverlay.width, smokeOverlay.height);
-      drawBombardmentSmokeSources(smokeTimeMs, smokeContext);
+      measureStage(
+        "bombardment.smoke",
+        () => drawBombardmentSmokeSources(smokeTimeMs, smokeContext)
+      );
       bombardmentOverlayFrameCache.smokeTimeMs = smokeTimeMs;
     }
     context.drawImage(smokeOverlay, 0, 0);
@@ -2526,7 +2620,10 @@ function drawBombardmentFireOverlay(timeMs) {
       const overlayContext = overlay.getContext("2d");
       if (!overlayContext) throw new Error("Could not cache city bombardment fire overlay");
       overlayContext.imageSmoothingEnabled = false;
-      drawBombardmentFireSources(timeMs, overlayContext);
+      measureStage(
+        "bombardment.fire",
+        () => drawBombardmentFireSources(timeMs, overlayContext)
+      );
       bombardmentOverlayFrameCache.fireFrames.set(animationFrame, overlay);
     }
     fireTargetContext.drawImage(overlay, 0, 0);
@@ -2535,14 +2632,82 @@ function drawBombardmentFireOverlay(timeMs) {
   const smokeTimeMs = prefersReducedMotion.matches
     ? 5000
     : Math.floor(timeMs / CITY_BOMBARDMENT_SMOKE_FRAME_MS) * CITY_BOMBARDMENT_SMOKE_FRAME_MS;
-  drawBombardmentSmokeSources(smokeTimeMs, context);
-  drawBombardmentFireSources(timeMs, fireTargetContext);
+  measureStage(
+    "bombardment.smoke",
+    () => drawBombardmentSmokeSources(smokeTimeMs, context)
+  );
+  measureStage(
+    "bombardment.fire",
+    () => drawBombardmentFireSources(timeMs, fireTargetContext)
+  );
+}
+
+function bombardmentOverlayProjectionKey() {
+  const destinations = [];
+  forEachBombardmentPresentation((presentation, destination) => {
+    destinations.push([
+      presentation.seed,
+      Math.round(destination.x),
+      Math.round(destination.y),
+      Math.max(1, Math.round(destination.width)),
+      Math.max(1, Math.round(destination.height))
+    ].join(":"));
+  });
+  return destinations.join(";");
 }
 
 function drawBombardmentFireSources(timeMs, targetContext) {
-  forEachBombardmentPresentation((presentation, destination) => {
-    drawBombardmentPresentationFire(presentation, destination, timeMs, targetContext);
-  });
+  const animationTimeMs = prefersReducedMotion.matches ? 0 : timeMs;
+  const animationFrame = Math.floor(animationTimeMs / FIRE_FRAME_MS) % FIRE_FRAME_COUNT;
+  let layers = bombardmentMasterFireLayersByFrame.get(animationFrame);
+  if (!layers) {
+    const groups = contiguousCityProjectionGroups(bombardmentPresentationSpecs());
+    layers = Object.freeze(groups.map((group) => {
+      const placements = group.entries.map((spec) => {
+        const mask = cachedBombardmentFireMask(
+          spec.presentation,
+          spec.width,
+          spec.height,
+          animationTimeMs
+        );
+        return Object.freeze({
+          mask,
+          x: spec.x + mask.offsetX,
+          y: spec.y + mask.offsetY,
+          width: mask.canvas.width,
+          height: mask.canvas.height
+        });
+      });
+      const bounds = citySceneCacheBounds(placements);
+      const layerCanvas = createCitySceneCacheSurface(bounds.width, bounds.height);
+      const layerContext = layerCanvas.getContext("2d");
+      if (!layerContext) throw new Error("Could not cache a master city bombardment fire layer");
+      layerContext.imageSmoothingEnabled = false;
+      for (const placement of placements) {
+        layerContext.drawImage(
+          placement.mask.canvas,
+          placement.x - bounds.x,
+          placement.y - bounds.y
+        );
+      }
+      return Object.freeze({
+        canvas: layerCanvas,
+        x: bounds.x,
+        y: bounds.y,
+        depth: group.depth,
+        parallaxAnchor: group.parallaxAnchor
+      });
+    }));
+    bombardmentMasterFireLayersByFrame.set(animationFrame, layers);
+  }
+  for (const layer of layers) {
+    const window = sceneWindow(layer.depth, 0, 0, layer.parallaxAnchor);
+    targetContext.drawImage(
+      layer.canvas,
+      layer.x + Math.round(-window.x),
+      layer.y + Math.round(-window.y)
+    );
+  }
 }
 
 function drawBombardmentSmokeSources(timeMs, targetContext) {
@@ -2551,29 +2716,30 @@ function drawBombardmentSmokeSources(timeMs, targetContext) {
   });
 }
 
-function forEachBombardmentPresentation(visit) {
+function forEachBombardmentPresentation(visit, specs = null) {
   if (typeof visit !== "function") throw new TypeError("Bombardment presentation visitor is required");
-  const visitBurning = (presentation, destination) => {
-    if (presentation?.burning) visit(presentation, destination);
-  };
-  visitAuthoredBombardmentPresentations(visitBurning);
-  visitBackgroundCityBombardmentPresentations("right", visitBurning);
-  if (state.features.leftBankCity) visitBackgroundCityBombardmentPresentations("left", visitBurning);
-  for (const placement of state.streetBuildings) {
-    const regionalFrame = regionalStaticFrame(placement.frame, placement.layerName);
-    const source = regionalFrame || { atlas: state.staticAtlas, frame: placement.frame };
-    const presentation = cityStreetBombardmentPresentation(placement, source);
-    const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
-    visitBurning(presentation, {
-      x: placement.x - window.x,
-      y: placement.y - window.y,
-      width: placement.width,
-      height: placement.height
+  const resolvedSpecs = specs ?? bombardmentPresentationSpecs();
+  if (!Array.isArray(resolvedSpecs)) {
+    throw new TypeError("Bombardment presentation specs must be an array");
+  }
+  for (const spec of resolvedSpecs) {
+    if (!spec?.presentation?.burning) continue;
+    const window = sceneWindow(spec.depth, 0, 0, spec.parallaxAnchor);
+    visit(spec.presentation, {
+      x: spec.x - window.x,
+      y: spec.y - window.y,
+      width: spec.width,
+      height: spec.height
     });
   }
 }
 
-function visitAuthoredBombardmentPresentations(visit) {
+function bombardmentPresentationSpecs() {
+  if (bombardmentPresentationSpecsCache) return bombardmentPresentationSpecsCache;
+  const specs = [];
+  const add = (presentation, spec) => {
+    if (presentation?.burning) specs.push(Object.freeze({ presentation, ...spec }));
+  };
   const activeLayers = activePortSceneLayers(state.features);
   const occurrences = new Map();
   for (const layerName of state.portManifest.layerOrder) {
@@ -2589,43 +2755,51 @@ function visitAuthoredBombardmentPresentations(visit) {
     const presentation = authoredBombardmentPresentation(frame, layerName, occurrence, source);
     const offsetX = layerSceneOffsetX(layerName, occurrence, state.features.approach);
     const offsetY = layerSceneOffsetY(layerName, occurrence, state.features.approach);
-    const window = sceneWindow(
-      layerParallaxDepth(layerName, occurrence),
-      offsetX,
-      offsetY,
-      layerParallaxAnchor(layerName, occurrence)
-    );
-    visit(presentation, {
-      x: presentation.frame.spriteSourceSize.x - window.x,
-      y: presentation.frame.spriteSourceSize.y - window.y,
+    add(presentation, {
+      x: presentation.frame.spriteSourceSize.x + offsetX,
+      y: presentation.frame.spriteSourceSize.y + offsetY,
       width: presentation.frame.frame.w,
-      height: presentation.frame.frame.h
+      height: presentation.frame.frame.h,
+      depth: layerParallaxDepth(layerName, occurrence),
+      parallaxAnchor: layerParallaxAnchor(layerName, occurrence)
     });
   }
-}
-
-function visitBackgroundCityBombardmentPresentations(side, visit) {
-  const { rows, painterOrder } = backgroundCityRenderState(side);
-  for (const entry of painterOrder) {
-    const building = entry.building;
-    const atmosphereLevel = building.atmosphereLevel ?? cityBackgroundAtmosphereLevel(
-      entry.distanceFromFront,
-      rows.length
-    );
-    const source = backgroundCityAtmosphereFrame(building.frame, atmosphereLevel) || {
-      atlas: state.staticAtlas,
-      frame: building.frame
-    };
-    const presentation = backgroundCityBombardmentPresentation(side, entry, source);
-    if (!presentation) continue;
-    const window = sceneWindow(entry.depth, 0, 0, entry.parallaxAnchor);
-    visit(presentation, {
-      x: building.x - window.x,
-      y: building.y - window.y,
-      width: building.width,
-      height: building.height
+  for (const side of state.features.leftBankCity ? ["right", "left"] : ["right"]) {
+    const { rows, painterOrder } = backgroundCityRenderState(side);
+    for (const entry of painterOrder) {
+      const building = entry.building;
+      const atmosphereLevel = building.atmosphereLevel ?? cityBackgroundAtmosphereLevel(
+        entry.distanceFromFront,
+        rows.length
+      );
+      const source = backgroundCityAtmosphereFrame(building.frame, atmosphereLevel) || {
+        atlas: state.staticAtlas,
+        frame: building.frame
+      };
+      add(backgroundCityBombardmentPresentation(side, entry, source), {
+        x: building.x,
+        y: building.y,
+        width: building.width,
+        height: building.height,
+        depth: entry.depth,
+        parallaxAnchor: entry.parallaxAnchor
+      });
+    }
+  }
+  for (const placement of state.streetBuildings) {
+    const regionalFrame = regionalStaticFrame(placement.frame, placement.layerName);
+    const source = regionalFrame || { atlas: state.staticAtlas, frame: placement.frame };
+    add(cityStreetBombardmentPresentation(placement, source), {
+      x: placement.x,
+      y: placement.y,
+      width: placement.width,
+      height: placement.height,
+      depth: placement.depth,
+      parallaxAnchor: placement.parallaxAnchor
     });
   }
+  bombardmentPresentationSpecsCache = Object.freeze(specs);
+  return bombardmentPresentationSpecsCache;
 }
 
 function drawBombardmentPresentationFire(presentation, destination, timeMs, targetContext) {
@@ -2645,48 +2819,74 @@ function drawBombardmentPresentationFire(presentation, destination, timeMs, targ
     viewportWidth: canvas.width,
     viewportHeight: canvas.height
   })) return;
-  const sourceWidth = presentation.frame.frame.w;
-  const sourceHeight = presentation.frame.frame.h;
-  const geometry = cityBombardmentEffectGeometry({
+  const mask = cachedBombardmentFireMask(
+    presentation,
+    destinationWidth,
+    destinationHeight,
+    timeMs
+  );
+  targetContext.drawImage(
+    mask.canvas,
+    destinationX + mask.offsetX,
+    destinationY + mask.offsetY
+  );
+}
+
+function cachedBombardmentFireMask(presentation, destinationWidth, destinationHeight, timeMs) {
+  const animationTimeMs = prefersReducedMotion.matches ? 0 : timeMs;
+  const animationFrame = fireAnimationFrame(animationTimeMs, presentation.seed);
+  let frames = bombardmentFireMaskCache.get(presentation);
+  if (!frames) {
+    frames = new Map();
+    bombardmentFireMaskCache.set(presentation, frames);
+  }
+  const key = `${destinationWidth}x${destinationHeight}:${animationFrame}`;
+  if (frames.has(key)) return frames.get(key);
+  const destination = {
+    x: 0,
+    y: 0,
+    width: destinationWidth,
+    height: destinationHeight
+  };
+  const { flame } = cityBombardmentEffectGeometry({
     damage: presentation.damage,
-    sourceWidth,
-    sourceHeight,
-    destination: normalizedDestination,
+    sourceWidth: presentation.frame.frame.w,
+    sourceHeight: presentation.frame.frame.h,
+    destination,
     seed: presentation.seed
   });
-  const { flame } = geometry;
-  if (bombardmentFireMaskCanvas.width !== flame.width) {
-    bombardmentFireMaskCanvas.width = flame.width;
-  }
-  if (bombardmentFireMaskCanvas.height !== flame.height) {
-    bombardmentFireMaskCanvas.height = flame.height;
-  }
-  bombardmentFireMaskContext.imageSmoothingEnabled = false;
-  bombardmentFireMaskContext.clearRect(0, 0, flame.width, flame.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = flame.width;
+  canvas.height = flame.height;
+  const maskContext = canvas.getContext("2d");
+  if (!maskContext) throw new Error("Could not cache a city bombardment fire mask");
+  maskContext.imageSmoothingEnabled = false;
   drawBombardmentFireSprite(
     { x: 0, y: 0, width: flame.width, height: flame.height },
     presentation.seed,
-    timeMs,
-    bombardmentFireMaskContext
+    animationTimeMs,
+    maskContext
   );
   // The damaged facade is the fire mask: intact wall pixels occlude the flame,
   // while the cannon breach and transparent air above it expose one continuous sprite.
   const sourceFrame = presentation.frame.frame;
-  bombardmentFireMaskContext.save();
-  bombardmentFireMaskContext.globalCompositeOperation = "destination-out";
-  bombardmentFireMaskContext.drawImage(
+  maskContext.save();
+  maskContext.globalCompositeOperation = "destination-out";
+  maskContext.drawImage(
     presentation.atlas,
     sourceFrame.x,
     sourceFrame.y,
     sourceFrame.w,
     sourceFrame.h,
-    destinationX - flame.x,
-    destinationY - flame.y,
+    -flame.x,
+    -flame.y,
     destinationWidth,
     destinationHeight
   );
-  bombardmentFireMaskContext.restore();
-  targetContext.drawImage(bombardmentFireMaskCanvas, flame.x, flame.y);
+  maskContext.restore();
+  const mask = Object.freeze({ canvas, offsetX: flame.x, offsetY: flame.y });
+  frames.set(key, mask);
+  return mask;
 }
 
 function drawBombardmentPresentationSmoke(presentation, destination, timeMs, targetContext) {
@@ -4040,6 +4240,29 @@ function npcOccludesEmissiveFire(painterZ) {
 function drawPortAssaultPresentation(lane) {
   const presentation = state.assaultPresentation;
   if (!presentation) return;
+  const layout = portAssaultFrameLayout(presentation);
+  for (const { unit, point } of layout.placementsByLane.get(lane) || []) {
+    const hitFlash = assaultHitFlashes.consume(unit.id, presentation.events, layout.battleTimeMs);
+    drawGroundPersonSprite(unit, point.x, point.y, layout.battleTimeMs, hitFlash);
+    if (unit.inWater) drawWadingWater(unit, point.x, point.y, layout.battleTimeMs);
+  }
+  for (const { event, unit } of layout.eventsByLane.get(lane) || []) {
+    drawAssaultEvent(
+      event,
+      unit,
+      layout.window,
+      layout.battleTimeMs,
+      layout.entryShiftX,
+      lane
+    );
+  }
+}
+
+function portAssaultFrameLayout(presentation) {
+  if (assaultFrameLayoutCache?.presentation === presentation &&
+      assaultFrameLayoutCache.parallax === state.parallax) {
+    return assaultFrameLayoutCache;
+  }
   const battleTimeMs = presentation.elapsedMs;
   const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
   const shipboardStart = assaultShipboardStartPoint(battleTimeMs);
@@ -4049,7 +4272,8 @@ function drawPortAssaultPresentation(lane) {
     baselineEntryX,
     deckStartX: shipboardStart.x
   });
-  const placements = [];
+  const placementsByLane = new Map();
+  const unitById = new Map(presentation.units.map((unit) => [unit.id, unit]));
   for (const unit of presentation.units) {
     const baselineX = CITY_PORT_ASSAULT_TRACK_START_X +
       unit.position * CITY_ASSAULT_TRACK_SPAN_PX - window.x;
@@ -4075,22 +4299,51 @@ function drawPortAssaultPresentation(lane) {
     const groundY = unit.animationId === "jump" ? feetY : (point.groundY ?? point.y) + window.y;
     const waterDepthPx = aboard ? (deckFrame.floating ? CITY_ASSAULT_FLOATING_WATER_DEPTH_PX : 0) : state.features.dock === "none" && unit.animationId !== "jump" && !unit.airborne
       ? assaultWaterDepthPx(laneX + window.x, feetY) : 0;
-    if (aboard ? lane === "deck" : cityAssaultDepthBand(groundY) === lane) placements.push({
+    const painterLane = aboard ? "deck" : cityAssaultDepthBand(groundY);
+    const placements = placementsByLane.get(painterLane) || [];
+    placements.push({
       unit: { ...unit, ...(aboard && (deckFrame.scurrying || deckFrame.floating) ?
           { animationId: deckFrame.animationId, animationStartedAtMs: presentation.shipSunkAtMs } : {}), inWater: waterDepthPx > 0, waterDepthPx },
       point: { x: point.x, y: point.y + waterDepthPx }, groundY
     });
+    placementsByLane.set(painterLane, placements);
   }
-  for (const { unit, point } of placements.sort(cityAssaultDepthOrder)) {
-    const hitFlash = assaultHitFlashes.consume(unit.id, presentation.events, battleTimeMs);
-    drawGroundPersonSprite(unit, point.x, point.y, battleTimeMs, hitFlash);
-    if (unit.inWater) drawWadingWater(unit, point.x, point.y, battleTimeMs);
-  }
+  for (const placements of placementsByLane.values()) placements.sort(cityAssaultDepthOrder);
+  const eventsByLane = new Map();
   for (const event of presentation.events) {
-    const unit = presentation.units.find(({ id }) => id === event.unitId);
+    const unit = unitById.get(event.unitId);
     if (!unit) continue;
-    drawAssaultEvent(event, unit, window, battleTimeMs, entryShiftX, lane);
+    const eventTracksShot = ["attack", "hit", "death"].includes(event.type);
+    const position = eventTracksShot ? event.position : unit.position;
+    const eventLane = eventTracksShot ? event.lane : unit.lane;
+    if (!Number.isFinite(position) || position < 0 || position > 1) {
+      throw new Error(`Port assault event has invalid position: ${event.unitId}`);
+    }
+    const baselineX = CITY_PORT_ASSAULT_TRACK_START_X +
+      position * CITY_ASSAULT_TRACK_SPAN_PX - window.x;
+    const x = cityAssaultLaneX({
+      baselineX,
+      position,
+      entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+      entryShiftX
+    });
+    const feetY = cityGateGroundFeetY(x + window.x,
+      cityPortAssaultLaneFeetY(eventLane), state.features.fortified);
+    const painterLane = event.surface === "deck" ? "deck" : cityAssaultDepthBand(feetY);
+    const events = eventsByLane.get(painterLane) || [];
+    events.push({ event, unit });
+    eventsByLane.set(painterLane, events);
   }
+  assaultFrameLayoutCache = {
+    presentation,
+    parallax: state.parallax,
+    battleTimeMs,
+    window,
+    entryShiftX,
+    placementsByLane,
+    eventsByLane
+  };
+  return assaultFrameLayoutCache;
 }
 
 // Beach water follows the authored shoreline for attackers and pursuing defenders.

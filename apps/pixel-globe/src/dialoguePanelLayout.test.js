@@ -8,6 +8,7 @@ import {
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
   dialogueFeedbackTextLines,
+  dialogueBackdropLayerOrder,
   dialogueOverlayIsVisible,
   dialogueOptionGroups,
   dialogueRegularOptionRows,
@@ -169,11 +170,42 @@ test("long dialogue clamps to the available height for scrolling", () => {
     contentHeight: 500
   });
 
-  assert.deepEqual(layout.panel, { x: 6, y: 6, w: 244, h: 442 });
+  assert.deepEqual(layout.panel, { x: 6, y: 62, w: 244, h: 386 });
   assert.deepEqual(layout.portraits, {
     left: { x: 22, y: 6 },
     right: { x: 170, y: 6 }
   });
+  assert.equal(layout.portraits.left.y + 64, layout.panel.y + 8);
+});
+
+test("long landscape dialogue reserves the portrait strip above its scrolling panel", () => {
+  const layout = dialoguePanelGeometry({
+    screenWidth: 455,
+    screenHeight: 256,
+    contentHeight: 500
+  });
+
+  assert.deepEqual(layout.panel, { x: 6, y: 62, w: 443, h: 187 });
+  assert.deepEqual(layout.portraits, {
+    left: { x: 22, y: 6 },
+    right: { x: 369, y: 6 }
+  });
+  assert.equal(layout.portraits.right.y + 64, layout.panel.y + 8);
+});
+
+test("dialogue portraits sit behind the paper while authority marks remain on the paper", () => {
+  assert.deepEqual(
+    dialogueBackdropLayerOrder({ hasFactionBlock: true }),
+    ["portraits", "panel", "faction"]
+  );
+  assert.deepEqual(
+    dialogueBackdropLayerOrder({ hasFactionBlock: false }),
+    ["portraits", "panel"]
+  );
+  assert.throws(
+    () => dialogueBackdropLayerOrder({ hasFactionBlock: null }),
+    /requires a faction-block decision/
+  );
 });
 
 test("landscape greetings remain compact without moving the portrait down", () => {

@@ -7,6 +7,8 @@ export const POLAR_FOG_BENCHMARK_ID = "polar-fog";
 export const POLAR_FOG_CAPTURE_SCENARIO_ID = "diagnostic-chart-recovery-scandinavia";
 export const COMBAT_HOTSPOT_BENCHMARK_ID = "combat-hotspot";
 export const COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-combat-hotspot";
+export const PORT_ASSAULT_BENCHMARK_ID = "port-assault";
+export const PORT_ASSAULT_CAPTURE_SCENARIO_ID = "reachability-port-assault-fortified";
 export const NANJING_HOTSPOT_BENCHMARK_ID = "nanjing-hotspot";
 export const NANJING_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-nanjing-hotspot";
 export const GIBRALTAR_HOTSPOT_BENCHMARK_ID = "gibraltar-hotspot";
@@ -38,6 +40,13 @@ const BENCHMARKS = Object.freeze({
   [COMBAT_HOTSPOT_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
     targetLandCarts: 2
+  }),
+  [PORT_ASSAULT_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: PORT_ASSAULT_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 0,
+    runCaptureSequence: true,
+    forceRenderEveryFrame: true,
+    requiresChartIntegrityTelemetry: false
   }),
   [NANJING_HOTSPOT_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
@@ -115,6 +124,7 @@ export function performanceBenchmarkFromSearch(search) {
     durationSeconds: positiveQueryNumber(params, "benchmarkDuration", DEFAULT_DURATION_SECONDS),
     targetLandCarts: definition.targetLandCarts,
     initialScreen: definition.initialScreen ?? null,
+    ...(definition.runCaptureSequence === true ? { runCaptureSequence: true } : {}),
     forceRenderEveryFrame: definition.forceRenderEveryFrame === true,
     requiresChartIntegrityTelemetry: definition.requiresChartIntegrityTelemetry !== false
   });

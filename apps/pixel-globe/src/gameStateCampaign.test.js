@@ -258,4 +258,13 @@ test("cartography snapshots validate and persist their packed mask", () => {
   const state = createGameState({ cargoCapacity: 20 });
   updateCartographyMemory(state, "AQI=", 2);
   assert.deepEqual(state.memory.cartography, { seenTilesBase64: "AQI=", seenTileCount: 2 });
+  assert.throws(
+    () => updateCartographyMemory(state, "AQ==", 1),
+    /cannot discard mapped tiles/
+  );
+  assert.deepEqual(
+    state.memory.cartography,
+    { seenTilesBase64: "AQI=", seenTileCount: 2 },
+    "a rejected regression leaves the durable cartography untouched"
+  );
 });

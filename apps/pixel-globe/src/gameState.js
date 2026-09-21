@@ -2435,6 +2435,12 @@ export function updateCartographyMemory(state, seenTilesBase64, seenTileCount) {
   if (!Number.isInteger(seenTileCount) || seenTileCount < 0) {
     throw new Error(`Invalid mapped tile count: ${seenTileCount}`);
   }
+  const previousCount = state.memory.cartography.seenTileCount;
+  if (seenTileCount < previousCount) {
+    throw new Error(
+      `Cartography updates cannot discard mapped tiles: ${previousCount} -> ${seenTileCount}`
+    );
+  }
   state.memory.cartography = { seenTilesBase64, seenTileCount };
   return state.memory.cartography;
 }

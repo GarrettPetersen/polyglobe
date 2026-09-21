@@ -46,6 +46,7 @@
     "benchmark:clouds": "node tools/run-performance-benchmark.mjs --benchmark cloud-cover",
     "benchmark:fog": "node tools/run-performance-benchmark.mjs --benchmark polar-fog",
     "benchmark:combat": "node tools/run-performance-benchmark.mjs --benchmark combat-hotspot",
+    "benchmark:port-assault": "node tools/run-performance-benchmark.mjs --benchmark port-assault --warmup 4 --duration 8",
     "benchmark:combat-ai": "node tools/benchmark-npc-combat-ai.mjs",
     "test:combat-ai-2v2": "npm run build && node tools/run-save-restore-smoke.mjs --scenario=reachability-fight-2v2",
     "benchmark:lepanto": "node tools/benchmark-historical-battle.mjs",

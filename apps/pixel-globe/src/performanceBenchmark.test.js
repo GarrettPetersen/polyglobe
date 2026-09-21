@@ -9,6 +9,8 @@ import {
   NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
   NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
   PATAGONIA_CHART_CAPTURE_SCENARIO_ID,
+  PORT_ASSAULT_BENCHMARK_ID,
+  PORT_ASSAULT_CAPTURE_SCENARIO_ID,
   PAUSED_ABOARD_BENCHMARK_ID,
   PAUSED_DIALOGUE_BENCHMARK_ID,
   PAUSED_START_MENU_BENCHMARK_ID,
@@ -59,6 +61,20 @@ test("combat-hotspot benchmark selects the eastern Mediterranean combat scene", 
     initialScreen: null,
     forceRenderEveryFrame: false,
     requiresChartIntegrityTelemetry: true
+  });
+});
+
+test("port-assault benchmark runs the deterministic fortified assault sequence", () => {
+  assert.deepEqual(performanceBenchmarkFromSearch(`?benchmark=${PORT_ASSAULT_BENCHMARK_ID}`), {
+    id: PORT_ASSAULT_BENCHMARK_ID,
+    captureScenarioId: PORT_ASSAULT_CAPTURE_SCENARIO_ID,
+    warmupSeconds: 2,
+    durationSeconds: 8,
+    targetLandCarts: 0,
+    initialScreen: null,
+    runCaptureSequence: true,
+    forceRenderEveryFrame: true,
+    requiresChartIntegrityTelemetry: false
   });
 });
 

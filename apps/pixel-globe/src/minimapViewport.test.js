@@ -6,6 +6,7 @@ import {
   exploredMinimapViewport,
   minimapLandWeight,
   minimapLongitudeBin,
+  minimapExplorationTrace,
   minimapProjectLatitude,
   minimapProjectLongitude,
   minimapUnprojectLatitude,
@@ -114,6 +115,27 @@ test("viewport pixels remain on the fixed 80 by 26 pixel grid", () => {
   assert.ok(Number.isInteger(pixel.x) && pixel.x >= 0 && pixel.x < WORLD_W);
   assert.ok(Number.isInteger(pixel.y) && pixel.y >= 0 && pixel.y < WORLD_H);
   assert.equal(pixel.pixel, pixel.x + pixel.y * WORLD_W);
+});
+
+test("sparse explored routes contribute a visible pixel even when raster samples miss them", () => {
+  const tileProjectedX = Float32Array.from([10, 10.1, 79, 60]);
+  const tileProjectedY = Float32Array.from([5, 5.1, 12, 25]);
+  const trace = minimapExplorationTrace({
+    seenTileIds: [1, 0, 2, 3],
+    tileProjectedX,
+    tileProjectedY,
+    viewport: { startX: 75, startY: 0, spanX: 20, spanY: 13 },
+    worldWidth: WORLD_W,
+    pixelWidth: 20,
+    pixelHeight: 13
+  });
+
+  assert.deepEqual(trace, [
+    { x: 4, y: 12, pixel: 244, tileId: 2 },
+    { x: 15, y: 5, pixel: 115, tileId: 0 }
+  ].sort((left, right) => left.pixel - right.pixel));
+  assert.equal(trace.some((entry) => entry.tileId === 1), false, "one deterministic tile owns a shared pixel");
+  assert.equal(trace.some((entry) => entry.tileId === 3), false, "tiles outside the viewport stay hidden");
 });
 
 test("every close-up minimap pixel produces valid globe samples", () => {
