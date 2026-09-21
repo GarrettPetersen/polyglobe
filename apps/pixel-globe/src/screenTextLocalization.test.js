@@ -429,9 +429,9 @@ test("ship stores mean provisions rather than shops", () => {
 test("reviewed Spanish screen copy avoids nautical and historical false friends", () => {
   const reviewed = new Map([
     ["A raccoon aboard? I know its kind, captain. Count every ration again after dark.", "¿Un mapache a bordo? Conozco la especie, capitán. Vuelve a contar las raciones al anochecer."],
-    ["A sperm whale stove in your hull.", "Un cachalote te abrió una brecha en el casco."],
-    ["A settlement founded for conscience still needs practical independence. Add", "Un asentamiento fundado por motivos de conciencia también necesita independencia práctica. Añade"],
-    ["A storm is working nearby. Check every line before departure.", "Se acerca una tormenta. Revisa cada cabo antes de zarpar."],
+    ["A sperm whale stove in your hull.", "Un cachalote abrió un boquete en el casco de tu barco."],
+    ["A settlement founded for conscience still needs practical independence. Add", "Una colonia fundada por motivos de conciencia también necesita independencia efectiva. Añade"],
+    ["A storm is working nearby. Check every line before departure.", "Se acerca una tormenta. Revisa todos los cabos antes de zarpar."],
     ["A shirt of fine linked rings protects fighting hands from cuts and arrows.", "Una cota de malla fina protege de cortes y flechas a quienes combaten."],
     ["A venomous snake struck among the rocks. The party returned to the ship one fewer.", "Una serpiente venenosa mordió a un marinero entre las rocas. El grupo regresó al barco con uno menos."]
   ]);

@@ -4130,7 +4130,7 @@ test("lower loadouts require individual dismissals and support undo all", () => 
   assert.equal(view.presentation.targetCrew, 12);
   assert.equal(view.presentation.loadoutLabel, "Short haul");
   assert.equal(view.presentation.remainingDismissals, 1);
-  assert.match(view.text, /dismiss 1 more crewmate/i);
+  assert.match(view.text, /crew still to dismiss for this loadout: 1/i);
 
   selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
   assert.equal(gameState.ship.crew, 12);

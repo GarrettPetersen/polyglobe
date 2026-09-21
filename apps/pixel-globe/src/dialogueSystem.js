@@ -5494,7 +5494,7 @@ function crewDismissalView(session, city, gameState) {
     speaker: `${cityLabel(city)} crew muster`,
     expressionId: "neutral",
     text: remaining > 0
-      ? `Dismiss ${remaining} more crewmate${remaining === 1 ? "" : "s"} for this loadout.`
+      ? `Crew still to dismiss for this loadout: ${remaining}.`
       : "The new crew complement is ready.",
     feedback: session.feedback,
     presentation: Object.freeze({

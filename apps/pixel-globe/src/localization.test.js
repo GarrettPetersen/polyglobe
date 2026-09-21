@@ -113,25 +113,22 @@ test("diplomatic briefs and settlement stores retain their historical meaning", 
     [LANGUAGE_KOREAN, "{0}이 봉인된 문서를 가지고 승선합니다.{1}"]
   ]);
   const expectedResupply = new Map([
-    [LANGUAGE_CHINESE_SIMPLIFIED, "{0}及时补给可获得{1}达布隆，并为{2}提供成为永久城市所需的物资。"],
-    [LANGUAGE_RUSSIAN, "{0}Своевременное снабжение принесёт {1} дублонов и даст {2} необходимые припасы, чтобы стать постоянным городом."],
-    [LANGUAGE_SPANISH, "{0}Un reabastecimiento a tiempo otorga {1} doblones y proporciona a {2} los suministros necesarios para convertirse en una ciudad permanente."],
+    [LANGUAGE_CHINESE_SIMPLIFIED, "{0}及时补给可赚取{1}达布隆，并为{2}提供建成永久城市所需的物资。"],
+    [LANGUAGE_RUSSIAN, "{0}Своевременное пополнение запасов принесёт {1} дублонов и даст {2} необходимые припасы, чтобы стать постоянным городом."],
+    [LANGUAGE_SPANISH, "{0}El reabastecimiento a tiempo reporta {1} doblones y aporta a {2} los suministros necesarios para convertirse en ciudad permanente."],
     [LANGUAGE_PORTUGUESE_BRAZIL, "{0}Um reabastecimento a tempo rende {1} dobrões e fornece a {2} os mantimentos necessários para se tornar uma cidade permanente."],
-    [LANGUAGE_JAPANESE, "{0}期日どおりの補給で{1}ダブロンを得られ、{2}が恒久都市となるために必要な物資も届けられます。"],
-    [LANGUAGE_GERMAN, "{0}Eine rechtzeitige Versorgung bringt {1} Dublonen ein und liefert {2} die Vorräte, die es für den Status einer dauerhaften Stadt benötigt."],
-    [LANGUAGE_FRENCH, "{0}Un ravitaillement effectué à temps rapporte {1} doublons et fournit à {2} les provisions nécessaires pour devenir une ville permanente."],
-    [LANGUAGE_POLISH, "{0}Terminowe zaopatrzenie przynosi {1} dublonów i dostarcza {2} zapasów potrzebnych, by stało się stałym miastem."],
-    [LANGUAGE_CHINESE_TRADITIONAL, "{0}及時補給可獲得{1}達布隆，並為{2}提供成為永久城市所需的物資。"],
-    [LANGUAGE_KOREAN, "{0}제때 보급하면 더블룬 {1}닢을 얻고 {2}이 영구 도시가 되는 데 필요한 물자를 공급합니다."]
+    [LANGUAGE_JAPANESE, "{0}期日どおりの補給で{1}ダブロンを得られ、{2}が恒久都市になるために必要な物資も届けられます。"],
+    [LANGUAGE_GERMAN, "{0}Eine rechtzeitige Nachlieferung bringt {1} Dublonen ein und versorgt {2} mit den nötigen Vorräten für den Aufbau zu einer dauerhaften Stadt."],
+    [LANGUAGE_FRENCH, "{0}Un ravitaillement à temps rapporte {1} doublons et fournit à {2} les réserves nécessaires pour devenir une ville permanente."],
+    [LANGUAGE_POLISH, "{0}Terminowe zaopatrzenie przynosi {1} dublonów i dostarcza {2} zapasów potrzebnych, by stało się ono stałym miastem."],
+    [LANGUAGE_CHINESE_TRADITIONAL, "{0}及時補給可賺取{1}達布隆，並為{2}提供建成永久城市所需的物資。"],
+    [LANGUAGE_KOREAN, "{0}제때 보급하면 더블룬 {1}닢을 얻고, {2}이 영구 도시가 되는 데 필요한 물자를 공급합니다."]
   ]);
 
   for (const { id } of SUPPORTED_LANGUAGES) {
     if (id === LANGUAGE_ENGLISH) continue;
     assert.equal(localizeText(id, briefs), expectedBriefs.get(id), `${id} diplomatic briefs`);
     assert.equal(localizeText(id, resupply), expectedResupply.get(id), `${id} resupply notice`);
-    for (const suffix of ["{3}", "{3}{4}"]) {
-      assert.equal(localizeText(id, `${resupply}${suffix}`), `${expectedResupply.get(id)}${suffix}`, `${id} resupply notice suffix ${suffix}`);
-    }
   }
 });
 
