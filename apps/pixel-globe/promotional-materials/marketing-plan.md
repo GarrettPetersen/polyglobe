@@ -35,16 +35,20 @@ Last updated: **September 21, 2026**.
   the GamesPress release September 13 (confirmed in conversation). Advance
   news coverage is welcome; only
   “play now” announcements wait for verified public availability September 17.
-- **September 15:** Submitted Marque & Reprisal to the **VGX Steam Event**.
-  Reference: `F12QN0GJ`. Status: awaiting periodic review and selection notice;
-  monitor Garrett's inbox and spam folder. This is separate from the physical
-  Vancouver Game Expo exhibitor application.
 - **September 14:** Optional Next Fest press-preview review target. This is
   only the date by which a demo build and demo store presence should be
   submitted for Valve review if the developer wants the demo playable when
   the press preview opens. It is not a condition of Next Fest participation.
   Demo approvals and Next Fest registration were rechecked September 13.
   Complete the player-support field and verify press-preview opt-in.
+- **September 15:** Submitted Marque & Reprisal to the **VGX Steam Event**.
+  Reference: `F12QN0GJ`. Status: awaiting periodic review and selection notice;
+  monitor Garrett's inbox and spam folder. This is separate from the physical
+  Vancouver Game Expo exhibitor application.
+- **September 16:** CopperPlaysRetro replied positively to the September 15
+  creator email. He said he would look at the game, expected to be away for a
+  week, wanted to make a video after returning, and would link the Steam page
+  from the video description. Do not chase him while he is away.
 - **September 17:** The Steam demo became publicly playable in a quiet soft
   launch. The one-time demo release notification was deliberately left unused
   while Garrett gathered feedback and improved the build.
@@ -64,6 +68,15 @@ Last updated: **September 21, 2026**.
   build, logged-out install flow, launch trailer, Steam page and human-authored
   posts. Record baseline wishlists, installs and players immediately before the
   notification, then record the same metrics after it.
+  Marque & Reprisal was also submitted to Steam Auto-Battler RPG Fest on the
+  strength of the port-assault autobattler minigame. Monitor Steamworks for the
+  eligibility result or event invitation.
+- **September 23:** Submit the already-public Steam demo to **Support the
+  Indies**. The event is free and creators choose games from the submitted demo
+  list, so there is no benefit to holding this submission for the later Steam
+  notification beat. If Garrett still wants to exhibit physically at Vancouver
+  Game Expo, submit the separate booth application at the same time; the Steam
+  event application does not reserve a booth.
 - **September 24:** Release-date commitment gate. Confirm that the build and
   remaining launch work support a November 20 release before spending the
   date-announcement beat.
@@ -88,6 +101,9 @@ Last updated: **September 21, 2026**.
   Vancouver Game Expo exhibitor application by September 16 rather than waiting
   for a capacity deadline; the organizer has not published a firm closing date
   for paid booths.
+- **September 30:** If CopperPlaysRetro has not posted coverage or sent another
+  status update, send one light human-written follow-up. Do not send a sequence
+  of automated reminders.
 - **October 5:** Atlantic Canada Game Celebration begins. The demo should
   already be public and its logged-out install flow verified.
 - **October 5–12:** Atlantic Canada Game Celebration.
@@ -107,6 +123,10 @@ Last updated: **September 21, 2026**.
 - **November 6:** Steam's two-week release-date lock begins. The approved
   release build, packages, price, launch discount, localized store assets,
   creator keys, support plan and rollback path should all be ready.
+- **November 16–23:** Steam Auto-Battler RPG Fest. Participation is pending
+  Steam's eligibility decision. If accepted, verify that the port-assault
+  screenshots, description and truthful tags clearly show the relevant system;
+  do not recast the whole game as an autobattler.
 - **November 20 at 10:00 a.m. PST:** Release **Marque & Reprisal** with the
   planned introductory discount and a coordinated creator, press, Steam, X,
   Reddit and YouTube campaign.
@@ -592,6 +612,19 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
   - Complete the separate Next Fest workback plan above.
   - Registration: https://partner.steamgames.com/optin/sale/nextfest_october_2026/4516500
 
+- [x] **Steam Auto-Battler RPG Fest — submitted September 21**
+  - Event: November 16–23, 2026.
+  - Basis: The port-assault minigame is an autobattler in which the player's
+    assembled force fights the defending force automatically.
+  - Status: Submitted; Steam eligibility or invitation still needs to be
+    confirmed in Steamworks.
+  - If accepted, use the current city-assault screenshots and animated assault
+    banner to show the system accurately. Keep the broader store positioning
+    centered on sailing, trading, survival and sandbox play.
+  - The event overlaps the planned November 20 launch, so acceptance could add
+    relevant Steam visibility during launch week.
+  - Event calendar: https://partner.steamgames.com/doc/marketing/upcoming_events
+
 - [x] **Indie X 2026 — submitted August 4**
   - The submission was acknowledged and the materials are recorded in
     [festival-application-workbench-2026.md](festival-application-workbench-2026.md).
@@ -725,6 +758,9 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
   - Submit once the Steam demo is publicly installable, then track creator
     selections, streams, VODs, audience size and reusable quotes in the creator
     outreach records.
+  - Current action: the demo has been public since September 17, so submit by
+    the September 23 internal target rather than waiting for the October 1 Steam
+    notification beat.
   - Application and event details: https://helixtools.org/support-the-indies
 
 - [ ] **#PitchYaGame — prepare a November 6 post**
@@ -760,7 +796,17 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
 - **Creative Sandbox Festival:** It is for games where players build or design their own worlds, not sandbox games in the broader open-ended sense.
 - **EVA Play:** The directory describes a worldwide virtual option, but the official event page describes the playable selection as games from Argentina and Latin America. Do not spend time on it unless the organizer confirms that a Canadian game is eligible for remote showcasing.
 - **AI Game Festival:** It publicly frames participants as games generated with AI, even when AI was only used for programming, testing, localization or marketing. AI is not the player-facing identity or selling point of Marque & Reprisal, so the likely reputational anti-signal outweighs the prospective exposure.
-- **The remaining official 2026 Steam themed festivals:** None cleanly fit the game. Do not distort the store tags to enter an unrelated event.
+- **Getting Even Festival:** One optional white-whale revenge objective does not
+  make revenge the game's primary theme.
+- **Earth Appreciation Festival:** The globe, weather and animal systems are a
+  presentation and simulation strength, but environmental stewardship is not
+  the central player promise. Reconsider only if the organizer explicitly
+  confirms that broad Earth exploration qualifies.
+- **BGM Game Expo Winter 2026:** A broad in-person China expo is not strong
+  enough to justify pre-launch travel and logistics without a specific partner,
+  nomination or distribution reason.
+- **The remaining official 2026 Steam themed festivals:** None cleanly fit the
+  game. Do not distort the store tags to enter an unrelated event.
 - **Regional, horror, NSFW, cozy and other theme-specific events:** Not eligible or not a credible audience fit.
 
 ### Reusable festival application kit
@@ -781,6 +827,9 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
 
 ### Ongoing festival research
 
+- Last checked against the official Steam calendar and the How To Market A Game
+  directory on **September 21, 2026**. No strong new application was found
+  beyond the already-planned INDIE Live Expo and Support the Indies submissions.
 - [ ] Check the [How To Market A Game festival directory](https://howtomarketagame.com/festivals/) weekly for new deadlines.
 - [ ] Verify every promising listing against the organizer's own eligibility and submission page.
 - [ ] Track event, audience, fit, deadline, cost, required assets, exclusivity, application date and result.
@@ -804,11 +853,14 @@ Work through these in order; outreach preparation can proceed while testers work
    complete final claim review for the dated Bumblebee release;
    assemble human-authored Steam/X/Reddit/creator messages; verify the new trailer
    on Steam and YouTube. The press-kit deployment is complete.
-4. **Begin outreach now:** Retrieve approved press keys, verify the first 10–20
+4. **Continue outreach now:** Retrieve approved press keys, verify the first 10–20
    creator contacts and send the first small batch using Garrett's exact
    human-authored message. Track delivery, replies, redemptions and coverage
    before scaling. Every send still requires Garrett's authorization.
-   IGN's demo-launch trailer update was sent September 13 without exclusivity.
+   CopperPlaysRetro replied positively September 16 and intends to make a video
+   after returning from a week away; follow up September 30 only if there is no
+   intervening update or coverage. IGN's demo-launch trailer update was sent
+   September 13 without exclusivity.
 5. **Spend the held demo-launch beat:** Record the exact demo release timestamp
    and the **October 1** notification deadline. Record wishlist/traffic baseline;
    verify public install and play flows; then, only after Garrett explicitly
@@ -818,10 +870,11 @@ Work through these in order; outreach preparation can proceed while testers work
    install problems, demo playtime, wishlists, tracked visits and creator replies.
    Record findings and continue outreach in small batches. Fix blocking problems
    before scaling promotion; retain tested build IDs for recovery.
-7. **Next deadlines:** Decide whether to submit the separate Vancouver Game
-   Expo booth application by the September 16 internal target; September 24
-   full-release commitment gate; September 28 remaining Next Fest review items
-   and INDIE Live Expo submission. The VGX Steam-event application is already
+7. **Next deadlines:** Submit Support the Indies and decide on the separate
+   Vancouver Game Expo booth application by the September 23 internal target;
+   September 24 full-release commitment gate; September 28 remaining Next Fest
+   review items and INDIE Live Expo submission; October 1 final day to spend the
+   held Steam demo-notification beat. The VGX Steam-event application is already
    submitted (reference `F12QN0GJ`); monitor selection rather than treating the
    September 30 application deadline as outstanding. Continue Mobidictum/
    DevGAMM Steam-event follow-up; Galaxies and SCHMOOVEMENT are closed.
