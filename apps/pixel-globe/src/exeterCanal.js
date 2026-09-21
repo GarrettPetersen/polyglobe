@@ -5,9 +5,9 @@ export const TOPSHAM_CITY_ID = "topsham|united kingdom";
 export const EXETER_CANAL_STAGE_MINUTES = 30 * 24 * 60;
 export const EXETER_CANAL_STAGE_COUNT = 3;
 export const EXETER_CANAL_MATERIALS = Object.freeze([
-  Object.freeze({ goodId: "timber", quantity: 30, requirementId: "exeter-canal.timber" }),
-  Object.freeze({ goodId: "iron", quantity: 12, requirementId: "exeter-canal.iron" }),
-  Object.freeze({ goodId: "grain", quantity: 20, requirementId: "exeter-canal.grain" })
+  Object.freeze({ goodId: "timber", quantity: 30, reward: 600, requirementId: "exeter-canal.timber" }),
+  Object.freeze({ goodId: "iron", quantity: 12, reward: 480, requirementId: "exeter-canal.iron" }),
+  Object.freeze({ goodId: "grain", quantity: 20, reward: 300, requirementId: "exeter-canal.grain" })
 ]);
 
 export function createExeterCanalMemory() {

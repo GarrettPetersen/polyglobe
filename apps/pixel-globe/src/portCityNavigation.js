@@ -63,10 +63,24 @@ const INN_NODE_IDS = new Set([
   "quest",
   "viking-longship"
 ]);
+const VILLAGE_HEADMAN_CITY_TYPES = new Set([
+  "east-asian",
+  "islamic-desert",
+  "mediterranean",
+  "northern-european",
+  "south-asian",
+  "southeast-asian"
+]);
 
-export function portCityAuthorityLabel(settlementType = "city", { isPirateHideout = false } = {}) {
+export function portCityAuthorityLabel(
+  settlementType = "city",
+  { isPirateHideout = false, cityType = null } = {}
+) {
   if (isPirateHideout) return "Captain’s house";
-  return settlementTypeForCity({ settlementType }) === "village" ? "Chief’s hut" : "Port authority";
+  if (settlementTypeForCity({ settlementType }) !== "village") return "Port authority";
+  return VILLAGE_HEADMAN_CITY_TYPES.has(cityType)
+    ? "Headman’s house"
+    : "Chief’s hut";
 }
 
 export function portCityNavigationModel(rootView, services, settlementType = "city", city = {}) {

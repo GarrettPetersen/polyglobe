@@ -1,6 +1,8 @@
+import { TELEMETRY_CONSENT_STORAGE_KEY } from "./storageKeys.js";
+
 export const PLATFORM_CLOUD_FILE = "marque-profile-v1.json";
 // Keep the remote filename stable so existing players' profiles are migrated in place.
-export const PLATFORM_CLOUD_VERSION = 3;
+export const PLATFORM_CLOUD_VERSION = 4;
 const HISTORICAL_BATTLE_RECORDS_KEY = "marque-and-reprisal.historical-battle-records";
 export const PLATFORM_CLOUD_STORAGE_KEYS = Object.freeze([
   "marque-and-reprisal.save",
@@ -15,7 +17,8 @@ export const PLATFORM_CLOUD_STORAGE_KEYS = Object.freeze([
   "pixel_globe_controller_glyphs",
   "pixel_globe_music_volume",
   "pixel_globe_sfx_volume",
-  "pixel_globe_audio_muted"
+  "pixel_globe_audio_muted",
+  TELEMETRY_CONSENT_STORAGE_KEY
 ]);
 
 const PLATFORM_METHODS = Object.freeze([
@@ -29,6 +32,8 @@ const PLATFORM_METHODS = Object.freeze([
   "triggerScreenshot",
   "updateStats",
   "onPauseRequested",
+  "getFullscreen",
+  "onFullscreenChanged",
   "toggleFullscreen",
   "quitGame"
 ]);
@@ -272,7 +277,7 @@ function decodeCloudEnvelope(serialized) {
   } catch (error) {
     throw new Error("Steam Cloud profile is not valid JSON", { cause: error });
   }
-  if (!envelope || ![1, 2, PLATFORM_CLOUD_VERSION].includes(envelope.version) ||
+  if (!envelope || ![1, 2, 3, PLATFORM_CLOUD_VERSION].includes(envelope.version) ||
       !Number.isFinite(envelope.savedAt) || envelope.savedAt <= 0 ||
       !envelope.values || typeof envelope.values !== "object" || Array.isArray(envelope.values)) {
     throw new Error(`Unsupported Steam Cloud profile version: ${envelope?.version ?? "missing"}`);
@@ -286,6 +291,9 @@ function decodeCloudEnvelope(serialized) {
     for (const key of ["marque-and-reprisal.demo-save", "marque-and-reprisal.save.initialized", "marque-and-reprisal.demo-save.initialized"]) {
       if (!Object.hasOwn(envelope.values, key)) missingLegacyKeys.push(key);
     }
+  }
+  if (envelope.version < 4 && !Object.hasOwn(envelope.values, TELEMETRY_CONSENT_STORAGE_KEY)) {
+    missingLegacyKeys.push(TELEMETRY_CONSENT_STORAGE_KEY);
   }
   for (const key of missingLegacyKeys) envelope.values[key] = null;
   for (const key of PLATFORM_CLOUD_STORAGE_KEYS) {

@@ -21,6 +21,7 @@ import { VIKING_BOWS_ITEM_ID } from "./portableWeapons.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { shipReplacementTermsWithoutTradeIn } from "./shipyards.js";
 import { crewHoldSpace } from "./shipLoadouts.js";
+import { recordCharacterHomecoming } from "./characterHomecoming.js";
 
 export function vikingLongshipAcquisitionEligibility(state, city) {
   const quest = vikingLongshipQuestState(state, city);
@@ -84,6 +85,10 @@ export function completeChefRecruitment(state, city, character) {
   }
   const eligibility = playerCrewBoardingEligibility(state);
   if (!eligibility.eligible) throw new Error(`Cannot recruit chef: ${eligibility.disabledReason}`);
+  // Joining in the cook's home port is recruitment, not a return from a voyage.
+  // Seed the homecoming clock before the roster mutation so the same greeting
+  // cannot immediately present a contradictory "home at last" scene.
+  recordCharacterHomecoming(state.memory.decisions, character.id, state.survival.lastMinute);
   addNamedCrewMember(state, character, NAMED_CREW_ROLE_CHEF);
   recruitChef(state, city);
 }

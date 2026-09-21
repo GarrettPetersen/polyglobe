@@ -58,9 +58,14 @@ test("Steam launch options match the packaged desktop names", () => {
 test("Steam renderer bridge includes controller-safe fullscreen and quit operations", () => {
   const preload = readFileSync(join(__dirname, "preload.cjs"), "utf8");
   const host = readFileSync(join(__dirname, "main.cjs"), "utf8");
+  assert.match(preload, /getFullscreen:\s*\(\)\s*=>\s*ipcRenderer\.invoke\("steam:get-fullscreen"\)/);
+  assert.match(preload, /onFullscreenChanged:\s*\(callback\)/);
   assert.match(preload, /toggleFullscreen:\s*\(\)\s*=>\s*ipcRenderer\.invoke\("steam:toggle-fullscreen"\)/);
   assert.match(preload, /quitGame:\s*\(\)\s*=>\s*ipcRenderer\.invoke\("steam:quit"\)/);
+  assert.match(host, /ipcMain\.handle\("steam:get-fullscreen"/);
   assert.match(host, /ipcMain\.handle\("steam:toggle-fullscreen"/);
+  assert.match(host, /window\.on\("enter-full-screen"/);
+  assert.match(host, /window\.on\("leave-full-screen"/);
   assert.match(host, /ipcMain\.handle\("steam:quit"/);
   assert.match(host, /webContents\.on\("before-input-event"/);
   assert.match(host, /isDesktopQuitInput\(input\)/);

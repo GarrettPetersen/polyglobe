@@ -102,6 +102,8 @@ async function createGameWindow(url) {
   });
   window.on("blur", () => sendPauseRequest(window, "focus-lost"));
   window.on("minimize", () => sendPauseRequest(window, "minimized"));
+  window.on("enter-full-screen", () => sendFullscreenChanged(window, true));
+  window.on("leave-full-screen", () => sendFullscreenChanged(window, false));
   window.once("ready-to-show", () => window.show());
   await window.loadURL(url);
   steamInputPump = createSteamInputPump({
@@ -131,18 +133,32 @@ function installIpcHandlers() {
     return changed;
   });
   ipcMain.handle("steam:toggle-fullscreen", (event) => toggleSenderFullscreen(event.sender));
+  ipcMain.handle("steam:get-fullscreen", (event) => senderFullscreen(event.sender));
   ipcMain.handle("steam:open-wishlist", () => shell.openExternal("https://store.steampowered.com/app/4516500/Marque__Reprisal/"));
   ipcMain.handle("steam:quit", () => app.quit());
 }
 
 function toggleSenderFullscreen(sender) {
+  const window = senderWindow(sender);
+  const active = !window.isFullScreen();
+  window.setFullScreen(active);
+  return active;
+}
+
+function senderFullscreen(sender) {
+  return senderWindow(sender).isFullScreen();
+}
+
+function senderWindow(sender) {
   const window = BrowserWindow.fromWebContents(sender);
   if (!window || window.isDestroyed()) {
     throw new Error("Steam fullscreen request has no active game window");
   }
-  const active = !window.isFullScreen();
-  window.setFullScreen(active);
-  return active;
+  return window;
+}
+
+function sendFullscreenChanged(window, active) {
+  if (!window.isDestroyed()) window.webContents.send("steam:fullscreen-changed", active);
 }
 
 function sendPauseRequest(window, reason) {

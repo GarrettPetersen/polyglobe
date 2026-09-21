@@ -27,6 +27,11 @@ contextBridge.exposeInMainWorld("marqueSteamPlatform", Object.freeze({
     if (typeof callback !== "function") throw new Error("Steam pause listener must be a function");
     ipcRenderer.on("steam:pause-request", (_event, reason) => callback(reason));
   },
+  getFullscreen: () => ipcRenderer.invoke("steam:get-fullscreen"),
+  onFullscreenChanged: (callback) => {
+    if (typeof callback !== "function") throw new Error("Steam fullscreen listener must be a function");
+    ipcRenderer.on("steam:fullscreen-changed", (_event, active) => callback(active));
+  },
   toggleFullscreen: () => ipcRenderer.invoke("steam:toggle-fullscreen"),
   quitGame: () => ipcRenderer.invoke("steam:quit")
 }));

@@ -83,6 +83,17 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     manualRegion: "senegambia",
     marketGoods: ["fish", "salt", "hides"]
   }),
+  // The Portuguese founded São Jorge da Mina in 1482 at Elmina's natural
+  // harbour. In 1522 it was their fortified Gold Coast entrepôt, built above
+  // an older Akan market and chiefly concerned with the gold trade.
+  manualCity1522("elmina|ghana", "Elmina", "Ghana", 5.084, -1.348, 4000, {
+    factionId: "portugal",
+    settlementType: "town",
+    cityType: "sub-saharan",
+    manualRegion: "gold-coast",
+    marketGoods: ["gold", "ivory", "fish"],
+    requiredTradePort: true
+  }),
   // San Sebastian controlled the sheltered roadstead at Pasaia in 1522. Its
   // merchants were already fitting out whaling and cod-fishing voyages, so it
   // closes the otherwise empty Spanish coast on the Bay of Biscay.

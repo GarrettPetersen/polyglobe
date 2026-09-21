@@ -141,6 +141,103 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "A balanced shaft and sound line will let you hunt whales from the ship.": reviewedLocaleOverrides(
+    "A balanced shaft and sound line will let you hunt whales from the ship.",
+    [
+      "有了重心均衡的鱼叉和结实的绳索，你就能从船上捕鲸。",
+      "Сбалансированный гарпун с прочным линём позволит охотиться на китов с корабля.",
+      "Un arpón equilibrado y un cabo resistente te permitirán cazar ballenas desde el barco.",
+      "Um arpão equilibrado e uma linha resistente permitirão caçar baleias a partir do navio.",
+      "重心の整った銛と丈夫な綱があれば、船からクジラを狩れる。",
+      "Mit einer ausgewogenen Harpune und einer festen Leine könnt Ihr vom Schiff aus Wale jagen.",
+      "Un harpon bien équilibré et une ligne solide vous permettront de chasser la baleine depuis le navire.",
+      "Wyważony harpun i mocna lina pozwolą ci polować na wieloryby ze statku.",
+      "有了重心均衡的魚叉和結實的繩索，你就能從船上捕鯨。",
+      "균형 잡힌 작살과 튼튼한 줄이 있으면 배에서 고래를 사냥할 수 있습니다."
+    ]
+  ),
+  "Ash-Shaft Harpoon": reviewedLocaleOverrides("Ash-Shaft Harpoon", [
+    "梣木柄捕鲸叉", "Гарпун с ясеневым древком", "Arpón con asta de fresno",
+    "Arpão com haste de freixo", "トネリコ柄の銛", "Harpune mit Eschenschaft",
+    "Harpon à hampe de frêne", "Harpun z jesionowym drzewcem", "梣木柄捕鯨叉",
+    "물푸레나무 자루 작살"
+  ]),
+  "Headman’s house": reviewedLocaleOverrides("Headman’s house", [
+    "村长宅邸", "Дом старосты", "Casa del alcalde local", "Casa do dirigente local",
+    "村役人の家", "Haus des Ortsvorstehers", "Maison du prévôt local", "Dom starszego osady",
+    "村長宅邸", "촌장의 집"
+  ]),
+  "I asked along every quay and through every quarter in {0}. Their ship never arrived. They were lost at sea.": reviewedLocaleOverrides(
+    "I asked along every quay and through every quarter in {0}. Their ship never arrived. They were lost at sea.",
+    [
+      "我问遍了{0}的每座码头和每个街区。他们的船始终没有到港。他们葬身海上了。",
+      "Я расспрашивал на каждой пристани и во всех кварталах {0}. Их корабль так и не пришёл. Они погибли в море.",
+      "Pregunté en cada muelle y en cada barrio de {0}. Su barco nunca llegó. Se perdieron en el mar.",
+      "Perguntei em todos os cais e bairros de {0}. O navio deles nunca chegou. Perderam-se no mar.",
+      "{0}の波止場も町の隅々も尋ね歩きました。あの人たちの船は着かなかった。海で亡くなったのです。",
+      "Ich fragte an jedem Kai und in jedem Viertel von {0}. Ihr Schiff kam nie an. Sie blieben auf See.",
+      "J’ai interrogé les gens sur chaque quai et dans chaque quartier de {0}. Leur navire n’est jamais arrivé. Ils ont péri en mer.",
+      "Pytałem na każdym nabrzeżu i w każdej dzielnicy {0}. Ich statek nigdy nie przypłynął. Zginęli na morzu.",
+      "我問遍了{0}的每座碼頭和每個街區。他們的船始終沒有到港。他們葬身海上了。",
+      "{0}의 부두와 거리 곳곳을 모두 수소문했습니다. 그들의 배는 끝내 오지 않았습니다. 바다에서 목숨을 잃은 겁니다."
+    ]
+  ),
+  "The memorial disputes the title owed to the emperor's dead father. It sounds small far from court. In Beijing, that question can end a living official's career.": reviewedLocaleOverrides(
+    "The memorial disputes the title owed to the emperor's dead father. It sounds small far from court. In Beijing, that question can end a living official's career.",
+    [
+      "这封奏疏争论的是应给皇帝亡父什么尊号。远离朝廷时，这听来微不足道；在北京，却能断送一位在任官员的仕途。",
+      "В докладе спорят о титуле покойного отца императора. Вдали от двора это кажется мелочью, но в Пекине такой вопрос может погубить карьеру чиновника.",
+      "El memorial disputa el título que corresponde al difunto padre del emperador. Lejos de la corte parece poca cosa; en Pekín, esa cuestión puede acabar con la carrera de un funcionario.",
+      "O memorial contesta o título devido ao falecido pai do imperador. Longe da corte parece pouca coisa; em Pequim, essa questão pode arruinar a carreira de um oficial.",
+      "奏疏が争うのは、皇帝の亡父に贈る尊号です。宮廷から遠く離れれば些細に聞こえますが、北京では官僚の出世を断つ問題になり得ます。",
+      "Die Denkschrift streitet um den Titel für den verstorbenen Vater des Kaisers. Fern vom Hof klingt das geringfügig; in Peking kann diese Frage die Laufbahn eines Beamten beenden.",
+      "Le mémoire conteste le titre dû au défunt père de l’empereur. Loin de la cour, l’affaire paraît mince ; à Pékin, elle peut briser la carrière d’un fonctionnaire.",
+      "Memoriał kwestionuje tytuł należny zmarłemu ojcu cesarza. Z dala od dworu brzmi to błaho; w Pekinie taka sprawa może złamać karierę urzędnika.",
+      "這封奏疏爭論的是應給皇帝亡父什麼尊號。遠離朝廷時，這聽來微不足道；在北京，卻能斷送一位在任官員的仕途。",
+      "이 상소문은 황제의 선친에게 올릴 존호를 두고 다툽니다. 조정에서 멀리 떨어져 들으면 사소해 보이지만, 베이징에서는 관료의 앞날을 끝낼 수도 있는 문제입니다."
+    ]
+  ),
+  "This demo voyage is limited to the Mediterranean. Turn east to continue exploring.": reviewedLocaleOverrides(
+    "This demo voyage is limited to the Mediterranean. Turn east to continue exploring.",
+    [
+      "试玩版航程仅限地中海。请向东转舵，继续探索。",
+      "Плавание в демоверсии ограничено Средиземным морем. Поверните на восток, чтобы продолжить исследование.",
+      "La travesía de la demo se limita al Mediterráneo. Pon rumbo al este para seguir explorando.",
+      "A viagem da demonstração está limitada ao Mediterrâneo. Siga para leste para continuar explorando.",
+      "体験版の航海範囲は地中海に限られます。探索を続けるには東へ針路を変えてください。",
+      "Diese Demoreise ist auf das Mittelmeer beschränkt. Wendet nach Osten, um weiterzusegeln.",
+      "Cette traversée de démonstration est limitée à la Méditerranée. Mettez le cap à l’est pour poursuivre l’exploration.",
+      "Rejs w wersji demonstracyjnej ogranicza się do Morza Śródziemnego. Skieruj się na wschód, aby kontynuować wyprawę.",
+      "試玩版航程僅限地中海。請向東轉舵，繼續探索。",
+      "데모 항해는 지중해로 제한됩니다. 탐험을 계속하려면 동쪽으로 뱃머리를 돌리십시오."
+    ]
+  ),
+  "WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE": reviewedLocaleOverrides(
+    "WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE",
+    [
+      "岸上有野生动物——抛锚调查", "ДИКИЕ ЖИВОТНЫЕ НА БЕРЕГУ — БРОСЬТЕ ЯКОРЬ ДЛЯ ИССЛЕДОВАНИЯ",
+      "FAUNA EN TIERRA — ECHA EL ANCLA PARA INVESTIGAR", "ANIMAIS EM TERRA — LANCE ÂNCORA PARA INVESTIGAR",
+      "岸に野生動物 — 錨を下ろして調査", "WILDTIERE AN LAND — VOR ANKER GEHEN UND NACHFORSCHEN",
+      "FAUNE À TERRE — JETEZ L’ANCRE POUR ENQUÊTER", "DZIKIE ZWIERZĘTA NA LĄDZIE — RZUĆ KOTWICĘ, ABY ZBADAĆ",
+      "岸上有野生動物——下錨調查", "해안에 야생동물 발견 — 닻을 내리고 조사하십시오"
+    ]
+  ),
+  "You already have the same {0}.": reviewedLocaleOverrides("You already have the same {0}.", [
+    "你已经有同样的{0}。", "У вас уже есть такой же предмет: {0}.", "Ya tienes el mismo equipo: {0}.",
+    "Você já possui o mesmo equipamento: {0}.", "同じ装備をすでに持っている：{0}。",
+    "Ihr besitzt bereits dieselbe Ausrüstung: {0}.", "Vous possédez déjà le même équipement : {0}.",
+    "Masz już taki sam sprzęt: {0}.", "你已經有同樣的{0}。", "이미 같은 장비를 보유하고 있습니다: {0}."
+  ]),
+  "Your stores have been delivered to the canal works. You receive {0} db.": reviewedLocaleOverrides(
+    "Your stores have been delivered to the canal works. You receive {0} db.",
+    [
+      "物资已送到运河工地。你收到{0}达布隆。", "Припасы доставлены на строительство канала. Вы получаете {0} дублонов.",
+      "Tus suministros han llegado a las obras del canal. Recibes {0} doblones.", "Seus suprimentos foram entregues às obras do canal. Você recebe {0} dobrões.",
+      "資材を運河工事現場へ届けた。{0}ダブロンを受け取った。", "Eure Vorräte wurden zur Kanalbaustelle geliefert. Ihr erhaltet {0} Dublonen.",
+      "Vos fournitures ont été livrées au chantier du canal. Vous recevez {0} doublons.", "Zapasy dostarczono na budowę kanału. Otrzymujesz {0} dublonów.",
+      "物資已送到運河工地。你收到{0}達布隆。", "보급품이 운하 공사장에 전달되었습니다. {0}더블룬을 받았습니다."
+    ]
+  ),
   "BUNKS": Object.freeze({
     "zh-Hans": "船位", ru: "КОЙКИ", es: "LITERAS", "pt-BR": "BELICHES", ja: "寝台",
     de: "KOJEN", fr: "COUCHETTES", pl: "KOJE", "zh-Hant": "船位", ko: "침상"
@@ -3072,7 +3169,6 @@ function reviewedSpanishAuditFollowUpOverrides() {
     ["Another snowy contradiction beneath the hot sun, but broader and heavier than Kilimanjaro in your account. Comparing them will make both descriptions stronger.", "Otra montaña nevada bajo el sol abrasador, pero más extensa y voluminosa que el Kilimanjaro, según tu relato. Compararlas enriquecerá ambas descripciones."],
     ["Aristotle and Pliny never saw what sailors have. Bring me honest accounts of exotic beasts for my book; I pay 100 doubloons each.", "Aristóteles y Plinio nunca vieron lo que han visto los marineros. Tráeme relatos fidedignos de bestias exóticas para mi libro; pagaré 100 doblones por cada una."],
     ["artillery founder", "fundidor de cañones"],
-    ["Ash-shaft harpoon", "Arpón de asta de fresno"],
     ["Ask about pirate havens", "Pregunta por las guaridas piratas"],
     ["Ask about work", "Pregunta por trabajo"],
     ["ASSAULT BROKEN OFF {0} DEAD / {1} WOUNDED", "ASALTO INTERRUMPIDO: {0} MUERTOS / {1} HERIDOS"],

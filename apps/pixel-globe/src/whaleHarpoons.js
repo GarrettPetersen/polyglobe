@@ -4,7 +4,7 @@ import { GRAMMATICAL_NUMBER_SINGULAR } from "./grammaticalNumber.js";
 export const BASIC_WHALE_HARPOON_ID = "ash-shaft-harpoon";
 
 export const WHALE_HARPOONS = Object.freeze([
-  whaleHarpoon(BASIC_WHALE_HARPOON_ID, "Ash-shaft harpoon", 1, 450, 0.54, 0.34, 46, 18),
+  whaleHarpoon(BASIC_WHALE_HARPOON_ID, "Ash-Shaft Harpoon", 1, 450, 0.54, 0.34, 46, 18),
   whaleHarpoon("barbed-whale-harpoon", "Barbed whale harpoon", 2, 2200, 0.7, 0.22, 58, 14),
   whaleHarpoon("masterwork-harpoon", "Masterwork harpoon", 3, 8500, 0.84, 0.12, 72, 10)
 ]);

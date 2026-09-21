@@ -59,7 +59,7 @@ test("new captains need to find a port that stocks whale harpoons", () => {
   assert.equal(purchase.previous, null);
   assert.equal(playerWhaleHarpoon(state).id, "ash-shaft-harpoon");
   assert.equal(state.doubloons, 550);
-  assert.match(ledgerEntries(state).at(-1).description, /Ash-shaft harpoon/);
+  assert.match(ledgerEntries(state).at(-1).description, /Ash-Shaft Harpoon/);
 });
 
 test("a whale carcass fills only the free hold with valuable zero-basis blubber", () => {

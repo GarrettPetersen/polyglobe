@@ -28,6 +28,17 @@ test("Topsham is a small English port town with regional buildings and ordinary 
     portArrivalPresentation({ ...options, city: { ...city, settlementType: "city" } }));
 });
 
+test("old-world villages use a headman's house rather than a chief's hut", () => {
+  assert.equal(
+    portCityAuthorityLabel("village", { cityType: "islamic-desert" }),
+    "Headman’s house"
+  );
+  assert.equal(
+    portCityAuthorityLabel("village", { cityType: "polynesian" }),
+    "Chief’s hut"
+  );
+});
+
 test("town institutions do not depend on a European art style or population threshold", () => {
   for (const cityType of ["northern-european", "east-asian", "sub-saharan", "south-asian", "polynesian"]) {
     const town = { settlementType: "town", cityType, population: 1000 };

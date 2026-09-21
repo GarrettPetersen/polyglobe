@@ -33,7 +33,7 @@ const battleRecordsKey = "marque-and-reprisal.historical-battle-records";
 
 test("frozen legacy Cloud profiles migrate idempotently without erasing local battle history", async () => {
   const migrated = parseCloudEnvelope(legacyCloudProfile);
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.equal(migrated.values[battleRecordsKey], null);
   assert.deepEqual(parseCloudEnvelope(JSON.stringify(migrated)), migrated);
   for (const records of [null, "local-battle-history"]) {
@@ -41,7 +41,7 @@ test("frozen legacy Cloud profiles migrate idempotently without erasing local ba
     await hydratePlatformCloudStorage(storage, bridge({ readCloudFile: async () => legacyCloudProfile }));
     assert.equal(storage.getItem(battleRecordsKey), records);
     assert.equal(storage.getItem("marque-and-reprisal.save"), "frozen-save-payload");
-    assert.equal(JSON.parse(serializeCloudEnvelope(storage, 1234)).version, 3);
+    assert.equal(JSON.parse(serializeCloudEnvelope(storage, 1234)).version, 4);
   }
 });
 
@@ -53,6 +53,17 @@ test("later v1 Cloud records remain authoritative, including explicit deletion",
     await hydratePlatformCloudStorage(storage, bridge({ readCloudFile: async () => JSON.stringify(profile) }));
     assert.equal(storage.getItem(battleRecordsKey), records);
   }
+});
+
+test("v3 profiles preserve a local telemetry choice until the choice is first synchronized", async () => {
+  const profile = JSON.parse(serializeCloudEnvelope(memoryStorage(), 1234));
+  profile.version = 3;
+  delete profile.values["marque-and-reprisal.telemetry-consent"];
+  const storage = memoryStorage({ "marque-and-reprisal.telemetry-consent": "granted" });
+  await hydratePlatformCloudStorage(storage, bridge({
+    readCloudFile: async () => JSON.stringify(profile)
+  }));
+  assert.equal(storage.getItem("marque-and-reprisal.telemetry-consent"), "granted");
 });
 
 test("Cloud migration rejects malformed profiles before mutating local storage", async () => {
@@ -97,6 +108,8 @@ function bridge(overrides = {}) {
     triggerScreenshot: async () => {},
     updateStats: async () => {},
     onPauseRequested: () => {},
+    getFullscreen: async () => true,
+    onFullscreenChanged: () => {},
     toggleFullscreen: async () => true,
     quitGame: async () => {},
     ...overrides
@@ -277,7 +290,7 @@ test("v2 profiles migrate without deleting the new demo slot", async () => {
   await hydratePlatformCloudStorage(store, bridge({ readCloudFile: async () => JSON.stringify(profile) }));
   assert.equal(store.getItem("marque-and-reprisal.demo-save"), "demo-voyage");
   const migrated = parseCloudEnvelope(JSON.stringify(profile));
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.deepEqual(parseCloudEnvelope(JSON.stringify(migrated)), migrated);
 });
 

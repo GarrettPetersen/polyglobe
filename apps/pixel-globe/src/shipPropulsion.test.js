@@ -22,6 +22,7 @@ import {
   sailWindSpeedFactor,
   sailingEfficiencyForAlignment,
   shipCanUseOars,
+  shipCanPivotInPlace,
   shipDirectionalTranslationAllowed,
   shipDragFactor,
   shipHasWindDeadZone,
@@ -384,6 +385,13 @@ test("sampans must tack because their current sprite has no rowing mode", () => 
   assert.equal(shipHasWindDeadZone(sampan), true);
   assert.equal(performance.stalled, true);
   assert.equal(performance.rowing, false);
+});
+
+test("oared ships cannot pivot in place during ship or shore combat", () => {
+  const galley = shipStatsForSlug("mediterranean-galley");
+  assert.equal(shipCanPivotInPlace(galley, false), true);
+  assert.equal(shipCanPivotInPlace(galley, true), false);
+  assert.equal(shipCanPivotInPlace(shipStatsForSlug("brigantine"), false), false);
 });
 
 test("sail-only ships still stall head to wind", () => {

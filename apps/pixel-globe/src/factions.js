@@ -438,6 +438,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("muscat|oman", "hormuz"),
   cityRule("sofala|mozambique", "portugal"),
   cityRule("mozambique|mozambique", "portugal"),
+  cityRule("elmina|ghana", "portugal"),
 
   cityRule("lhasa|china", NEUTRAL_FACTION_ID),
   cityRule("kashi|china", NEUTRAL_FACTION_ID),

@@ -403,7 +403,7 @@ export function eastAsianMissionDialogue(plan) {
           id: GREAT_RITES_JOURNEY_EVENT_ID,
           trigger: QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER,
           expressionId: "concerned",
-          text: "The memorial disputes the title owed to the emperor's dead father. It sounds small at sea. In Beijing, that question can end a living official's career."
+          text: "The memorial disputes the title owed to the emperor's dead father. It sounds small far from court. In Beijing, that question can end a living official's career."
         })
       ])
     });

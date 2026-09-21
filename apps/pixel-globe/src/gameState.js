@@ -231,6 +231,7 @@ import {
 import {
   foreignPolicyPrincipal,
   SUZERAINTY_KIND_TRIBUTARY,
+  factionIsSubjectOf,
   suzerainForFaction,
   suzeraintyTradePrivilege
 } from "./suzerainty.js";
@@ -5451,7 +5452,12 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
     ? state.relations.factionReputation[suzerainFactionId]
     : null;
   const playerIsSuzerain = playerFactionId === suzerainFactionId;
-  const suzerainProtectsEntry = Boolean(suzerainFactionId && playerFactionId && (
+  const playerIsSubject = Boolean(playerFactionId && factionIsSubjectOf(
+    state.relations.diplomacy.suzerainties,
+    playerFactionId,
+    factionId
+  ));
+  const suzerainProtectsEntry = playerIsSubject || Boolean(suzerainFactionId && playerFactionId && (
     playerIsSuzerain || (
       suzerainRelation !== DIPLOMACY_HOSTILE && suzerainRelation !== DIPLOMACY_WAR &&
       (suzerainStanding >= 0 || suzerainRelation === DIPLOMACY_FRIENDLY ||

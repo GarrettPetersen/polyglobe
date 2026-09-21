@@ -23,8 +23,11 @@ try {
       await page.addInitScript(() => localStorage.setItem("marque-and-reprisal.telemetry-consent", "denied"));
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
-      let profile = JSON.stringify({ version: 3, savedAt: 1800000000113,
-        values: Object.fromEntries(PLATFORM_CLOUD_STORAGE_KEYS.map(key => [key, key === "marque-and-reprisal.save" ? fullSave : null])) });
+      let profile = JSON.stringify({ version: 4, savedAt: 1800000000113,
+        values: Object.fromEntries(PLATFORM_CLOUD_STORAGE_KEYS.map(key => [key,
+          key === "marque-and-reprisal.save" ? fullSave
+            : key === "marque-and-reprisal.telemetry-consent" ? "granted" : null
+        ])) });
       let quitCount = 0;
       if (edition !== "browser") {
         await page.exposeFunction("readTestProfile", () => profile);
@@ -39,7 +42,9 @@ try {
             getCurrentGameLanguage: async () => "english",
             readCloudFile: () => window.readTestProfile(), writeCloudFile: (_name, serialized) => window.writeTestProfile(serialized),
             setRichPresence() {}, setTimelineState() {}, addTimelineEvent() {}, triggerScreenshot() {},
-            updateStats() {}, onPauseRequested() {}, toggleFullscreen() {}, quitGame: () => window.quitTestDesktop(), openWishlist() {}
+            updateStats() {}, onPauseRequested() {}, getFullscreen: async () => true,
+            onFullscreenChanged() {}, toggleFullscreen: async () => false,
+            quitGame: () => window.quitTestDesktop(), openWishlist() {}
           };
         }, edition);
       }

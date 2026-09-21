@@ -570,7 +570,7 @@ function rescuedTravelerLostFamilyView(session, quest) {
       speaker: quest.character.name,
       character: quest.character,
       expressionId: "crying",
-      text: `I asked at every quay and chapel in ${quest.homePortName}. Their ship never arrived. They were lost at sea.`,
+      text: `I asked along every quay and through every quarter in ${quest.homePortName}. Their ship never arrived. They were lost at sea.`,
       options: [option("Continue", { type: "continue-rescued-traveler-homecoming" })]
     };
   }

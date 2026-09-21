@@ -15,6 +15,7 @@ import {
   crewRecruitmentHireFeedback,
   deliveryMissionShouldOpenOnArrival,
   dialogueBackOptionIndex,
+  equipmentStockComparisonText,
   createShoreBatteryDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
@@ -37,6 +38,8 @@ import {
   shipDialogueView,
   worldPriceIndicator
 } from "./dialogueSystem.js";
+import { CANNON_EQUIPMENT } from "./cannonEquipment.js";
+import { WHALE_HARPOONS } from "./whaleHarpoons.js";
 import {
   FRESH_WATER_GOOD_ID,
   GINGER_GOOD_ID,
@@ -183,9 +186,9 @@ import {
   completeChefBanquet,
   prepareChefBanquet,
   serveChefBanquet,
-  maybeSpawnChefQuest,
-  recruitChef
+  maybeSpawnChefQuest
 } from "./chefQuest.js";
+import { completeChefRecruitment } from "./innQuestTransactions.js";
 import {
   NAMED_CREW_ROLE_CHEF,
   NAMED_CREW_ROLE_HISTORIAN,
@@ -4498,7 +4501,19 @@ test("the banquet chef accepts ingredients across separate visits", () => {
   assert.equal(gameState.doubloons, startingDoubloons + CHEF_QUEST_REWARD);
   session.chefQuestArrival = true;
   session.nextPortNodeId = "root";
-  recruitChef(gameState, city);
+  const chef = {
+    id: "banquet-chef-istanbul",
+    name: "Kemal Reis",
+    sourceId: "test-banquet-chef",
+    expressions: ["neutral", "happy"],
+    skillIds: ["master-chef"],
+    homePortCityId: city.cityId,
+    homePortTileId: city.tileId
+  };
+  gameState.survival.lastMinute = 500;
+  setTestCrewCount(gameState, 1);
+  completeChefRecruitment(gameState, city, chef);
+  assert.equal(gameState.memory.decisions[`crew.homecoming.${chef.id}`], 501);
   const recruitedView = portDialogueView(session, city, gameState, economy, [city]);
   assert.deepEqual(recruitedView.options.map((entry) => entry.label), ["Back to city"]);
 });
@@ -5465,6 +5480,17 @@ test("equipment factor follow-up agrees with a plural equipment label", () => {
   assert.match(
     portDialogueView(session, city, gameState, economy, [city]).text,
     /The Bronze culverins are aboard/
+  );
+});
+
+test("equipment comparisons distinguish equivalent stock and use plural agreement", () => {
+  assert.equal(
+    equipmentStockComparisonText(WHALE_HARPOONS[0], [WHALE_HARPOONS[0]]),
+    "You already have the same Ash-Shaft Harpoon."
+  );
+  assert.equal(
+    equipmentStockComparisonText(CANNON_EQUIPMENT[2], [CANNON_EQUIPMENT[1]]),
+    "Your Reinforced culverins are superior."
   );
 });
 

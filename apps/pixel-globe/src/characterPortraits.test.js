@@ -474,6 +474,32 @@ test("Japanese and Joseon players use their own reviewed portrait groups", () =>
   }
 });
 
+test("Malukan player names and portraits always agree on sex and region", () => {
+  for (const city of ["Ternate", "Tidore"]) {
+    const generatedSexes = new Set();
+    for (let index = 0; index < 100; index += 1) {
+      const character = generatePlayerCharacter({
+        identityKey: `${city.toLowerCase()}-player-${index}`,
+        homePort: {
+          cityId: `${city.toLowerCase()}|indonesia`,
+          tileId: 420 + index,
+          city,
+          displayCity: city,
+          country: "Indonesia",
+          factionId: city.toLowerCase(),
+          cityType: "southeast-asian"
+        },
+        manifest: GENERATED_MANIFEST,
+        usedNames: new Set()
+      });
+      assert.ok(character.sourceId.startsWith("southeast-asian-portrait-pack-by-openai-"));
+      assert.equal(character.sex, character.gender);
+      generatedSexes.add(character.sex);
+    }
+    assert.deepEqual(generatedSexes, new Set(["female", "male"]));
+  }
+});
+
 test("Japanese and Joseon factors and ship captains keep their sovereign portrait groups", () => {
   const ports = [
     {

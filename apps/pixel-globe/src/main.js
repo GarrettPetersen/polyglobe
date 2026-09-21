@@ -415,6 +415,7 @@ import {
   sailWindSpeedFactor,
   sailingEfficiencyForAlignment,
   shipCanUseOars,
+  shipCanPivotInPlace,
   shipDirectionalTranslationAllowed,
   shipDragFactor,
   shipHasWindDeadZone,
@@ -3370,7 +3371,7 @@ const OPTIONS_ROW_START_MENU = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_ME
 const CONTROL_SCHEME_PANEL_W = 342;
 const CONTROL_SCHEME_PANEL_H = 218;
 const TELEMETRY_CONSENT_PANEL_W = 360;
-const TELEMETRY_CONSENT_PANEL_H = 188;
+const TELEMETRY_CONSENT_PANEL_H = 214;
 const KEY_BINDINGS_PANEL_MAX_W = 410;
 const KEY_BINDINGS_PANEL_H = 246;
 const KEY_BINDINGS_ROW_H = 23;
@@ -3936,7 +3937,18 @@ const ITEM_ARRIVAL_SOUND_QUEST_DELIVERY = "quest-delivery";
 const ITEM_ARRIVAL_SOUND_DISCOVERY_SUCCESS = "discovery-success";
 
 const platformActivityPublisher = createPlatformActivityPublisher(steamPlatformBridge);
-let nativeFullscreenActive = false;
+let nativeFullscreenActive = steamPlatformBridge
+  ? await steamPlatformBridge.getFullscreen()
+  : false;
+if (typeof nativeFullscreenActive !== "boolean") {
+  throw new Error("Steam fullscreen state is invalid");
+}
+steamPlatformBridge?.onFullscreenChanged((active) => {
+  if (typeof active !== "boolean") throw new Error("Steam fullscreen event is invalid");
+  nativeFullscreenActive = active;
+  fitCanvasToDisplay();
+  dirty = true;
+});
 let keyBindings = loadKeyBindings(gameStorage);
 const keys = createHeldKeyActions();
 const pointerSteering = {
@@ -7319,6 +7331,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     })) dirty = true;
     if (updateDiscoveryNotice(nowMs)) dirty = true;
     if (updateShoreScavenge(nowMs)) dirty = true;
+    if (maybeShowAnimalAnchorHint()) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     chartRebuiltThisFrame = measurePerformanceBenchmarkStage("chart", () => ensureChart());
     measurePerformanceBenchmarkStage(
@@ -7602,8 +7615,11 @@ function createOptionsMenuState() {
 
 function createTelemetryConsentModalState() {
   return {
+    view: "choice",
     selectedIndex: 0,
     declineRect: null,
+    privacyRect: null,
+    backRect: null,
     acceptRect: null
   };
 }
@@ -20301,18 +20317,31 @@ function handleOptionsKeyDown(event) {
 function handleTelemetryConsentKeyDown(event) {
   event.preventDefault();
   if (!telemetryConsentModal) return;
+  if (telemetryConsentModal.view === "privacy") {
+    if (["Enter", " ", "Escape", "Backspace"].includes(event.key)) {
+      telemetryConsentModal.view = "choice";
+      telemetryConsentModal.selectedIndex = 1;
+      dirty = true;
+    }
+    return;
+  }
   if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
-    telemetryConsentModal.selectedIndex = 0;
+    telemetryConsentModal.selectedIndex = Math.max(0, telemetryConsentModal.selectedIndex - 1);
     dirty = true;
     return;
   }
   if (["ArrowRight", "ArrowDown"].includes(event.key)) {
-    telemetryConsentModal.selectedIndex = 1;
+    telemetryConsentModal.selectedIndex = Math.min(2, telemetryConsentModal.selectedIndex + 1);
     dirty = true;
     return;
   }
   if (event.key === "Enter" || event.key === " ") {
-    resolveTelemetryConsent(telemetryConsentModal.selectedIndex === 1);
+    if (telemetryConsentModal.selectedIndex === 1) {
+      telemetryConsentModal.view = "privacy";
+      dirty = true;
+    } else {
+      resolveTelemetryConsent(telemetryConsentModal.selectedIndex === 2);
+    }
     return;
   }
   if (event.key === "Escape") resolveTelemetryConsent(false);
@@ -20320,8 +20349,21 @@ function handleTelemetryConsentKeyDown(event) {
 
 function handleTelemetryConsentPointerDown(point) {
   if (!telemetryConsentModal) return;
+  if (telemetryConsentModal.view === "privacy") {
+    if (pointInRect(point, telemetryConsentModal.backRect)) {
+      telemetryConsentModal.view = "choice";
+      telemetryConsentModal.selectedIndex = 1;
+      dirty = true;
+    }
+    return;
+  }
   if (pointInRect(point, telemetryConsentModal.declineRect)) {
     resolveTelemetryConsent(false);
+    return;
+  }
+  if (pointInRect(point, telemetryConsentModal.privacyRect)) {
+    telemetryConsentModal.view = "privacy";
+    dirty = true;
     return;
   }
   if (pointInRect(point, telemetryConsentModal.acceptRect)) resolveTelemetryConsent(true);
@@ -20329,9 +20371,12 @@ function handleTelemetryConsentPointerDown(point) {
 
 function updateTelemetryConsentSelectionFromPoint(point) {
   if (!telemetryConsentModal) return;
+  if (telemetryConsentModal.view === "privacy") return;
   if (pointInRect(point, telemetryConsentModal.declineRect)) {
     telemetryConsentModal.selectedIndex = 0;
   } else if (pointInRect(point, telemetryConsentModal.acceptRect)) {
+    telemetryConsentModal.selectedIndex = 2;
+  } else if (pointInRect(point, telemetryConsentModal.privacyRect)) {
     telemetryConsentModal.selectedIndex = 1;
   }
 }
@@ -27381,6 +27426,20 @@ function currentShoreScavengeSite() {
   return { context, beaverRange, shoreCall };
 }
 
+function maybeShowAnimalAnchorHint() {
+  if (!gameState || anchored || dialogueState || captainAlertModal || menusAreOpen() ||
+      gameOverReason || gameState.activePlaySeconds < 300 ||
+      gameState.memory.flags.animalAnchorHintShown === true ||
+      gameState.memory.animals.encounterOrder.length > 0 ||
+      !nearestScavengeShoreCall()) {
+    return false;
+  }
+  gameState.memory.flags.animalAnchorHintShown = true;
+  showSurvivalNotice("WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE", "neutral");
+  saveVoyageNow("animal-anchor-hint");
+  return true;
+}
+
 function updateAnchoredAnimalEncounter() {
   if (!anchored || shoreScavengeAction || captainAlertModal || dialogueState || menusAreOpen() ||
       portWaitState || gameOverReason) {
@@ -33966,6 +34025,10 @@ function inputCommandForShip() {
     controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
   });
   const canRow = shipCanUseOars(currentPlayerEffectiveShipStats());
+  const canPivot = shipCanPivotInPlace(
+    currentPlayerEffectiveShipStats(),
+    playerHasCombatEngagement()
+  );
   if (intent.relativeBackward && canRow) {
     const steeringHeading = intent.relativeTurn === 0
       ? ship.heading
@@ -33986,7 +34049,7 @@ function inputCommandForShip() {
       ship.position,
       -intent.relativeTurn * Math.PI / 2
     );
-    if (!intent.relativeForward && canRow) {
+    if (!intent.relativeForward && canPivot) {
       return {
         steeringHeading,
         movementHeading: null,
@@ -34042,7 +34105,8 @@ function directionalShipInputCommand(desiredHeading) {
     };
   }
   const speedRatio = vectorLength(ship.velocity) / stats.topSpeedRad;
-  if (speedRatio <= 0.2 && alignment < Math.cos(20 * Math.PI / 180)) {
+  if (speedRatio <= 0.2 && alignment < Math.cos(20 * Math.PI / 180) &&
+      shipCanPivotInPlace(stats, playerHasCombatEngagement())) {
     const signedTurn = dot3(cross3(ship.heading, desiredHeading), ship.position);
     return {
       steeringHeading: desiredHeading,
@@ -56561,8 +56625,8 @@ function drawTelemetryConsentModal() {
     w: panelW,
     h: panelH
   };
-  const buttonGap = 8;
-  const buttonW = Math.floor((panel.w - 28 - buttonGap) / 2);
+  const buttonGap = 5;
+  const buttonW = Math.floor((panel.w - 30 - buttonGap * 2) / 3);
   const buttonY = panel.y + panel.h - 34;
   telemetryConsentModal.declineRect = {
     x: panel.x + 10,
@@ -56570,8 +56634,14 @@ function drawTelemetryConsentModal() {
     w: buttonW,
     h: 24
   };
-  telemetryConsentModal.acceptRect = {
+  telemetryConsentModal.privacyRect = {
     x: telemetryConsentModal.declineRect.x + buttonW + buttonGap,
+    y: buttonY,
+    w: buttonW,
+    h: 24
+  };
+  telemetryConsentModal.acceptRect = {
+    x: telemetryConsentModal.privacyRect.x + buttonW + buttonGap,
     y: buttonY,
     w: buttonW,
     h: 24
@@ -56581,13 +56651,19 @@ function drawTelemetryConsentModal() {
   ctx.fillStyle = "rgba(10, 16, 18, 0.72)";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   drawPiratePaperModal(panel, 0.9);
-  drawOptionsText(uiText("telemetry.title"), panel.x + panel.w / 2, panel.y + 12, {
+  const privacyView = telemetryConsentModal.view === "privacy";
+  drawOptionsText(uiText(privacyView ? "telemetry.privacyTitle" : "telemetry.title"), panel.x + panel.w / 2, panel.y + 12, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK
   });
   const bodyFont = PIXEL_FONT_SMALL_8;
-  const bodyLines = wrapPixelText(uiText("telemetry.body"), bodyFont, panel.w - 28, 8);
+  const bodyLines = wrapPixelText(
+    uiText(privacyView ? "telemetry.privacyBody" : "telemetry.body"),
+    bodyFont,
+    panel.w - 28,
+    12
+  );
   const bodyLineHeight = localizedLineHeight(11);
   for (let index = 0; index < bodyLines.length; index++) {
     drawOptionsText(bodyLines[index], panel.x + 14, panel.y + 38 + index * bodyLineHeight, {
@@ -56595,19 +56671,34 @@ function drawTelemetryConsentModal() {
       color: PIRATE_MENU_INK
     });
   }
-  drawOptionsText(
-    "MARQUE-AND-REPRISAL.COM/PRIVACY/",
-    panel.x + panel.w / 2,
-    buttonY - 12,
-    { font: PIXEL_FONT_LATIN_SMALL_8, align: "center", color: PIRATE_MENU_CHART_LINE }
-  );
+  if (privacyView) {
+    telemetryConsentModal.backRect = {
+      x: panel.x + Math.floor((panel.w - 112) / 2), y: buttonY, w: 112, h: 24
+    };
+    drawPiratePaperInset(telemetryConsentModal.backRect, true);
+    drawOptionsText(uiText("telemetry.back"), panel.x + panel.w / 2,
+      controlTextY(telemetryConsentModal.backRect, PIXEL_FONT_SMALL_8),
+      { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK });
+    ctx.restore();
+    return;
+  }
   drawPiratePaperInset(
     telemetryConsentModal.declineRect,
     telemetryConsentModal.selectedIndex === 0
   );
   drawPiratePaperInset(
-    telemetryConsentModal.acceptRect,
+    telemetryConsentModal.privacyRect,
     telemetryConsentModal.selectedIndex === 1
+  );
+  drawPiratePaperInset(
+    telemetryConsentModal.acceptRect,
+    telemetryConsentModal.selectedIndex === 2
+  );
+  drawOptionsText(
+    fitPixelText(uiText("telemetry.privacy"), PIXEL_FONT_SMALL_8, buttonW - 8),
+    telemetryConsentModal.privacyRect.x + buttonW / 2,
+    controlTextY(telemetryConsentModal.privacyRect, PIXEL_FONT_SMALL_8),
+    { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK }
   );
   drawOptionsText(
     fitPixelText(uiText("telemetry.decline"), PIXEL_FONT_SMALL_8, buttonW - 8),

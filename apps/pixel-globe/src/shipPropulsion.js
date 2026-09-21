@@ -200,6 +200,13 @@ export function shipCanUseOars(stats) {
     stats.propulsion === SHIP_PROPULSION_OAR_SAIL;
 }
 
+export function shipCanPivotInPlace(stats, combatEngaged) {
+  if (typeof combatEngaged !== "boolean") {
+    throw new Error("Ship pivot policy requires a combat state");
+  }
+  return shipCanUseOars(stats) && !combatEngaged;
+}
+
 export function shipDirectionalTranslationAllowed(stats, headingAlignment) {
   if (!Number.isFinite(headingAlignment) || headingAlignment < -1 || headingAlignment > 1) {
     throw new Error(`Invalid directional translation alignment: ${headingAlignment}`);

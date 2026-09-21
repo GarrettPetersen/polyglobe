@@ -1211,6 +1211,21 @@ test("a vassal begrudgingly admits captains protected by its suzerain", () => {
   assert.equal(status.suzerainProtectsEntry, true);
 });
 
+test("a suzerain does not charge its own subject a hostile-passage toll", () => {
+  const state = createGameState({
+    cargoCapacity: 10,
+    playerCharacter: { ...PLAYER, nationalityId: "wallachia" }
+  });
+  const constantinople = port(24, "Constantinople", "Turkey", "mediterranean", 100000, "ottoman");
+
+  const status = portEntryStatus(state, constantinople, 101);
+
+  assert.equal(status.allowed, true);
+  assert.equal(status.hostile, false);
+  assert.equal(status.canPurchaseSafePassage, false);
+  assert.equal(status.suzerainProtectsEntry, true);
+});
+
 test("a captain who forces vassalage is no longer personally barred by the defeated state", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
   state.relations.factionReputation.hospitallers = -100;

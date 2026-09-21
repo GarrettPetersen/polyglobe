@@ -634,6 +634,7 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("gane village|indonesia", ["fish", "timber", NAVAL_STORES_GOOD_ID]),
   specialty("buru village|indonesia", ["fish", "timber", BEESWAX_GOOD_ID]),
   specialty("sofala|mozambique", ["gold"]),
+  specialty("elmina|ghana", ["gold", "ivory"]),
   specialty("mozambique|mozambique", ["gold", "ivory"]),
   specialty("mombasa|kenya", ["ivory"]),
   specialty("mogadishu|somalia", ["cotton-cloth", "ivory"]),

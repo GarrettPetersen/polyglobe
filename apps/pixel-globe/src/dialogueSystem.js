@@ -2950,14 +2950,34 @@ export function selectPortDialogueAction(
     if (session.disguisedEntry || session.nodeId !== "exeter-canal" || !quest?.canDeliver) {
       throw new Error("No commissioned Exeter canal materials can be delivered here");
     }
-    const deliveries = quest.materials.filter((material) => material.deliverableQuantity > 0).map((material) => (
-      deliverQuestCargoRequirement(gameState, city, material.goodId, material.quantity, material.requirementId, context)
-    ));
+    const payments = [];
+    const deliveries = quest.materials.filter((material) => material.deliverableQuantity > 0).map((material) => {
+      const delivery = deliverQuestCargoRequirement(
+        gameState, city, material.goodId, material.quantity, material.requirementId, context
+      );
+      if (delivery.complete) {
+        payments.push(receiveQuestPayment(
+          gameState,
+          city,
+          material.reward,
+          `Exeter canal: ${tradeGoodById(material.goodId).label}`,
+          context
+        ));
+      }
+      return delivery;
+    });
     const updated = exeterCanalQuestView(gameState, city, context.simMinute ?? 0);
     if (updated.materials.every((material) => material.complete)) startExeterCanalConstruction(gameState, city, context.simMinute ?? 0);
     session.selectedIndex = 0;
-    session.feedback = "Your stores have been delivered to the canal works.";
-    return { closed: false, questCargoTransfers: questCargoTransfersFromDeliveries(deliveries) };
+    const paid = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    session.feedback = paid > 0
+      ? `Your stores have been delivered to the canal works. You receive ${paid} db.`
+      : "Your stores have been delivered to the canal works.";
+    return {
+      closed: false,
+      questCargoTransfers: questCargoTransfersFromDeliveries(deliveries),
+      exeterCanalPayments: payments
+    };
   }
   if (action.type === "deliver-chef-ingredients") {
     const quest = chefQuestState(gameState, city);
@@ -6583,7 +6603,7 @@ function equipmentView(session, city, gameState, economy) {
           ? null
           : nets.length === 0
             ? "This port has no fishing nets in stock."
-            : `Your ${currentNet.label} is superior.`
+            : equipmentStockComparisonText(currentNet, nets)
       }),
       option("Whale harpoons", { type: "node", nodeId: "equipment-harpoons" }, {
         detail: equipmentStockLabel(harpoons, WHALE_HARPOONS, equipmentSpecialistAtPort(
@@ -6595,7 +6615,7 @@ function equipmentView(session, city, gameState, economy) {
           ? null
           : harpoons.length === 0
             ? "This port has no whaling gear in stock."
-            : `Your ${currentHarpoon.label} is superior.`
+            : equipmentStockComparisonText(currentHarpoon, harpoons)
       }),
       option("Cannon battery", { type: "node", nodeId: "equipment-cannons" }, {
         detail: equipmentStockLabel(cannonEquipment, CANNON_EQUIPMENT, equipmentSpecialistAtPort(
@@ -6609,11 +6629,28 @@ function equipmentView(session, city, gameState, economy) {
             ? null
             : cannonEquipment.length === 0
               ? "This port has no cannon equipment in stock."
-              : `Your ${currentCannonEquipment.label} is superior.`
+              : equipmentStockComparisonText(currentCannonEquipment, cannonEquipment)
       }),
       option("Back", { type: "node", nodeId: "root" })
     ]
   };
+}
+
+export function equipmentStockComparisonText(current, stock) {
+  if (!current || !Array.isArray(stock) || stock.length === 0) {
+    throw new Error("Equipment comparison requires current equipment and local stock");
+  }
+  const equivalent = stock.some((entry) => entry.tier === current.tier);
+  const plural = usesPluralAgreement(
+    current.grammaticalNumber,
+    `equipment-comparison:${current.id}`
+  );
+  if (equivalent) {
+    return `You already have the same ${current.label}.`;
+  }
+  return plural
+    ? `Your ${current.label} are superior.`
+    : `Your ${current.label} is superior.`;
 }
 
 function equipmentFactorOfferView(session, city, gameState) {

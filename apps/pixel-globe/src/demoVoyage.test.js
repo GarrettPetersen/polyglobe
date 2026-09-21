@@ -115,7 +115,23 @@ test("the Mediterranean demo derives its port list from the current navigation m
   );
 });
 
-test("escape recovery allows a 600 km grace band beyond the demo access mask", () => {
+test("Mediterranean royal agents make the French and Spanish courts accessible", () => {
+  const ports = [
+    { cityId: "marseille|france", city: "Marseille", factionId: "france", tileId: 0 },
+    { cityId: "barcelona|spain", city: "Barcelona", factionId: "spain", tileId: 1 }
+  ];
+  const courts = demoAccessiblePortsForMask({
+    ports,
+    accessMask: Uint8Array.from([1, 1]),
+    accessTileIdsForPort: (port) => [port.tileId]
+  });
+  assert.deepEqual(courts.map((port) => [port.cityId, port.capitalOfFactionId, port.isDemoCourt]), [
+    ["marseille|france", "france", true],
+    ["barcelona|spain", "spain", true]
+  ]);
+});
+
+test("escape recovery keeps only a 180 km grace band beyond the demo access mask", () => {
   const tileCount = 13;
   const graph = {
     subdivisions: 7,
@@ -128,8 +144,8 @@ test("escape recovery allows a 600 km grace band beyond the demo access mask", (
   accessMask[0] = 1;
   const distances = navigationDistanceKmFromAccessMask(graph, accessMask);
 
-  assert.equal(demoEscapeRequiresRecovery(10, distances), false);
-  assert.equal(demoEscapeRequiresRecovery(11, distances), true);
+  assert.equal(demoEscapeRequiresRecovery(3, distances), false);
+  assert.equal(demoEscapeRequiresRecovery(4, distances), true);
 });
 
 test("the demo naturalist roster contains only animals at accessible landfalls", () => {

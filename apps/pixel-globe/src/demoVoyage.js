@@ -5,8 +5,8 @@ import {
 } from "./animalEncounters.js";
 
 export const DEMO_GIBRALTAR_MESSAGE =
-  "The full version has many adventures and riches to be found on the high seas.";
-export const DEMO_ESCAPE_GRACE_DISTANCE_KM = 600;
+  "This demo voyage is limited to the Mediterranean. Turn east to continue exploring.";
+export const DEMO_ESCAPE_GRACE_DISTANCE_KM = 180;
 export const DEMO_WARNING_REARM_DISTANCE_KM = 240;
 export const DEMO_VOYAGE_SCOPE_MEDITERRANEAN = "mediterranean";
 export const DEMO_VOYAGE_SCOPE_WORLDWIDE = "worldwide-grandfathered";
@@ -14,7 +14,7 @@ export const LAST_WORLDWIDE_DEMO_GAME_STATE_VERSION = 51;
 export const DEMO_MEDITERRANEAN_SEED = Object.freeze({ lat: 36, lon: 15 });
 export const DEMO_GIBRALTAR_BARRIER_COORDINATES = Object.freeze([
   // Close the western throat, leaving Ceuta's eastern harbor inside the demo.
-  Object.freeze({ lat: 36.02, lon: -5.875 })
+  Object.freeze({ lat: 36.02, lon: -5.55 })
 ]);
 export const DEMO_GIBRALTAR_RECOVERY_COORDINATES = Object.freeze({ lat: 36, lon: -3.5 });
 
@@ -26,7 +26,7 @@ export function demoAccessiblePortsForMask({ ports, accessMask, accessTileIdsFor
   if (typeof accessTileIdsForPort !== "function") {
     throw new Error("Demo accessible ports require a harbor access resolver");
   }
-  return ports.filter((port) => {
+  const accessible = ports.filter((port) => {
     const accessTileIds = accessTileIdsForPort(port);
     if (!Array.isArray(accessTileIds) || accessTileIds.length === 0) {
       throw new Error(`Demo port has no harbor access tiles: ${port?.city || "unknown"}`);
@@ -37,6 +37,25 @@ export function demoAccessiblePortsForMask({ ports, accessMask, accessTileIdsFor
       }
     }
     return accessTileIds.some((tileId) => accessMask[tileId] === 1);
+  });
+  // France and Spain governed from Atlantic river capitals in 1522. The demo
+  // cannot sail there, so royal agents hold court at their Mediterranean ports.
+  const demoCourtPorts = new Map([
+    ["marseille|france", "france"],
+    ["barcelona|spain", "spain"]
+  ]);
+  return accessible.map((port) => {
+    const courtFactionId = demoCourtPorts.get(port.cityId);
+    if (!courtFactionId) return port;
+    if (port.factionId !== courtFactionId) {
+      throw new Error(`Demo court port ${port.cityId} belongs to ${port.factionId}, not ${courtFactionId}`);
+    }
+    return {
+      ...port,
+      isFactionCapital: true,
+      capitalOfFactionId: courtFactionId,
+      isDemoCourt: true
+    };
   });
 }
 

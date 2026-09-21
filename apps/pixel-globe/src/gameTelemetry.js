@@ -1,7 +1,8 @@
 import { validateVoyageStartProfile } from "./voyageStartProfile.js";
 import { globalTelemetryFailureIsActionable } from "./telemetryErrorClassification.js";
+import { TELEMETRY_CONSENT_STORAGE_KEY } from "./storageKeys.js";
 
-export const TELEMETRY_CONSENT_STORAGE_KEY = "marque-and-reprisal.telemetry-consent";
+export { TELEMETRY_CONSENT_STORAGE_KEY } from "./storageKeys.js";
 export const TELEMETRY_INSTALLATION_STORAGE_KEY = "marque-and-reprisal.telemetry-installation";
 export const TELEMETRY_FIRST_SEEN_STORAGE_KEY = "marque-and-reprisal.telemetry-first-seen";
 export const TELEMETRY_LAST_SESSION_STORAGE_KEY = "marque-and-reprisal.telemetry-last-session";

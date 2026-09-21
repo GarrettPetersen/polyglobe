@@ -453,6 +453,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     "Suez",
     "Male",
     "Maynila",
+    "Elmina",
     "San Juan",
     "Zanzibar",
     "Suq"
@@ -462,6 +463,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.equal(portByCity.get("Bastia").factionId, "genoa");
   assert.equal(portByCity.get("Cagliari").factionId, "spain");
   assert.equal(portByCity.get("Ceuta").factionId, "portugal");
+  assert.equal(portByCity.get("Elmina").factionId, "portugal");
   assert.equal(portByCity.get("Algiers").factionId, "ottoman");
   assert.equal(portByCity.get("Tripoli").factionId, "spain");
   assert.equal(portByCity.get("Birgu").factionId, "spain");

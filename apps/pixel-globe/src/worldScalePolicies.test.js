@@ -5,7 +5,7 @@ import test from "node:test";
 import { coastalWaterBands, terrainStepDistanceKm } from "./terrainDistance.js";
 import { isRemoteCastawayShore } from "./remoteShore.js";
 import { buildStormExposure } from "./stormSystem.js";
-import { navigationDistanceKmFromAccessMask, demoEscapeRequiresRecovery, DEMO_WARNING_REARM_DISTANCE_KM } from "./demoVoyage.js";
+import { navigationDistanceKmFromAccessMask, demoEscapeRequiresRecovery, DEMO_ESCAPE_GRACE_DISTANCE_KM, DEMO_WARNING_REARM_DISTANCE_KM } from "./demoVoyage.js";
 import { WORLD_KINEMATIC_SCALE, WORLD_PIXELS_PER_RADIAN } from "./worldScale.js";
 
 function lineWorld(subdivisions) {
@@ -31,9 +31,12 @@ for (const subdivisions of [6, 7, 8]) {
     const access = new Uint8Array(graph.tileCount);
     access[0] = 1;
     const distancesKm = navigationDistanceKmFromAccessMask(graph, access);
-    assert.equal(distancesKm[600 / stepKm], 600);
-    assert.equal(demoEscapeRequiresRecovery(600 / stepKm, distancesKm), false);
-    assert.equal(demoEscapeRequiresRecovery(600 / stepKm + 1, distancesKm), true);
+    const lastGraceTileId = Math.floor(DEMO_ESCAPE_GRACE_DISTANCE_KM / stepKm);
+    const firstRecoveryTileId = lastGraceTileId + 1;
+    assert.ok(distancesKm[lastGraceTileId] <= DEMO_ESCAPE_GRACE_DISTANCE_KM);
+    assert.ok(distancesKm[firstRecoveryTileId] > DEMO_ESCAPE_GRACE_DISTANCE_KM);
+    assert.equal(demoEscapeRequiresRecovery(lastGraceTileId, distancesKm), false);
+    assert.equal(demoEscapeRequiresRecovery(firstRecoveryTileId, distancesKm), true);
     const oceanMask = Uint8Array.from(access, (land) => 1 - land);
     const bands = coastalWaterBands({ ...graph, oceanMask });
     assert.equal(bands[120 / stepKm], 2);

@@ -193,7 +193,9 @@ function equipmentFactorCandidates({
       kind: EQUIPMENT_FACTOR_KIND_WHALE_HARPOON,
       item: harpoon,
       currentTier: currentHarpoon?.tier || 0,
-      salesPitch: "Its truer shaft and stronger line mean fewer whales lost once the chase begins.",
+      salesPitch: currentHarpoon
+        ? "Its truer shaft and stronger line mean fewer whales lost once the chase begins."
+        : "A balanced shaft and sound line will let you hunt whales from the ship.",
       effectDetail: `Accuracy ${Math.round(harpoon.accuracy * 100)}% / ` +
         `Line break ${Math.round(harpoon.breakChance * 100)}% / Range ${harpoon.rangePx}`
     }));

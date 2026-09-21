@@ -156,16 +156,19 @@ test("partial canal deliveries interrupt other landing offers and preserve their
 
 test("the canal commission permits partial deliveries and never offers an executable empty delivery", () => {
   const { state, view, choose } = commission();
+  const startingDoubloons = state.doubloons;
   choose("accept-exeter-canal");
   assert.equal(view().options.find((entry) => entry.action.type === "deliver-exeter-canal").disabled, true);
   state.cargo.timber = 10;
   choose("deliver-exeter-canal");
   assert.equal(state.memory.quests.exeterCanal.startedMinute, null);
   assert.equal(state.cargo.timber, undefined);
+  assert.equal(state.doubloons, startingDoubloons);
   assert.equal(exeterCanalQuestView(state, topsham, 0).materials[0].remainingQuantity, 20);
   Object.assign(state.cargo, { timber: 22, iron: 12, grain: 20 });
   choose("deliver-exeter-canal");
   assert.equal(state.cargo.timber, 2);
+  assert.equal(state.doubloons, startingDoubloons + 600 + 480 + 300);
   assert.equal(state.memory.quests.exeterCanal.startedMinute, 0);
   assert.equal(view().options.some((entry) => entry.action.type === "deliver-exeter-canal"), false);
   for (const stage of [0, 1, 2, 3]) {
