@@ -5547,6 +5547,16 @@ return Object.freeze({
     state.renderCount++;
     return state.renderCount;
   },
+  prepareStaticFrame(timeMs, budgetMs) {
+    if (!state.ready) throw new Error("City scene runtime prepared before initialization");
+    return citySceneRenderer.prepareStaticCache({
+      timeMs,
+      width: canvas.width,
+      height: canvas.height,
+      staticCacheKey: staticSceneCacheKey,
+      budgetMs
+    });
+  },
   drawPersonSprite(targetContext, options) {
     drawPersonSprite(targetContext, options);
   },

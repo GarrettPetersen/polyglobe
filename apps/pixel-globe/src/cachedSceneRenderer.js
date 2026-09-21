@@ -37,6 +37,7 @@ export function createCachedSceneRenderer({
         surface: reusable?.surface || null,
         context: reusable?.context || null,
         cacheKey: null,
+        pending: null,
         cacheBuilds: 0,
         cacheHits: 0
       });
@@ -111,7 +112,49 @@ export function createCachedSceneRenderer({
     }
   }
 
-  function prepareStaticBatch(batch, width, height, cacheKey, timeMs) {
+  function prepareStaticCache({
+    timeMs,
+    width,
+    height,
+    staticCacheKey,
+    budgetMs,
+    now = () => performance.now()
+  }) {
+    requireFiniteTime(timeMs);
+    requireDimension(width, "width");
+    requireDimension(height, "height");
+    if (!Number.isFinite(budgetMs) || budgetMs <= 0) {
+      throw new Error(`Cached scene renderer received invalid preparation budget: ${budgetMs}`);
+    }
+    requireFunction(now, "preparation clock");
+    if (
+      (typeof staticCacheKey !== "string" && typeof staticCacheKey !== "function") ||
+      staticCacheKey === ""
+    ) {
+      throw new Error("Cached scene renderer requires a non-empty static cache key");
+    }
+    const staticCacheKeyForBatch = typeof staticCacheKey === "function"
+      ? staticCacheKey
+      : () => staticCacheKey;
+    const startedAtMs = now();
+    if (!Number.isFinite(startedAtMs)) {
+      throw new Error(`Cached scene renderer preparation clock is invalid: ${startedAtMs}`);
+    }
+    for (const item of plan) {
+      if (item.kind !== "static-batch") continue;
+      const batchCacheKey = staticCacheKeyForBatch(item.entries);
+      if (typeof batchCacheKey !== "string" || batchCacheKey === "") {
+        throw new Error("Cached scene renderer requires a non-empty static cache key");
+      }
+      if (!prepareStaticBatch(item, width, height, batchCacheKey, timeMs, {
+        deadlineMs: startedAtMs + budgetMs,
+        now
+      })) return false;
+    }
+    return true;
+  }
+
+  function prepareStaticBatch(batch, width, height, cacheKey, timeMs, preparation = null) {
     if (!batch.surface) {
       batch.surface = createSurface(width, height);
       if (!batch.surface || typeof batch.surface.getContext !== "function") {
@@ -129,25 +172,42 @@ export function createCachedSceneRenderer({
     }
     const dimensionsChanged = batch.surface.width !== width || batch.surface.height !== height;
     if (!dimensionsChanged && batch.cacheKey === cacheKey) {
-      staticCacheHits++;
-      batch.cacheHits++;
-      return;
+      if (!preparation) {
+        staticCacheHits++;
+        batch.cacheHits++;
+      }
+      return true;
     }
-    if (dimensionsChanged) {
+    const pendingMatches = !dimensionsChanged && batch.pending?.cacheKey === cacheKey &&
+      batch.pending.width === width && batch.pending.height === height;
+    if (!pendingMatches) {
       batch.surface.width = width;
       batch.surface.height = height;
+      batch.context.imageSmoothingEnabled = false;
+      batch.context.clearRect(0, 0, width, height);
+      batch.pending = { cacheKey, width, height, nextEntryIndex: 0 };
     }
-    batch.context.imageSmoothingEnabled = false;
-    batch.context.clearRect(0, 0, width, height);
-    for (const entry of batch.entries) drawEntry(entry, timeMs, batch.context);
+    do {
+      const entry = batch.entries[batch.pending.nextEntryIndex++];
+      drawEntry(entry, timeMs, batch.context);
+    } while (
+      batch.pending.nextEntryIndex < batch.entries.length &&
+      (!preparation || preparationNow(preparation) < preparation.deadlineMs)
+    );
+    if (batch.pending.nextEntryIndex < batch.entries.length) return false;
+    batch.pending = null;
     batch.cacheKey = cacheKey;
     staticCacheBuilds++;
     batch.cacheBuilds++;
+    return true;
   }
 
   function invalidateStaticCache() {
     for (const item of plan) {
-      if (item.kind === "static-batch") item.cacheKey = null;
+      if (item.kind === "static-batch") {
+        item.cacheKey = null;
+        item.pending = null;
+      }
     }
   }
 
@@ -171,10 +231,19 @@ export function createCachedSceneRenderer({
 
   return Object.freeze({
     invalidateStaticCache,
+    prepareStaticCache,
     renderFrame,
     setEntries,
     stats
   });
+}
+
+function preparationNow(preparation) {
+  const nowMs = preparation.now();
+  if (!Number.isFinite(nowMs)) {
+    throw new Error(`Cached scene renderer preparation clock is invalid: ${nowMs}`);
+  }
+  return nowMs;
 }
 
 function emptyWorkload() {

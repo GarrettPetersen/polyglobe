@@ -3767,6 +3767,7 @@ portCitySceneCanvas.width = SCREEN_W;
 portCitySceneCanvas.height = SCREEN_H;
 let portCityRuntime = null;
 let portCityView = null;
+const PORT_CITY_STATIC_PREPARATION_BUDGET_MS = 6;
 let portCityTransition = null;
 let portCityIllicitEvent = null;
 let portAssaultState = null;
@@ -22803,6 +22804,7 @@ function activatePortCityView(cityCall) {
     centerX: center.x,
     centerY: center.y,
     sceneReady: false,
+    preparationSnapshot: null,
     arrivalGreetingPresented: false,
     colonistLanding: null,
     feast: gameState.memory.quests.chef.portCityId === cityCall.cityId &&
@@ -22903,24 +22905,41 @@ async function synchronizePortCityScene() {
   const syncKey = JSON.stringify({ cityId: city.cityId, ...selectionOptions });
   if (syncKey === portCitySceneSyncKey && portCityView.sceneReady) return;
   const serial = ++portCitySceneSelectionSerial;
+  if (portCityView.sceneReady) {
+    portCityView.preparationSnapshot = capturePresentedFrame();
+  }
+  portCityView.sceneReady = false;
   await portCityRuntime.selectCity(city.cityId, selectionOptions);
   if (!portCityView || serial !== portCitySceneSelectionSerial || portCityView.cityId !== city.cityId) return;
-  portCitySceneSyncKey = syncKey;
-  portCityView.sceneReady = true;
+  portCityRuntime.setDayOfYear(weatherParts.dayIndex);
+  portCityRuntime.setWeather(currentPortCityWeatherPresentation());
   if (portCityView.feast) portCityRuntime.setFeastPresentation(portCityView.feast);
-  if (city.colonizationQuestSite) {
-    emitCaptureEvent("colony-scene-ready", {
-      cityId: city.cityId,
-      settlementStage: portCityRuntime.getPresentationState().features.settlementStage,
-      population: city.population
-    });
-  }
   if (portCityView.colonistLanding &&
       portCityRuntime.getPresentationState().features.settlementStage === "uninhabited") {
     portCityRuntime.setColonistLandingElapsedMs(portCityView.colonistLanding.elapsedMs, {
       originCityId: portCityView.colonistLanding.originCityId,
       settlers: portCityView.colonistLanding.settlers,
       leader: portCityView.colonistLanding.leader
+    });
+  }
+  while (!measurePerformanceBenchmarkStage(
+    "prepare.city.raster",
+    () => portCityRuntime.prepareStaticFrame(
+      lastFrameMs, PORT_CITY_STATIC_PREPARATION_BUDGET_MS
+    )
+  )) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    if (!portCityView || serial !== portCitySceneSelectionSerial ||
+        portCityView.cityId !== city.cityId) return;
+  }
+  portCitySceneSyncKey = syncKey;
+  portCityView.sceneReady = true;
+  portCityView.preparationSnapshot = null;
+  if (city.colonizationQuestSite) {
+    emitCaptureEvent("colony-scene-ready", {
+      cityId: city.cityId,
+      settlementStage: portCityRuntime.getPresentationState().features.settlementStage,
+      population: city.population
     });
   }
   if (portCityTransition?.direction === "enter-pending") {
@@ -32743,7 +32762,7 @@ function currentChartReframeCoverState() {
       elapsedMs: gameOverElapsedMs(lastFrameMs),
       sinkDurationMs: gameOverTransitionDurationMs()
     }),
-    portCityScene: portCityView?.sceneReady === true,
+    portCityScene: portCityView?.sceneReady === true || Boolean(portCityView?.preparationSnapshot),
     fullPortDialogue: dialogueState?.kind === "port" &&
       dialogueState.admittedToPort === true && !cityRootPresentationOwned,
     playerIntro: Boolean(playerIntroModal),
@@ -45370,6 +45389,11 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
     return;
   }
   ctx = screenCtx;
+  if (portCityView && !portCityView.sceneReady && portCityView.preparationSnapshot) {
+    screenCtx.drawImage(portCityView.preparationSnapshot, 0, 0, SCREEN_W, SCREEN_H);
+    drawWorldInterface(nowMs);
+    return;
+  }
   if (portCityView?.sceneReady) {
     drawPortCityScene(nowMs);
     drawWorldInterface(nowMs);

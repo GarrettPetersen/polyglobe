@@ -11,7 +11,7 @@ test("opening the fully covered city resets north-up without a chart reframe wav
   const synchronization = functionSource("synchronizePortCityScene", "beginPortCityIllicitCaughtPresentation");
   assert.match(
     synchronization,
-    /portCityView\.sceneReady = true;[\s\S]*resetWorldNorthUpBehindPortCityCover\(\);[\s\S]*direction = "enter"/
+    /portCityView\.sceneReady = false;[\s\S]*prepareStaticFrame\([\s\S]*portCityView\.sceneReady = true;[\s\S]*resetWorldNorthUpBehindPortCityCover\(\);[\s\S]*direction = "enter"/
   );
   const cover = functionSource("currentChartReframeCoverState", "activeOpaqueWorldCoverKinds");
   assert.match(cover, /portCityScene: portCityView\?\.sceneReady === true/);
@@ -96,6 +96,25 @@ test("pending city activation is not misreported as an opaque world cover", () =
   assert.match(cover, /const cityRootPresentationOwned = portCityRootPresentationIsOwned\(\)/);
   assert.match(cover, /fullPortDialogue:[\s\S]*!cityRootPresentationOwned/);
   assert.match(cover, /blockingDialogue:[\s\S]*!cityRootPresentationOwned/);
+});
+
+test("city resynchronization holds the prior scene until its replacement cache is complete", () => {
+  const synchronization = functionSource("synchronizePortCityScene", "beginPortCityIllicitCaughtPresentation");
+  assert.match(
+    synchronization,
+    /if \(portCityView\.sceneReady\)[\s\S]*preparationSnapshot = capturePresentedFrame\(\)[\s\S]*sceneReady = false/
+  );
+  assert.ok(
+    synchronization.indexOf("sceneReady = false") < synchronization.indexOf("selectCity("),
+    "the mutable city runtime must be hidden before selection changes its render plan"
+  );
+  assert.ok(
+    synchronization.indexOf("prepareStaticFrame(") < synchronization.indexOf("sceneReady = true"),
+    "the replacement city must finish its static cache before it becomes visible"
+  );
+  assert.match(synchronization, /"prepare\.city\.raster"[\s\S]*prepareStaticFrame/);
+  const draw = functionSource("render", "drawWorldInterface");
+  assert.match(draw, /!portCityView\.sceneReady && portCityView\.preparationSnapshot[\s\S]*drawImage/);
 });
 
 test("city rendering receives live weather and market modes use the compact header switch", () => {

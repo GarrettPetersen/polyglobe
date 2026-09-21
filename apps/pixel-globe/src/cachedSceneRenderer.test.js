@@ -140,6 +140,90 @@ test("cached scene renderer reuses static surfaces when a city changes", () => {
   assert.equal(surfaceCount, 2);
 });
 
+test("cached scene renderer prepares cold static entries in bounded slices", () => {
+  const entryDraws = [];
+  const displayDraws = [];
+  let clockMs = 0;
+  const renderer = createCachedSceneRenderer({
+    displayContext: fakeContext("display", displayDraws),
+    createSurface: () => ({
+      width: 4,
+      height: 4,
+      getContext: () => fakeContext("surface", [])
+    }),
+    drawEntry: (entry) => {
+      entryDraws.push(entry.id);
+      clockMs += 3;
+    },
+    isStaticEntry: (entry) => entry.static
+  });
+  renderer.setEntries([
+    { id: "quay", kind: "layer", static: true },
+    { id: "houses", kind: "layer", static: true },
+    { id: "trees", kind: "layer", static: true },
+    { id: "cloud", kind: "cloud", static: false },
+    { id: "gate", kind: "layer", static: true }
+  ]);
+
+  assert.equal(renderer.prepareStaticCache({
+    timeMs: 10,
+    width: 4,
+    height: 4,
+    staticCacheKey: "london",
+    budgetMs: 5,
+    now: () => clockMs
+  }), false);
+  assert.deepEqual(entryDraws, ["quay", "houses"]);
+  assert.equal(displayDraws.length, 0);
+
+  assert.equal(renderer.prepareStaticCache({
+    timeMs: 20,
+    width: 4,
+    height: 4,
+    staticCacheKey: "london",
+    budgetMs: 5,
+    now: () => clockMs
+  }), true);
+  assert.deepEqual(entryDraws, ["quay", "houses", "trees", "gate"]);
+
+  renderer.renderFrame({ timeMs: 30, width: 4, height: 4, staticCacheKey: "london" });
+  assert.deepEqual(entryDraws, ["quay", "houses", "trees", "gate", "cloud"]);
+  assert.equal(displayDraws.length, 2);
+});
+
+test("a changed cache key discards an incomplete static preparation", () => {
+  const entryDraws = [];
+  let clockMs = 0;
+  const renderer = createCachedSceneRenderer({
+    displayContext: fakeContext("display", []),
+    createSurface: () => ({
+      width: 4,
+      height: 4,
+      getContext: () => fakeContext("surface", [])
+    }),
+    drawEntry: (entry) => {
+      entryDraws.push(entry.id);
+      clockMs += 4;
+    },
+    isStaticEntry: () => true
+  });
+  renderer.setEntries([
+    { id: "quay", kind: "layer" },
+    { id: "houses", kind: "layer" },
+    { id: "trees", kind: "layer" }
+  ]);
+
+  assert.equal(renderer.prepareStaticCache({
+    timeMs: 10, width: 4, height: 4, staticCacheKey: "old-city", budgetMs: 5,
+    now: () => clockMs
+  }), false);
+  assert.equal(renderer.prepareStaticCache({
+    timeMs: 20, width: 4, height: 4, staticCacheKey: "new-city", budgetMs: 20,
+    now: () => clockMs
+  }), true);
+  assert.deepEqual(entryDraws, ["quay", "houses", "quay", "houses", "trees"]);
+});
+
 test("cached scene renderer fails loudly on malformed frame contracts", () => {
   const renderer = createCachedSceneRenderer({
     displayContext: fakeContext("display", []),
