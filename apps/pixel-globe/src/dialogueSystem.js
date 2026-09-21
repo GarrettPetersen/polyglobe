@@ -7650,7 +7650,7 @@ function buyView(session, city, gameState, economy, context) {
       : `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
     feedbackLineReserve: 2,
-    optionHeight: 30,
+    optionHeight: 22,
     optionColumns: 2,
     presentation: { kind: "market", mode: "buy" },
     options: [...marketModeOptions(), ...rows]
@@ -8516,7 +8516,7 @@ function sellView(session, city, gameState, economy, context) {
       : `Buyers here pay port rates. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
     feedbackLineReserve: 2,
-    optionHeight: 30,
+    optionHeight: 22,
     optionColumns: 2,
     presentation: { kind: "market", mode: "sell" },
     options: [...marketModeOptions(), ...rows]

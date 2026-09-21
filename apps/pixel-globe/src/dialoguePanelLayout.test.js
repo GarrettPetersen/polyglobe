@@ -5,6 +5,7 @@ import {
   characterAlertChoicesAreVisible,
   characterAlertChoiceTextLayout,
   characterAlertGeometry,
+  compactMarketDialogueLayout,
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
   dialogueFeedbackTextLines,
@@ -12,6 +13,7 @@ import {
   dialogueOverlayIsVisible,
   dialogueOptionGroups,
   dialogueRegularOptionRows,
+  dialogueResponsiveRegularOptionRows,
   dialogueOptionLayout,
   dialogueOptionMeasurementWidths,
   dialogueOptionNavigationLayout,
@@ -372,6 +374,61 @@ test("market mode switch occupies the panel header and slides between two touch 
   assert.deepEqual(buy.hitRects.sell, { x: 390, y: 85, w: 51, h: 22 });
   assert.equal(buy.thumb.x, 339);
   assert.equal(sell.thumb.x, 392);
+
+  const narrow = marketModeSwitchLayout({
+    panel: { x: 6, y: 96, w: 258, h: 377 },
+    activeMode: "sell",
+    placement: "centered-row"
+  });
+  assert.deepEqual(narrow.outer, { x: 83, y: 116, w: 104, h: 22 });
+});
+
+test("compact market layout keeps five goods visible on the base landscape viewport", () => {
+  const layout = compactMarketDialogueLayout({
+    panel: { x: 6, y: 62, w: 468, h: 201 },
+    regularCount: 12,
+    exitCount: 2
+  });
+
+  assert.equal(layout.optionHeight, 22);
+  assert.equal(layout.stack.y, 112);
+  assert.equal(layout.stack.footerY, 232);
+  assert.equal(layout.stack.visibleRegularCount, 5);
+  assert.equal(layout.stack.needsScroll, true);
+});
+
+test("compact market layout gives taller viewports additional goods instead of padding", () => {
+  const layout = compactMarketDialogueLayout({
+    panel: { x: 6, y: 78, w: 443, h: 235 },
+    regularCount: 12,
+    exitCount: 2
+  });
+
+  assert.equal(layout.stack.visibleRegularCount, 6);
+  assert.throws(
+    () => compactMarketDialogueLayout({
+      panel: { x: 6, y: 56, w: 443, h: 70 },
+      regularCount: 1,
+      exitCount: 2
+    }),
+    /do not fit/
+  );
+});
+
+test("narrow market headers reserve separate rows for the mode switch and context", () => {
+  const layout = compactMarketDialogueLayout({
+    panel: { x: 6, y: 96, w: 258, h: 377 },
+    regularCount: 44,
+    exitCount: 2,
+    headerHeight: 82,
+    bodyOffset: 47,
+    contextOffset: 69,
+    optionHeight: 24
+  });
+
+  assert.equal(layout.bodyY, 143);
+  assert.equal(layout.contextY, 165);
+  assert.equal(layout.stack.visibleRegularCount, 10);
 });
 
 test("a mode switch fails loudly unless both choices are present", () => {
@@ -525,4 +582,32 @@ test("four shipyard tabs share a selectable row for wheel, keyboard and measurem
   assert.deepEqual(rows.map(row=>row.map(entry=>entry.index)),[[0,1,2,3]]);
   assert.deepEqual(dialogueOptionMeasurementWidths({...view,width:400}),[97,97,97,97]);
   assert.throws(()=>dialogueRegularOptionRows({...view,optionColumns:3},dialogueOptionGroups(view.options).regular),/exceeds its column count/);
+});
+
+test("narrow markets stack trade actions so their labels keep the full panel width", () => {
+  const view = {
+    presentation: { kind: "market" },
+    optionColumns: 2
+  };
+  const entries = dialogueOptionGroups([
+    { label: "Buy 1 Rice 4 db", rowId: "rice" },
+    { label: "Buy maximum Rice x12 48 db", rowId: "rice" },
+    { label: "Buy 1 Wool 9 db", rowId: "wool" },
+    { label: "Buy maximum Wool x8 72 db", rowId: "wool" }
+  ]).regular;
+
+  assert.deepEqual(
+    dialogueResponsiveRegularOptionRows(view, entries, { screenWidth: 480 })
+      .map((row) => row.map((entry) => entry.index)),
+    [[0, 1], [2, 3]]
+  );
+  assert.deepEqual(
+    dialogueResponsiveRegularOptionRows(view, entries, { screenWidth: 270 })
+      .map((row) => row.map((entry) => entry.index)),
+    [[0], [1], [2], [3]]
+  );
+  assert.throws(
+    () => dialogueResponsiveRegularOptionRows(view, entries, { screenWidth: 0 }),
+    /Invalid dialogue screen width/
+  );
 });

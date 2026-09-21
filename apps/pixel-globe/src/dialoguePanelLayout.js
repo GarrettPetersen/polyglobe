@@ -236,7 +236,13 @@ export function dialogueBackdropLayerOrder({ hasFactionBlock }) {
   ]);
 }
 
-export function marketModeSwitchLayout({ panel, activeMode, width = 104, height = 22 }) {
+export function marketModeSwitchLayout({
+  panel,
+  activeMode,
+  width = 104,
+  height = 22,
+  placement = "header"
+}) {
   if (!panel || ![panel.x, panel.y, panel.w, panel.h].every(Number.isFinite) ||
       panel.w <= 0 || panel.h <= 0) {
     throw new Error("Market mode switch requires a valid panel");
@@ -244,12 +250,17 @@ export function marketModeSwitchLayout({ panel, activeMode, width = 104, height 
   if (!["buy", "sell"].includes(activeMode)) {
     throw new Error(`Unknown market mode switch state: ${activeMode}`);
   }
+  if (!["header", "centered-row"].includes(placement)) {
+    throw new Error(`Unknown market mode switch placement: ${placement}`);
+  }
   if (!Number.isInteger(width) || width < 72 || !Number.isInteger(height) || height < 18) {
     throw new Error(`Invalid market mode switch dimensions: ${width}x${height}`);
   }
   const outer = Object.freeze({
-    x: panel.x + panel.w - width - 8,
-    y: panel.y + 7,
+    x: placement === "centered-row"
+      ? panel.x + Math.floor((panel.w - width) / 2)
+      : panel.x + panel.w - width - 8,
+    y: panel.y + (placement === "centered-row" ? 20 : 7),
     w: width,
     h: height
   });
@@ -273,6 +284,59 @@ export function marketModeSwitchLayout({ panel, activeMode, width = 104, height 
     outer,
     thumb,
     hitRects: Object.freeze({ buy: buyRect, sell: sellRect })
+  });
+}
+
+export function compactMarketDialogueLayout({
+  panel,
+  regularCount,
+  exitCount,
+  headerHeight = 50,
+  bodyOffset = 27,
+  contextOffset = 39,
+  bottomInset = 9,
+  optionHeight = 22
+}) {
+  if (!panel || ![panel.x, panel.y, panel.w, panel.h].every(Number.isFinite) ||
+      panel.w <= 0 || panel.h <= 0) {
+    throw new Error("Compact market dialogue requires a valid panel");
+  }
+  for (const [label, value] of Object.entries({
+    regularCount,
+    exitCount,
+    headerHeight,
+    bodyOffset,
+    contextOffset,
+    bottomInset,
+    optionHeight
+  })) {
+    if (!Number.isFinite(value)) throw new Error(`Invalid compact market ${label}: ${value}`);
+  }
+  if (!Number.isInteger(regularCount) || regularCount < 0) {
+    throw new Error("Compact market dialogue requires a non-negative regular row count");
+  }
+  if (!Number.isInteger(exitCount) || exitCount < 0 || exitCount > 2) {
+    throw new Error("Compact market dialogue requires zero, one, or two exit actions");
+  }
+  if (headerHeight <= 0 || bodyOffset <= 0 || contextOffset <= bodyOffset ||
+      contextOffset >= headerHeight || bottomInset < 0 || optionHeight <= 0 ||
+      headerHeight + bottomInset + optionHeight > panel.h) {
+    throw new Error("Compact market dialogue dimensions do not fit the panel");
+  }
+  const optionBottom = panel.y + panel.h - bottomInset;
+  const stack = dialogueOptionStackLayout({
+    desiredY: panel.y + headerHeight,
+    bottom: optionBottom,
+    optionHeight,
+    regularCount,
+    exitCount
+  });
+  return Object.freeze({
+    bodyY: panel.y + bodyOffset,
+    contextY: panel.y + contextOffset,
+    optionBottom,
+    optionHeight,
+    stack
   });
 }
 
@@ -623,4 +687,21 @@ export function dialogueRegularOptionRows(view, entries) {
     }
   }
   return rows;
+}
+
+export function dialogueResponsiveRegularOptionRows(
+  view,
+  entries,
+  { screenWidth, narrowMarketBreakpoint = 360 }
+) {
+  if (!Number.isFinite(screenWidth) || screenWidth <= 0) {
+    throw new Error(`Invalid dialogue screen width: ${screenWidth}`);
+  }
+  if (!Number.isFinite(narrowMarketBreakpoint) || narrowMarketBreakpoint <= 0) {
+    throw new Error(`Invalid narrow market breakpoint: ${narrowMarketBreakpoint}`);
+  }
+  if (view.presentation?.kind === "market" && screenWidth < narrowMarketBreakpoint) {
+    return entries.map((entry) => [entry]);
+  }
+  return dialogueRegularOptionRows(view, entries);
 }

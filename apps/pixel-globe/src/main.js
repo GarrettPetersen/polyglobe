@@ -1620,12 +1620,14 @@ import {
   dialogueOverlayIsVisible,
   dialogueOptionGroups,
   dialogueRegularOptionRows,
+  dialogueResponsiveRegularOptionRows,
   dialogueOptionMeasurementWidths,
   dialogueOptionNavigationLayout,
   dialogueOptionStackLayout,
   dialogueOptionTextLayout,
   dialogueOptionWindow,
   dialoguePanelGeometry,
+  compactMarketDialogueLayout,
   marketModeSwitchLayout,
   stepCharacterAlertChoicePage
 } from "./dialoguePanelLayout.js";
@@ -67094,8 +67096,12 @@ function dialoguePortraitFramesAreResident(frames) {
 }
 
 function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
-  const dialogueFont = PIXEL_FONT_DIALOGUE_8;
-  const dialogueLineHeight = localizedLineHeight(12);
+  const compactMarketSwitch = view.presentation?.kind === "market";
+  const narrowMarket = compactMarketSwitch && SCREEN_W < 360;
+  const dialogueFont = compactMarketSwitch ? PIXEL_FONT_SMALL_8 : PIXEL_FONT_DIALOGUE_8;
+  const dialogueLineHeight = compactMarketSwitch
+    ? localizedLineHeight(10)
+    : localizedLineHeight(12);
   const portFaction = dialogueState.kind === "port" ? factionById(subject.factionId) : null;
   const portGreeting = dialogueState.kind === "port" && dialogueState.nodeId === "greeting";
   const panelX = 6;
@@ -67104,23 +67110,25 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   const optionW = panelW - textXOffset - 12;
   const factionBlockW = Math.min(DIALOGUE_FACTION_BLOCK_W, Math.max(88, Math.floor(panelW * 0.4)));
   const factionBlockX = panelX + panelW - factionBlockW - 8;
-  const bodyTextW = portFaction && !portGreeting
+  const bodyTextW = portFaction && !portGreeting && !compactMarketSwitch
     ? factionBlockX - (panelX + textXOffset) - 8
     : optionW;
-  const textYOffset = portGreeting ? 52 : 25;
+  const textYOffset = narrowMarket ? 47 : compactMarketSwitch ? 27 : portGreeting ? 52 : 25;
   const topicLines = view.topic
     ? [fitPixelText(view.topic.toUpperCase(), dialogueFont, bodyTextW)]
     : [];
   const optionHeight = dialogueOptionsHeight(view, dialogueFont, optionW);
   const optionGroups = dialogueOptionGroups(view.options);
-  const compactMarketSwitch = view.presentation?.kind === "market";
+  const regularOptionRows = dialogueResponsiveRegularOptionRows(view, optionGroups.regular, {
+    screenWidth: SCREEN_W
+  });
   if (compactMarketSwitch && optionGroups.modeSwitches.length !== 2) {
     throw new Error("Market dialogue requires its Buy/Sell switch actions");
   }
   const modeSwitchReserve = optionGroups.modeSwitches.length > 0 && !compactMarketSwitch
     ? optionHeight
     : 0;
-  const optionRowCount = dialogueRegularOptionRows(view, optionGroups.regular).length +
+  const optionRowCount = regularOptionRows.length +
     (optionGroups.modeSwitches.length > 0 && !compactMarketSwitch ? 1 : 0) +
     (optionGroups.exits.length > 0 ? 1 : 0);
   const maximumPanelHeight = SCREEN_H - 13;
@@ -67131,19 +67139,21 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
         measureText: (entry) => measureRenderedPixelTextWidth(entry, dialogueFont)
       })
     : [];
-  const feedbackSlotCount = dialogueFeedbackSlotCount({
+  const feedbackSlotCount = compactMarketSwitch ? 0 : dialogueFeedbackSlotCount({
     visibleLineCount: feedbackLines.length,
     reservedLineCount: view.feedbackLineReserve ?? 0
   });
   const feedbackReserve = dialogueLineHeight * feedbackSlotCount;
-  const bodyLineLimit = Math.max(1, Math.floor(
+  const bodyLineLimit = compactMarketSwitch ? (narrowMarket ? 2 : 1) : Math.max(1, Math.floor(
     (maximumPanelHeight - textYOffset - optionHeight - modeSwitchReserve - feedbackReserve - 14) /
       dialogueLineHeight
   ) - topicLines.length);
   let bodyLines = wrapPixelText(view.text, dialogueFont, bodyTextW, bodyLineLimit);
   const bodyEndOffset = textYOffset +
     (topicLines.length + bodyLines.length + feedbackSlotCount) * dialogueLineHeight;
-  const optionYOffset = portGreeting ? bodyEndOffset + 5 : Math.max(64, bodyEndOffset + 5);
+  const optionYOffset = compactMarketSwitch
+    ? (narrowMarket ? 82 : 50)
+    : portGreeting ? bodyEndOffset + 5 : Math.max(64, bodyEndOffset + 5);
   const contentHeight = optionYOffset + optionRowCount * optionHeight +
     (optionGroups.exits.length > 0 && optionGroups.regular.length > 0 ? 4 : 0) + 9;
   const geometry = dialoguePanelGeometry({
@@ -67153,7 +67163,18 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   });
   const panel = geometry.panel;
   const optionBottom = panel.y + panel.h - 9;
-  const safeOptions = dialogueOptionStackLayout({
+  const compactMarketLayout = compactMarketSwitch
+    ? compactMarketDialogueLayout({
+        panel,
+        regularCount: regularOptionRows.length,
+        exitCount: optionGroups.exits.length,
+        headerHeight: optionYOffset,
+        bodyOffset: textYOffset,
+        contextOffset: narrowMarket ? 69 : 39,
+        optionHeight
+      })
+    : null;
+  const safeOptions = compactMarketLayout?.stack || dialogueOptionStackLayout({
     desiredY: panel.y + optionYOffset + modeSwitchReserve,
     bottom: optionBottom,
     optionHeight,
@@ -67212,7 +67233,9 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   if (portraitStage.animating) dirty = true;
 
   ctx.fillStyle = PIRATE_MENU_INK;
-  const speakerW = portFaction ? factionBlockX - panel.x - 16 : panel.w - 18;
+  const speakerW = compactMarketSwitch
+    ? (narrowMarket ? panel.w - 18 : panel.w - 130)
+    : portFaction ? factionBlockX - panel.x - 16 : panel.w - 18;
   const speakerLines = portGreeting && SCREEN_H > SCREEN_W
     ? wrapPixelText(view.speaker, dialogueFont, speakerW, 2)
     : [fitPixelText(view.speaker, dialogueFont, speakerW)];
@@ -67222,7 +67245,11 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
     });
   });
 
-  if (compactMarketSwitch) drawMarketModeSwitch(view, optionGroups.modeSwitches, panel);
+  if (compactMarketSwitch) {
+    drawMarketModeSwitch(view, optionGroups.modeSwitches, panel, {
+      placement: narrowMarket ? "centered-row" : "header"
+    });
+  }
 
   const textX = panel.x + 12;
   let y = panel.y + textYOffset;
@@ -67242,6 +67269,17 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
       drawPixelText(line, textX, y, { font: dialogueFont });
       y += dialogueLineHeight;
     }
+  } else if (compactMarketSwitch) {
+    const marketContext = selectedMarketOptionContext(view, optionGroups.regular);
+    if (marketContext) {
+      ctx.fillStyle = dialogueTextToneColor(marketContext.tone, PIRATE_MENU_CHART_LINE);
+      drawPixelText(
+        fitPixelText(marketContext.text, PIXEL_FONT_SMALL_8, optionW),
+        textX,
+        compactMarketLayout.contextY,
+        { font: PIXEL_FONT_SMALL_8 }
+      );
+    }
   }
 
   const optionX = textX;
@@ -67252,13 +67290,35 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   });
 }
 
-function drawMarketModeSwitch(view, modeEntries, panel) {
+function selectedMarketOptionContext(view, regularEntries) {
+  if (view.presentation?.kind !== "market") return null;
+  if (!Array.isArray(regularEntries)) {
+    throw new Error("Market option context requires regular option entries");
+  }
+  const selected = regularEntries.find(({ index }) => index === dialogueState.selectedIndex);
+  const entry = selected || regularEntries.find(({ option }) => !option.disabled) || regularEntries[0];
+  if (!entry) return null;
+  const text = entry.option.disabled
+    ? entry.option.disabledReason || entry.option.detail || ""
+    : entry.option.detail || "";
+  if (!text) return null;
+  return Object.freeze({
+    text: renderedUiText(text),
+    tone: entry.option.disabled ? null : entry.option.detailTone
+  });
+}
+
+function drawMarketModeSwitch(view, modeEntries, panel, { placement = "header" } = {}) {
   const entriesByMode = new Map(modeEntries.map((entry) => [entry.option.action?.mode, entry]));
   if (entriesByMode.size !== 2 || !entriesByMode.has("buy") || !entriesByMode.has("sell")) {
     throw new Error("Market mode switch actions must contain Buy and Sell");
   }
   dialogueLayout.optionRects = [];
-  const layout = marketModeSwitchLayout({ panel, activeMode: view.presentation.mode });
+  const layout = marketModeSwitchLayout({
+    panel,
+    activeMode: view.presentation.mode,
+    placement
+  });
   ctx.fillStyle = PIRATE_MENU_INK;
   ctx.fillRect(layout.outer.x, layout.outer.y, layout.outer.w, layout.outer.h);
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
@@ -69096,7 +69156,9 @@ function drawDialogueOptions(
     width,
     [...groups.regular, ...groups.exits]
   );
-  const regularRows = dialogueRegularOptionRows(view, groups.regular);
+  const regularRows = dialogueResponsiveRegularOptionRows(view, groups.regular, {
+    screenWidth: SCREEN_W
+  });
   const stack = dialogueOptionStackLayout({
     desiredY: y,
     bottom,
@@ -69256,6 +69318,20 @@ function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
     );
   }
   ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK;
+  if (view.presentation?.kind === "market") {
+    const textX = rect.x + GAME_ICON_SIZE + 10;
+    const controllerReserve = selected && !option.disabled && controllerPromptsVisible()
+      ? GAME_ICON_SIZE + 4
+      : 0;
+    const textWidth = Math.max(1, rect.x + rect.w - textX - 5 - controllerReserve);
+    drawPixelText(
+      fitPixelText(renderedUiText(option.label), PIXEL_FONT_SMALL_8, textWidth),
+      textX,
+      controlTextY(rect),
+      { font: PIXEL_FONT_SMALL_8 }
+    );
+    return;
+  }
   const textLayout = dialogueOptionTextMetrics(option, font, rect.w, view.optionHeight || DIALOGUE_OPTION_H);
   const multiLine = textLayout.labelLines.length > 1 || textLayout.detailLines.length > 0;
   const labelY = multiLine ? rect.y + 3 : controlTextY(rect);
@@ -69300,6 +69376,9 @@ function dialogueOptionEntriesHeight(view, font, width, entries) {
     throw new Error("Dialogue option height requires at least one entry");
   }
   const minimumHeight = view.optionHeight || DIALOGUE_OPTION_H;
+  if (view.presentation?.kind === "market") {
+    return SCREEN_W < 360 ? Math.max(24, minimumHeight) : minimumHeight;
+  }
   const measurementWidths = dialogueOptionMeasurementWidths({
     options: entries.map((entry) => entry.option),
     width,
@@ -69320,7 +69399,9 @@ function dialogueOptionEntriesHeight(view, font, width, entries) {
 function dialogueSelectableOptionRows(view) {
   const groups = dialogueOptionGroups(view.options);
   const rows = groups.modeSwitches.length > 0 ? [[...groups.modeSwitches]] : [];
-  rows.push(...dialogueRegularOptionRows(view, groups.regular));
+  rows.push(...dialogueResponsiveRegularOptionRows(view, groups.regular, {
+    screenWidth: SCREEN_W
+  }));
   if (groups.exits.length > 0) rows.push([...groups.exits]);
   if (rows.length === 0) throw new Error("Dialogue has no selectable option rows");
   return rows;

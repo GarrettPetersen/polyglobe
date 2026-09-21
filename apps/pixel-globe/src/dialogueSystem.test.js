@@ -1375,7 +1375,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   const market = portDialogueView(session, city, gameState, economy, [city]);
   assert.match(market.text, /Market specie: \d+ db/);
   assert.equal(market.feedbackLineReserve, 2);
-  assert.equal(market.optionHeight, 30);
+  assert.equal(market.optionHeight, 22);
   assert.ok(market.options.some((option) => /\d+ db/.test(option.label)));
   assert.ok(market.options.some((option) => /WORLD/.test(option.detail || "")));
   assert.ok(market.options.some((option) => /SPACE [1-4]/.test(option.detail || "")));
@@ -1407,7 +1407,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.ok(sell.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   assert.equal(sell.feedbackLineReserve, 2);
-  assert.equal(sell.optionHeight, 30);
+  assert.equal(sell.optionHeight, 22);
   assert.equal(sell.options.at(-2).label, "Back to city");
   assert.equal(sell.options.at(-2).placement, "port-exit");
   assert.equal(sell.options.at(-1).label, "Undo all trades");

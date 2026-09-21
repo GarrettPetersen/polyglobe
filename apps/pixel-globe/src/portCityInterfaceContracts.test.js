@@ -128,7 +128,7 @@ test("city rendering receives live weather and market modes use the compact head
   const dialogueDraw = functionSource("drawDialogueOverlayContent", "drawMarketModeSwitch");
   assert.match(dialogueDraw, /compactMarketSwitch = view\.presentation\?\.kind === "market"/);
   assert.match(dialogueDraw, /drawModeSwitches: !compactMarketSwitch/);
-  assert.match(dialogueDraw, /compactMarketSwitch\) drawMarketModeSwitch/);
+  assert.match(dialogueDraw, /if \(compactMarketSwitch\) \{[\s\S]*drawMarketModeSwitch/);
 });
 
 test("city rendering receives every live city name instead of retaining its baked label", () => {
