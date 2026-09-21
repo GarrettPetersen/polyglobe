@@ -45,17 +45,22 @@ Last updated: **September 21, 2026**.
   the press preview opens. It is not a condition of Next Fest participation.
   Demo approvals and Next Fest registration were rechecked September 13.
   Complete the player-support field and verify press-preview opt-in.
-- **September 17:** Original coordinated demo-launch target. The public demo
-  did not receive the full campaign push on this date.
-- **September 21:** The Steam demo is publicly playable in a quiet soft launch.
-  Incorporate feedback and stabilize the build before using the one-time
+- **September 17:** The Steam demo became publicly playable in a quiet soft
+  launch. The one-time demo release notification was deliberately left unused
+  while Garrett gathered feedback and improved the build.
+- **September 20:** Comrade Snake published
+  [Quick look at “Marque & Reprisal”](https://www.youtube.com/watch?v=1uBUWIT1kWo),
+  the first confirmed YouTube creator coverage in the outreach tracker. The
+  full-game key had been sent September 15. Steam redemption is not independently
+  confirmed.
+- **September 21:** Incorporate feedback and stabilize the public demo before using the one-time
   **Steam demo release notification** button. That button is on the demo app's
   Steamworks landing page and sends email and mobile notifications to eligible
   players who wishlisted the associated full game. It is the deliberately held
-  demo-launch marketing beat, not a creator email blast. Record the demo's exact
-  initial release time: Steam only exposes the button for the first 14 days,
-  and it can be used once. If the demo first became playable September 21, the
-  operational send deadline is October 5. Before pressing it, verify the current
+  demo-launch marketing beat, not a creator email blast. Steam only exposes the
+  button for the first 14 days and it can be used once. Because the demo first
+  became playable September 17, the operational send deadline is **October 1**.
+  Before pressing it, verify the current
   build, logged-out install flow, launch trailer, Steam page and human-authored
   posts. Record baseline wishlists, installs and players immediately before the
   notification, then record the same metrics after it.
@@ -115,7 +120,7 @@ Last updated: **September 21, 2026**.
   ends. If the Steam discount dashboard permits it as expected, manually join
   the Winter Sale already in progress; it runs through January 4, 2027.
 
-The Steam demo was publicly released in a quiet soft launch by September 21.
+The Steam demo was publicly released in a quiet soft launch September 17.
 Garrett is incorporating player feedback before spending Steam's one-time demo
 release notification. Do not press that Steamworks button until Garrett gives
 explicit approval and the current build and campaign package are ready. The
@@ -132,7 +137,7 @@ trailer, Steam page and press-kit links; do not wait for an IGN response.
   - Store page: https://store.steampowered.com/app/4516500/Marque__Reprisal/
 
 - [x] **Make the approved Steam demo public**
-  - Status: Publicly playable in a quiet soft launch by September 21. The
+  - Status: Publicly playable in a quiet soft launch since September 17. The
     one-time Steam demo release notification has intentionally not been sent
     while Garrett incorporates feedback.
   - A current stable build has been uploaded to Steam. Beta-testing keys have
@@ -286,6 +291,9 @@ game merely to tick every box.
   - One to two weeks of lead time is no longer possible for September 17; do
     not delay a ready demo solely to meet the earlier outreach target.
   - Do not mass-send all 2,837 contacts before measuring the first batches.
+  - Record every confirmed third-party post, video, stream or article in
+    [earned-coverage.md](earned-coverage.md). Do not count Iron Pagoda's own
+    posts or press-release distribution as earned coverage.
 
 - [ ] **Finish the external launch package.**
   - The demo-launch trailer is complete and live in the press kit. Its end card
@@ -358,7 +366,8 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 - [ ] Prepare the first creator-outreach wave.
   - Garrett supplied the core email and authorized the additions saved in the
     [working outreach template](creator-outreach-template.md). He reports 250
-    full-game keys available; no creator keys were sent in this session.
+    full-game keys available. The tracker records five creator keys sent as of
+    September 21, including Comrade Snake's September 15 send.
   - Prioritize user-reported interest from `@CopperPlaysRetro` after locating
     the comment and verifying a private contact route. SNESdrunk is a personal
     inspiration/thank-you contact; do not assume modern-PC review coverage.
@@ -472,7 +481,9 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 - [ ] Submit all required Next Fest items for review by **September 28**.
 - [ ] If opted in, verify the public demo when the optional press preview opens
   **October 8 at 10:00 AM PDT**.
-- [ ] Make the demo public before **October 19 at 10:00 AM PDT**.
+- [x] Make the demo public before **October 19 at 10:00 AM PDT**.
+  - Completed September 17 in a quiet soft launch. The separate one-time
+    wishlist notification remains available only through October 1.
 - [ ] Participate in Next Fest from **October 19–26**.
 
 The game can only participate in one Steam Next Fest and must remain unreleased until this one ends. During the festival, watch wishlist growth, demo activations, playtime, feedback, bugs and streamer interest.
@@ -799,7 +810,7 @@ Work through these in order; outreach preparation can proceed while testers work
    before scaling. Every send still requires Garrett's authorization.
    IGN's demo-launch trailer update was sent September 13 without exclusivity.
 5. **Spend the held demo-launch beat:** Record the exact demo release timestamp
-   and the 14-day notification deadline. Record wishlist/traffic baseline;
+   and the **October 1** notification deadline. Record wishlist/traffic baseline;
    verify public install and play flows; then, only after Garrett explicitly
    approves it, press the one-time Steam demo release notification button and
    publish/send the approved campaign material.
