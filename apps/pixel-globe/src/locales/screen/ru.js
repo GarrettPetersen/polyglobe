@@ -4511,7 +4511,6 @@ export default Object.freeze({
   "Whitney's granite crest rises above a deep, dry valley, with bright snow caught in its upper hollows. From the west it belongs to a long wall of peaks; from the east it seems abrupt and immense.": "Гранитный гребень Уитни возвышается над глубокой сухой долиной, в верхних впадинах которой застрял яркий снег. С запада он принадлежит длинной стене пиков; с востока оно кажется резким и огромным.",
   "who will press the terms. Keep the spoils;": "кто будет настаивать на условиях. Сохраните добычу;",
   "Wild Dog": "Дикая собака",
-  "WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE": "ДИКИЕ ЖИВОТНЫЕ НА БЕРЕГУ — БРОСЬТЕ ЯКОРЬ ДЛЯ ИССЛЕДОВАНИЯ",
   "will fall {0} with {1}.": "упадет {0} с {1}.",
   "Will you leave the {0} with me?": "Оставите ли вы мне {0}?",
   "Will you petition the Spanish court at {0} for a new seat of the Order?": "Вы обратитесь к испанскому королевскому двору в {0} с просьбой выделить Ордену новую резиденцию?",

@@ -4511,7 +4511,6 @@ export default Object.freeze({
   "Whitney's granite crest rises above a deep, dry valley, with bright snow caught in its upper hollows. From the west it belongs to a long wall of peaks; from the east it seems abrupt and immense.": "ホイットニーの花崗岩の頂上は、深く乾燥した谷の上にそびえ立ち、その上部のくぼみには明るい雪が閉じ込められています。西から見ると、それは長い峰の壁に属しています。東から見ると、それは突然で巨大に見えます。",
   "who will press the terms. Keep the spoils;": "誰が条件を押し付けるのか。戦利品は保管しておいてください。",
   "Wild Dog": "ワイルドドッグ",
-  "WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE": "岸に野生動物 — 錨を下ろして調査",
   "will fall {0} with {1}.": "{0} は {1} に分類されます。",
   "Will you leave the {0} with me?": "{0} を預けていただけますか?",
   "Will you petition the Spanish court at {0} for a new seat of the Order?": "{0}のスペイン王廷に、騎士団の新たな本拠地を願い出ますか？",

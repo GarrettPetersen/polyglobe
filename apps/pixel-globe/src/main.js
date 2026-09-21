@@ -7331,7 +7331,6 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     })) dirty = true;
     if (updateDiscoveryNotice(nowMs)) dirty = true;
     if (updateShoreScavenge(nowMs)) dirty = true;
-    if (maybeShowAnimalAnchorHint()) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     chartRebuiltThisFrame = measurePerformanceBenchmarkStage("chart", () => ensureChart());
     measurePerformanceBenchmarkStage(
@@ -27424,20 +27423,6 @@ function currentShoreScavengeSite() {
     })
     : null;
   return { context, beaverRange, shoreCall };
-}
-
-function maybeShowAnimalAnchorHint() {
-  if (!gameState || anchored || dialogueState || captainAlertModal || menusAreOpen() ||
-      gameOverReason || gameState.activePlaySeconds < 300 ||
-      gameState.memory.flags.animalAnchorHintShown === true ||
-      gameState.memory.animals.encounterOrder.length > 0 ||
-      !nearestScavengeShoreCall()) {
-    return false;
-  }
-  gameState.memory.flags.animalAnchorHintShown = true;
-  showSurvivalNotice("WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE", "neutral");
-  saveVoyageNow("animal-anchor-hint");
-  return true;
 }
 
 function updateAnchoredAnimalEncounter() {

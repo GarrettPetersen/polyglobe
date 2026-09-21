@@ -4511,7 +4511,6 @@ export default Object.freeze({
   "Whitney's granite crest rises above a deep, dry valley, with bright snow caught in its upper hollows. From the west it belongs to a long wall of peaks; from the east it seems abrupt and immense.": "A crista de granito de Whitney ergue-se acima de um vale profundo e seco, com neve brilhante presa nas cavidades superiores. Do oeste pertence a uma longa parede de picos; do leste parece abrupto e imenso.",
   "who will press the terms. Keep the spoils;": "quem irá pressionar os termos. Fique com os despojos;",
   "Wild Dog": "Cão Selvagem",
-  "WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE": "ANIMAIS EM TERRA — LANCE ÂNCORA PARA INVESTIGAR",
   "will fall {0} with {1}.": "cairá {0} com {1}.",
   "Will you leave the {0} with me?": "Você pode deixar o {0} comigo?",
   "Will you petition the Spanish court at {0} for a new seat of the Order?": "Você pedirá à corte real espanhola em {0} uma nova sede para a Ordem?",

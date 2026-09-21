@@ -4511,7 +4511,6 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Whitney's granite crest rises above a deep, dry valley, with bright snow caught in its upper hollows. From the west it belongs to a long wall of peaks; from the east it seems abrupt and immense.",
   "who will press the terms. Keep the spoils;",
   "Wild Dog",
-  "WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE",
   "will fall {0} with {1}.",
   "Will you leave the {0} with me?",
   "Will you petition the Spanish court at {0} for a new seat of the Order?",

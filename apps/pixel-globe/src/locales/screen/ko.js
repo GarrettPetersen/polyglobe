@@ -4511,7 +4511,6 @@ export default Object.freeze({
   "Whitney's granite crest rises above a deep, dry valley, with bright snow caught in its upper hollows. From the west it belongs to a long wall of peaks; from the east it seems abrupt and immense.": "휘트니의 화강암 볏은 깊고 건조한 계곡 위로 솟아 있으며, 위쪽 구멍에는 밝은 눈이 쌓여 있습니다. 서쪽에서는 긴 봉우리 벽에 속합니다. 동쪽에서 보면 그것은 갑작스럽고 거대해 보인다.",
   "who will press the terms. Keep the spoils;": "누가 조건을 누르겠는가. 전리품을 보관하십시오.",
   "Wild Dog": "야생 개",
-  "WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE": "해안에 야생동물 발견 — 닻을 내리고 조사하십시오",
   "will fall {0} with {1}.": "{0} 및 {1} 수준으로 떨어질 예정입니다.",
   "Will you leave the {0} with me?": "{0}을 저에게 맡기시겠어요?",
   "Will you petition the Spanish court at {0} for a new seat of the Order?": "{0}의 스페인 왕실에 기사단의 새 본거지를 청원하시겠습니까?",

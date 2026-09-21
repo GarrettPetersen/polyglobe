@@ -4511,7 +4511,6 @@ export default Object.freeze({
   "Whitney's granite crest rises above a deep, dry valley, with bright snow caught in its upper hollows. From the west it belongs to a long wall of peaks; from the east it seems abrupt and immense.": "惠特尼的花崗岩山峰聳立在一個又深又乾燥的山谷之上，上面的山谷積滿了明亮的積雪。從西邊看去，是一道長長的山牆；從東方看，它顯得突兀而巨大。",
   "who will press the terms. Keep the spoils;": "誰將遵守這些條款。保留戰利品；",
   "Wild Dog": "野狗",
-  "WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE": "岸上有野生動物——下錨調查",
   "will fall {0} with {1}.": "將落在 {0} 和 {1} 中。",
   "Will you leave the {0} with me?": "你能把 {0} 留給我嗎？",
   "Will you petition the Spanish court at {0} for a new seat of the Order?": "你要向{0}的西班牙王廷請求為騎士團另設駐地嗎？",

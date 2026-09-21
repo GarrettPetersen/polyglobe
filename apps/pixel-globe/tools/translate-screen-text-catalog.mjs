@@ -212,16 +212,6 @@ const REVIEWED_OVERRIDES = Object.freeze({
       "데모 항해는 지중해로 제한됩니다. 탐험을 계속하려면 동쪽으로 뱃머리를 돌리십시오."
     ]
   ),
-  "WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE": reviewedLocaleOverrides(
-    "WILDLIFE ASHORE — DROP ANCHOR TO INVESTIGATE",
-    [
-      "岸上有野生动物——抛锚调查", "ДИКИЕ ЖИВОТНЫЕ НА БЕРЕГУ — БРОСЬТЕ ЯКОРЬ ДЛЯ ИССЛЕДОВАНИЯ",
-      "FAUNA EN TIERRA — ECHA EL ANCLA PARA INVESTIGAR", "ANIMAIS EM TERRA — LANCE ÂNCORA PARA INVESTIGAR",
-      "岸に野生動物 — 錨を下ろして調査", "WILDTIERE AN LAND — VOR ANKER GEHEN UND NACHFORSCHEN",
-      "FAUNE À TERRE — JETEZ L’ANCRE POUR ENQUÊTER", "DZIKIE ZWIERZĘTA NA LĄDZIE — RZUĆ KOTWICĘ, ABY ZBADAĆ",
-      "岸上有野生動物——下錨調查", "해안에 야생동물 발견 — 닻을 내리고 조사하십시오"
-    ]
-  ),
   "You already have the same {0}.": reviewedLocaleOverrides("You already have the same {0}.", [
     "你已经有同样的{0}。", "У вас уже есть такой же предмет: {0}.", "Ya tienes el mismo equipo: {0}.",
     "Você já possui o mesmo equipamento: {0}.", "同じ装備をすでに持っている：{0}。",
