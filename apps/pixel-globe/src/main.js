@@ -896,6 +896,7 @@ import {
   simulatePortAssault
 } from "./portAssaultBattle.js";
 import { portAssaultBreakOffLayout } from "./portAssaultBreakOffLayout.js";
+import { portAssaultHudLayout } from "./portAssaultHudLayout.js";
 import {
   CREW_CASUALTY_FATE,
   createCrewCasualtyReport
@@ -44829,20 +44830,24 @@ function drawPortAssaultBattleStatus(assault, elapsedMs) {
   const attackers = assault.battle.combatants.filter(({ side }) => side === "attacker").length;
   const defenders = assault.battle.combatants.length - attackers;
   const hull = portAssaultShipHitPointsAt(assault.battle, elapsedMs);
-  const panel = { x: Math.floor(SCREEN_W / 2) - 98, y: 7, w: 196, h: 28 };
-  drawPirateHudPanel(panel);
-  drawPixelText(
-    renderedUiText(`CREW ${attackers - deadBySide.attacker}  •  GARRISON ${defenders - deadBySide.defender}`),
-    panel.x + panel.w / 2,
-    panel.y + 5,
-    { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK }
-  );
-  drawPixelText(
-    renderedUiText(`SHIP ${hull}/${assault.battle.maxShipHitPoints}`),
-    panel.x + panel.w / 2,
-    panel.y + 16,
-    { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK_MUTED }
-  );
+  const rows = [
+    renderedUiText(`${uiText("combat.assaultCrewShort")} ${attackers - deadBySide.attacker}`),
+    renderedUiText(`${uiText("combat.assaultGarrisonShort")} ${defenders - deadBySide.defender}`),
+    renderedUiText(`${uiText("combat.assaultShipShort")} ${hull}/${assault.battle.maxShipHitPoints}`)
+  ];
+  const layout = portAssaultHudLayout({
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    rowWidths: rows.map((row) => measureRenderedPixelTextWidth(row, PIXEL_FONT_SMALL_8))
+  });
+  drawPirateHudPanel(layout.panel);
+  rows.forEach((row, index) => {
+    drawPixelText(row, layout.rows[index].x, layout.rows[index].y, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center",
+      color: index === rows.length - 1 ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK
+    });
+  });
   if (elapsedMs >= assault.battle.durationMs) {
     const title = assault.battle.outcome === PORT_ASSAULT_OUTCOME.VICTORY
       ? renderedUiText("VICTORY")
