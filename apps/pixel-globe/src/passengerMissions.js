@@ -1136,7 +1136,7 @@ function passengerDialogueText(scenarioId, origin, destination, reward, religiou
   if (scenarioId === "return-home") {
     return {
       offer: `Captain, I was born in ${destinationName}. My last berth ended here, and I have no kin in this harbor. Carry me home and I will pay ${reward} db.`,
-      underway: `Every league toward ${destinationName} feels like a debt lifting. Tell me when we make the harbor.`,
+      underway: `Every league toward ${destinationName} brings me closer to being debt-free. Tell me when we make the harbor.`,
       arrival: `${destinationName}. I know that smell of water and smoke. You have brought me home; here is the payment I promised.`
     };
   }

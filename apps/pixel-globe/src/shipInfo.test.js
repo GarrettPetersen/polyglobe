@@ -379,7 +379,7 @@ test("ship papers include the captain's named sovereign trade permits", () => {
   }, gameState);
   const permit = view.papers.find((paper) => paper.kind === "permit");
 
-  assert.equal(permit.title, "Indies trade licencia");
+  assert.equal(permit.title, "Spanish American trade license");
   assert.equal(permit.issuer, "Spanish Monarchy");
   assert.equal(permit.route, "Spanish American ports");
   assert.match(permit.detail, /Royal license/);

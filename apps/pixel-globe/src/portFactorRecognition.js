@@ -206,7 +206,7 @@ function recognitionText(candidate, variant, voiceId) {
   }
   if (candidate.kind === "pirate-scourge") {
     return variant === 0
-      ? "Pirates curse your name from here to the ocean sea. Honest masters drink to it."
+      ? "Pirates curse your name across every sea. Honest masters drink to it."
       : pirateScourgeLine(voiceId);
   }
   if (candidate.kind === "discoverer") {

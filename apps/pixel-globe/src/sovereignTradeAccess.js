@@ -70,7 +70,7 @@ export const SOVEREIGN_TRADE_ACCESS_POLICIES = Object.freeze([
     illicitMarketSuccessChance: 0.45,
     illicitMarketReputationPenalty: 8,
     closedMarketText: "The Crown's Indies monopoly closes this colonial market to unlicensed foreign cargo.",
-    permitLabel: "Indies trade licencia",
+    permitLabel: "Spanish American trade license",
     permitAuthority: "the Casa de Contratación",
     permitPetition: "The Casa de Contratación may petition the Crown for a royal licencia naming a trusted captain as an authorized trader in the Indies.",
     permitGrant: "The Crown has granted you a royal licencia through the Casa de Contratación. Its seal authorizes your cargo at Spanish ports in the Indies.",

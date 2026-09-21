@@ -66,7 +66,7 @@ const SHIP_HANDOVER_HISTORIES = Object.freeze({
   "japanese-atakebune":
     "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops",
   "spanish-nao":
-    "an Iberian ocean-going roundship of the kind called a nao, built to carry stores and cargo through the long Atlantic and Indies passages",
+    "an Iberian ocean-going roundship of the kind called a nao, built to carry stores and cargo on long Atlantic voyages and across the Americas",
   "portuguese-carrack":
     "a great Portuguese nau of the India run, built to survive the Cape route and return with a hold rich in Asian spices and wares",
   "viking-longship":
