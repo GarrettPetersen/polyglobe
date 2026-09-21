@@ -23,7 +23,11 @@ export function shouldRenderFrame({
   return renderRequested && nowMs - lastRenderCompletedAtMs >= renderCooldownMs;
 }
 
-export const ADAPTIVE_RENDER_COOLDOWN_MAX_MS = 1000 / 30;
+// The cooldown starts when rendering finishes. One 60 Hz interval therefore
+// skips the next callback after a costly frame and admits the following one,
+// yielding a stable 30 FPS floor without compounding render CPU time into an
+// unintended third-frame delay.
+export const ADAPTIVE_RENDER_COOLDOWN_MAX_MS = 1000 / 60;
 export const ADAPTIVE_RENDER_FULL_DENSITY = 1;
 export const ADAPTIVE_RENDER_MIN_DENSITY = 0.3;
 

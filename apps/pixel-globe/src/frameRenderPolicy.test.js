@@ -77,6 +77,19 @@ test("adaptive render cooldown preserves full-density motion and gives minimum d
   assert.equal(adaptiveRenderCooldownMs(0), ADAPTIVE_RENDER_COOLDOWN_MAX_MS);
   assert.ok(adaptiveRenderCooldownMs(0.65) > 0);
   assert.ok(adaptiveRenderCooldownMs(0.65) < ADAPTIVE_RENDER_COOLDOWN_MAX_MS);
+  const minimumDensityCooldownMs = adaptiveRenderCooldownMs(0.3);
+  assert.equal(shouldRenderFrame(frameState({
+    continuousAnimation: true,
+    nowMs: 1016.7,
+    lastRenderCompletedAtMs: 1005,
+    renderCooldownMs: minimumDensityCooldownMs
+  })), false);
+  assert.equal(shouldRenderFrame(frameState({
+    continuousAnimation: true,
+    nowMs: 1033.4,
+    lastRenderCompletedAtMs: 1005,
+    renderCooldownMs: minimumDensityCooldownMs
+  })), true);
   assert.throws(() => adaptiveRenderCooldownMs(-0.1), /unit visual density/);
 });
 
