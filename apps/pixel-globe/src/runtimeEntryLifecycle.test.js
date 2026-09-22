@@ -194,6 +194,82 @@ test("the hail boundary recovers and reports if a transient NPC retires before a
   assert.doesNotMatch(openText, /Cannot hail missing NPC ship/);
 });
 
+test("gold treasure completion waits for an occupied character-alert slot", () => {
+  let alertSlotAvailable = false;
+  let openAttempts = 0;
+  let resumes = 0;
+  const runtime = {
+    goldTreasureSequence: null,
+    itemAcquisitionEffects: [],
+    dirty: false,
+    ITEM_ARRIVAL_SOUND_COIN_CLINK: "coin",
+    ITEM_ARRIVAL_SOUND_QUEST_DELIVERY: "quest",
+    ITEM_ARRIVAL_SOUND_DISCOVERY_SUCCESS: "discovery",
+    itemAcquisitionEffectComplete: () => true,
+    playCoinClinkSound() {},
+    playCollectionDingSound() {},
+    playDiscoverySuccessSound() {},
+    openCaptainAlertModal: () => {
+      openAttempts++;
+      return alertSlotAvailable;
+    },
+    resumeShipAfterOverlayIfReady: () => resumes++
+  };
+  const api = functions(["updateItemAcquisitionEffects"], runtime);
+  runtime.goldTreasureSequence = { completeAtMs: 10, captainMessage: "The gold is aboard." };
+
+  assert.equal(api.updateItemAcquisitionEffects(10), false);
+  assert.deepEqual(runtime.goldTreasureSequence, {
+    completeAtMs: 10,
+    captainMessage: "The gold is aboard."
+  });
+  assert.equal(openAttempts, 1);
+  assert.equal(resumes, 0);
+
+  alertSlotAvailable = true;
+  assert.equal(api.updateItemAcquisitionEffects(11), true);
+  assert.equal(runtime.goldTreasureSequence, null);
+  assert.equal(openAttempts, 2);
+  assert.equal(resumes, 0, "the newly opened alert retains overlay ownership");
+});
+
+test("a full hold defers gold treasure dialogue through the normal sequence lifecycle", () => {
+  let pauses = 0;
+  const runtime = {
+    goldTreasureSequence: null,
+    itemAcquisitionEffects: [],
+    dirty: false,
+    pauseShipForOverlay: () => pauses++
+  };
+  const api = functions(["startGoldTreasureSequence"], runtime);
+  assert.equal(api.startGoldTreasureSequence({
+    sourcePoint: { x: 4, y: 8 },
+    cargoReward: { good: { id: "gold" }, quantity: 0 },
+    captainMessage: "The hold is full.",
+    nowMs: 25
+  }), true);
+  assert.equal(runtime.goldTreasureSequence.completeAtMs, 25);
+  assert.equal(runtime.goldTreasureSequence.captainMessage, "The hold is full.");
+  assert.equal(pauses, 1);
+  assert.equal(runtime.dirty, true);
+});
+
+test("whale simulation waits when an overlay opens earlier in the same frame", () => {
+  for (const overlay of ["dialogue", "captain-alert", "port-assault", "menu"]) {
+    const runtime = {
+      gameState: { memory: { whales: {} } },
+      chart: {},
+      localLayout: {},
+      dialogueState: overlay === "dialogue" ? {} : null,
+      captainAlertModal: overlay === "captain-alert" ? {} : null,
+      portAssaultState: overlay === "port-assault" ? {} : null,
+      menusAreOpen: () => overlay === "menu"
+    };
+    const api = functions(["updateWhales"], runtime);
+    assert.equal(api.updateWhales(1, 100), false, overlay);
+  }
+});
+
 test("runtime replacement owns worker synchronization, hull publication and persistence", async () => {
   const calls = [];
   const runtime = { runShipReplacement, gameState: { ship: { slug: "galleon" } }, ship: { typeSlug: "galleon" },

@@ -28684,10 +28684,13 @@ function updateItemAcquisitionEffects(nowMs) {
 
   if (goldTreasureSequence && nowMs >= goldTreasureSequence.completeAtMs) {
     const { captainMessage } = goldTreasureSequence;
-    goldTreasureSequence = null;
+    // Another alert can legitimately open in the same frame that the treasure
+    // reaches the hold. Keep ownership of the paused sequence until its closing
+    // dialogue can be presented instead of treating modal contention as corruption.
     if (captainMessage && !openCaptainAlertModal(captainMessage, "happy")) {
-      throw new Error("Gold treasure sequence could not open its captain dialogue");
+      return itemAcquisitionEffects.length > 0 || changed;
     }
+    goldTreasureSequence = null;
     if (!captainMessage) resumeShipAfterOverlayIfReady();
     changed = true;
   }
@@ -30167,6 +30170,10 @@ function cycleControllerInteractionTarget() {
 
 function updateWhales(dt, nowMs) {
   if (!gameState?.memory?.whales || !chart || !localLayout) return false;
+  // The frame's initial pause decision can be stale after an objective or
+  // encounter opens an overlay earlier in the same frame. Do not advance a
+  // whale event whose required tutorial dialogue cannot yet be presented.
+  if (dialogueState || captainAlertModal || portAssaultState || menusAreOpen()) return false;
   const huntActive = Boolean(gameState.memory.whales.activeHunt);
   const responsiveIds = responsiveWhaleMovementIds();
   whaleSimulationAccumulator = huntActive
@@ -46941,27 +46948,24 @@ function startGoldTreasureSequence({
     throw new Error("Gold treasure sequence requires a screen source point");
   }
   if (goldTreasureSequence) throw new Error("Gold treasure sequence is already active");
-  if (cargoReward.quantity === 0) {
-    if (captainMessage && !openCaptainAlertModal(captainMessage, "happy")) {
-      throw new Error("Gold treasure sequence could not open its captain dialogue");
-    }
-    return true;
+  const effects = [];
+  if (cargoReward.quantity > 0) {
+    const shipOrigin = shipScreenOrigin(SHIP_SHEET_FRAME_SIZE);
+    effects.push(...createItemAcquisitionBurst({
+      iconId: tradeGoodIconId(cargoReward.good.id),
+      count: cargoReward.quantity,
+      startCenterX: sourcePoint.x,
+      startCenterY: sourcePoint.y,
+      targetCenterX: shipOrigin.x + SHIP_SHEET_FRAME_SIZE / 2,
+      targetCenterY: shipOrigin.y + SHIP_SHEET_FRAME_SIZE / 2,
+      startedAtMs: nowMs,
+      iconSize: GAME_ICON_SIZE,
+      arrivalSoundId: ITEM_ARRIVAL_SOUND_COIN_CLINK
+    }));
+    itemAcquisitionEffects.push(...effects);
   }
-  const shipOrigin = shipScreenOrigin(SHIP_SHEET_FRAME_SIZE);
-  const effects = createItemAcquisitionBurst({
-    iconId: tradeGoodIconId(cargoReward.good.id),
-    count: cargoReward.quantity,
-    startCenterX: sourcePoint.x,
-    startCenterY: sourcePoint.y,
-    targetCenterX: shipOrigin.x + SHIP_SHEET_FRAME_SIZE / 2,
-    targetCenterY: shipOrigin.y + SHIP_SHEET_FRAME_SIZE / 2,
-    startedAtMs: nowMs,
-    iconSize: GAME_ICON_SIZE,
-    arrivalSoundId: ITEM_ARRIVAL_SOUND_COIN_CLINK
-  });
-  itemAcquisitionEffects.push(...effects);
   goldTreasureSequence = {
-    completeAtMs: itemAcquisitionEffectEndMs(effects.at(-1)),
+    completeAtMs: effects.length > 0 ? itemAcquisitionEffectEndMs(effects.at(-1)) : nowMs,
     captainMessage
   };
   pauseShipForOverlay();

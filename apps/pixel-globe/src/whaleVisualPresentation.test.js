@@ -185,6 +185,8 @@ function productionWhaleRuntime() {
   const whale = memory.individuals[0];
   const runtime = {
     gameState: { memory: { whales: memory } }, chart: {}, localLayout: coordinateSpace,
+    dialogueState: null, captainAlertModal: null, portAssaultState: null,
+    menusAreOpen: () => false,
     camera: { right: [1, 0, 0], up: [0, 1, 0] }, PIXELS_PER_RADIAN: 1000,
     WHALE_SIMULATION_INTERVAL_SECONDS: 0.25, WHALE_HUNT_SIMULATION_INTERVAL_SECONDS: 1 / 30,
     WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT: 1, WHALE_MOVEMENTS_PER_FRAME: 1,
