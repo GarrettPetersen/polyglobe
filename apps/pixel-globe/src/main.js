@@ -4240,6 +4240,7 @@ let chart;
 let localLayout;
 const recoveredProtectedStitchEdges = new Set();
 const PROTECTED_STITCH_DIAGNOSTIC_COOLDOWN_MS = 30 * 86_400_000;
+const STALE_NPC_HAIL_DIAGNOSTIC_COOLDOWN_MS = 30 * 86_400_000;
 let minimap;
 let captainChartMinimapCache = new Map();
 let captainChartMinimapCacheRevision = -1;
@@ -26996,7 +26997,7 @@ function openShipDialogue(shipCall, options = {}) {
   const strategicShip = npcSeaRoutes?.shipById?.get(shipCall.id);
   const visualShip = npcVisualShips.get(shipCall.id);
   if (!strategicShip || !visualShip) {
-    throw new Error(`Cannot hail missing NPC ship: ${shipCall.id}`);
+    return recoverStaleNpcHailTarget(shipCall.id, { strategicShip, visualShip });
   }
   const enforcementDialogue = Boolean(
     options.attackReason || options.cartazInspection || options.illicitTradeInspection ||
@@ -27044,6 +27045,19 @@ function openShipDialogue(shipCall, options = {}) {
   }
   dirty = true;
   return true;
+}
+
+function recoverStaleNpcHailTarget(npcShipId, { strategicShip, visualShip }) {
+  const missing = [
+    !strategicShip ? "strategic ship" : null,
+    !visualShip ? "visual ship" : null
+  ].filter(Boolean).join(" and ");
+  const error = new Error(`Recovered stale NPC hail target ${npcShipId}: missing ${missing}`);
+  gameTelemetry.captureDiagnostic(error, telemetryCrashContext("ship-hail-recovered"), {
+    key: "stale-npc-hail-target",
+    cooldownMs: STALE_NPC_HAIL_DIAGNOSTIC_COOLDOWN_MS
+  });
+  return false;
 }
 
 function maybeWhiteWhaleRumor(interactionKey) {
@@ -30901,7 +30915,7 @@ function worldInteractionTargetAtPoint(point) {
   }
 
   for (const state of npcVisualShips.values()) {
-    if (!npcShipInHailRange(state)) continue;
+    if (!npcShipCanBeHailed(state)) continue;
     const drawCall = currentNpcShipDrawCall(state, lastFrameMs);
     if (!drawCall) continue;
     const rect = expandedRect({
@@ -31051,7 +31065,13 @@ function npcShipInHailRange(state) {
 }
 
 function npcShipCanBeHailed(state) {
-  return npcShipInHailRange(state);
+  if (!npcShipInHailRange(state)) return false;
+  // Visual ships and their spatial entries are reconciled after distant-world
+  // updates. During that boundary a retired sprite can survive for one frame.
+  // Do not advertise an interaction unless the durable ship still exists;
+  // openShipDialogue keeps the same check as defense in depth. A missing
+  // captain remains a broken construction invariant and must still fail loud.
+  return npcSeaRoutes?.shipById?.has(state.id) === true;
 }
 
 function npcShipIsHostileToPlayer(state) {

@@ -143,6 +143,57 @@ test("ship dialogue target reconciliation preserves valid and unrelated sessions
   }
 });
 
+test("a stale NPC visual cannot advertise a hail action", () => {
+  const shipId = "atlantic-coast-10";
+  const state = { id: shipId, x: 4, y: 3, combatGrace: false };
+  const runtime = {
+    localLayout: { viewX: 0, viewY: 0 },
+    NPC_HAIL_RADIUS_PX: 10,
+    distance2: (ax, ay, bx, by) => (ax - bx) ** 2 + (ay - by) ** 2,
+    npcSeaRoutes: { shipById: new Map([[shipId, {}]]) }
+  };
+  const api = functions(["npcShipInHailRange", "npcShipCanBeHailed"], runtime);
+
+  assert.equal(api.npcShipCanBeHailed(state), true);
+  runtime.npcSeaRoutes.shipById.delete(shipId);
+  assert.equal(api.npcShipCanBeHailed(state), false, "retired strategic ship remains in the visual index");
+});
+
+test("every ship interaction entrance uses the complete hail eligibility policy", () => {
+  const text = name => source.statements.find(
+    node => ts.isFunctionDeclaration(node) && node.name.text === name
+  ).getText(source);
+  for (const name of ["activeNpcShipCalls", "worldInteractionTargetAtPoint", "interactionTargetIsUsable"]) {
+    assert.match(text(name), /npcShipCanBeHailed\(/);
+  }
+  assert.doesNotMatch(text("worldInteractionTargetAtPoint"), /npcShipInHailRange\(/);
+});
+
+test("the hail boundary recovers and reports if a transient NPC retires before activation", () => {
+  const diagnostics = [];
+  const runtime = {
+    gameTelemetry: { captureDiagnostic: (...args) => diagnostics.push(args) },
+    telemetryCrashContext: screen => ({ screen }),
+    STALE_NPC_HAIL_DIAGNOSTIC_COOLDOWN_MS: 30 * 86_400_000
+  };
+  const api = functions(["recoverStaleNpcHailTarget"], runtime);
+  assert.equal(api.recoverStaleNpcHailTarget("atlantic-coast-10", {
+    strategicShip: null,
+    visualShip: {}
+  }), false);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0][0].message, /atlantic-coast-10.*strategic ship/);
+  assert.equal(diagnostics[0][1].screen, "ship-hail-recovered");
+  assert.equal(diagnostics[0][2].key, "stale-npc-hail-target");
+  assert.equal(diagnostics[0][2].cooldownMs, 30 * 86_400_000);
+
+  const openText = source.statements.find(
+    node => ts.isFunctionDeclaration(node) && node.name.text === "openShipDialogue"
+  ).getText(source);
+  assert.match(openText, /return recoverStaleNpcHailTarget/);
+  assert.doesNotMatch(openText, /Cannot hail missing NPC ship/);
+});
+
 test("runtime replacement owns worker synchronization, hull publication and persistence", async () => {
   const calls = [];
   const runtime = { runShipReplacement, gameState: { ship: { slug: "galleon" } }, ship: { typeSlug: "galleon" },
