@@ -30,6 +30,19 @@ export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
 export const SHIP_PAPERS_ROWS_PER_PAGE = 7;
 export const SHIP_PAPER_ROW_CONTENT_INSET = 6;
 
+const LEGACY_LOADOUT_RESTOCK_SUFFIX = " ship supplies and armament restock";
+
+export function shipLedgerDisplayDescription(description) {
+  if (typeof description !== "string" || description.trim() === "") {
+    throw new Error("Ship ledger description must be a non-empty string");
+  }
+  const normalized = description.trim();
+  if (normalized.toLowerCase().endsWith(LEGACY_LOADOUT_RESTOCK_SUFFIX)) {
+    return `${normalized.slice(0, -LEGACY_LOADOUT_RESTOCK_SUFFIX.length)} restock`;
+  }
+  return normalized;
+}
+
 export function shipCargoRowsPerPageForPanel({
   width,
   height,
@@ -144,10 +157,10 @@ export function shipLedgerRowsPerPageForPanel({
   const compact = width < 400;
   const firstRowTop = compact ? 55 : 63;
   const rowHeight = compact
-    ? Math.max(lineHeight * 2 + 2, 20)
+    ? Math.max(lineHeight * 4 + 4, 40)
     : tallMetrics
-      ? Math.max(lineHeight + 4, 18)
-      : 15;
+      ? Math.max(lineHeight * 3 + 4, 40)
+      : Math.max(lineHeight * 3 + 4, 31);
   const pagerTop = height - pagerHeight - 5;
   const availableHeight = pagerTop - firstRowTop - 2;
   return Math.max(1, Math.min(

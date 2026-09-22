@@ -7,9 +7,9 @@ const CARD_MIN_WIDTH = 188;
 const CARD_MAX_COLUMNS = 4;
 // Restriction labels need room to distinguish arms bans from import bans
 // beside their faction tokens.
-const CARD_LABEL_WIDTH = 84;
+const CARD_LABEL_WIDTH = 104;
 const CARD_TOKEN_WIDTH = 24;
-const CARD_RELATION_LINES = 4;
+const CARD_RELATION_LINES = 3;
 const RELATION_TEXT_COLORS = Object.freeze({
   ally: "#165a4c",
   friendly: "#4c3e24",
@@ -107,7 +107,7 @@ export function politicsCardGridLayout({
     tokensPerLine,
     Math.floor((contentWidth - 8 - CARD_LABEL_WIDTH) / CARD_TOKEN_WIDTH)
   );
-  const headerHeight = Math.max(26, lineHeight * 2 + 4);
+  const headerHeight = Math.max(35, lineHeight * 3 + 4);
   let maxRelationLines = CARD_RELATION_LINES;
   let cardHeight = headerHeight + maxRelationLines * lineHeight + 4;
   const contentHeight = panelHeight - contentTop - pagerHeight - 8 - newsHeight;

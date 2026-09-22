@@ -1173,7 +1173,7 @@ test("loadouts target crew while restocking only guns, food, and water", () => {
     Math.ceil(state.survival.freshWater) + (state.cargo.hardtack || 0));
   assert.ok(cargoUsed(state) <= state.cargoCapacity);
   assert.ok(result.spent > 0);
-  assert.ok(state.accounts.ledger.some((entry) => entry.description === "Combat focused ship supplies and armament restock"));
+  assert.ok(state.accounts.ledger.some((entry) => entry.description === "Combat focused restock"));
 });
 
 test("loadout provision purchases transfer their specie into the port market", () => {

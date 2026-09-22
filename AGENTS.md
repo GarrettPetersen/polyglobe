@@ -231,7 +231,8 @@ Before presenting implementation work as complete:
    relevant test suite.
 3. Verify schema fingerprints and old-save migrations when persisted state changed.
 4. Build the production artifact and verify its module/asset graph when deployment is in scope.
-5. Check relevant telemetry before release and distinguish old-build incidents from regressions.
+5. Check relevant telemetry before release, including UI text width and line truncation incidents,
+   and distinguish old-build incidents from regressions.
 6. Confirm the working tree contains no accidental generated output or unrelated user changes.
 7. Report what was verified and any remaining risk honestly; do not claim success from partial
    checks.

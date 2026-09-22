@@ -107,3 +107,7 @@ event IDs, and raw stacks never leave the Worker.
 The dashboard supports 24-hour, 7-day, 30-day, and 90-day views. Analytics responses
 are cached at the Worker edge for five minutes to keep the dashboard inexpensive.
 Run `npm run verify-dashboard` after deploying or rotating its secrets.
+
+`npm run report` includes UI text width and line truncation incidents alongside
+crash groups. Review that section during every telemetry pass so newly introduced
+ellipses and exhausted line limits are triaged with runtime failures.

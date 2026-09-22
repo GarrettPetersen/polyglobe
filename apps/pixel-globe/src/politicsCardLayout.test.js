@@ -30,12 +30,12 @@ test("politics cards form a two-by-two desktop grid without crowding the footer"
   assert.equal(layout.slotsPerPage, 4);
   assert.equal(layout.cardWidth, 206);
   assert.equal(layout.cardHeight, 74);
-  assert.equal(layout.headerHeight, 26);
-  assert.equal(layout.maxRelationLines, 4);
-  assert.deepEqual(layout.relationLineCapacities, [4, 11]);
-  assert.equal(layout.tokensPerLine, 4);
-  assert.equal(layout.fullWidthTokensPerLine, 13);
-  assert.equal(layout.relationLabelWidth, 84);
+  assert.equal(layout.headerHeight, 37);
+  assert.equal(layout.maxRelationLines, 3);
+  assert.deepEqual(layout.relationLineCapacities, [3, 10]);
+  assert.equal(layout.tokensPerLine, 3);
+  assert.equal(layout.fullWidthTokensPerLine, 12);
+  assert.equal(layout.relationLabelWidth, 104);
   assert.equal(layout.relationTokenWidth, 24);
 });
 
@@ -61,8 +61,8 @@ test("politics cards become a single compact column and respect taller localized
   assert.equal(localized.columns, 2);
   assert.equal(localized.rows, 1);
   assert.equal(localized.slotsPerPage, 2);
-  assert.equal(localized.maxRelationLines, 8);
-  assert.deepEqual(localized.relationLineCapacities, [8]);
+  assert.equal(localized.maxRelationLines, 7);
+  assert.deepEqual(localized.relationLineCapacities, [7]);
   assert.equal(localized.cardHeight, 148);
 });
 

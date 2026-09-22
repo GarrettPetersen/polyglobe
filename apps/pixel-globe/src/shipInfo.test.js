@@ -28,6 +28,7 @@ import {
   shipComparisonDifferenceLabel,
   shipLocalDateLabel,
   shipLedgerDateLabel,
+  shipLedgerDisplayDescription,
   shipLedgerPage,
   shipLedgerRowsPerPageForPanel,
   shipPapersPage,
@@ -167,15 +168,23 @@ test("cargo headers and rows reserve non-overlapping text columns", () => {
 });
 
 test("ship ledger page size keeps its final text row above the pager", () => {
-  assert.equal(shipLedgerRowsPerPageForPanel({ width: 520, height: 240 }), 9);
-  assert.equal(shipLedgerRowsPerPageForPanel({ width: 320, height: 256 }), 8);
-  assert.equal(shipLedgerRowsPerPageForPanel({ width: 320, height: 190 }), 5);
+  assert.equal(shipLedgerRowsPerPageForPanel({ width: 520, height: 240 }), 4);
+  assert.equal(shipLedgerRowsPerPageForPanel({ width: 320, height: 256 }), 4);
+  assert.equal(shipLedgerRowsPerPageForPanel({ width: 320, height: 190 }), 2);
   assert.equal(shipLedgerRowsPerPageForPanel({
     width: 520,
     height: 240,
     tallMetrics: true,
     lineHeight: 12
-  }), 8);
+  }), 3);
+});
+
+test("ship ledger compacts current and legacy loadout restock descriptions", () => {
+  assert.equal(shipLedgerDisplayDescription("Combat focused restock"), "Combat focused restock");
+  assert.equal(
+    shipLedgerDisplayDescription("Combat focused ship supplies and armament restock"),
+    "Combat focused restock"
+  );
 });
 
 test("ship comparison armament avoids repeating long gun summaries", () => {

@@ -3655,7 +3655,7 @@ function restockShipLoadoutPlanAtPort(
   if (spent > 0) {
     recordLedgerEntry(state, city, context, {
       kind: "provision",
-      description: `${plan.label} ship supplies and armament restock`,
+      description: `${plan.label} restock`,
       goodId: null,
       quantity: additions.crew + additions.cannons + additions.food + additions.water,
       amount: -spent,

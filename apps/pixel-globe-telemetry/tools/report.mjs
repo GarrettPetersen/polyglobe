@@ -113,6 +113,21 @@ const sections = [
     GROUP BY fingerprint, revision, screen, error_name, message
     ORDER BY reports DESC
     LIMIT 30
+  `],
+  ["UI TEXT LAYOUT", `
+    SELECT blob3 AS revision, blob4 AS channel, blob6 AS locale,
+      blob17 AS screen, blob15 AS message,
+      round(SUM(_sample_interval)) AS reports,
+      count(DISTINCT index1) AS affected_installations,
+      max(timestamp) AS last_seen
+    FROM ${dataset}
+    WHERE blob1 = 'diagnostic'
+      AND blob14 = 'UiTextLayoutWarning'
+      AND blob4 != 'deployment-check'
+      AND timestamp > NOW() - INTERVAL '${windowDays}' DAY
+    GROUP BY revision, channel, locale, screen, message
+    ORDER BY last_seen DESC, reports DESC
+    LIMIT 100
   `]
 ];
 
