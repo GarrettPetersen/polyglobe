@@ -1383,6 +1383,9 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.ok(market.options.some((option) => /WORLD/.test(option.detail || "")));
   assert.ok(market.options.some((option) => /SPACE [1-4]/.test(option.detail || "")));
   assert.ok(market.options.some((option) => /STOCK \d+/.test(option.detail || "")));
+  assert.ok(market.options
+    .filter((option) => option.action.type === "buy")
+    .every((option) => /SPACE [1-4] EACH/.test(option.detail || "")));
   assert.ok(market.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(market.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   const buyIndex = market.options.findIndex((option) => (
@@ -2566,6 +2569,7 @@ test("switching from a completed sale restores buy-row market context", () => {
   const buyRow = view.options.find((entry) => entry.action.type === "buy" && !entry.disabled);
   assert.ok(buyRow);
   assert.match(buyRow.detail, /DUTY/);
+  assert.match(buyRow.detail, /SPACE \d+ EACH/);
   assert.match(buyRow.detail, /WORLD/);
   assert.match(buyRow.detail, /STOCK/);
 });

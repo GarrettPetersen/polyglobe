@@ -7653,7 +7653,12 @@ function buyView(session, city, gameState, economy, context) {
         (requiredQuestCargo[row.good.id] || 0);
       return [
         option(`Buy 1 ${row.good.label}  ${displayedPrice} db`, { type: "buy", goodId: row.good.id }, {
-          detail: `${tradeTermsDetail(terms, "buy")}  ${worldPriceIndicator(comparison)}  ${marketStockIndicator(row.stock)}`,
+          detail: [
+            tradeTermsDetail(terms, "buy"),
+            marketCargoSpaceIndicator(totalSize),
+            worldPriceIndicator(comparison),
+            marketStockIndicator(row.stock)
+          ].join("  "),
           rowId,
           disabled: cartazBlocked || outOfStock || cannotAfford || cannotFit,
           disabledReason,
