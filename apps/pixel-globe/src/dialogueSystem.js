@@ -6969,9 +6969,6 @@ function shipyardView(session, city, gameState, economy, context) {
 
 function shipyardPurchaseView(session, city, gameState, context) {
   const listing = requireShipyardPurchaseListing(session, context);
-  if (!playerBackedShipyardAtPort(gameState, city)) {
-    throw new Error("Owned shipyard vessel inspection requires a player-backed yard");
-  }
   return shipyardListingView(session, city, gameState, context, listing, "shipyard");
 }
 

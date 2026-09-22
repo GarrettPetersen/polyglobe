@@ -6070,6 +6070,68 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
 
 });
 
+test("ordinary shipyards with multiple listings can inspect an offered vessel", () => {
+  const city = {
+    tileId: 10,
+    cityId: "lisbon|portugal",
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 100000,
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
+  };
+  const currentStats = shipStatsForSlug("fishing-lugger");
+  const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const newListing = {
+    id: "shipyard-lisbon-new-1",
+    shipSlug: "brigantine",
+    shipLabel: "Brigantine",
+    source: "new-build",
+    price: 35000,
+    builtMinute: 20
+  };
+  const usedListing = {
+    id: "shipyard-lisbon-used-1",
+    shipSlug: "caravel",
+    shipLabel: "Caravel",
+    source: "trade-in",
+    price: 18000,
+    builtMinute: 10
+  };
+  const context = {
+    shipStats: currentStats,
+    shipyard: {
+      famous: true,
+      listing: newListing,
+      usedListings: [usedListing]
+    }
+  };
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "shipyard",
+    admittedToPort: true
+  });
+
+  const menu = portDialogueView(session, city, gameState, economy, [city], context);
+  const inspectIndex = menu.options.findIndex((entry) => (
+    entry.action.type === "inspect-shipyard-listing" &&
+    entry.action.listingId === usedListing.id
+  ));
+  assert.ok(inspectIndex >= 0);
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], inspectIndex, context),
+    { closed: false }
+  );
+  assert.equal(session.nodeId, "shipyard-purchase");
+
+  const inspection = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(inspection.presentation.kind, "shipyard");
+  assert.equal(inspection.presentation.listing.id, usedListing.id);
+  assert.equal(inspection.options.at(-1).label, "Back");
+  assert.deepEqual(inspection.options.at(-1).action, { type: "node", nodeId: "shipyard" });
+});
+
 test("shipyards require excess crew to be dismissed before a profitable downgrade", () => {
   const city = {
     tileId: 10,
