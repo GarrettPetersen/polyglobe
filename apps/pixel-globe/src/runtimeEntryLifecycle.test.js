@@ -99,6 +99,50 @@ test("every notebook page switch closes all old pages and clears input while ret
   }
 });
 
+test("ship dialogue closes before rendering when its transient target leaves visibility", () => {
+  for (const missing of ["visual", "strategic"]) {
+    const calls = [];
+    const shipId = "atlantic-coast-4";
+    const runtime = {
+      dialogueState: { kind: "ship", npcShipId: shipId },
+      npcSeaRoutes: { shipById: new Map([[shipId, {}]]) },
+      npcVisualShips: new Map([[shipId, {}]]),
+      releaseDialogueSession: (options) => {
+        calls.push(["release", options]);
+        runtime.dialogueState = null;
+      },
+      resumeShipAfterOverlayIfReady: () => calls.push(["resume"])
+    };
+    if (missing === "visual") runtime.npcVisualShips.delete(shipId);
+    else runtime.npcSeaRoutes.shipById.delete(shipId);
+    const api = functions(["reconcileActiveShipDialogueTarget"], runtime);
+    assert.equal(api.reconcileActiveShipDialogueTarget(), true);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0][0], "release");
+    assert.equal(calls[0][1].destination, "sailing");
+    assert.equal(calls[1][0], "resume");
+  }
+});
+
+test("ship dialogue target reconciliation preserves valid and unrelated sessions", () => {
+  const shipId = "atlantic-coast-4";
+  for (const dialogueState of [
+    { kind: "ship", npcShipId: shipId },
+    { kind: "port", cityId: "lisbon|portugal" },
+    null
+  ]) {
+    const runtime = {
+      dialogueState,
+      npcSeaRoutes: { shipById: new Map([[shipId, {}]]) },
+      npcVisualShips: new Map([[shipId, {}]]),
+      releaseDialogueSession: () => assert.fail("valid dialogue was released"),
+      resumeShipAfterOverlayIfReady: () => assert.fail("valid dialogue resumed sailing")
+    };
+    const api = functions(["reconcileActiveShipDialogueTarget"], runtime);
+    assert.equal(api.reconcileActiveShipDialogueTarget(), false);
+  }
+});
+
 test("runtime replacement owns worker synchronization, hull publication and persistence", async () => {
   const calls = [];
   const runtime = { runShipReplacement, gameState: { ship: { slug: "galleon" } }, ship: { typeSlug: "galleon" },
@@ -140,6 +184,23 @@ test("replacement, dialogue and notebook callers use their shared entry operatio
     assert.match(text(name), /switchNotebookPage\(/);
     assert.doesNotMatch(text(name), /keys\.clear\(|clearPointerSteering\(/);
   }
+});
+
+test("runtime reconciles mutable dialogue targets before every input and render boundary", () => {
+  const text = name => source.statements.find(
+    node => ts.isFunctionDeclaration(node) && node.name.text === name
+  ).getText(source);
+  assert.ok(
+    text("runFrame").indexOf("reconcileActiveShipDialogueTarget()") <
+      text("runFrame").indexOf("pollGamepadControls(nowMs)"),
+    "ship dialogue targets must be reconciled before controller input and rendering"
+  );
+  for (const name of [
+    "dispatchWorldOverlayKey",
+    "dispatchWorldOverlayPointerDown",
+    "dispatchWorldOverlayPointerMove",
+    "handleCanvasWheel"
+  ]) assert.match(text(name), /reconcileActiveShipDialogueTarget\(\)/);
 });
 
 test("sailing prepares shoreline connector caches incrementally before render fallback", () => {

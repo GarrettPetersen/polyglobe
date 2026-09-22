@@ -7223,6 +7223,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     pendingWorldSimulationError = null;
     throw error;
   }
+  if (reconcileActiveShipDialogueTarget()) dirty = true;
   if (diagnosticModeEnabled && sampleFrameRate(frameRateMeter, nowMs)) dirty = true;
   pollGamepadControls(nowMs);
   const realFrameSeconds = elapsedAnimationFrameSeconds(lastFrameMs, nowMs, {
@@ -10128,6 +10129,10 @@ function currentInteractionInputOwner() {
 }
 
 function dispatchWorldOverlayKey(event, keyAction) {
+  if (reconcileActiveShipDialogueTarget()) {
+    event.preventDefault();
+    return true;
+  }
   const owner = currentInteractionInputOwner();
   if (owner === INTERACTION_INPUT.TELEMETRY_CONSENT) handleTelemetryConsentKeyDown(event);
   else if (owner === INTERACTION_INPUT.OPTIONS) handleOptionsKeyDown(event);
@@ -10158,6 +10163,10 @@ function dispatchWorldOverlayKey(event, keyAction) {
 }
 
 function dispatchWorldOverlayPointerDown(event, point) {
+  if (reconcileActiveShipDialogueTarget()) {
+    event.preventDefault();
+    return true;
+  }
   const owner = currentInteractionInputOwner();
   if (owner === INTERACTION_INPUT.WORLD) return false;
   event.preventDefault();
@@ -10203,6 +10212,7 @@ function dispatchWorldOverlayPointerDown(event, point) {
 }
 
 function dispatchWorldOverlayPointerMove(event, point) {
+  if (reconcileActiveShipDialogueTarget()) return true;
   const owner = currentInteractionInputOwner();
   if (owner === INTERACTION_INPUT.WORLD) return false;
   if (owner === INTERACTION_INPUT.TELEMETRY_CONSENT) {
@@ -22716,6 +22726,10 @@ function crewDialogueSelectableOptionRows(view) {
 function handleCanvasWheel(event) {
   noteCurrentSessionActivity();
   if (Math.abs(event.deltaY) < 1) return;
+  if (reconcileActiveShipDialogueTarget()) {
+    event.preventDefault();
+    return;
+  }
   const owner = currentInteractionInputOwner();
   if (owner === INTERACTION_INPUT.WORLD) return;
   if (owner === INTERACTION_INPUT.CAPTAIN_MENU) {
@@ -29729,6 +29743,17 @@ function playerShipPrivateeringPower() {
 function currentDialogueShip() {
   if (!dialogueState || dialogueState.kind !== "ship") throw new Error("No active ship dialogue session");
   return dialogueShipForId(dialogueState.npcShipId);
+}
+
+function reconcileActiveShipDialogueTarget() {
+  if (dialogueState?.kind !== "ship") return false;
+  const npcShipId = dialogueState.npcShipId;
+  const strategicShipExists = npcSeaRoutes?.shipById?.has(npcShipId) === true;
+  const visualShipExists = npcVisualShips.has(npcShipId);
+  if (strategicShipExists && visualShipExists) return false;
+  releaseDialogueSession({ destination: "sailing" });
+  resumeShipAfterOverlayIfReady();
+  return true;
 }
 
 function dialogueShipForId(npcShipId) {

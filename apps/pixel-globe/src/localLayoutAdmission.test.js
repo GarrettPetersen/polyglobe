@@ -1648,6 +1648,14 @@ worldTraversalTest("reported protected-stitch regions retain continuous terrain 
         [44.4, 9.3], [43.54, 8.2], [42.8, 7.3],
         [43.54, 8.2], [44.4, 9.3], [43.54, 8.2]
       ]
+    },
+    {
+      label: "northern Aegean",
+      waypoints: [[39.2, 24.5], [40.38, 25.6], [41.2, 27.0]]
+    },
+    {
+      label: "southern Anatolia",
+      waypoints: [[35.8, 30.8], [36.65, 32.27], [35.9, 34.0]]
     }
   ];
   for (const region of regions) {
