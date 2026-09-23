@@ -631,10 +631,8 @@ export function campaignGoalIntroSteps(goal, playerCharacter, contactCharacter) 
   }
   const debtOrigin = familyDebtOriginExchange(playerCharacter);
   return [
-    step("contact", "stern", `${playerCharacter.name}, your family owes ${formatDoubloons(FAMILY_DEBT_PRINCIPAL)} doubloons, secured by the estate. At ten percent interest, time now works for me. ${debtOrigin.creditor}`),
-    step("player", "concerned", `${debtOrigin.player} ${culture.debtIntro}`),
-    step("contact", "pleased", `I will leave you ${goal.protectedPurse} doubloons for necessities. Everything above that pays the debt. Return poorer, and your balance will keep growing.`),
-    step("player", "determined", "Keep the deed close and your ink ready. One day you will write paid in full across it, and my family will keep what is ours.")
+    step("contact", "stern", `${debtOrigin.creditor} Your family owes me ${formatDoubloons(FAMILY_DEBT_PRINCIPAL)} doubloons, secured by the estate. Sail for profit. When you return, you keep ${goal.protectedPurse} doubloons; I take the rest. The unpaid debt grows ten percent a year.`),
+    step("player", "determined", `${debtOrigin.player} I will earn enough at sea to reclaim our estate.`)
   ];
 }
 
@@ -1100,91 +1098,76 @@ const CULTURAL_STORIES = Object.freeze({
   chinese: story(
     "I failed the imperial examinations, but perhaps the oceans will judge my learning more kindly than the examination hall did.",
     "On a later attempt, the captain passed the imperial examinations and presented the court with an atlas no scholar could rival.",
-    "Our ancestral hall and family fields will not be surrendered for a creditor's arithmetic.",
     "The restored estate supported a school, and the captain's later examination essays were written without fear of ruin."
   ),
   korean: story(
     "The examinations did not open a court office to me. A true chart of distant seas may prove another kind of scholarship.",
     "The royal court preserved copies of the captain's charts beside the finest geographic works of Joseon.",
-    "My clan register will not record that I let our household lands pass to a moneylender.",
     "The household prospered again, and its library became known among local scholars."
   ),
   japanese: story(
     "The coastal guilds know every familiar inlet. I mean to bring them knowledge of seas no pilot here has named.",
     "The captain founded a respected house of pilots whose charts crossed every sea-road in Japan.",
-    "My house has weathered war and fire. It will not fall to an inked account.",
     "The family house was rebuilt, its storehouses full and its name secure."
   ),
   portuguese: story(
     "Every quay is full of rumors from Africa and India. I intend to learn which ones deserve a place on a royal chart.",
     "Pilots carried copies of the captain's charts from Lisbon to every Portuguese factory.",
-    "Our quinta has belonged to the family longer than any voyage. I will buy it back with the profits of the sea.",
     "The family quinta flourished, shaded by trees brought home from distant ports."
   ),
   spanish: story(
     "The court rewards bold claims. I would rather return with observations no courtier can dispute.",
     "The captain's account was read at court and copied by cosmographers for generations.",
-    "The estate bears my family's name. No creditor will erase it while I can command a deck.",
     "The recovered estate became prosperous, and its chapel kept a model of the captain's final ship."
   ),
   ottoman: story(
     "The imperial mapmakers know the inland seas. I will bring them an account of the whole turning world.",
     "The captain's charts entered an imperial collection and guided merchants far beyond the Mediterranean.",
-    "Our courtyard, orchard, and family rooms are more than a line in a debt book.",
     "The family home was restored around a fine courtyard, where sailors and scholars were always welcome."
   ),
   arabic: story(
     "The old geographers measured the world with patience. I would add what a sailor's own eyes can prove.",
     "The captain's geography was copied from Aden to Alexandria and discussed by generations of navigators.",
-    "My family's house and date garden will not be sold while I can still follow the monsoon.",
     "The household's trade recovered, and its shaded reception room filled with maps and travelers' stories."
   ),
   persian: story(
     "Poets have imagined every marvel. I want to learn which wonders are stranger than poetry.",
     "The captain retired among books and gardens, with an atlas celebrated by merchants and poets alike.",
-    "The garden and house carry my family's memory. I will not yield them to a creditor.",
     "The restored garden became famous for welcoming scholars, merchants, and returned sailors."
   ),
   southAsian: story(
     "Merchants speak of every coast the monsoon touches. I mean to follow their stories beyond the familiar routes.",
     "The captain's charts became prized in counting houses across the Indian Ocean.",
-    "Our house and warehouse were built by generations of careful trade. One disastrous account will not end them.",
     "The family counting house reopened without debt and prospered through fair trade."
   ),
   nahua: story(
     "Our painted books remember cities and rulers. I will make one that remembers the shape and wonders of the seas.",
     "The captain's painted atlas preserved distant lands in brilliant color for generations.",
-    "Our household land binds the living to our ancestors. I will not let a creditor break that bond.",
     "The family lands supported a thriving household, and the voyage was preserved in a painted book."
   ),
   polynesian: story(
     "My teachers gave me the stars, swells, and flights of birds. I will carry that knowledge to shores beyond our oldest routes.",
     "The captain taught a new generation of wayfinders, joining distant islands in memory and song.",
-    "Land belongs to the family stories tied to it. I will cross every sea before I let debt cut those ties.",
     "The family lands remained whole, and the captain's voyages became part of their descendants' recitations."
   ),
   westAfrican: story(
     "Caravans bring stories from the north, and ships bring stories from the horizon. I will test both against the world itself.",
     "The captain's house became a meeting place for navigators, scholars, and merchants from many coasts.",
-    "Our family compound has sheltered generations. I will not let a creditor empty it.",
     "The family compound prospered again and became known for its hospitality to travelers."
   ),
   eastAfrican: story(
     "The monsoon carries a hundred languages into our harbors. I will follow it until every rumor has a place on my chart.",
     "The captain's charts were copied along the Swahili coast and carried on monsoon voyages for generations.",
-    "Our coral-stone house faces the sea because my family earned that place. I will earn it again.",
     "The sea-facing house was restored, and its carved door welcomed merchants from across the ocean."
   ),
   nordic: story(
     "The old sagas sailed west and vanished into rumor. I would bring back bearings, distances, and names.",
     "The captain's voyages entered northern chronicles beside the oldest sea sagas.",
-    "The farm has endured darker winters than this debt. I will not be the one who loses it.",
     "The farm prospered, and winter evenings were spent retelling voyages beside a well-fed hearth."
   ),
   maritime: story(
     "Every sailor inherits a world half chart and half rumor. I intend to learn which half is true.",
     "The captain's atlas guided generations of sailors and scholars.",
-    "My family built that home over generations. I will not be the one who surrenders it.",
     "The estate prospered again and became a welcoming home for sailors returned from distant seas."
   )
 });
@@ -1502,8 +1485,8 @@ assertExactKeys(
   SOVEREIGN_FACTION_IDS
 );
 
-function story(explorerIntro, explorerOutro, debtIntro, debtOutro) {
-  return Object.freeze({ explorerIntro, explorerOutro, debtIntro, debtOutro });
+function story(explorerIntro, explorerOutro, debtOutro) {
+  return Object.freeze({ explorerIntro, explorerOutro, debtOutro });
 }
 
 function debtOrigin(creditor, player) {

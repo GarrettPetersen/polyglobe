@@ -141,6 +141,36 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "{0} Your family owes me {1} doubloons, secured by the estate. Sail for profit. When you return, you keep {2} doubloons; I take the rest. The unpaid debt grows ten percent a year.": reviewedLocaleOverrides(
+    "{0} Your family owes me {1} doubloons, secured by the estate. Sail for profit. When you return, you keep {2} doubloons; I take the rest. The unpaid debt grows ten percent a year.",
+    [
+      "{0} 你的家族以产业作抵押，欠我{1}达布隆。出海赚钱吧。你回来时可以留下{2}达布隆，其余归我。未偿债务每年增加一成。",
+      "{0} Ваша семья должна мне {1} дублонов под залог поместья. Ступайте в море за прибылью. Вернувшись, вы оставите себе {2} дублонов, а остальное отдадите мне. Непогашенный долг растёт на десять процентов в год.",
+      "{0} Tu familia me debe {1} doblones, con la hacienda como garantía. Haz fortuna en el mar. Cuando regreses, conservarás {2} doblones y yo tomaré el resto. La deuda pendiente aumenta un diez por ciento al año.",
+      "{0} Sua família me deve {1} dobrões, com a propriedade como garantia. Faça fortuna no mar. Quando voltar, você ficará com {2} dobrões, e eu tomarei o restante. A dívida não paga aumenta dez por cento ao ano.",
+      "{0} お前の一族は屋敷を担保に、私へ{1}ダブロンの借りがある。海へ出て稼いでこい。戻るたびに{2}ダブロンは手元に残し、残りは私が受け取る。未払いの借金には年一割の利息がつく。",
+      "{0} Eure Familie schuldet mir {1} Dublonen, für die das Anwesen haftet. Fahrt zur See und macht Gewinn. Bei Eurer Rückkehr behaltet Ihr {2} Dublonen; den Rest nehme ich. Die offene Schuld wächst jährlich um zehn Prozent.",
+      "{0} Votre famille me doit {1} doublons, garantis par le domaine. Prenez la mer et faites fortune. À votre retour, vous garderez {2} doublons ; je prendrai le reste. La dette impayée augmente de dix pour cent par an.",
+      "{0} Twoja rodzina jest mi winna {1} dublonów, zabezpieczonych majątkiem. Ruszaj na morze po zysk. Po powrocie zatrzymasz {2} dublonów; resztę zabiorę. Niespłacony dług rośnie o dziesięć procent rocznie.",
+      "{0} 你的家族以產業作抵押，欠我{1}達布隆。出海賺錢吧。你回來時可以留下{2}達布隆，其餘歸我。未償債務每年增加一成。",
+      "{0} 자네 집안은 영지를 담보로 내게 {1}더블룬을 빚졌네. 바다로 나가 돈을 벌게. 돌아오면 {2}더블룬은 자네가 갖고 나머지는 내가 가져가겠네. 갚지 않은 빚은 해마다 10퍼센트씩 늘어나네."
+    ]
+  ),
+  "{0} I will earn enough at sea to reclaim our estate.": reviewedLocaleOverrides(
+    "{0} I will earn enough at sea to reclaim our estate.",
+    [
+      "{0} 我会在海上赚够钱，赎回家产。",
+      "{0} Я заработаю в море достаточно, чтобы вернуть наше поместье.",
+      "{0} Ganaré suficiente en el mar para recuperar nuestra hacienda.",
+      "{0} Ganharei o bastante no mar para recuperar nossa propriedade.",
+      "{0} 海で十分に稼ぎ、家の領地を取り戻してみせる。",
+      "{0} Ich werde auf See genug verdienen, um unser Anwesen zurückzugewinnen.",
+      "{0} Je gagnerai assez en mer pour reprendre notre domaine.",
+      "{0} Zarobię na morzu dość, by odzyskać nasz majątek.",
+      "{0} 我會在海上賺夠錢，贖回家產。",
+      "{0} 바다에서 충분히 벌어 우리 영지를 되찾겠습니다."
+    ]
+  ),
   "A balanced shaft and sound line will let you hunt whales from the ship.": reviewedLocaleOverrides(
     "A balanced shaft and sound line will let you hunt whales from the ship.",
     [

@@ -407,9 +407,12 @@ test("family debt settlement never moves its ledger checkpoint backward", () => 
 test("family debt dialogue gives the creditor a concise recurring voice", () => {
   const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });
   const intro = campaignGoalIntroSteps(goal, CHARACTER, CONTACT);
-  assert.equal(intro.length, 4);
-  assert.ok(intro.some((entry) => /time now works for me/i.test(entry.text)));
-  assert.ok(intro.some((entry) => /necessities/i.test(entry.text)));
+  assert.equal(intro.length, 2);
+  assert.match(intro[0].text, /family owes me 100,000 doubloons/i);
+  assert.match(intro[0].text, /sail for profit/i);
+  assert.match(intro[0].text, /keep 100 doubloons; i take the rest/i);
+  assert.match(intro[0].text, /ten percent a year/i);
+  assert.match(intro[1].text, /earn enough at sea to reclaim our estate/i);
 
   const outcome = settleFamilyDebtHomecoming(goal, {
     currentMinute: 40 * 24 * 60,
@@ -474,7 +477,7 @@ test("family debt origins use faction-specific recent history", () => {
   );
 });
 
-test("Ming debt intro lets both sides allude to the Ning rebellion", () => {
+test("Ming debt intro keeps its local account of the Ning rebellion", () => {
   const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });
   const intro = campaignGoalIntroSteps(goal, CHARACTER, CONTACT);
 
