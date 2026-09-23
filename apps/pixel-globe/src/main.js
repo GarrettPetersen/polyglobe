@@ -13008,6 +13008,9 @@ function dismissCaptureOverlays() {
 }
 
 function enforceCaptureModalPolicy() {
+  if (captureDirector?.sequence?.politicalNoticePolicy === "suppress") {
+    clearPoliticalNotices();
+  }
   if (captureDirector?.sequence?.modalPolicy !== "suppress") return;
   const suppressed = {
     dialogue: Boolean(dialogueState),

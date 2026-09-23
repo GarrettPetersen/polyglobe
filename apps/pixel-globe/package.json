@@ -69,7 +69,7 @@
     "build:steam-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py",
     "build:demo-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py --plan tools/trailer/demo-trailer-plan.json --captures .captures/demo-trailer-clips --output .captures/trailer/marque-and-reprisal-demo-trailer-v3.mp4 --subtitle 'Play the Free Demo'",
     "build:demo-launch-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py --plan tools/trailer/demo-launch-trailer-plan.json --captures .captures/demo-launch-trailer-clips --output .captures/trailer/marque-and-reprisal-demo-launch-trailer-v3.mp4 --subtitle 'Play the free demo on Steam!'",
-    "build:launch-date-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py --plan tools/trailer/launch-date-trailer-plan.json --captures .captures/launch-date-trailer-clips --output .captures/trailer/marque-and-reprisal-november-20-trailer-v2.mp4 --subtitle 'November 20th'",
+    "build:launch-date-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py --plan tools/trailer/launch-date-trailer-plan.json --captures .captures/launch-date-trailer-clips --output .captures/trailer/marque-and-reprisal-november-18-trailer-v3.mp4 --subtitle 'November 18th'",
     "build:steam-page-teaser": "node tools/trailer/run-python-tool.mjs build-steam-page-teaser.py",
     "build:trailer-thumbnail": "node tools/trailer/run-python-tool.mjs build-youtube-thumbnail.py",
     "build:steam-inline-videos": "node tools/trailer/run-python-tool.mjs build-steam-inline-videos.py",

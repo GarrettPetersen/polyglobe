@@ -1,5 +1,5 @@
 {
-  "title": "November 20th",
+  "title": "November 18th",
   "outroFrames": 120,
   "validation": {
     "chapterCount": 6
@@ -14,7 +14,8 @@
     },
     "syncCutFrames": [
       41, 82, 103, 144, 165, 206, 226, 267, 288,
-      329, 370, 411, 432, 473, 494, 555, 597
+      329, 370, 411, 452, 473, 494, 515, 536, 557,
+      598, 639, 700, 742
     ]
   },
   "chapters": [
@@ -156,9 +157,43 @@
           "requiredSfx": { "kind": "whaleHarpoon", "minimum": 1 }
         },
         {
-          "source": "sail/trailer-sail-galleon.mp4",
+          "source": "whale/trailer-whale-right.mp4",
+          "startFrame": 72,
+          "durationFrames": 41,
+          "audioGain": 0.9,
+          "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "sail/launch-sail-london.mp4",
+          "startFrame": 30,
+          "durationFrames": 21,
+          "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "sail/screenshot-sail-bosporus.mp4",
           "startFrame": 30,
           "durationFrames": 21
+        },
+        {
+          "source": "sail/launch-sail-kyoto.mp4",
+          "startFrame": 30,
+          "durationFrames": 21
+        },
+        {
+          "source": "sail/launch-sail-hawaii.mp4",
+          "startFrame": 120,
+          "durationFrames": 21
+        },
+        {
+          "source": "sail/screenshot-sail-great-barrier-reef.mp4",
+          "startFrame": 30,
+          "durationFrames": 21
+        },
+        {
+          "source": "explore/launch-explore-moai.mp4",
+          "startFrame": 100,
+          "durationFrames": 41,
+          "requiredModalPolicy": "suppress"
         }
       ]
     },
@@ -177,11 +212,6 @@
             "targetId": "trailer-demo-launch-fight-venetians-target",
             "minimumHits": 1
           }
-        },
-        {
-          "source": "sail/trailer-sail-caravel.mp4",
-          "startFrame": 30,
-          "durationFrames": 21
         },
         {
           "source": "city/short-city-assault-kyoto.mp4",

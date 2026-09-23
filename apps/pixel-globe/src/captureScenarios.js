@@ -667,7 +667,9 @@ const CAPTURE_SCENARIOS = Object.freeze({
     day: 196,
     hour: 2,
     minute: 20,
-    beamSide: "starboard"
+    beamSide: "starboard",
+    speedRatio: 0.1,
+    sailingSimulationRate: 0.04
   }),
   "screenshot-sail-ternate": sailingTrailerScenario({
     id: "screenshot-sail-ternate",
@@ -762,15 +764,73 @@ const CAPTURE_SCENARIOS = Object.freeze({
   "screenshot-sail-bosporus": sailingTrailerScenario({
     id: "screenshot-sail-bosporus",
     title: "Sailing ship",
-    seed: "screenshot-sail-bosporus-v1",
+    seed: "screenshot-sail-bosporus-v2",
     factionId: "ottoman",
     shipSlug: "ottoman-coastal-trader",
-    lat: 40.8,
-    lon: 28.8,
+    lat: 40.75,
+    lon: 28.45,
     day: 172,
     hour: 12,
     minute: 30,
-    beamSide: "port"
+    beamSide: "port",
+    speedRatio: 0.1,
+    sailingSimulationRate: 0.04
+  }),
+  "launch-sail-hawaii": sailingTrailerScenario({
+    id: "launch-sail-hawaii",
+    title: "Polynesian canoe off Hawaii",
+    seed: "launch-sail-hawaii-v1",
+    factionId: "neutral",
+    shipSlug: "polynesian-voyaging-canoe",
+    lat: 19.3,
+    lon: -156.15,
+    day: 214,
+    hour: 22,
+    minute: 20,
+    beamSide: "starboard",
+    speedRatio: 0.1,
+    sailingSimulationRate: 0.04,
+    politicalNoticePolicy: "show"
+  }),
+  "launch-sail-kyoto": sailingTrailerScenario({
+    id: "launch-sail-kyoto",
+    title: "Sekibune near Kyoto",
+    seed: "launch-sail-kyoto-v1",
+    factionId: "japan",
+    shipSlug: "japanese-sekibune",
+    lat: 34.55,
+    lon: 135.25,
+    day: 148,
+    hour: 4,
+    minute: 20,
+    beamSide: "port",
+    speedRatio: 0.1,
+    sailingSimulationRate: 0.04
+  }),
+  "launch-sail-london": demoTrailerRiverSailingScenario({
+    id: "launch-sail-london",
+    debugCaption: "A small cog on the Thames at London",
+    seed: "launch-sail-london-v1",
+    factionId: "england",
+    shipSlug: "small-cog",
+    riverStart: { lat: 51.49, lon: -0.4 },
+    sailingTarget: { lat: 51.5, lon: 0.1 },
+    speedRatio: 0.18,
+    sailingSimulationRate: 0.15,
+    day: 176,
+    hour: 13,
+    minute: 20
+  }),
+  "launch-explore-moai": trailerScenario({
+    id: "launch-explore-moai",
+    title: "Discover the Moai of Rapa Nui",
+    seed: "launch-explore-moai-v1",
+    player: capturePlayer("neutral", "polynesian-voyaging-canoe", -27.32, -109.48, 45),
+    world: captureWorld(204, 18, 20),
+    sequence: trailerSequence("explore", "moai", {
+      discoveryId: "landmark-moai-of-rapa-nui",
+      modalPolicy: "suppress"
+    })
   }),
   "screenshot-sail-lake-victoria": sailingTrailerScenario({
     id: "screenshot-sail-lake-victoria",
@@ -3033,6 +3093,10 @@ function validateCaptureSequence(value, encounterIds) {
   if (value.modalPolicy !== undefined && !["show", "suppress"].includes(value.modalPolicy)) {
     throw new Error(`Invalid capture modal policy: ${value.modalPolicy}`);
   }
+  if (value.politicalNoticePolicy !== undefined &&
+      !["show", "suppress"].includes(value.politicalNoticePolicy)) {
+    throw new Error(`Invalid capture political-notice policy: ${value.politicalNoticePolicy}`);
+  }
 }
 
 function trailerScenario(value) {
@@ -3064,7 +3128,8 @@ function sailingTrailerScenario(value) {
       requireOpenWaterCourse: true,
       ...(value.speedRatio ? { speedRatio: value.speedRatio } : {}),
       ...(value.sailingSimulationRate ? { sailingSimulationRate: value.sailingSimulationRate } : {}),
-      ...(value.modalPolicy ? { modalPolicy: value.modalPolicy } : {})
+      ...(value.modalPolicy ? { modalPolicy: value.modalPolicy } : {}),
+      ...(value.politicalNoticePolicy ? { politicalNoticePolicy: value.politicalNoticePolicy } : {})
     })
   });
 }
@@ -3087,7 +3152,8 @@ function demoTrailerRiverSailingScenario(value) {
       speedRatio: value.speedRatio,
       sailingSimulationRate: value.sailingSimulationRate,
       requireOpenWaterCourse: true,
-      modalPolicy: "suppress"
+      modalPolicy: "suppress",
+      ...(value.politicalNoticePolicy ? { politicalNoticePolicy: value.politicalNoticePolicy } : {})
     })
   });
 }
@@ -3132,6 +3198,7 @@ function trailerSequence(kind, variant, values = {}) {
     kind,
     variant,
     durationSeconds: values.durationSeconds || 10,
+    politicalNoticePolicy: "suppress",
     ...values
   };
 }
