@@ -27,6 +27,12 @@ import { shipyardSupplyShipStatus, snapshotShipyardSupplyShips, restoreShipyardS
 import { EXETER_CITY_ID, TOPSHAM_CITY_ID, exeterCanalStage, exeterCanalQuestView } from "./exeterCanal.js";
 import { EXETER_CANAL_TILE_CHAIN, exeterCanalNavigation, exeterCanalPort } from "./exeterCanalNavigation.js";
 import { sailingStepCorrectionDistancePx } from "./sailingContinuity.js";
+import {
+  activatePortDepartureProtection,
+  advancePortDepartureProtection,
+  createPortDepartureProtection,
+  portDepartureProtectionIsActive
+} from "./portDepartureProtection.js";
 import { playerShipyardSnapshot, restorePlayerShipyardSnapshot, snapshotPlayerShipyards } from "./playerShipyardPersistence.js";
 import { planPlaytestRoute, playtestSteeringTarget, playtestDockSteeringInput, playtestArrivalTile } from "./playtestNavigation.js";
 import { playerActionId } from "./playerActionIdentity.js";
@@ -4430,6 +4436,7 @@ let surrenderedShipCapturePendingId = null;
 let vikingLongshipAcquisitionPending = false;
 let dirty = true;
 let lastLandCollisionAtMs = null;
+let portDepartureProtection = createPortDepartureProtection();
 let lastFrameMs = performance.now();
 let lastSessionFrameMs = lastFrameMs;
 let frameClockSynchronizationPending = true;
@@ -7268,6 +7275,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   let chartRebuiltThisFrame = false;
   if (!simulationPaused) {
     advanceActivePlayTime(gameState, simulationSeconds);
+    advancePortDepartureProtection(portDepartureProtection, simulationSeconds);
     if (!CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK) {
       gameTelemetry.recordActivePlaySeconds(activeSessionFrameSeconds(sessionActivityState, {
         nowMs,
@@ -17177,6 +17185,7 @@ function startNewVoyage() {
     return;
   }
   sailingTutorialState = createSailingTutorialState();
+  portDepartureProtection = createPortDepartureProtection();
   resetStormPassageState(stormPassageState);
   resetFogStrengthEnvelope(stormFogStrengthEnvelope);
   resetStormWaveState(stormWaveState);
@@ -18323,6 +18332,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   // publishing any of them. The remainder rebuilds transient presentation state.
   clearPoliticalNotices();
   releaseDialogueSession({ destination: "sailing", animate: false });
+  portDepartureProtection = createPortDepartureProtection();
   resetStormPassageState(stormPassageState);
   resetFogStrengthEnvelope(stormFogStrengthEnvelope);
   resetStormWaveState(stormWaveState);
@@ -27217,7 +27227,7 @@ function stopShipForDialogue() {
 function pauseShipForOverlay() {
   fishingAction = null;
   if (!ship) return;
-  const canResume = !anchored && !portWaitState && !gameOverReason && !playerShipIsInvulnerable();
+  const canResume = !anchored && !portWaitState && !gameOverReason && !playerShipIsInSafePort();
   if (!canResume) {
     stopShipForDialogue();
     return;
@@ -27930,6 +27940,10 @@ function startWaitingInPort(city) {
 }
 
 function playerShipIsInvulnerable() {
+  return playerShipIsInSafePort() || portDepartureProtectionIsActive(portDepartureProtection);
+}
+
+function playerShipIsInSafePort() {
   return Boolean(portWaitState || dialogueState?.admittedToPort === true);
 }
 
@@ -28032,7 +28046,10 @@ function closeDialogue() {
     combatMusicUntilMs = 0;
     setBackgroundMusicTrack("ship", { force: true });
     if (!releasedAutomaticQuestSiteAnchor) playSailDeploySound();
-    if (departureCity) maybeOpenCampaignGoalDepartureReminder(departureCity);
+    if (departureCity) {
+      activatePortDepartureProtection(portDepartureProtection);
+      maybeOpenCampaignGoalDepartureReminder(departureCity);
+    }
     saveVoyageNow("left port dialogue");
   }
   resumeShipAfterOverlayIfReady();
@@ -37435,7 +37452,7 @@ function recordNpcDiplomaticPortCall(visitingFactionId, portFactionId, simMinute
 
 function updatePlayerSurvival(previousMinute, currentMinute) {
   if (!gameState || !ship || gameOverReason || currentMinute <= previousMinute) return false;
-  const safePort = playerShipIsInvulnerable();
+  const safePort = playerShipIsInSafePort();
   const perks = currentPlayerPerkTotals();
   const recoveredCrew = advanceCrewWoundRecovery(
     gameState,

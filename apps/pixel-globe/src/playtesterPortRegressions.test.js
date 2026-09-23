@@ -64,6 +64,42 @@ test("leaving safe port waiting completes departure instead of leaving the city 
   assert.deepEqual(calls, ["restore admission", "depart"]);
   assert.equal(context.portWaitState, null);
 });
+
+test("departing an admitted port activates protection but closing an encounter does not", () => {
+  const city = { cityId: "lisbon|portugal" };
+  const calls = [];
+  const context = {
+    HISTORICAL_BATTLE_DIALOGUE_KIND: "historical-battle",
+    QUEST_SITE_OVERLAY_DIALOGUE: "dialogue",
+    dialogueState: { kind: "port", admittedToPort: true, illicitTradeVisit: null },
+    gameState: {},
+    combatMusicUntilMs: 100,
+    dirty: false,
+    cancelPendingCrewDismissal: () => {},
+    currentDialogueCity: () => city,
+    applyAutomaticPortServices: value => assert.equal(value, city),
+    recordIllicitTradeDeparture: () => { throw new Error("No illicit visit expected"); },
+    closeAutomaticQuestSiteAnchorOverlay: () => false,
+    releaseDialogueSession: ({ destination }) => {
+      assert.equal(destination, "sailing");
+      context.dialogueState = null;
+    },
+    setBackgroundMusicTrack: () => {},
+    playSailDeploySound: () => {},
+    activatePortDepartureProtection: () => calls.push("protected"),
+    portDepartureProtection: {},
+    maybeOpenCampaignGoalDepartureReminder: value => assert.equal(value, city),
+    saveVoyageNow: () => {},
+    resumeShipAfterOverlayIfReady: () => {}
+  };
+  const closeDialogue = compiled("closeDialogue", context);
+  closeDialogue();
+  assert.deepEqual(calls, ["protected"]);
+
+  context.dialogueState = { kind: "ship", admittedToPort: false };
+  closeDialogue();
+  assert.deepEqual(calls, ["protected"]);
+});
 test("rescued travellers can have Asian homes and avoid another active passenger's home", () => {
   const ports = [1,2,3].map(id => ({ cityId: `city-${id}`, tileId: id, factionId: "ming" }));
   const context = { npcSeaRoutes: {}, ship: { position: [] }, activeRescuedTravelers: () => [{ homePortCityId: "city-1" }],
