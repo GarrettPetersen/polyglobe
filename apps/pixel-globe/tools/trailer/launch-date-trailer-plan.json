@@ -1,0 +1,210 @@
+{
+  "title": "November 20th",
+  "outroFrames": 120,
+  "validation": {
+    "chapterCount": 6
+  },
+  "music": {
+    "mode": "single",
+    "track": {
+      "name": "combat-big",
+      "intro": "public/assets/music/combat-big-intro.ogg",
+      "loop": "public/assets/music/combat-big-loop.ogg",
+      "bpm": 87.5
+    },
+    "syncCutFrames": [
+      41, 82, 103, 144, 165, 206, 226, 267, 288,
+      329, 370, 411, 432, 473, 494, 555, 597
+    ]
+  },
+  "chapters": [
+    {
+      "heading": "Opening",
+      "clips": [
+        {
+          "source": "demo/trailer-demo-launch-fight-hospitallers.mp4",
+          "startFrame": 21,
+          "durationFrames": 41,
+          "audioGain": 0.68,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "port",
+            "targetId": "trailer-demo-launch-fight-hospitallers-target",
+            "minimumHits": 1
+          }
+        },
+        {
+          "source": "fight/trailer-fight-turtle.mp4",
+          "startFrame": 21,
+          "durationFrames": 41,
+          "audioGain": 0.72,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetId": "trailer-atakebune",
+            "minimumHits": 1
+          }
+        }
+      ]
+    },
+    {
+      "heading": "World",
+      "clips": [
+        {
+          "source": "sail/trailer-sail-large-junk.mp4",
+          "startFrame": 30,
+          "durationFrames": 21
+        },
+        {
+          "source": "demo/trailer-demo-fight-galleass-starboard.mp4",
+          "startFrame": 21,
+          "durationFrames": 41,
+          "audioGain": 0.68,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetId": "trailer-demo-fight-galleass-starboard-target",
+            "minimumHits": 1
+          }
+        },
+        {
+          "source": "sail/trailer-sail-dhow.mp4",
+          "startFrame": 30,
+          "durationFrames": 21
+        },
+        {
+          "source": "fight/trailer-fight-atlantic.mp4",
+          "startFrame": 18,
+          "durationFrames": 41,
+          "audioGain": 0.72,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetId": "trailer-spanish-galleon",
+            "minimumHits": 1
+          }
+        }
+      ]
+    },
+    {
+      "heading": "Bombard",
+      "clips": [
+        {
+          "source": "sail/trailer-sail-portuguese-carrack.mp4",
+          "startFrame": 30,
+          "durationFrames": 20
+        },
+        {
+          "source": "pillage/trailer-pillage-havana.mp4",
+          "startFrame": 12,
+          "durationFrames": 41,
+          "audioGain": 0.68,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetIdPrefix": "shore-battery:",
+            "minimumHits": 1
+          }
+        },
+        {
+          "source": "sail/trailer-sail-xebec.mp4",
+          "startFrame": 30,
+          "durationFrames": 21
+        },
+        {
+          "source": "demo/trailer-demo-launch-bombard-rhodes.mp4",
+          "startFrame": 12,
+          "durationFrames": 41,
+          "audioGain": 0.68,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetIdPrefix": "shore-battery:",
+            "minimumHits": 1,
+            "requireDisable": true
+          }
+        }
+      ]
+    },
+    {
+      "heading": "Assault",
+      "clips": [
+        {
+          "source": "city/short-city-assault-london.mp4",
+          "startFrame": 315,
+          "durationFrames": 41,
+          "audioGain": 0.5,
+          "requiredModalPolicy": "suppress"
+        }
+      ]
+    },
+    {
+      "heading": "Hunt",
+      "clips": [
+        {
+          "source": "whale/trailer-whale-right.mp4",
+          "startFrame": 18,
+          "durationFrames": 41,
+          "audioGain": 0.9,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "whaleHarpoon", "minimum": 1 }
+        },
+        {
+          "source": "sail/trailer-sail-galleon.mp4",
+          "startFrame": 30,
+          "durationFrames": 21
+        }
+      ]
+    },
+    {
+      "heading": "Finale",
+      "clips": [
+        {
+          "source": "demo/trailer-demo-launch-fight-venetians.mp4",
+          "startFrame": 21,
+          "durationFrames": 41,
+          "audioGain": 0.68,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetId": "trailer-demo-launch-fight-venetians-target",
+            "minimumHits": 1
+          }
+        },
+        {
+          "source": "sail/trailer-sail-caravel.mp4",
+          "startFrame": 30,
+          "durationFrames": 21
+        },
+        {
+          "source": "city/short-city-assault-kyoto.mp4",
+          "startFrame": 510,
+          "durationFrames": 61,
+          "audioGain": 0.5,
+          "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "demo/trailer-demo-fight-galleass-port.mp4",
+          "startFrame": 21,
+          "durationFrames": 42,
+          "audioGain": 0.68,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "port",
+            "targetId": "trailer-demo-fight-galleass-port-target",
+            "minimumHits": 1
+          }
+        }
+      ]
+    }
+  ],
+  "montages": []
+}

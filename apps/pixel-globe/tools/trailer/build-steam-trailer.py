@@ -39,7 +39,7 @@ OUTRO_BLUR_SECONDS = 1.1
 OUTRO_TITLE_START_SECONDS = 0.25
 OUTRO_TITLE_SETTLE_SECONDS = 7 * math.pi / 18
 OUTRO_SOURCE_MAX_SECONDS = 5.0
-MINIMUM_FEATURE_CLIP_FRAMES = 24
+MINIMUM_FEATURE_CLIP_FRAMES = 20
 MINIMUM_MONTAGE_CLIP_FRAMES = 10
 
 
@@ -727,6 +727,61 @@ def resolve_music_track(music, role):
     return resolved
 
 
+def render_single_track_music(track, duration, output):
+    fade_start = max(0.0, duration - 4.0)
+    filters = (
+        "[0:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[intro];"
+        "[1:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[loop];"
+        f"[intro][loop]concat=n=2:v=0:a=1,atrim=duration={duration},"
+        "asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.3,"
+        f"afade=t=out:st={fade_start}:d=4,volume=0.52[music]"
+    )
+    run([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", track["intro"],
+        "-stream_loop", "-1", "-i", track["loop"],
+        "-filter_complex", filters,
+        "-map", "[music]", "-t", str(duration),
+        "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", output,
+    ])
+
+
+def render_crossfade_music(
+    primary_track,
+    secondary_track,
+    duration,
+    fight_start_seconds,
+    crossfade_seconds,
+    output,
+):
+    fade_start = max(0.0, duration - 4.0)
+    primary_duration = fight_start_seconds + crossfade_seconds / 2
+    secondary_duration = duration - fight_start_seconds + crossfade_seconds / 2
+    filters = (
+        "[0:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[primary-intro];"
+        "[1:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[primary-loop];"
+        "[2:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[secondary-intro];"
+        "[3:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[secondary-loop];"
+        f"[primary-intro][primary-loop]concat=n=2:v=0:a=1,"
+        f"atrim=duration={primary_duration},asetpts=PTS-STARTPTS,"
+        "afade=t=in:st=0:d=0.3[primary];"
+        f"[secondary-intro][secondary-loop]concat=n=2:v=0:a=1,"
+        f"atrim=duration={secondary_duration},asetpts=PTS-STARTPTS[secondary];"
+        f"[primary][secondary]acrossfade=d={crossfade_seconds}:c1=tri:c2=tri,"
+        f"afade=t=out:st={fade_start}:d=4,volume=0.52[music]"
+    )
+    run([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", primary_track["intro"],
+        "-stream_loop", "-1", "-i", primary_track["loop"],
+        "-i", secondary_track["intro"],
+        "-stream_loop", "-1", "-i", secondary_track["loop"],
+        "-filter_complex", filters,
+        "-map", "[music]", "-t", str(duration),
+        "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", output,
+    ])
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Build a Marque & Reprisal Steam trailer")
     parser.add_argument("--plan", default=str(PLAN_PATH))
@@ -762,44 +817,60 @@ def main():
     music = plan.get("music")
     if not isinstance(music, dict):
         raise RuntimeError("Trailer plan must define music synchronization")
-    primary_music = resolve_music_track(music, "primary")
-    secondary_music = resolve_music_track(music, "secondary")
-    transition_heading = music.get("transitionHeading")
-    if not isinstance(transition_heading, str) or not transition_heading:
-        raise RuntimeError("Trailer music must name its transition chapter")
-    fight_indices = [
-        index for index, chapter in enumerate(chapters)
-        if chapter.get("heading") == transition_heading
-    ]
-    if len(fight_indices) != 1:
-        raise RuntimeError(
-            f"Trailer plan must define exactly one {transition_heading} transition chapter"
-        )
-    fight_index = fight_indices[0]
-    required_previous_heading = music.get("requiredPreviousHeading")
-    if not isinstance(required_previous_heading, str) or not required_previous_heading:
-        raise RuntimeError("Trailer music must name the chapter before its transition")
-    if fight_index == 0 or chapters[fight_index - 1].get("heading") != required_previous_heading:
-        raise RuntimeError(
-            f"{required_previous_heading} must immediately precede {transition_heading}"
-        )
-    fight_start_frame = required_frame_count(music.get("fightStartFrame"), "fight start frame")
-    crossfade_frames = required_frame_count(music.get("crossfadeFrames"), "crossfade frames")
-    if crossfade_frames % 2 != 0:
-        raise RuntimeError("Music crossfade must have an even frame count")
-    if music.get("combatSyncAttackFrame") != crossfade_frames // 2:
-        raise RuntimeError("The combat sync attack must land at the crossfade midpoint")
+    music_mode = music.get("mode")
+    if music_mode not in {"single", "crossfade"}:
+        raise RuntimeError("Trailer music mode must be single or crossfade")
+    single_music = None
+    primary_music = None
+    secondary_music = None
+    fight_start_frame = None
+    crossfade_frames = None
+    if music_mode == "single":
+        single_music = resolve_music_track(music, "track")
+        if plan.get("montages"):
+            raise RuntimeError("Single-track trailer plans must use explicit clip durations")
+    else:
+        primary_music = resolve_music_track(music, "primary")
+        secondary_music = resolve_music_track(music, "secondary")
+        transition_heading = music.get("transitionHeading")
+        if not isinstance(transition_heading, str) or not transition_heading:
+            raise RuntimeError("Trailer music must name its transition chapter")
+        fight_indices = [
+            index for index, chapter in enumerate(chapters)
+            if chapter.get("heading") == transition_heading
+        ]
+        if len(fight_indices) != 1:
+            raise RuntimeError(
+                f"Trailer plan must define exactly one {transition_heading} transition chapter"
+            )
+        fight_index = fight_indices[0]
+        required_previous_heading = music.get("requiredPreviousHeading")
+        if not isinstance(required_previous_heading, str) or not required_previous_heading:
+            raise RuntimeError("Trailer music must name the chapter before its transition")
+        if fight_index == 0 or chapters[fight_index - 1].get("heading") != required_previous_heading:
+            raise RuntimeError(
+                f"{required_previous_heading} must immediately precede {transition_heading}"
+            )
+        fight_start_frame = required_frame_count(music.get("fightStartFrame"), "fight start frame")
+        crossfade_frames = required_frame_count(music.get("crossfadeFrames"), "crossfade frames")
+        if crossfade_frames % 2 != 0:
+            raise RuntimeError("Music crossfade must have an even frame count")
+        if music.get("combatSyncAttackFrame") != crossfade_frames // 2:
+            raise RuntimeError("The combat sync attack must land at the crossfade midpoint")
     sections, gameplay_frames, cut_frames = build_timeline(plan)
-    fight_section = next(
-        section for section in sections
-        if section.get("heading") == transition_heading
-    )
-    if fight_section["timelineStartFrame"] != fight_start_frame:
-        raise RuntimeError(
-            f"Fight begins at frame {fight_section['timelineStartFrame']}, expected {fight_start_frame}"
+    fight_start_seconds = None
+    crossfade_seconds = None
+    if music_mode == "crossfade":
+        fight_section = next(
+            section for section in sections
+            if section.get("heading") == transition_heading
         )
-    fight_start_seconds = fight_start_frame / FPS
-    crossfade_seconds = crossfade_frames / FPS
+        if fight_section["timelineStartFrame"] != fight_start_frame:
+            raise RuntimeError(
+                f"Fight begins at frame {fight_section['timelineStartFrame']}, expected {fight_start_frame}"
+            )
+        fight_start_seconds = fight_start_frame / FPS
+        crossfade_seconds = crossfade_frames / FPS
 
     shutil.rmtree(TEMP, ignore_errors=True)
     OVERLAYS.mkdir(parents=True)
@@ -813,17 +884,27 @@ def main():
         "timeline": [],
         "layeredSfx": [],
         "outro": {},
-        "music": {
-            "beforeFight": primary_music["name"],
-            "fromFight": secondary_music["name"],
-            "crossfadeSeconds": crossfade_seconds,
-            "fightStartSeconds": fight_start_seconds,
-            "crossfadeStartFrame": fight_start_frame - crossfade_frames // 2,
-            "combatSyncAttackFrame": music["combatSyncAttackFrame"],
-            "primaryBpm": primary_music["bpm"],
-            "secondaryBpm": secondary_music["bpm"],
-            "syncCutFrames": cut_frames,
-        },
+        "music": (
+            {
+                "mode": "single",
+                "track": single_music["name"],
+                "bpm": single_music["bpm"],
+                "syncCutFrames": cut_frames,
+            }
+            if music_mode == "single"
+            else {
+                "mode": "crossfade",
+                "beforeFight": primary_music["name"],
+                "fromFight": secondary_music["name"],
+                "crossfadeSeconds": crossfade_seconds,
+                "fightStartSeconds": fight_start_seconds,
+                "crossfadeStartFrame": fight_start_frame - crossfade_frames // 2,
+                "combatSyncAttackFrame": music["combatSyncAttackFrame"],
+                "primaryBpm": primary_music["bpm"],
+                "secondaryBpm": secondary_music["bpm"],
+                "syncCutFrames": cut_frames,
+            }
+        ),
         "output": str(output),
     }
 
@@ -995,32 +1076,17 @@ def main():
     music_path = TEMP / "music.wav"
     sfx_path = TEMP / "sfx.wav"
     render_timeline_sfx(layered_sfx, expected_duration, sfx_path)
-    music_fade_start = max(0.0, expected_duration - 4.0)
-    sailing_music_duration = fight_start_seconds + crossfade_seconds / 2
-    combat_music_duration = expected_duration - fight_start_seconds + crossfade_seconds / 2
-    music_filters = (
-        "[0:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[sailing-intro];"
-        "[1:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[sailing-loop];"
-        "[2:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[combat-intro];"
-        "[3:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[combat-loop];"
-        f"[sailing-intro][sailing-loop]concat=n=2:v=0:a=1,"
-        f"atrim=duration={sailing_music_duration},asetpts=PTS-STARTPTS,"
-        "afade=t=in:st=0:d=0.3[sailing];"
-        f"[combat-intro][combat-loop]concat=n=2:v=0:a=1,"
-        f"atrim=duration={combat_music_duration},asetpts=PTS-STARTPTS[combat];"
-        f"[sailing][combat]acrossfade=d={crossfade_seconds}:c1=tri:c2=tri,"
-        f"afade=t=out:st={music_fade_start}:d=4,volume=0.52[music]"
-    )
-    run([
-        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-        "-i", primary_music["intro"],
-        "-stream_loop", "-1", "-i", primary_music["loop"],
-        "-i", secondary_music["intro"],
-        "-stream_loop", "-1", "-i", secondary_music["loop"],
-        "-filter_complex", music_filters,
-        "-map", "[music]", "-t", str(expected_duration),
-        "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", music_path,
-    ])
+    if music_mode == "single":
+        render_single_track_music(single_music, expected_duration, music_path)
+    else:
+        render_crossfade_music(
+            primary_music,
+            secondary_music,
+            expected_duration,
+            fight_start_seconds,
+            crossfade_seconds,
+            music_path,
+        )
 
     final_inputs = ["-i", gameplay_path, "-i", music_path, "-i", sfx_path]
     final_filter_parts = [

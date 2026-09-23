@@ -5,6 +5,7 @@
     "chapterCount": 8
   },
   "music": {
+    "mode": "crossfade",
     "primary": {
       "name": "ship-theme",
       "intro": "public/assets/music/ship-theme-intro.ogg",

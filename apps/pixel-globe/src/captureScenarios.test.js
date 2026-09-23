@@ -684,12 +684,16 @@ test("trailer combat stages one correctly chosen broadside at useful range", () 
   }
 
   const turtle = captureScenarioFromSearch("?capture=trailer-fight-turtle");
-  assert.ok(turtle.encounters[0].lon - turtle.player.lon > 1);
+  const turtleLongitudeSeparation = turtle.encounters[0].lon - turtle.player.lon;
+  assert.ok(turtleLongitudeSeparation >= 0.45 && turtleLongitudeSeparation <= 0.65);
   assert.equal(turtle.encounters[0].headingDeg, turtle.player.headingDeg);
+  assert.equal(turtle.sequence.modalPolicy, "suppress");
 
   const atlantic = captureScenarioFromSearch("?capture=trailer-fight-atlantic");
   assert.equal(atlantic.player.lon, -29);
-  assert.ok(atlantic.encounters[0].lon < -27);
+  const atlanticLongitudeSeparation = atlantic.encounters[0].lon - atlantic.player.lon;
+  assert.ok(atlanticLongitudeSeparation >= 0.5 && atlanticLongitudeSeparation <= 0.7);
+  assert.equal(atlantic.sequence.modalPolicy, "suppress");
 
   const malformed = structuredClone(turtle);
   malformed.sequence.broadsideSide = "both";

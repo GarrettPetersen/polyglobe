@@ -5,6 +5,7 @@
     "chapterCount": 8
   },
   "music": {
+    "mode": "crossfade",
     "primary": {
       "name": "city-mediterranean",
       "intro": "public/assets/music/city-mediterranean-intro.ogg",

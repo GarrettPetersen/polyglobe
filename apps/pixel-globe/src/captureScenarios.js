@@ -539,7 +539,10 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-whale-right-v1",
     player: capturePlayer("england", "brigantine", 42.4, -48.0, 90),
     world: captureWorld(120, 9, 5),
-    sequence: trailerSequence("whale", "harpoon", { speciesId: "north-atlantic-right-whale" })
+    sequence: trailerSequence("whale", "harpoon", {
+      speciesId: "north-atlantic-right-whale",
+      modalPolicy: "suppress"
+    })
   }),
   "trailer-whale-sperm": trailerScenario({
     id: "trailer-whale-sperm",
@@ -581,8 +584,8 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-sail-xebec-v1",
     factionId: "ottoman",
     shipSlug: "xebec",
-    lat: 32,
-    lon: 20,
+    lat: 35,
+    lon: 17,
     day: 184,
     hour: 12,
     minute: 5,
@@ -871,10 +874,11 @@ const CAPTURE_SCENARIOS = Object.freeze({
     player: capturePlayer("joseon", "joseon-turtle-ship", 34.82, 129.24, 90),
     world: captureWorld(196, 13, 20),
     diplomacy: [{ factionAId: "joseon", factionBId: "japan", relation: "war" }],
-    encounters: [captureEncounter("trailer-atakebune", "japan", "japanese-atakebune", 34.82, 130.63, 90)],
+    encounters: [captureEncounter("trailer-atakebune", "japan", "japanese-atakebune", 34.82, 129.76, 90)],
     sequence: trailerSequence("fight", "turtle", {
       encounterId: "trailer-atakebune",
-      broadsideSide: "starboard"
+      broadsideSide: "starboard",
+      modalPolicy: "suppress"
     })
   }),
   "trailer-fight-atlantic": trailerScenario({
@@ -884,10 +888,11 @@ const CAPTURE_SCENARIOS = Object.freeze({
     player: capturePlayer("portugal", "portuguese-carrack", 35.7, -29.0, 90),
     world: captureWorld(205, 16, 10),
     diplomacy: [{ factionAId: "portugal", factionBId: "spain", relation: "war" }],
-    encounters: [captureEncounter("trailer-spanish-galleon", "spain", "galleon", 35.7, -27.62, 90)],
+    encounters: [captureEncounter("trailer-spanish-galleon", "spain", "galleon", 35.7, -28.4, 90)],
     sequence: trailerSequence("fight", "atlantic", {
       encounterId: "trailer-spanish-galleon",
-      broadsideSide: "starboard"
+      broadsideSide: "starboard",
+      modalPolicy: "suppress"
     })
   }),
   "short-fight-small-arms": trailerScenario({
@@ -924,7 +929,8 @@ const CAPTURE_SCENARIOS = Object.freeze({
     ],
     sequence: trailerSequence("fight", "small-arms", {
       durationSeconds: 30,
-      encounterId: "short-small-arms-atakebune"
+      encounterId: "short-small-arms-atakebune",
+      modalPolicy: "suppress"
     })
   }),
   "short-fight-small-arms-mediterranean": trailerScenario({
@@ -958,7 +964,8 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [{ factionAId: "england", factionBId: "spain", relation: "war" }],
     sequence: trailerSequence("pillage", "bombard", {
       cityId: "havana|cuba",
-      broadsideSide: "starboard"
+      broadsideSide: "starboard",
+      modalPolicy: "suppress"
     })
   }),
   "trailer-pillage-alexandria": trailerScenario({
@@ -1605,7 +1612,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     lat: 37.0,
     lon: 17.5,
     side: "port",
-    targetOffsetDeg: 0.95,
+    targetOffsetDeg: 0.52,
     variant: "fight"
   }),
   "trailer-demo-pillage-alexandria": trailerScenario({
