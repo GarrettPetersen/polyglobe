@@ -110,3 +110,39 @@ test("alternate captains use another geographic start area when one is available
   assert.equal(calls, 2);
   assert.equal(result.profile.startArea, "india");
 });
+
+test("captain choice previews the same campaign-specific starter used by the voyage", () => {
+  const calls = [];
+  const context = runtime(["startingShipSlugForCaptainChoice"], {
+    START_SHIP_SLUG_OVERRIDE: "",
+    CAMPAIGN_GOAL_WHITE_WHALE: "white-whale",
+    CAMPAIGN_GOAL_TREASURE: "treasure",
+    playerStarterShipForFaction: (factionId, options) => {
+      calls.push({ factionId, options });
+      return "preview-ship";
+    },
+    Error
+  });
+  const choice = {
+    identityKey: "captain-seed",
+    profile: {
+      startArea: "mediterranean",
+      character: { nationalityId: "venice" }
+    }
+  };
+
+  assert.equal(context.startingShipSlugForCaptainChoice(choice, "treasure"), "preview-ship");
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{
+    factionId: "venice",
+    options: {
+      whaling: false,
+      armed: true,
+      identityKey: "captain-seed",
+      startArea: "mediterranean"
+    }
+  }]);
+  assert.throws(
+    () => context.startingShipSlugForCaptainChoice({ identityKey: "broken" }, "treasure"),
+    /complete captain choice/
+  );
+});

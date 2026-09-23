@@ -65,7 +65,7 @@ test("leaving safe port waiting completes departure instead of leaving the city 
   assert.equal(context.portWaitState, null);
 });
 
-test("departing an admitted port activates protection but closing an encounter does not", () => {
+test("departing an admitted port waits for movement input and activates protection", () => {
   const city = { cityId: "lisbon|portugal" };
   const calls = [];
   const context = {
@@ -86,6 +86,9 @@ test("departing an admitted port activates protection but closing an encounter d
     },
     setBackgroundMusicTrack: () => {},
     playSailDeploySound: () => {},
+    activateDepartureMotionGate: () => calls.push("motion-gated"),
+    departureMotionGate: {},
+    stopShipMotion: () => calls.push("stopped"),
     activatePortDepartureProtection: () => calls.push("protected"),
     portDepartureProtection: {},
     maybeOpenCampaignGoalDepartureReminder: value => assert.equal(value, city),
@@ -94,11 +97,11 @@ test("departing an admitted port activates protection but closing an encounter d
   };
   const closeDialogue = compiled("closeDialogue", context);
   closeDialogue();
-  assert.deepEqual(calls, ["protected"]);
+  assert.deepEqual(calls, ["motion-gated", "stopped", "protected"]);
 
   context.dialogueState = { kind: "ship", admittedToPort: false };
   closeDialogue();
-  assert.deepEqual(calls, ["protected"]);
+  assert.deepEqual(calls, ["motion-gated", "stopped", "protected"]);
 });
 test("rescued travellers can have Asian homes and avoid another active passenger's home", () => {
   const ports = [1,2,3].map(id => ({ cityId: `city-${id}`, tileId: id, factionId: "ming" }));

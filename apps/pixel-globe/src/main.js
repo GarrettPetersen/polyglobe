@@ -28,6 +28,12 @@ import { EXETER_CITY_ID, TOPSHAM_CITY_ID, exeterCanalStage, exeterCanalQuestView
 import { EXETER_CANAL_TILE_CHAIN, exeterCanalNavigation, exeterCanalPort } from "./exeterCanalNavigation.js";
 import { sailingStepCorrectionDistancePx } from "./sailingContinuity.js";
 import {
+  activateDepartureMotionGate,
+  createDepartureMotionGate,
+  departureMotionGateIsActive,
+  departureMotionInputIsBlocked
+} from "./departureMotionGate.js";
+import {
   activatePortDepartureProtection,
   advancePortDepartureProtection,
   createPortDepartureProtection,
@@ -4436,6 +4442,7 @@ let surrenderedShipCapturePendingId = null;
 let vikingLongshipAcquisitionPending = false;
 let dirty = true;
 let lastLandCollisionAtMs = null;
+let departureMotionGate = createDepartureMotionGate();
 let portDepartureProtection = createPortDepartureProtection();
 let lastFrameMs = performance.now();
 let lastSessionFrameMs = lastFrameMs;
@@ -5064,21 +5071,11 @@ async function main() {
   const playerCharacter = CAPTURE_SCENARIO
     ? capturePlayerCharacter(playerProfile.character, CAPTURE_SCENARIO)
     : playerProfile.character;
-  const campaignGoalType = BUILD_EDITION_ID === "demo"
-    ? CAMPAIGN_GOAL_FAMILY_DEBT
-    : campaignGoalTypeForCharacter(
-        playerCharacter,
-        achievementProfile?.lifetime.campaignStartsByGoal
-      );
-  const playerShipSlug = START_SHIP_SLUG_OVERRIDE || playerStarterShipForFaction(
-    playerCharacter.nationalityId,
-    {
-      whaling: campaignGoalType === CAMPAIGN_GOAL_WHITE_WHALE,
-      armed: campaignGoalType === CAMPAIGN_GOAL_TREASURE,
-      identityKey: voyageSeed,
-      startArea: playerProfile.startArea
-    }
-  );
+  const campaignGoalType = campaignGoalTypeForNewCaptain(playerCharacter);
+  const playerShipSlug = startingShipSlugForCaptainChoice({
+    identityKey: voyageSeed,
+    profile: playerProfile
+  }, campaignGoalType);
   const playerStartPosition = START_POSITION_OVERRIDE || {
     lat: playerProfile.homePort.lat,
     lon: playerProfile.homePort.lon
@@ -5298,10 +5295,14 @@ async function main() {
       return;
     }
   } else {
-    await Promise.all((newVoyageCaptainChoices.length > 0
+    const portraitPromises = (newVoyageCaptainChoices.length > 0
       ? newVoyageCaptainChoices.map(({ profile }) => profile.character)
       : [playerCharacter]
-    ).map(character => ensureCharacterPortraitLoaded(character, characterExpression(character))));
+    ).map(character => ensureCharacterPortraitLoaded(character, characterExpression(character)));
+    const captainShipPromises = newVoyageCaptainChoices.map((choice) => (
+      loadShipInfoImage(startingShipSlugForCaptainChoice(choice))
+    ));
+    await Promise.all([...portraitPromises, ...captainShipPromises]);
     syncShipCargoFromGameState();
     camera = northUpCamera(ship.position);
     centerTileId = ship.tileId;
@@ -7723,6 +7724,31 @@ function createCaptainSelectionState() {
     cancelRect: null,
     error: ""
   };
+}
+
+function campaignGoalTypeForNewCaptain(character) {
+  return BUILD_EDITION_ID === "demo"
+    ? CAMPAIGN_GOAL_FAMILY_DEBT
+    : campaignGoalTypeForCharacter(
+        character,
+        achievementProfile?.lifetime.campaignStartsByGoal
+      );
+}
+
+function startingShipSlugForCaptainChoice(choice, campaignGoalType = null) {
+  if (!choice?.profile?.character || typeof choice.identityKey !== "string") {
+    throw new Error("Starting ship preview requires a complete captain choice");
+  }
+  const goalType = campaignGoalType || campaignGoalTypeForNewCaptain(choice.profile.character);
+  return START_SHIP_SLUG_OVERRIDE || playerStarterShipForFaction(
+    choice.profile.character.nationalityId,
+    {
+      whaling: goalType === CAMPAIGN_GOAL_WHITE_WHALE,
+      armed: goalType === CAMPAIGN_GOAL_TREASURE,
+      identityKey: choice.identityKey,
+      startArea: choice.profile.startArea
+    }
+  );
 }
 
 function startMenuActions() {
@@ -17185,6 +17211,8 @@ function startNewVoyage() {
     return;
   }
   sailingTutorialState = createSailingTutorialState();
+  departureMotionGate = createDepartureMotionGate();
+  activateDepartureMotionGate(departureMotionGate);
   portDepartureProtection = createPortDepartureProtection();
   resetStormPassageState(stormPassageState);
   resetFogStrengthEnvelope(stormFogStrengthEnvelope);
@@ -28047,6 +28075,8 @@ function closeDialogue() {
     setBackgroundMusicTrack("ship", { force: true });
     if (!releasedAutomaticQuestSiteAnchor) playSailDeploySound();
     if (departureCity) {
+      activateDepartureMotionGate(departureMotionGate);
+      stopShipMotion();
       activatePortDepartureProtection(portDepartureProtection);
       maybeOpenCampaignGoalDepartureReminder(departureCity);
     }
@@ -33759,6 +33789,12 @@ function updateSailing(dt) {
   const recoveredFromDemoEscape = recoverEscapedDemoShip();
   const effectiveStats = currentPlayerEffectiveShipStats();
   const input = inputCommandForShip();
+  if (departureMotionGateIsActive(departureMotionGate)) {
+    ship.velocity = [0, 0, 0];
+    ship.rowing = false;
+    ship.rowingMode = SHIP_ROWING_MODE_IDLE;
+    return recoveredFromDemoEscape;
+  }
   const inputHeading = input.movementHeading;
   const steeringHeading = input.steeringHeading;
   const inRiver = shipIsInRiverWater();
@@ -34065,11 +34101,6 @@ function inputCommandForShip() {
   const captureHeading = captureAutopilotHeading();
   if (captureHeading) return directionalShipInputCommand(captureHeading);
   const pointerVector = pointerSteeringInputVector();
-  if (pointerVector) {
-    return directionalShipInputCommand(
-      cameraSpaceHeadingForShip(pointerVector.dx, pointerVector.dy)
-    );
-  }
   const intent = steeringIntentForScheme({
     scheme: optionsMenu.controlScheme,
     left: keys.has(KEY_ACTION.STEER_LEFT),
@@ -34079,6 +34110,21 @@ function inputCommandForShip() {
     controllerX: controllerSteering?.dx * controllerSteering?.strength || 0,
     controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
   });
+  const steeringActive = Boolean(pointerVector) || intent.relativeBackward ||
+    intent.relativeForward || intent.relativeTurn !== 0 ||
+    intent.absoluteX !== 0 || intent.absoluteY !== 0;
+  if (departureMotionInputIsBlocked(departureMotionGate, steeringActive)) {
+    return {
+      steeringHeading: null,
+      movementHeading: null,
+      rowingMode: SHIP_ROWING_MODE_IDLE
+    };
+  }
+  if (pointerVector) {
+    return directionalShipInputCommand(
+      cameraSpaceHeadingForShip(pointerVector.dx, pointerVector.dy)
+    );
+  }
   const canRow = shipCanUseOars(currentPlayerEffectiveShipStats());
   const canPivot = shipCanPivotInPlace(
     currentPlayerEffectiveShipStats(),
@@ -55857,7 +55903,8 @@ function drawCaptainSelection() {
   if (!selection || newVoyageCaptainChoices.length !== 2) {
     throw new Error("Captain selection cannot be drawn without two candidates");
   }
-  const panelHeight = Math.min(270, SCREEN_H - 16);
+  const stackCards = SCREEN_W < 420 && SCREEN_H >= 390;
+  const panelHeight = Math.min(stackCards ? 430 : 286, SCREEN_H - 4);
   const panel = {
     x: Math.floor((SCREEN_W - Math.min(446, SCREEN_W - 12)) / 2),
     y: Math.floor((SCREEN_H - panelHeight) / 2),
@@ -55865,13 +55912,14 @@ function drawCaptainSelection() {
     h: panelHeight
   };
   const gap = 8;
-  const cardsY = panel.y + 31;
+  const cardsY = panel.y + 29;
   const footerH = 35;
-  const cardH = panel.h - 31 - footerH - 7;
-  const cardW = Math.floor((panel.w - 20 - gap) / 2);
+  const cardsHeight = panel.h - 29 - footerH - 7;
+  const cardH = stackCards ? Math.floor((cardsHeight - gap) / 2) : cardsHeight;
+  const cardW = stackCards ? panel.w - 20 : Math.floor((panel.w - 20 - gap) / 2);
   selection.cardRects = [0, 1].map(index => ({
-    x: panel.x + 10 + index * (cardW + gap),
-    y: cardsY,
+    x: panel.x + 10 + (stackCards ? 0 : index * (cardW + gap)),
+    y: cardsY + (stackCards ? index * (cardH + gap) : 0),
     w: cardW,
     h: cardH
   }));
@@ -55892,7 +55940,8 @@ function drawCaptainSelection() {
     align: "center"
   });
 
-  newVoyageCaptainChoices.forEach(({ profile }, index) => {
+  newVoyageCaptainChoices.forEach((choice, index) => {
+    const { profile } = choice;
     const character = profile.character;
     const baseRect = selection.cardRects[index];
     const hovered = selection.hoveredCardIndex === index;
@@ -55925,44 +55974,121 @@ function drawCaptainSelection() {
       rect.y + 8,
       { font: PIXEL_FONT_SMALL_8, align: "center" }
     );
-    const portraitX = Math.round(rect.x + (rect.w - DIALOGUE_PORTRAIT_SIZE) / 2);
-    const portraitY = rect.y + 20;
+    const homeLabel = uiText("intro.homePort");
+    const homeLabelWidth = measureRenderedPixelTextWidth(homeLabel, PIXEL_FONT_SMALL_8);
+    const homeY = rect.y + 19;
+    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+    drawPixelText(homeLabel, rect.x + 8, homeY, { font: PIXEL_FONT_SMALL_8 });
+    ctx.fillStyle = PIRATE_MENU_INK;
+    drawPixelText(
+      fitPixelText(
+        character.homePortName.toUpperCase(),
+        PIXEL_FONT_SMALL_8,
+        rect.w - 20 - homeLabelWidth
+      ),
+      rect.x + rect.w - 8,
+      homeY,
+      { font: PIXEL_FONT_SMALL_8, align: "right" }
+    );
+
+    const portraitX = rect.x + 8;
+    const portraitY = rect.y + 31;
     ctx.fillStyle = "#191f24";
     ctx.fillRect(portraitX - 2, portraitY - 2, DIALOGUE_PORTRAIT_SIZE + 4, DIALOGUE_PORTRAIT_SIZE + 4);
     ctx.strokeStyle = hovered ? "#f2d492" : "#8ac0b4";
     ctx.strokeRect(portraitX - 1.5, portraitY - 1.5, DIALOGUE_PORTRAIT_SIZE + 3, DIALOGUE_PORTRAIT_SIZE + 3);
     drawDialoguePortrait(character, null, portraitX, portraitY);
-    const homeY = portraitY + DIALOGUE_PORTRAIT_SIZE + 7;
+
+    const shipSlug = startingShipSlugForCaptainChoice(choice);
+    const shipArtX = portraitX + DIALOGUE_PORTRAIT_SIZE + 8;
+    const stackedSkillX = stackCards ? rect.x + Math.floor(rect.w * 0.56) : null;
+    const shipArtRight = stackCards ? stackedSkillX - 8 : rect.x + rect.w - 8;
+    const shipArtW = shipArtRight - shipArtX;
+    const shipArtH = Math.max(1, Math.round(shipArtW * SHIP_INFO_SIDE_VIEW_H / SHIP_INFO_SIDE_VIEW_W));
+    const shipArtY = portraitY + Math.floor((DIALOGUE_PORTRAIT_SIZE - shipArtH) / 2);
+    const sideView = shipInfoImages.get(shipSlug);
+    if (!sideView) throw new Error(`Captain choice is missing loaded ship art: ${shipSlug}`);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sideView, shipArtX, shipArtY, shipArtW, shipArtH);
+
+    const factLabelY = portraitY + DIALOGUE_PORTRAIT_SIZE + 5;
+    const vesselLabel = uiText("ship.vessel");
+    const vesselLabelWidth = measureRenderedPixelTextWidth(vesselLabel, PIXEL_FONT_SMALL_8);
     ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-    drawPixelText("HOME PORT", rect.x + rect.w / 2, homeY, {
-      font: PIXEL_FONT_SMALL_8,
-      align: "center"
-    });
+    drawPixelText(vesselLabel, rect.x + 8, factLabelY, { font: PIXEL_FONT_SMALL_8 });
     ctx.fillStyle = PIRATE_MENU_INK;
     drawPixelText(
-      fitPixelText(character.homePortName.toUpperCase(), PIXEL_FONT_SMALL_8, rect.w - 10),
-      rect.x + rect.w / 2,
-      homeY + 9,
-      { font: PIXEL_FONT_SMALL_8, align: "center" }
+      fitPixelText(
+        renderedUiText(shipLabelForSlug(shipSlug)).toUpperCase(),
+        PIXEL_FONT_SMALL_8,
+        shipArtRight - rect.x - 12 - vesselLabelWidth
+      ),
+      shipArtRight,
+      factLabelY,
+      { font: PIXEL_FONT_SMALL_8, align: "right" }
     );
+
     const skill = characterSkillSummary(characterSkills(character)[0].id);
     ctx.fillStyle = "#f2d492";
-    const skillRect = { x: rect.x + 7, y: rect.y + rect.h - 27, w: rect.w - 14, h: 20 };
+    const skillY = factLabelY + 12;
+    const skillRect = stackCards
+      ? {
+          x: stackedSkillX,
+          y: portraitY,
+          w: rect.x + rect.w - 7 - stackedSkillX,
+          h: rect.y + rect.h - 6 - portraitY
+        }
+      : {
+          x: rect.x + 7,
+          y: skillY,
+          w: rect.w - 14,
+          h: rect.y + rect.h - 6 - skillY
+        };
+    if (skillRect.h < 42) throw new Error("Captain choice card has no room for its skill summary");
     ctx.fillRect(skillRect.x, skillRect.y, skillRect.w, skillRect.h);
     ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
     ctx.strokeRect(skillRect.x + 0.5, skillRect.y + 0.5, skillRect.w - 1, skillRect.h - 1);
     ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-    drawPixelText("SKILL", skillRect.x + skillRect.w / 2, skillRect.y + 2, {
+    drawPixelText(uiText("aboard.skill"), skillRect.x + 5, skillRect.y + 3, {
       font: PIXEL_FONT_SMALL_8,
-      align: "center"
+      align: "left"
     });
-    ctx.fillStyle = PIRATE_MENU_INK;
-    drawPixelText(
-      fitPixelText(renderedUiText(skill.label).toUpperCase(), PIXEL_FONT_SMALL_8, skillRect.w - 6),
-      skillRect.x + skillRect.w / 2,
-      skillRect.y + 10,
-      { font: PIXEL_FONT_SMALL_8, align: "center" }
+    const skillNameLines = wrapPixelTextAll(
+      renderedUiText(skill.label).toUpperCase(),
+      PIXEL_FONT_SMALL_8,
+      skillRect.w - 10
     );
+    if (skillNameLines.length > 3) {
+      throw new Error(`Captain choice skill name requires more than three lines: ${skill.id}`);
+    }
+    ctx.fillStyle = PIRATE_MENU_INK;
+    const lineHeight = localizedLineHeight(9);
+    let skillTextY = skillRect.y + 13;
+    for (const line of skillNameLines) {
+      drawPixelText(line, skillRect.x + skillRect.w / 2, skillTextY, {
+        font: PIXEL_FONT_SMALL_8,
+        align: "center"
+      });
+      skillTextY += lineHeight;
+    }
+    skillTextY += 3;
+    const effectLines = wrapPixelTextAll(
+      renderedUiText(skill.effectLabels.join(" / ")).toUpperCase(),
+      PIXEL_FONT_SMALL_8,
+      skillRect.w - 10
+    );
+    const availableEffectLines = Math.max(
+      0,
+      Math.floor((skillRect.y + skillRect.h - 4 - skillTextY) / lineHeight) + 1
+    );
+    if (effectLines.length > availableEffectLines) {
+      throw new Error(`Captain choice skill effects overflow for ${skill.id}`);
+    }
+    ctx.fillStyle = PIRATE_MENU_SUCCESS;
+    for (const line of effectLines) {
+      drawPixelText(line, skillRect.x + 5, skillTextY, { font: PIXEL_FONT_SMALL_8 });
+      skillTextY += lineHeight;
+    }
   });
 
   drawStartMenuButton(selection.cancelRect, uiText("common.back"), false);
