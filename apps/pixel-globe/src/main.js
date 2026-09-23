@@ -1046,11 +1046,14 @@ import {
   createCampaignDialogueSession,
   drunkenCampaignHomecomingSteps,
   explorerWonderCatalog,
+  familyDebtHomecomingEligible,
+  familyDebtPartialPaymentAdvice,
   familyDebtPayoffProjection,
   isExplorerLeadAssignable,
   isExplorerWonder,
   markWhiteWhaleKilled,
   markCampaignGoalIntroSeen,
+  markFamilyDebtPartialPaymentAdviceSeen,
   reachWhiteWhaleSighting,
   recordWhiteWhaleSighting,
   selectCampaignDialogueOption
@@ -4029,6 +4032,7 @@ let icebergFootprintsBySlug;
 let shipLighting;
 const shipInfoImages = new Map();
 const shipInfoImagePromises = new Map();
+const shipInfoOpaqueBoundsCache = new WeakMap();
 const shipyardConstructionArtCache = new Map();
 let gameIconAtlasImage;
 let gameIconOutlineAtlasImage;
@@ -8295,6 +8299,19 @@ function maybeOpenCampaignGoalDepartureReminder(departureCity) {
   if (!goal || goal.status !== CAMPAIGN_GOAL_ACTIVE) return false;
   if (!departureCity || !Number.isInteger(departureCity.tileId)) {
     throw new Error("Campaign goal departure reminder requires a placed port");
+  }
+  if (departureCity.cityId === goal.homePortCityId && goal.type === CAMPAIGN_GOAL_FAMILY_DEBT) {
+    const advice = familyDebtPartialPaymentAdvice(goal, {
+      homePortName: cityLabelText(campaignGoalHomeCity()),
+      contactName: campaignGoalContactCharacter().name
+    });
+    if (advice) {
+      const opened = openCaptainAlertModal(advice.text, advice.expressionId);
+      if (!opened) return false;
+      markFamilyDebtPartialPaymentAdviceSeen(goal);
+      saveVoyageNow("family debt return reminder");
+      return true;
+    }
   }
   const interval = dueCampaignGoalReminderInterval({
     decisions: gameState.memory.decisions,
@@ -25852,6 +25869,10 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
   if (!goal || cityCall.cityId !== goal.homePortCityId) return null;
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE && !goal.whiteWhaleKilled) return null;
   if (goal.type === CAMPAIGN_GOAL_TREASURE && !treasureAmbushComplete(goal)) return null;
+  if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT && !familyDebtHomecomingEligible(goal, {
+    currentMinute: weatherClockMinutes,
+    doubloons: gameState.doubloons
+  })) return null;
   if (goal.status === CAMPAIGN_GOAL_COMPLETE) {
     const retirementObligation = currentCampaignRetirementObligation();
     const session = createCampaignDialogueSession({
@@ -55904,16 +55925,24 @@ function drawCaptainSelection() {
     throw new Error("Captain selection cannot be drawn without two candidates");
   }
   const stackCards = SCREEN_W < 420 && SCREEN_H >= 390;
-  const panelHeight = Math.min(stackCards ? 430 : 286, SCREEN_H - 4);
+  const panelWidth = Math.min(446, SCREEN_W - 12);
+  const gap = 8;
+  const footerH = 35;
+  const provisionalCardW = stackCards
+    ? panelWidth - 20
+    : Math.floor((panelWidth - 20 - gap) / 2);
+  const skillBesidePortrait = stackCards && provisionalCardW >= 250;
+  const preferredCardH = skillBesidePortrait ? 116 : 158;
+  const preferredPanelH = 29 + footerH + 7 + preferredCardH * (stackCards ? 2 : 1) +
+    (stackCards ? gap : 0);
+  const panelHeight = Math.min(preferredPanelH, SCREEN_H - 4);
   const panel = {
-    x: Math.floor((SCREEN_W - Math.min(446, SCREEN_W - 12)) / 2),
+    x: Math.floor((SCREEN_W - panelWidth) / 2),
     y: Math.floor((SCREEN_H - panelHeight) / 2),
-    w: Math.min(446, SCREEN_W - 12),
+    w: panelWidth,
     h: panelHeight
   };
-  const gap = 8;
   const cardsY = panel.y + 29;
-  const footerH = 35;
   const cardsHeight = panel.h - 29 - footerH - 7;
   const cardH = stackCards ? Math.floor((cardsHeight - gap) / 2) : cardsHeight;
   const cardW = stackCards ? panel.w - 20 : Math.floor((panel.w - 20 - gap) / 2);
@@ -56000,16 +56029,17 @@ function drawCaptainSelection() {
     drawDialoguePortrait(character, null, portraitX, portraitY);
 
     const shipSlug = startingShipSlugForCaptainChoice(choice);
-    const shipArtX = portraitX + DIALOGUE_PORTRAIT_SIZE + 8;
-    const stackedSkillX = stackCards ? rect.x + Math.floor(rect.w * 0.56) : null;
-    const shipArtRight = stackCards ? stackedSkillX - 8 : rect.x + rect.w - 8;
-    const shipArtW = shipArtRight - shipArtX;
-    const shipArtH = Math.max(1, Math.round(shipArtW * SHIP_INFO_SIDE_VIEW_H / SHIP_INFO_SIDE_VIEW_W));
-    const shipArtY = portraitY + Math.floor((DIALOGUE_PORTRAIT_SIZE - shipArtH) / 2);
+    const skillX = skillBesidePortrait ? rect.x + rect.w - 98 : rect.x + 8;
+    const shipArtX = portraitX + DIALOGUE_PORTRAIT_SIZE + 7;
+    const shipArtRight = skillBesidePortrait ? skillX - 5 : rect.x + rect.w - 8;
     const sideView = shipInfoImages.get(shipSlug);
     if (!sideView) throw new Error(`Captain choice is missing loaded ship art: ${shipSlug}`);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(sideView, shipArtX, shipArtY, shipArtW, shipArtH);
+    drawNativeCaptainChoiceShip(sideView, {
+      x: shipArtX,
+      y: portraitY,
+      w: shipArtRight - shipArtX,
+      h: DIALOGUE_PORTRAIT_SIZE
+    });
 
     const factLabelY = portraitY + DIALOGUE_PORTRAIT_SIZE + 5;
     const vesselLabel = uiText("ship.vessel");
@@ -56029,64 +56059,38 @@ function drawCaptainSelection() {
     );
 
     const skill = characterSkillSummary(characterSkills(character)[0].id);
-    ctx.fillStyle = "#f2d492";
     const skillY = factLabelY + 12;
-    const skillRect = stackCards
-      ? {
-          x: stackedSkillX,
-          y: portraitY,
-          w: rect.x + rect.w - 7 - stackedSkillX,
-          h: rect.y + rect.h - 6 - portraitY
-        }
-      : {
-          x: rect.x + 7,
-          y: skillY,
-          w: rect.w - 14,
-          h: rect.y + rect.h - 6 - skillY
-        };
-    if (skillRect.h < 42) throw new Error("Captain choice card has no room for its skill summary");
-    ctx.fillRect(skillRect.x, skillRect.y, skillRect.w, skillRect.h);
-    ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
-    ctx.strokeRect(skillRect.x + 0.5, skillRect.y + 0.5, skillRect.w - 1, skillRect.h - 1);
-    ctx.fillStyle = PIRATE_MENU_INK_MUTED;
-    drawPixelText(uiText("aboard.skill"), skillRect.x + 5, skillRect.y + 3, {
-      font: PIXEL_FONT_SMALL_8,
-      align: "left"
-    });
-    const skillNameLines = wrapPixelTextAll(
-      renderedUiText(skill.label).toUpperCase(),
+    const skillRect = {
+      x: skillX,
+      y: skillBesidePortrait ? portraitY : skillY,
+      w: skillBesidePortrait ? rect.x + rect.w - 7 - skillX : rect.w - 16,
+      h: rect.y + rect.h - 6 - (skillBesidePortrait ? portraitY : skillY)
+    };
+    const skillHeadingLines = wrapPixelTextAll(
+      `${uiText("aboard.skill")}: ${renderedUiText(skill.label)}`.toUpperCase(),
       PIXEL_FONT_SMALL_8,
-      skillRect.w - 10
+      skillRect.w
     );
-    if (skillNameLines.length > 3) {
-      throw new Error(`Captain choice skill name requires more than three lines: ${skill.id}`);
-    }
     ctx.fillStyle = PIRATE_MENU_INK;
     const lineHeight = localizedLineHeight(9);
-    let skillTextY = skillRect.y + 13;
-    for (const line of skillNameLines) {
-      drawPixelText(line, skillRect.x + skillRect.w / 2, skillTextY, {
-        font: PIXEL_FONT_SMALL_8,
-        align: "center"
-      });
+    let skillTextY = skillRect.y;
+    for (const line of skillHeadingLines) {
+      drawPixelText(line, skillRect.x, skillTextY, { font: PIXEL_FONT_SMALL_8 });
       skillTextY += lineHeight;
     }
-    skillTextY += 3;
+    skillTextY += 2;
     const effectLines = wrapPixelTextAll(
       renderedUiText(skill.effectLabels.join(" / ")).toUpperCase(),
       PIXEL_FONT_SMALL_8,
-      skillRect.w - 10
+      skillRect.w
     );
-    const availableEffectLines = Math.max(
-      0,
-      Math.floor((skillRect.y + skillRect.h - 4 - skillTextY) / lineHeight) + 1
-    );
-    if (effectLines.length > availableEffectLines) {
+    const finalTextBottom = skillTextY + Math.max(0, effectLines.length - 1) * lineHeight + 8;
+    if (finalTextBottom > skillRect.y + skillRect.h) {
       throw new Error(`Captain choice skill effects overflow for ${skill.id}`);
     }
     ctx.fillStyle = PIRATE_MENU_SUCCESS;
     for (const line of effectLines) {
-      drawPixelText(line, skillRect.x + 5, skillTextY, { font: PIXEL_FONT_SMALL_8 });
+      drawPixelText(line, skillRect.x, skillTextY, { font: PIXEL_FONT_SMALL_8 });
       skillTextY += lineHeight;
     }
   });
@@ -56114,6 +56118,73 @@ function drawCaptainSelection() {
     });
   }
   ctx.restore();
+}
+
+function shipInfoOpaqueBounds(image) {
+  const cached = shipInfoOpaqueBoundsCache.get(image);
+  if (cached) return cached;
+  const sample = document.createElement("canvas");
+  sample.width = image.width;
+  sample.height = image.height;
+  const sampleCtx = sample.getContext("2d", { willReadFrequently: true });
+  if (!sampleCtx) throw new Error("Could not inspect captain-choice ship art");
+  sampleCtx.drawImage(image, 0, 0);
+  const pixels = sampleCtx.getImageData(0, 0, image.width, image.height).data;
+  let minX = image.width;
+  let minY = image.height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      if (pixels[(x + y * image.width) * 4 + 3] === 0) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) throw new Error("Captain-choice ship art is blank");
+  const bounds = Object.freeze({
+    x: minX,
+    y: minY,
+    w: maxX - minX + 1,
+    h: maxY - minY + 1
+  });
+  shipInfoOpaqueBoundsCache.set(image, bounds);
+  return bounds;
+}
+
+function drawNativeCaptainChoiceShip(image, area) {
+  const bounds = shipInfoOpaqueBounds(image);
+  if (bounds.w + 2 > area.w || bounds.h + 2 > area.h) {
+    throw new Error(
+      `Captain-choice ship sprite ${bounds.w}x${bounds.h} cannot fit ${area.w}x${area.h} without scaling`
+    );
+  }
+  const x = Math.round(area.x + (area.w - bounds.w) / 2);
+  const y = Math.round(area.y + (area.h - bounds.h) / 2);
+  const outline = selectableSpriteOutlineCanvas(
+    image,
+    bounds.x,
+    bounds.y,
+    bounds.w,
+    bounds.h,
+    false,
+    "#8f563b"
+  );
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(outline, x - 1, y - 1);
+  ctx.drawImage(
+    image,
+    bounds.x,
+    bounds.y,
+    bounds.w,
+    bounds.h,
+    x,
+    y,
+    bounds.w,
+    bounds.h
+  );
 }
 
 function drawNewGameConfirmation() {

@@ -1982,6 +1982,7 @@ export default Object.freeze({
   "It shall remain in my coffer while the war endures.": "只要戰事未休，契據便留在我的匣中。",
   "It should pay for itself after a few fishing trips, while bringing larger hauls over the rail.": "經過幾次釣魚之旅後，它應該可以收回成本，同時透過鐵路帶來更多的收穫。",
   "It took my boat, my comrades, and every quiet night since. Its white brow rises whenever I close my eyes. I will cross every sea until I set my iron in it.": "它帶走了我的船、我的戰友以及此後的每一個安靜的夜晚。每當我閉上眼睛時，它的白色眉毛就會升起。我將穿越每片海洋，直到我把鐵放進去。",
+  "It's probably best if we avoid {0} for a while. {1} leaves us with too little money to afford trade goods. We can pay the whole debt in one big payment.": "最好暫時避開{0}。付錢給{1}後，我們剩下的錢太少，買不起貿易貨物。我們可以存夠錢，一次還清全部債務。",
   "Italian": "義大利人",
   "Items pack (x16)": "物品包 (x16)",
   "its arquebuses and warning guns": "它的火繩槍和警戒槍",

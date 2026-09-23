@@ -1982,6 +1982,7 @@ export default Object.freeze({
   "It shall remain in my coffer while the war endures.": "Договор останется в моём ларце, пока длится война.",
   "It should pay for itself after a few fishing trips, while bringing larger hauls over the rail.": "Он должен окупиться после нескольких рыбалок, при этом доставляя более крупные уловы по железной дороге.",
   "It took my boat, my comrades, and every quiet night since. Its white brow rises whenever I close my eyes. I will cross every sea until I set my iron in it.": "Он забрал мою лодку, моих товарищей и каждую тихую ночь с тех пор. Его белая бровь поднимается всякий раз, когда я закрываю глаза. Я перейду каждое море, пока не оставлю в нем свое железо.",
+  "It's probably best if we avoid {0} for a while. {1} leaves us with too little money to afford trade goods. We can pay the whole debt in one big payment.": "Пожалуй, нам стоит некоторое время избегать {0}. После расчётов с {1} у нас остаётся слишком мало денег на торговые товары. Лучше накопить и выплатить весь долг одним платежом.",
   "Italian": "итальянский",
   "Items pack (x16)": "Пакет предметов (x16)",
   "its arquebuses and warning guns": "его аркебузы и предупредительные пушки",

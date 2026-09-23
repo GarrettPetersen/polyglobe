@@ -30,12 +30,16 @@ import {
   drunkenCampaignHomecomingSteps,
   explorerDiscoveryReward,
   explorerPatronOutlook,
+  familyDebtHomecomingEligible,
   familyDebtOriginExchange,
+  familyDebtPartialPaymentAdvice,
   familyDebtPayoffProjection,
   isExplorerLeadAssignable,
   markCampaignGoalIntroSeen,
+  markFamilyDebtPartialPaymentAdviceSeen,
   markWhiteWhaleKilled,
   reachWhiteWhaleSighting,
+  recordCampaignGoalPortVisit,
   recordWhiteWhaleSighting,
   selectCampaignDialogueOption,
   settleExplorerHomecoming,
@@ -316,6 +320,7 @@ test("family debt compounds daily and preserves the last 100 doubloons", () => {
   assert.equal(result.payment, 1000);
   assert.ok(Math.abs(result.remainingBalance - (FAMILY_DEBT_PRINCIPAL + expectedInterest - 1000)) < 0.001);
 
+  recordCampaignGoalPortVisit(goal, "quanzhou|china");
   const repeated = settleFamilyDebtHomecoming(goal, {
     currentMinute: 365.25 * 24 * 60,
     doubloons: 100
@@ -333,6 +338,55 @@ test("family debt completes only after the balance can be paid above the reserve
   assert.equal(result.payment, FAMILY_DEBT_PRINCIPAL);
   assert.equal(result.completed, true);
   assert.equal(goal.status, CAMPAIGN_GOAL_COMPLETE);
+});
+
+test("family debt requires another port between partial homecomings", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });
+  const first = settleFamilyDebtHomecoming(goal, { currentMinute: 0, doubloons: 500 });
+  assert.equal(first.payment, 400);
+  assert.equal(familyDebtHomecomingEligible(goal, { currentMinute: 0, doubloons: 500 }), false);
+  assert.throws(
+    () => settleFamilyDebtHomecoming(goal, { currentMinute: 0, doubloons: 500 }),
+    /another port or full payment/
+  );
+
+  recordCampaignGoalPortVisit(goal, CHARACTER.homePortCityId);
+  assert.equal(familyDebtHomecomingEligible(goal, { currentMinute: 0, doubloons: 500 }), false);
+  recordCampaignGoalPortVisit(goal, "quanzhou|china");
+  assert.equal(familyDebtHomecomingEligible(goal, { currentMinute: 0, doubloons: 500 }), true);
+});
+
+test("a full family-debt payoff overrides the intervening-port rule", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });
+  settleFamilyDebtHomecoming(goal, {
+    currentMinute: 0,
+    doubloons: FAMILY_DEBT_PRINCIPAL - 100 + FAMILY_DEBT_PROTECTED_PURSE
+  });
+  assert.equal(goal.debtBalance, 100);
+  assert.equal(familyDebtHomecomingEligible(goal, { currentMinute: 0, doubloons: 200 }), true);
+  const payoff = settleFamilyDebtHomecoming(goal, { currentMinute: 0, doubloons: 200 });
+  assert.equal(payoff.completed, true);
+});
+
+test("the captain gives one warning after the first partial debt payment", () => {
+  const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_FAMILY_DEBT });
+  assert.equal(familyDebtPartialPaymentAdvice(goal, {
+    homePortName: "Nanjing",
+    contactName: "Zhang Wei"
+  }), null);
+  settleFamilyDebtHomecoming(goal, { currentMinute: 0, doubloons: 500 });
+  const advice = familyDebtPartialPaymentAdvice(goal, {
+    homePortName: "Nanjing",
+    contactName: "Zhang Wei"
+  });
+  assert.match(advice.text, /avoid Nanjing for a while/i);
+  assert.match(advice.text, /Zhang Wei leaves us with too little money/i);
+  assert.match(advice.text, /one big payment/i);
+  markFamilyDebtPartialPaymentAdviceSeen(goal);
+  assert.equal(familyDebtPartialPaymentAdvice(goal, {
+    homePortName: "Nanjing",
+    contactName: "Zhang Wei"
+  }), null);
 });
 
 test("family debt points home only with the debt, reserve, and one month of interest covered", () => {
@@ -395,6 +449,7 @@ test("family debt settlement never moves its ledger checkpoint backward", () => 
   assert.equal(stale.recoveredClockMinutes, 46.5);
   assert.equal(goal.lastAccruedMinute, checkpointMinute);
 
+  recordCampaignGoalPortVisit(goal, "quanzhou|china");
   const advanced = settleFamilyDebtHomecoming(goal, {
     currentMinute: checkpointMinute + 24 * 60,
     doubloons: FAMILY_DEBT_PROTECTED_PURSE

@@ -15,7 +15,8 @@ import {
   migrateGameState,
   settleCampaignGoalAtHome,
   updateCartographyMemory,
-  validateGameState
+  validateGameState,
+  visitPort
 } from "./gameState.js";
 import { shipMinimumCrew } from "./shipLoadouts.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -110,6 +111,49 @@ test("home-port creditor settlement leaves the protected purse and records payme
   assert.equal(result.completed, true);
   assert.equal(state.doubloons, 100);
   assert.equal(state.accounts.ledger.at(-1).amount, -FAMILY_DEBT_PRINCIPAL);
+});
+
+test("another port visit unlocks a second partial debt payment", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.memory.campaignGoal = createCampaignGoal({
+    playerCharacter: PLAYER,
+    type: CAMPAIGN_GOAL_FAMILY_DEBT
+  });
+  state.doubloons = 500;
+  settleCampaignGoalAtHome(state, HOME, { currentMinute: 0 });
+  state.doubloons = 500;
+  assert.throws(
+    () => settleCampaignGoalAtHome(state, HOME, { currentMinute: 0 }),
+    /another port or full payment/
+  );
+
+  visitPort(state, HOME, 1);
+  assert.throws(
+    () => settleCampaignGoalAtHome(state, HOME, { currentMinute: 1 }),
+    /another port or full payment/
+  );
+  visitPort(state, { ...HOME, cityId: "dover|united kingdom" }, 2);
+  const result = settleCampaignGoalAtHome(state, HOME, { currentMinute: 2 });
+  assert.equal(result.payment, 400);
+});
+
+test("version 114 family debt saves gain visit gating and advice memory", () => {
+  const legacy = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: PLAYER,
+    campaignGoalType: CAMPAIGN_GOAL_FAMILY_DEBT
+  });
+  legacy.version = 114;
+  legacy.memory.campaignGoal.version = 1;
+  delete legacy.memory.campaignGoal.repaymentEligible;
+  delete legacy.memory.campaignGoal.partialPaymentAdviceSeen;
+
+  const restored = migrateGameState(legacy, null);
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.memory.campaignGoal.version, 2);
+  assert.equal(restored.memory.campaignGoal.repaymentEligible, true);
+  assert.equal(restored.memory.campaignGoal.partialPaymentAdviceSeen, false);
+  validateGameState(restored);
 });
 
 test("white-whale captains begin with a harpoon and complete only after returning home", () => {

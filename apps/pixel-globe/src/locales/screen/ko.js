@@ -1982,6 +1982,7 @@ export default Object.freeze({
   "It shall remain in my coffer while the war endures.": "전쟁이 계속되는 동안 내 궤에 보관하겠소.",
   "It should pay for itself after a few fishing trips, while bringing larger hauls over the rail.": "몇 번의 낚시 여행 후에는 그 자체로 비용을 지불하면서 레일 위로 더 많은 양을 운반할 수 있습니다.",
   "It took my boat, my comrades, and every quiet night since. Its white brow rises whenever I close my eyes. I will cross every sea until I set my iron in it.": "내 배와 동료들, 그리고 그 이후로 매일 조용한 밤이 필요했습니다. 눈을 감을 때마다 하얀 눈썹이 치켜 올라간다. 나는 철을 놓을 때까지 모든 바다를 건너겠습니다.",
+  "It's probably best if we avoid {0} for a while. {1} leaves us with too little money to afford trade goods. We can pay the whole debt in one big payment.": "한동안 {0}을 피하는 편이 좋겠습니다. {1}에게 돈을 갚고 나면 무역품을 살 돈이 너무 적게 남습니다. 돈을 모아 빚 전액을 한 번에 갚을 수 있습니다.",
   "Italian": "이탈리아인",
   "Items pack (x16)": "아이템 팩(x16)",
   "its arquebuses and warning guns": "화승총과 경고포",

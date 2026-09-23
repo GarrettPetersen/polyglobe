@@ -19,7 +19,7 @@ import {
   treasurePirateHints,
   validateTreasureCampaignFields
 } from "./treasureCampaign.js";
-import { campaignGoalDestination } from "./campaignGoals.js";
+import { CAMPAIGN_GOAL_VERSION, campaignGoalDestination } from "./campaignGoals.js";
 import { shipLabelForProse } from "./shipStats.js";
 
 test("treasure campaign selects a distant one-hex island and twelve globally spread pirates", () => {
@@ -242,7 +242,7 @@ function initializedGoal() {
   const graph = testGraph();
   const goal = {
     ...createTreasureCampaignFields("voyage-test"),
-    version: 1,
+    version: CAMPAIGN_GOAL_VERSION,
     type: "pirate-treasure",
     status: "active",
     homePortCityId: "test home|test",

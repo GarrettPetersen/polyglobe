@@ -1982,6 +1982,7 @@ export default Object.freeze({
   "It shall remain in my coffer while the war endures.": "Pozostanie w mojej skrzyni, póki trwa wojna.",
   "It should pay for itself after a few fishing trips, while bringing larger hauls over the rail.": "Powinno się to zwrócić już po kilku wyprawach wędkarskich, przy jednoczesnym przewożeniu większych zaciągów przez reling.",
   "It took my boat, my comrades, and every quiet night since. Its white brow rises whenever I close my eyes. I will cross every sea until I set my iron in it.": "Zajęło mi to łódź, moich towarzyszy i każdą cichą noc. Jego białe czoło unosi się za każdym razem, gdy zamykam oczy. Przejdę każde morze, dopóki nie włożę w nie żelaza.",
+  "It's probably best if we avoid {0} for a while. {1} leaves us with too little money to afford trade goods. We can pay the whole debt in one big payment.": "Chyba najlepiej będzie przez jakiś czas omijać {0}. Po zapłacie dla {1} zostaje nam za mało pieniędzy na towary handlowe. Możemy zgromadzić sumę i spłacić cały dług jednorazowo.",
   "Italian": "włoski",
   "Items pack (x16)": "Pakiet przedmiotów (x16)",
   "its arquebuses and warning guns": "jego arkebuzy i działa ostrzegawcze",

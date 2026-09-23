@@ -146,3 +146,34 @@ test("captain choice previews the same campaign-specific starter used by the voy
     /complete captain choice/
   );
 });
+
+test("captain choice ship art is cropped and drawn at native pixel dimensions", () => {
+  const draws = [];
+  const image = { id: "side-view" };
+  const outline = { id: "outline" };
+  const context = runtime(["drawNativeCaptainChoiceShip"], {
+    shipInfoOpaqueBounds: value => {
+      assert.equal(value, image);
+      return { x: 65, y: 26, w: 64, h: 58 };
+    },
+    selectableSpriteOutlineCanvas: (...args) => {
+      assert.deepEqual(args.slice(0, 7), [image, 65, 26, 64, 58, false, "#8f563b"]);
+      return outline;
+    },
+    ctx: {
+      imageSmoothingEnabled: true,
+      drawImage: (...args) => draws.push(args)
+    },
+    Math,
+    Error
+  });
+
+  context.drawNativeCaptainChoiceShip(image, { x: 100, y: 40, w: 90, h: 70 });
+  assert.deepEqual(draws[0], [outline, 112, 45]);
+  assert.deepEqual(draws[1], [image, 65, 26, 64, 58, 113, 46, 64, 58]);
+  assert.equal(context.ctx.imageSmoothingEnabled, false);
+  assert.throws(
+    () => context.drawNativeCaptainChoiceShip(image, { x: 0, y: 0, w: 65, h: 59 }),
+    /cannot fit.*without scaling/
+  );
+});

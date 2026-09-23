@@ -103,6 +103,59 @@ test("departing an admitted port waits for movement input and activates protecti
   closeDialogue();
   assert.deepEqual(calls, ["motion-gated", "stopped", "protected"]);
 });
+
+test("the first departure after a partial family-debt payment gives one saving-up hint", () => {
+  const city = { cityId: "lisbon|portugal", tileId: 17, city: "Lisbon" };
+  const goal = { type: "family-debt", status: "active", homePortCityId: city.cityId };
+  const calls = [];
+  const context = {
+    gameState: { memory: { campaignGoal: goal } },
+    CAMPAIGN_GOAL_ACTIVE: "active",
+    CAMPAIGN_GOAL_FAMILY_DEBT: "family-debt",
+    familyDebtPartialPaymentAdvice: (_goal, details) => {
+      assert.equal(_goal, goal);
+      assert.equal(details.homePortName, "Lisbon");
+      assert.equal(details.contactName, "Duarte");
+      return { text: "Save for one payment.", expressionId: "thoughtful" };
+    },
+    campaignGoalHomeCity: () => city,
+    cityLabelText: value => value.city,
+    campaignGoalContactCharacter: () => ({ name: "Duarte" }),
+    openCaptainAlertModal: (text, expressionId) => {
+      calls.push(["open", text, expressionId]);
+      return true;
+    },
+    markFamilyDebtPartialPaymentAdviceSeen: value => calls.push(["mark", value]),
+    saveVoyageNow: reason => calls.push(["save", reason]),
+    dueCampaignGoalReminderInterval: () => { throw new Error("Advice should pre-empt the routine reminder"); }
+  };
+  const remind = compiled("maybeOpenCampaignGoalDepartureReminder", context);
+  assert.equal(remind(city), true);
+  assert.deepEqual(calls, [
+    ["open", "Save for one payment.", "thoughtful"],
+    ["mark", goal],
+    ["save", "family debt return reminder"]
+  ]);
+});
+
+test("a locked partial debt homecoming does not open the creditor encounter", () => {
+  const city = { cityId: "lisbon|portugal" };
+  const goal = { type: "family-debt", status: "active", homePortCityId: city.cityId };
+  const context = {
+    gameState: { memory: { campaignGoal: goal }, doubloons: 150 },
+    CAMPAIGN_GOAL_FAMILY_DEBT: "family-debt",
+    CAMPAIGN_GOAL_WHITE_WHALE: "white-whale",
+    CAMPAIGN_GOAL_TREASURE: "treasure",
+    weatherClockMinutes: 123,
+    familyDebtHomecomingEligible: (value, purse) => {
+      assert.equal(value, goal);
+      assert.equal(purse.currentMinute, 123);
+      assert.equal(purse.doubloons, 150);
+      return false;
+    }
+  };
+  assert.equal(compiled("createCampaignHomecomingSession", context)(city, false), null);
+});
 test("rescued travellers can have Asian homes and avoid another active passenger's home", () => {
   const ports = [1,2,3].map(id => ({ cityId: `city-${id}`, tileId: id, factionId: "ming" }));
   const context = { npcSeaRoutes: {}, ship: { position: [] }, activeRescuedTravelers: () => [{ homePortCityId: "city-1" }],

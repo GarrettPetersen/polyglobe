@@ -1982,6 +1982,7 @@ export default Object.freeze({
   "It shall remain in my coffer while the war endures.": "戦が続く限り、証書はこの箱に納めておこう。",
   "It should pay for itself after a few fishing trips, while bringing larger hauls over the rail.": "数回の釣り旅行で元が取れ、レールを越えてより多くの獲物をもたらすことができるでしょう。",
   "It took my boat, my comrades, and every quiet night since. Its white brow rises whenever I close my eyes. I will cross every sea until I set my iron in it.": "それは私と私の仲間たちを連れて行き、それ以来毎晩静かな夜を過ごしました。目を閉じるたびに白い眉が浮かび上がります。アイロンを掛けるまでは、どんな海も渡ってみます。",
+  "It's probably best if we avoid {0} for a while. {1} leaves us with too little money to afford trade goods. We can pay the whole debt in one big payment.": "しばらくは{0}を避けた方がよさそうだ。{1}に支払うと、交易品を買う金がほとんど残らない。金を貯めて、借金を一度に全額返そう。",
   "Italian": "イタリア人",
   "Items pack (x16)": "アイテムパック(x16)",
   "its arquebuses and warning guns": "火縄銃と警告砲",

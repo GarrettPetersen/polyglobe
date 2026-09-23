@@ -17,7 +17,7 @@ import {
   validateTreasureCampaignFields
 } from "./treasureCampaign.js";
 
-export const CAMPAIGN_GOAL_VERSION = 1;
+export const CAMPAIGN_GOAL_VERSION = 2;
 export const CAMPAIGN_GOAL_EXPLORER = "explorer";
 export const CAMPAIGN_GOAL_FAMILY_DEBT = "family-debt";
 export const CAMPAIGN_GOAL_WHITE_WHALE = "white-whale-revenge";
@@ -107,7 +107,9 @@ const CAMPAIGN_GOAL_DEFINITIONS = Object.freeze({
       annualInterestRate: FAMILY_DEBT_ANNUAL_RATE,
       lastAccruedMinute: startMinute,
       protectedPurse: FAMILY_DEBT_PROTECTED_PURSE,
-      totalPaid: 0
+      totalPaid: 0,
+      repaymentEligible: true,
+      partialPaymentAdviceSeen: false
     }),
     validate: validateFamilyDebtGoal
   }),
@@ -163,8 +165,18 @@ export function migrateCampaignGoalPortIdentities(goal, {
   legacyCityIdForPortReference = null
 }) {
   if (!goal || typeof goal !== "object") throw new Error("Campaign goal must be an object");
+  const versioned = goal.version === 1 && goal.type === CAMPAIGN_GOAL_FAMILY_DEBT
+    ? {
+        ...goal,
+        version: CAMPAIGN_GOAL_VERSION,
+        repaymentEligible: true,
+        partialPaymentAdviceSeen: goal.status === CAMPAIGN_GOAL_COMPLETE
+      }
+    : goal.version === 1
+      ? { ...goal, version: CAMPAIGN_GOAL_VERSION }
+      : goal;
   const migrated = {
-    ...goal,
+    ...versioned,
     homePortCityId: requireEntityId(homePortCityId, "Migrated campaign home port")
   };
   if (migrated.type === CAMPAIGN_GOAL_TREASURE) {
@@ -453,6 +465,10 @@ export function settleFamilyDebtHomecoming(goal, { currentMinute, doubloons }) {
   if (!Number.isInteger(doubloons) || doubloons < 0) throw new Error(`Invalid doubloon purse: ${doubloons}`);
   const previousBalance = goal.debtBalance;
   const projection = familyDebtPayoffProjection(goal, currentMinute);
+  const canPayInFull = doubloons >= Math.ceil(projection.projectedBalance) + goal.protectedPurse;
+  if (!goal.repaymentEligible && !canPayInFull) {
+    throw new Error("Family debt repayment requires a visit to another port or full payment");
+  }
   goal.debtBalance = projection.projectedBalance;
   goal.lastAccruedMinute = projection.projectionMinute;
   const accruedInterest = Math.max(0, goal.debtBalance - previousBalance);
@@ -462,6 +478,7 @@ export function settleFamilyDebtHomecoming(goal, { currentMinute, doubloons }) {
   goal.totalPaid += payment;
   const completed = goal.debtBalance <= 0;
   if (completed) goal.status = CAMPAIGN_GOAL_COMPLETE;
+  else goal.repaymentEligible = false;
   return {
     type: goal.type,
     previousBalance,
@@ -473,6 +490,63 @@ export function settleFamilyDebtHomecoming(goal, { currentMinute, doubloons }) {
     insufficientPurse: doubloons < goal.protectedPurse,
     recoveredClockMinutes: projection.recoveredClockMinutes
   };
+}
+
+export function familyDebtHomecomingEligible(goal, { currentMinute, doubloons }) {
+  validateCampaignGoal(goal);
+  if (goal.type !== CAMPAIGN_GOAL_FAMILY_DEBT) {
+    throw new Error("Debt homecoming eligibility requires a family-debt goal");
+  }
+  assertSimulationMinute(currentMinute);
+  if (!Number.isInteger(doubloons) || doubloons < 0) {
+    throw new Error(`Debt homecoming eligibility requires valid doubloons: ${doubloons}`);
+  }
+  if (goal.status !== CAMPAIGN_GOAL_ACTIVE) return false;
+  const payoff = familyDebtPayoffProjection(goal, currentMinute);
+  const canPayInFull = doubloons >= Math.ceil(payoff.projectedBalance) + goal.protectedPurse;
+  return goal.repaymentEligible || canPayInFull;
+}
+
+export function recordCampaignGoalPortVisit(goal, cityId) {
+  validateCampaignGoal(goal);
+  requireEntityId(cityId, "Campaign port visit");
+  if (goal.type === CAMPAIGN_GOAL_FAMILY_DEBT &&
+      goal.status === CAMPAIGN_GOAL_ACTIVE && cityId !== goal.homePortCityId) {
+    goal.repaymentEligible = true;
+  }
+  return goal;
+}
+
+export function familyDebtPartialPaymentAdvice(goal, { homePortName, contactName }) {
+  validateCampaignGoal(goal);
+  if (goal.type !== CAMPAIGN_GOAL_FAMILY_DEBT) {
+    throw new Error("Partial-payment advice requires a family-debt goal");
+  }
+  if (typeof homePortName !== "string" || homePortName.trim() === "" ||
+      typeof contactName !== "string" || contactName.trim() === "") {
+    throw new Error("Partial-payment advice requires a home port and creditor");
+  }
+  if (goal.status !== CAMPAIGN_GOAL_ACTIVE || goal.totalPaid <= 0 || goal.partialPaymentAdviceSeen) {
+    return null;
+  }
+  return {
+    text: `It's probably best if we avoid ${homePortName} for a while. ` +
+      `${contactName} leaves us with too little money to afford trade goods. ` +
+      `We can pay the whole debt in one big payment.`,
+    expressionId: "thoughtful"
+  };
+}
+
+export function markFamilyDebtPartialPaymentAdviceSeen(goal) {
+  validateCampaignGoal(goal);
+  if (goal.type !== CAMPAIGN_GOAL_FAMILY_DEBT) {
+    throw new Error("Partial-payment advice state requires a family-debt goal");
+  }
+  if (goal.status !== CAMPAIGN_GOAL_ACTIVE || goal.totalPaid <= 0) {
+    throw new Error("Partial-payment advice requires an outstanding debt with a prior payment");
+  }
+  goal.partialPaymentAdviceSeen = true;
+  return goal;
 }
 
 export function settleWhiteWhaleHomecoming(goal) {
@@ -1644,6 +1718,12 @@ function validateFamilyDebtGoal(goal) {
   }
   if (!Number.isInteger(goal.totalPaid) || goal.totalPaid < 0) {
     throw new Error(`Invalid family debt payments: ${goal.totalPaid}`);
+  }
+  if (typeof goal.repaymentEligible !== "boolean") {
+    throw new Error("Family debt requires repayment eligibility state");
+  }
+  if (typeof goal.partialPaymentAdviceSeen !== "boolean") {
+    throw new Error("Family debt requires partial-payment advice state");
   }
 }
 
