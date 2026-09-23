@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **September 21, 2026**.
+Last updated: **September 22, 2026**.
 
 ## Dated marketing calendar
 
@@ -71,6 +71,13 @@ Last updated: **September 21, 2026**.
   Marque & Reprisal was also submitted to Steam Auto-Battler RPG Fest on the
   strength of the port-assault autobattler minigame. Monitor Steamworks for the
   eligibility result or event invitation.
+- **September 22:** The first three Steam demo reviews are all positive. Two
+  English players praised the fun, breadth, and prospect of the full release;
+  one Japanese player saw substantial promise but found the current first seven
+  minutes too rough. Complete the prioritized
+  [demo review action items](../docs/demo-review-action-items-2026-09-22.md)
+  before treating the review score as representative or using the one-time demo
+  notification.
 - **September 23:** Submit the already-public Steam demo to **Support the
   Indies**. The event is free and creators choose games from the submitted demo
   list, so there is no benefit to holding this submission for the later Steam
