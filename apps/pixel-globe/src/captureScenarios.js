@@ -1918,7 +1918,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
       cityId: "rhodes|greece",
       broadsideSide: "starboard",
       holdBroadsideAim: true,
-      broadsideSpeedRatio: 0.1,
+      broadsideSpeedRatio: 0.16,
       broadsideApproachBearingDeg: 225,
       broadsideTargetDistancePx: 56,
       batteryStartingHitPoints: 1,
@@ -3331,7 +3331,7 @@ function demoLaunchOttomanBattleScenario(value) {
       encounterId: targetId,
       broadsideSide: value.side,
       holdBroadsideAim: true,
-      broadsideSpeedRatio: 0.16,
+      broadsideSpeedRatio: 0.1,
       requireOpenWaterCourse: true,
       modalPolicy: "suppress"
     })

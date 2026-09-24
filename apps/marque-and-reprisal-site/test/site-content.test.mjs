@@ -57,7 +57,7 @@ test("every feature points at tracked video and screenshot assets", async () => 
       `Feature ${feature.id} has an unknown screenshot poster`
     );
   }
-  assert.equal(screenshots.length, 14);
+  assert.equal(screenshots.length, 16);
   assert.equal(screenshotLocales.length, 11);
   const screenshotRoot = path.resolve(
     appRoot,
@@ -118,7 +118,7 @@ test("website locales publish complete language routes and matching press downlo
   const home = homePage("ja");
   const press = pressPage("ja");
   assert.match(home, /<html lang='ja'>/);
-  assert.match(home, /Windows・macOS・Linux版をSteamで同時発売予定/);
+  assert.match(home, /2026年11月18日にSteamでWindows・macOS・Linux版を同時発売/);
   assert.match(home, /capsule_title_japanese\.png/);
   assert.match(home, /01_explore-pyramids_japanese\.png/);
   assert.match(press, /marque-and-reprisal-press-kit-japanese\.zip/);
@@ -129,7 +129,7 @@ test("website locales publish complete language routes and matching press downlo
   for (const locale of websiteLocales) {
     assert.match(homePage(locale.appLocale), new RegExp(`<html lang='${locale.appLocale}'>`));
     const localizedPress = pressPage(locale.appLocale);
-    assert.match(locale.ui.screenshotsBody, /14/);
+    assert.match(locale.ui.screenshotsBody, /16/);
     assert.equal(
       (localizedPress.match(/data-screenshot-card(?:\s|>)/g) || []).length,
       screenshots.length
@@ -325,12 +325,12 @@ test("press kit publishes every localized screenshot set and download", async ()
     screenshotLocales.map(({ label }) => label),
     languages
   );
-  assert.equal(screenshots.length * screenshotLocales.length, 154);
+  assert.equal(screenshots.length * screenshotLocales.length, 176);
   const page = pressPage();
   assert.match(page, /Screenshots in\s+11\s+languages/);
   assert.match(page, /marque-and-reprisal-screenshots-all-languages\.zip/);
   assert.equal((page.match(/data-screenshot-language(?:\s|>)/g) || []).length, 11);
-  assert.equal((page.match(/data-screenshot-card(?:\s|>)/g) || []).length, 14);
+  assert.equal((page.match(/data-screenshot-card(?:\s|>)/g) || []).length, 16);
   for (const locale of screenshotLocales) {
     assert.match(page, new RegExp(locale.archiveFile.replaceAll(".", "\\.")));
   }
@@ -339,7 +339,7 @@ test("press kit publishes every localized screenshot set and download", async ()
     path.join(appRoot, "src/assets/press/README.txt"),
     "utf8"
   );
-  assert.match(pressReadme, /11 languages \(154 PNG files total\)/);
+  assert.match(pressReadme, /11 languages \(176 PNG files total\)/);
   for (const language of languages) assert.match(pressReadme, new RegExp(language.replace(/[()]/g, "\\$&")));
 });
 
@@ -513,6 +513,7 @@ test("code assets bypass stale browser caches", async () => {
 
 test("the gameplay trailer and thumbnail are published as permanent press downloads", async () => {
   const buildSource = await readFile(path.join(appRoot, "tools/build.mjs"), "utf8");
+  const headers = await readFile(path.join(appRoot, "src/_headers"), "utf8");
   const pressReadme = await readFile(
     path.join(appRoot, "src/assets/press/README.txt"),
     "utf8"
@@ -525,13 +526,17 @@ test("the gameplay trailer and thumbnail are published as permanent press downlo
     assert.ok(pressReadme.includes(url));
   }
   assert.match(pressPage(), /<video controls preload='metadata'/);
-  assert.match(pressPage(), /Download 1080p MP4/);
+  assert.match(pressPage(), /Download release-date trailer/);
   assert.match(pressPage(), /Download JPG/);
   assert.match(pressPage(), /Download PNG/);
+  assert.match(headers, /img-src 'self' data: https:\/\/downloads\.marque-and-reprisal\.com/);
+  assert.match(headers, /media-src 'self' https:\/\/downloads\.marque-and-reprisal\.com/);
   for (const locale of websiteLocales) {
     const page = pressPage(locale.appLocale);
+    assert.ok(page.includes("https://downloads.marque-and-reprisal.com/trailers/marque-and-reprisal-november-18-launch-date-trailer-2026-09-23.mp4"));
     assert.ok(page.includes("https://downloads.marque-and-reprisal.com/trailers/marque-and-reprisal-demo-launch-trailer-2026-09-08.mp4"));
     assert.ok(!page.includes("marque-and-reprisal-gameplay-trailer-v9.mp4"));
+    assert.match(page, /Release-date trailer/);
     assert.match(page, /Demo-launch trailer/);
   }
 });

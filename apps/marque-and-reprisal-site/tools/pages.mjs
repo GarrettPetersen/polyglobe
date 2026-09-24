@@ -36,19 +36,24 @@ const SCREENSHOT_UI_KEYS = Object.freeze({
   "sail-spice-islands": "spiceIslandsShot",
   "sail-seto-inland-sea": "setoInlandSeaShot",
   "sail-bosporus": "bosporusShot",
-  "sail-lake-victoria": "lakeVictoriaShot"
+  "sail-lake-victoria": "lakeVictoriaShot",
+  "assault-kyoto": "assaultKyotoShot",
+  "assault-rhodes": "assaultRhodesShot"
 });
 
 function pressMediaSection() {
   return [
     "<section class='press-assets press-media' id='trailer' aria-labelledby='trailer-title'>",
-    "<div class='asset-heading'><div><p class='eyebrow'>Video &amp; thumbnail</p><h2 id='trailer-title'>Demo-launch trailer</h2></div>",
-    "<a href='", pressMedia.trailerUrl, "' download>Download 1080p MP4</a></div>",
-    "<p class='asset-intro'>Download the demo-launch trailer and promotional thumbnail artwork for editorial use.</p>",
+    "<div class='asset-heading'><div><p class='eyebrow'>Videos &amp; thumbnail</p><h2 id='trailer-title'>Trailers</h2></div>",
+    "<a href='", pressMedia.launchDateTrailerUrl, "' download>Download release-date trailer</a></div>",
     "<div class='press-media-grid'>",
     "<article class='press-asset-card press-video-card'><video controls preload='metadata' poster='", pressMedia.thumbnailJpgUrl,
-    "' width='1920' height='1080'><source src='", pressMedia.trailerUrl, "' type='video/mp4'></video>",
-    "<div><h3>Demo-launch trailer</h3><p>1920 × 1080 H.264 MP4</p><a href='", pressMedia.trailerUrl,
+    "' width='1920' height='1080'><source src='", pressMedia.launchDateTrailerUrl, "' type='video/mp4'></video>",
+    "<div><h3>Release-date trailer</h3><p>1920 × 1080 H.264 MP4</p><a href='", pressMedia.launchDateTrailerUrl,
+    "' download>Download MP4</a></div></article>",
+    "<article class='press-asset-card press-video-card'><video controls preload='metadata' poster='", pressMedia.thumbnailJpgUrl,
+    "' width='1920' height='1080'><source src='", pressMedia.demoLaunchTrailerUrl, "' type='video/mp4'></video>",
+    "<div><h3>Demo-launch trailer</h3><p>1920 × 1080 H.264 MP4</p><a href='", pressMedia.demoLaunchTrailerUrl,
     "' download>Download MP4</a></div></article>",
     "<article class='press-asset-card'><a class='asset-preview' href='", pressMedia.thumbnailPngUrl,
     "' download><img src='", pressMedia.thumbnailJpgUrl,
@@ -98,7 +103,7 @@ export function homePage(localeValue = "en") {
     externalButton(site.steamUrl, "Wishlist on Steam", "button button-primary"),
     externalButton(site.itchUrl, "Play browser demo", "button button-ghost"),
     "</div>",
-    "<p class='platform-note'>Coming soon on Steam for Windows, macOS, and Linux.</p>",
+    "<p class='platform-note'>Launching November 18, 2026 on Steam for Windows, macOS, and Linux.</p>",
     "</div>",
     "<a class='soundings-link' href='#voyage'><span>Take soundings</span><i aria-hidden='true'></i></a>",
     "</section>",

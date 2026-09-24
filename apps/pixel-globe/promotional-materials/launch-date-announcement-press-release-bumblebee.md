@@ -1,12 +1,9 @@
 # Release-date announcement press release — Bumblebee assembly draft
 
-Editorial working document, September 23, 2026. Bracketed placeholders and the
-notes below are editorial instructions, not release copy. The body prose is
-verbatim from Garrett's archived Steam and DevGAMM writing. The headline and
-lead are mechanical adaptations of the previously approved demo-launch
-headline and lead, with the product scope and date changed to the full game and
-November 18, 2026. Garrett must approve those two adapted lines before
-publication.
+Archived sent release, September 23, 2026. The notes below are editorial
+records, not release copy. The body prose is verbatim from Garrett's archived
+Steam and DevGAMM writing. Garrett approved the mechanically adapted headline
+and lead by sending the release after reviewing it.
 
 ## Release copy
 
@@ -63,7 +60,7 @@ world.
 
 Steam: https://store.steampowered.com/app/4516500/Marque__Reprisal/
 
-Trailer: [PUBLIC NOVEMBER 18 LAUNCH-DATE TRAILER URL]
+Trailer: https://downloads.marque-and-reprisal.com/trailers/marque-and-reprisal-november-18-launch-date-trailer-2026-09-23.mp4
 
 Screenshots, logos, and the downloadable trailer are available in the press
 kit: https://marque-and-reprisal.com/press/
@@ -76,10 +73,10 @@ Press contact: Garrett Petersen — garrett.m.petersen@gmail.com
 
 - Headline: mechanical adaptation of Garrett's approved demo-launch headline,
   “Historical sailing sandbox Marque & Reprisal launches free Steam demo
-  September 17.” Pending Garrett's approval in this full-game form.
+  September 17.” Approved and sent by Garrett September 23.
 - Lead: mechanical adaptation of Garrett's approved demo-launch lead. The
   demo-specific words were removed and the authorized full-game date was
-  substituted. Pending Garrett's approval in this form.
+  substituted. Approved and sent by Garrett September 23.
 - First description and core-loop paragraphs:
   `devgamm-awards-2026-why-deserving.md`.
 - Inspiration sentence: Garrett's wording preserved in
@@ -90,16 +87,15 @@ Press contact: Garrett Petersen — garrett.m.petersen@gmail.com
   `devgamm-awards-2026-experience-and-meaning.md`.
 - Four gameplay bullets and the final demo/wishlist wording: saved English
   Steam store copy. Steam markup was removed; wording was otherwise retained.
-- Links and contact are factual project metadata. The trailer URL remains a
-  placeholder until the November 18 cut has a stable public download URL.
+- Links and contact are factual project metadata. The stable trailer download
+  URL was added and verified September 23.
 
 ## Editorial checks — exclude from publication
 
-- Obtain Garrett's explicit approval of the mechanically adapted headline and
-  lead before exporting release copy.
-- Confirm November 18, 2026, is saved as both the Steamworks backend date and
-  the public exact date before distribution.
-- Add the stable public launch-date trailer URL and verify it logged out.
+- [x] Garrett approved the mechanically adapted headline and lead by sending
+  the release September 23.
+- [x] Garrett confirmed November 18, 2026, in Steam before distribution.
+- The stable public launch-date trailer URL was added and verified logged out on September 23, 2026.
 - Do not claim DevGAMM, IGN, GameTrailers, award nomination, or Steam-event
   placement unless selection is confirmed.
 - No price or platform-availability claim is included. Add either only in

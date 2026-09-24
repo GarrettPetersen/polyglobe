@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **September 22, 2026**.
+Last updated: **September 23, 2026**.
 
 ## Dated marketing calendar
 
@@ -84,19 +84,19 @@ Last updated: **September 22, 2026**.
   notification beat. If Garrett still wants to exhibit physically at Vancouver
   Game Expo, submit the separate booth application at the same time; the Steam
   event application does not reserve a booth.
-- **September 24:** Release-date commitment gate. Confirm that the build and
-  remaining launch work support a November 20 release before spending the
-  date-announcement beat.
-- **September 25:** Announce **November 20, 2026** as the official release date
-  and publish the exact date on Steam. This is eight weeks before release, so
-  it preserves the maximum current Steam Personal Calendar runway. Treat the
-  reveal as a coordinated marketing beat: update Steam and the website; use a
-  strong current gameplay asset; send the human-written announcement to press,
-  creators and the Steam community; post it on X, Reddit and YouTube; and
-  capture the pre-announcement wishlist and traffic baseline. Do not quietly
-  change the date or combine this with the public demo launch.
+- **September 23:** The release-date commitment and announcement beat were
+  completed. **November 18, 2026** is now the official Steam release date.
+  Garrett sent the human-authored release-date press release, published the
+  current release-date trailer, and announced the date on X. The trailer is
+  also downloadable from the localized press kit. This gives the game the full
+  eight-week Steam Personal Calendar runway.
   Sources verified September 6: [Steam Personal Calendar](https://steamcommunity.com/games/593110/announcements/detail/507342099205587495)
   and [Steam release dates](https://partner.steamgames.com/doc/store/release_dates).
+  Garrett also completed DevGAMM's follow-up form offering to release the game
+  during its November 18 IGN-streamed ceremony. He answered **No** to other
+  promotional activities. This is an offer for one of roughly ten announcement
+  slots, not confirmed selection; do not advertise the DevGAMM placement unless
+  the organizer accepts it.
 - **September 28:** Valve deadline for all required Next Fest items to be
   submitted for review. This is the actual preparation deadline if they were
   not already completed for the optional press preview.
@@ -122,28 +122,30 @@ Last updated: **September 22, 2026**.
   demo. Our operational target is earlier than October 5 because of ACGC.
 - **October 19–26:** Steam Next Fest.
 - **October 27:** Review wishlists, demo conversion, creator coverage and build
-  stability, then reconfirm the November 20 launch. If the launch is no longer
+  stability, then reconfirm the November 18 launch. If the launch is no longer
   supportable, move it before Steam's two-week date lock rather than forcing an
   unstable release.
-- **November 6 at 12:00 noon GMT:** Post one strong elevator pitch with the
-  best current gameplay clip and `#PitchYaGame`.
-- **November 6:** Steam's two-week release-date lock begins. The approved
+- **November 4:** Steam's two-week release-date lock begins. The approved
   release build, packages, price, launch discount, localized store assets,
   creator keys, support plan and rollback path should all be ready.
+- **November 6 at 12:00 noon GMT:** Post one strong elevator pitch with the
+  best current gameplay clip and `#PitchYaGame`.
 - **November 16–23:** Steam Auto-Battler RPG Fest. Participation is pending
   Steam's eligibility decision. If accepted, verify that the port-assault
   screenshots, description and truthful tags clearly show the relevant system;
   do not recast the whole game as an autobattler.
-- **November 20 at 10:00 a.m. PST:** Release **Marque & Reprisal** with the
+- **November 18:** Release **Marque & Reprisal** with the
   planned introductory discount and a coordinated creator, press, Steam, X,
-  Reddit and YouTube campaign.
+  Reddit and YouTube campaign. If DevGAMM accepts the ceremony announcement,
+  confirm the exact livestream release time and technical handoff before
+  changing the operational launch time around it.
 - **December 4:** Move into the Vancouver Game Expo booth and verify both demo
   stations before the show. Vancouver Games Celebration begins on Steam.
 - **December 5–6:** Exhibit Marque & Reprisal at Vancouver Game Expo. Plan for
   two staffed demo stations, headphones, controllers, booth signage, insurance
   and one helper so the booth can remain attended throughout show hours.
 - **December 4–13:** Vancouver Games Celebration Steam event.
-- **December 20 at 10:00 a.m. PST:** The 30-day post-release discount cooldown
+- **December 18:** The 30-day post-release discount cooldown
   ends. If the Steam discount dashboard permits it as expected, manually join
   the Winter Sale already in progress; it runs through January 4, 2027.
 
@@ -393,8 +395,9 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 - [ ] Prepare the first creator-outreach wave.
   - Garrett supplied the core email and authorized the additions saved in the
     [working outreach template](creator-outreach-template.md). He reports 250
-    full-game keys available. The tracker records five creator keys sent as of
-    September 21, including Comrade Snake's September 15 send.
+    full-game keys available. The tracker records six creator keys sent as of
+    September 23, including Comrade Snake's September 15 send and
+    CallMeEzekiel's September 23 send.
   - Prioritize user-reported interest from `@CopperPlaysRetro` after locating
     the comment and verifying a private contact route. SNESdrunk is a personal
     inspiration/thank-you contact; do not assume modern-PC review coverage.
@@ -456,6 +459,16 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
   - Sent by Garrett to `inbox@gamespress.com` September 13, 2026; confirmed
     in conversation. Publication has not yet been confirmed.
 
+- [x] Announce the November 18 full-game release date.
+  - Garrett set the official date in Steam, sent the
+    [release-date announcement](launch-date-announcement-press-release-bumblebee.md),
+    published the release-date trailer, and posted the announcement on X on
+    September 23.
+  - The exact GamesPress email is archived in
+    [gamespress-launch-date-announcement-email.txt](gamespress-launch-date-announcement-email.txt).
+    The trailer is available through the localized press kit and its download
+    host.
+
 - [ ] Check GamesPress publication and replies.
   - Treat publication as useful press infrastructure rather than guaranteed
     editorial coverage. Record the published GamesPress URL and any resulting
@@ -500,8 +513,9 @@ sender guidance are kept in [japanese-media-outreach.md](japanese-media-outreach
 - [x] **September 13:** Rechecked registration and demo review status in
   Steamworks. Registered; Strategy/Simulation selected; demo store/build
   checklists complete and approved for release. Demo is still prerelease.
-- [ ] Complete the event player-support field: **Single-player** was unchecked
-  in the September 13 registration page. Recheck the press-contact email.
+- [x] Complete the event player-support field and press contact.
+  - Garrett checked **Single-player** and verified that his name and email were
+    present on the Next Fest registration page on September 23.
 - [ ] Verify press-preview availability settings. No preview toggle appeared
   on the inspected registration page, so opt-in remains unverified. The
   September 14 optional review target is already covered by demo approvals.
@@ -520,11 +534,11 @@ https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest/2026octobe
 
 ## Release decision
 
-Planned release date: **Friday, November 20, 2026 at 10:00 a.m. PST**.
+Official release date: **Wednesday, November 18, 2026**.
 
-Make the commitment decision on September 24, immediately before the public
-date reveal. Reconfirm it after Next Fest and before Steam's November 6 date
-lock. There is no universal wishlist number that means a game is ready. Set our
+The date is public and saved in Steam as of September 23. Reconfirm it after
+Next Fest and before Steam's November 4 date lock. There is no universal
+wishlist number that means a game is ready. Set our
 threshold from the number of launch sales the game needs, then use the following
 as the go/no-go check:
 
@@ -628,7 +642,7 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
   - If accepted, use the current city-assault screenshots and animated assault
     banner to show the system accurately. Keep the broader store positioning
     centered on sailing, trading, survival and sandbox play.
-  - The event overlaps the planned November 20 launch, so acceptance could add
+  - The event overlaps the November 18 launch, so acceptance could add
     relevant Steam visibility during launch week.
   - Event calendar: https://partner.steamgames.com/doc/marketing/upcoming_events
 
@@ -704,10 +718,14 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
     public Cloudflare browser build. The build requires no keys.
   - Also entered the Steam event, but not the in-person Game Showcase, Public
     Pitch or discounted INDIE DEV ticket. No Steam-event activity was promised.
-  - The form records the game as Beta, self-published by Iron Pagoda, targeting
-    Windows, macOS and Linux with a planned November 20 release.
-  - A possible November 18 ceremony feature was offered for the launch trailer
-    and imminent November 20 release. Prepare it only if DevGAMM follows up.
+  - The original form records the game as Beta, self-published by Iron Pagoda,
+    targeting Windows, macOS and Linux with the then-planned November 20
+    release. The official date changed to November 18 on September 23.
+  - Garrett completed the organizer's follow-up form on September 23, offering
+    to release the game during the November 18 IGN-streamed ceremony. He
+    selected **No** for other promotional activities. The ceremony feature has
+    roughly ten slots and is not confirmed; prepare the technical handoff only
+    if DevGAMM accepts the offer.
   - Judging runs September 11–November 9; nominees are announced October 22.
   - If nominated on October 22, a representative must attend the November 18
     ceremony in Lisbon. Decide then whether Garrett will travel or whether a
@@ -729,7 +747,7 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
     standard booth and plan two demo stations with one helper. Equipment,
     staffing, signage, transport and insurance remain Iron Pagoda's
     responsibility.
-  - Timing: The expo is two weeks after the planned November 20 release, making
+  - Timing: The expo is 17 days after the November 18 release, making
     it a useful regional post-launch sales, press, creator and player-observation
     beat. Do not present ordinary attendee play as formal QA or expect creators
     to provide unpaid testing.
@@ -848,18 +866,18 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
 
 Work through these in order; outreach preparation can proceed while testers work.
 
-1. **Next Fest settings:** Registration and demo approvals verified September
-   13. Complete the unchecked Single-player field, recheck press-contact email
-   and locate/verify press-preview opt-in. No new demo review submission is
-   needed for the September 14 optional target.
+1. **Next Fest final check:** Registration, approved demo, Single-player support
+   and press contact are complete. By September 28, open every remaining event
+   checklist and verify that no required item is still awaiting submission or
+   review. Locate the press-preview setting if Steam exposes one.
 2. **Stabilize the quietly launched demo:** Incorporate current player feedback,
    record demo/full-game build IDs and complete Windows, macOS and Linux
    clean-install, gameplay and save/load checks. Resolve blocking defects and
    keep the last known good build available.
-3. **Finish the launch package:** Correct outdated Steam world descriptions;
-   complete final claim review for the dated Bumblebee release;
-   assemble human-authored Steam/X/Reddit/creator messages; verify the new trailer
-   on Steam and YouTube. The press-kit deployment is complete.
+3. **Preserve the completed date-announcement beat:** The November 18 date is
+   live in Steam; the press release, trailer and X post are public; and the
+   press kit is deployed. Record resulting traffic, wishlists, coverage and
+   replies rather than resending the same announcement immediately.
 4. **Continue outreach now:** Retrieve approved press keys, verify the first 10–20
    creator contacts and send the first small batch using Garrett's exact
    human-authored message. Track delivery, replies, redemptions and coverage
@@ -878,9 +896,9 @@ Work through these in order; outreach preparation can proceed while testers work
    Record findings and continue outreach in small batches. Fix blocking problems
    before scaling promotion; retain tested build IDs for recovery.
 7. **Next deadlines:** Submit Support the Indies and decide on the separate
-   Vancouver Game Expo booth application by the September 23 internal target;
-   September 24 full-release commitment gate; September 28 remaining Next Fest
-   review items and INDIE Live Expo submission; October 1 final day to spend the
+   Vancouver Game Expo booth application if those September 23 tasks remain;
+   September 28 remaining Next Fest review items and INDIE Live Expo submission;
+   October 1 final day to spend the
    held Steam demo-notification beat. The VGX Steam-event application is already
    submitted (reference `F12QN0GJ`); monitor selection rather than treating the
    September 30 application deadline as outstanding. Continue Mobidictum/

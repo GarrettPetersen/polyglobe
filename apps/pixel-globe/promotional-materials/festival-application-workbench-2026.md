@@ -1,6 +1,6 @@
 # 2026 Festival Application Workbench
 
-Last updated: **September 13, 2026**
+Last updated: **September 23, 2026**
 
 ## Reusable game details
 
@@ -13,7 +13,7 @@ Last updated: **September 13, 2026**
 - **Website and browser demo:** https://marque-and-reprisal.com/
 - **Press kit:** https://marque-and-reprisal.com/press/
 - **Platform:** PC
-- **Target release date for applications:** November 20, 2026
+- **Official release date:** November 18, 2026
 - **Genres:** Sailing simulation, strategy, roguelike
 
 **One-sentence pitch:** Marque & Reprisal is a globe-spanning sailing
@@ -190,13 +190,17 @@ Status: **Submitted September 7, 2026.**
 - Development milestone: Beta.
 - Developer and publisher: Iron Pagoda; self-publishing; one-person team.
 - Platforms: Windows, macOS and Linux.
-- Planned release date: November 20, 2026.
+- Planned release date in the original application: November 20, 2026. The
+  official Steam release date changed to November 18 on September 23.
 - Judge access: public Cloudflare browser build; no key required.
 - Media: public gameplay trailer, private judging gameplay video and English
   main-capsule key art.
 - Steam event: entered with no additional activity promised.
-- Ceremony announcement: Yes; if DevGAMM follows up, offer the launch trailer
-  and imminent November 20 release as the update.
+- Ceremony announcement: The original application said Yes. Garrett completed
+  the follow-up form September 23, offering to release the game during the
+  November 18 IGN-streamed ceremony and selecting No for other promotional
+  activities. This is pending selection for one of roughly ten announcement
+  slots and must not be presented as confirmed.
 - Judging: September 11–November 9. Nominees are announced October 22; a team
   representative must attend the November 18 ceremony in Lisbon if nominated.
 - Application and rules: https://devgamm.com/awards2026/rules/

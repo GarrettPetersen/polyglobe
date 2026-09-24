@@ -8,6 +8,7 @@ import {
   captureViewportFromSearch,
   validateCaptureScenario
 } from "./captureScenarios.js";
+import { SHIP_CANNON_LAYOUT_FORWARD, shipStatsForSlug } from "./shipStats.js";
 
 test("capture scenarios expose explicit Shorts and Steam frames", () => {
   assert.deepEqual(CAPTURE_VIEWPORTS.shorts, { width: 270, height: 480 });
@@ -283,14 +284,17 @@ test("the demo launch trailer follows one Ottoman captain through trade, war, an
   );
 
   const battles = captures.filter((capture) => capture.sequence.kind === "fight");
-  const broadsideBattles = battles.filter((capture) => capture.sequence.variant === "broadside");
-  assert.equal(broadsideBattles.length, 2);
-  assert.ok(broadsideBattles.every((capture) => capture.sequence.broadsideSpeedRatio === 0.16));
+  const cannonBattles = battles.filter((capture) => capture.sequence.variant === "broadside");
+  assert.equal(cannonBattles.length, 2);
+  assert.ok(cannonBattles.every((capture) => (
+    shipStatsForSlug(capture.player.shipSlug).cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+  )));
+  assert.ok(cannonBattles.every((capture) => capture.sequence.broadsideSpeedRatio === 0.1));
   assert.notEqual(
-    broadsideBattles[0].encounters[0].headingDeg,
-    broadsideBattles[1].encounters[0].headingDeg
+    cannonBattles[0].encounters[0].headingDeg,
+    cannonBattles[1].encounters[0].headingDeg
   );
-  assert.ok(broadsideBattles.every((capture) => {
+  assert.ok(cannonBattles.every((capture) => {
     const target = capture.encounters.find((encounter) => (
       encounter.id === capture.sequence.encounterId
     ));
@@ -318,7 +322,7 @@ test("the demo launch trailer follows one Ottoman captain through trade, war, an
   );
 
   const bombardment = captures.find((capture) => capture.sequence.variant === "bombard");
-  assert.equal(bombardment.sequence.broadsideSpeedRatio, 0.1);
+  assert.equal(bombardment.sequence.broadsideSpeedRatio, 0.16);
   assert.equal(bombardment.sequence.broadsideApproachBearingDeg, 225);
   assert.equal(bombardment.sequence.broadsideTargetDistancePx, 56);
   assert.equal(bombardment.sequence.batteryStartingHitPoints, 1);

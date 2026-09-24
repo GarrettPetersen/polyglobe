@@ -44,7 +44,7 @@ export const site = Object.freeze({
   developer: "Iron Pagoda",
   publisher: "Iron Pagoda",
   copyrightHolder: "Garrett Petersen",
-  release: "Coming soon",
+  release: "November 18, 2026",
   platforms: "Windows, macOS, and Linux",
   genre: "Open-world sailing roguelike sandbox and historical simulation",
   tagline: "Explore. Trade. Fish. Whale. Colonize. Fight. Pillage. Survive.",
@@ -53,7 +53,8 @@ export const site = Object.freeze({
 });
 
 export const pressMedia = Object.freeze({
-  trailerUrl: "https://downloads.marque-and-reprisal.com/trailers/marque-and-reprisal-demo-launch-trailer-2026-09-08.mp4",
+  launchDateTrailerUrl: "https://downloads.marque-and-reprisal.com/trailers/marque-and-reprisal-november-18-launch-date-trailer-2026-09-23.mp4",
+  demoLaunchTrailerUrl: "https://downloads.marque-and-reprisal.com/trailers/marque-and-reprisal-demo-launch-trailer-2026-09-08.mp4",
   thumbnailJpgUrl: "https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-thumbnail-v9.jpg",
   thumbnailPngUrl: "https://downloads.marque-and-reprisal.com/press/marque-and-reprisal-gameplay-trailer-thumbnail-v9.png"
 });
@@ -180,7 +181,9 @@ const SCREENSHOT_ALT_TEXT = Object.freeze({
   "sail-spice-islands": "A kelulus sails among Ternate, Tidore, and the mountainous Spice Islands.",
   "sail-seto-inland-sea": "A Japanese sekibune sails among the islands and ports of the Seto Inland Sea.",
   "sail-bosporus": "An Ottoman trader sails through the Bosporus amid Constantinople, Bursa, and other ports.",
-  "sail-lake-victoria": "A dhow sails on Lake Victoria amid winding rivers, mountains, and forests."
+  "sail-lake-victoria": "A dhow sails on Lake Victoria amid winding rivers, mountains, and forests.",
+  "assault-kyoto": "Ming-style marines and Japanese defenders clash in a burning Kyoto during a daytime assault.",
+  "assault-rhodes": "Ottoman marines and Hospitaller defenders clash in a burning Rhodes during an evening assault."
 });
 
 export const screenshots = Object.freeze(STEAM_SCREENSHOT_SHOTS.map((shot) => {

@@ -13013,7 +13013,8 @@ function updateCaptureFight(sequence) {
   }
   const target = npcVisualShips.get(sequence.encounterId);
   if (!target) return;
-  if (sequence.holdBroadsideAim && captureDirector.elapsedSeconds <= 1.4) {
+  const cannonFireSeconds = ship.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD ? 1.1 : 1.4;
+  if (sequence.holdBroadsideAim && captureDirector.elapsedSeconds <= cannonFireSeconds) {
     aimCaptureCannonsAt(
       target.vector,
       sequence.broadsideSide,
@@ -13037,14 +13038,16 @@ function updateCaptureFight(sequence) {
     forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, target.id);
     emitCaptureEvent("capture-beat", { action: "engage-ship", targetId: target.id });
   }
-  if (sequence.variant !== "small-arms" && captureCue("fire-broadside", 1.4)) {
+  if (sequence.variant !== "small-arms" && captureCue("fire-cannons", cannonFireSeconds)) {
     const geometry = captureCannonGeometry(target.vector, sequence.broadsideSide);
     assertCaptureCannonGeometry(geometry, sequence.encounterId);
     if (!fireBroadside(sequence.broadsideSide)) {
       throw new Error(`Capture could not fire ${sequence.broadsideSide} broadside`);
     }
     emitCaptureEvent("capture-beat", {
-      action: "fire-broadside",
+      action: ship.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+        ? "fire-forward-cannons"
+        : "fire-broadside",
       side: sequence.broadsideSide,
       targetId: sequence.encounterId,
       targetDistancePx: Math.round(geometry.distancePx * 10) / 10,
