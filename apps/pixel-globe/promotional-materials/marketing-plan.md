@@ -45,6 +45,10 @@ Last updated: **September 23, 2026**.
   Reference: `F12QN0GJ`. Status: awaiting periodic review and selection notice;
   monitor Garrett's inbox and spam folder. This is separate from the physical
   Vancouver Game Expo exhibitor application.
+- **Week of September 14:** Garrett also submitted the separate physical
+  Vancouver Game Expo exhibitor application. The exact submission date and
+  reference were not captured. No organizer response was found in Gmail as of
+  September 23; both VGX applications remain pending.
 - **September 16:** CopperPlaysRetro replied positively to the September 15
   creator email. He said he would look at the game, expected to be away for a
   week, wanted to make a video after returning, and would link the Steam page
@@ -81,9 +85,8 @@ Last updated: **September 23, 2026**.
 - **September 23:** Submit the already-public Steam demo to **Support the
   Indies**. The event is free and creators choose games from the submitted demo
   list, so there is no benefit to holding this submission for the later Steam
-  notification beat. If Garrett still wants to exhibit physically at Vancouver
-  Game Expo, submit the separate booth application at the same time; the Steam
-  event application does not reserve a booth.
+  notification beat. The separate Vancouver Game Expo booth application was
+  already submitted during the week of September 14.
 - **September 23:** The release-date commitment and announcement beat were
   completed. **November 18, 2026** is now the official Steam release date.
   Garrett sent the human-authored release-date press release, published the
@@ -104,10 +107,9 @@ Last updated: **September 23, 2026**.
   30-second trailer and a separate 15-second gameplay clip.
 - **September 30:** Vancouver Games Celebration Steam-event application
   deadline. Because Iron Pagoda is based in Victoria, it satisfies the
-  organizer's Vancouver Island eligibility rule. Submit the separate physical
-  Vancouver Game Expo exhibitor application by September 16 rather than waiting
-  for a capacity deadline; the organizer has not published a firm closing date
-  for paid booths.
+  organizer's Vancouver Island eligibility rule. Both the Steam-event and
+  separate physical-exhibitor applications are already submitted; monitor for
+  selection notices rather than reapplying.
 - **September 30:** If CopperPlaysRetro has not posted coverage or sent another
   status update, send one light human-written follow-up. Do not send a sequence
   of automated reminders.
@@ -732,11 +734,14 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
     trusted local industry representative can attend on Iron Pagoda's behalf.
   - Application and rules: https://devgamm.com/awards2026/rules/
 
-- [ ] **Vancouver Games Celebration and Vancouver Game Expo — Steam event submitted; physical expo still open**
+- [x] **Vancouver Games Celebration and Vancouver Game Expo — both applications submitted**
   - Status: VGX Steam Event application submitted September 15, 2026;
-    reference `F12QN0GJ`; selection pending. Garrett is based in Victoria,
-    and the event accepts games from studios headquartered or primarily based
-    on Vancouver Island.
+    reference `F12QN0GJ`. Garrett also confirms submitting the separate physical
+    exhibitor application during the week of September 14; its exact date and
+    reference were not captured. Both selections remain pending, and no
+    organizer response was found in Gmail as of September 23. Garrett is based
+    in Victoria, and the event accepts games from studios headquartered or
+    primarily based on Vancouver Island.
   - Steam event: December 4–13, 2026. Application deadline September 30.
     Participation is free and does not require physical exhibition.
   - Physical expo: December 5–6 at the Vancouver Convention Centre, with move-in
@@ -895,13 +900,13 @@ Work through these in order; outreach preparation can proceed while testers work
    install problems, demo playtime, wishlists, tracked visits and creator replies.
    Record findings and continue outreach in small batches. Fix blocking problems
    before scaling promotion; retain tested build IDs for recovery.
-7. **Next deadlines:** Submit Support the Indies and decide on the separate
-   Vancouver Game Expo booth application if those September 23 tasks remain;
-   September 28 remaining Next Fest review items and INDIE Live Expo submission;
+7. **Next deadlines:** Submit Support the Indies if that September 23 task
+   remains; September 28 remaining Next Fest review items and INDIE Live Expo submission;
    October 1 final day to spend the
    held Steam demo-notification beat. The VGX Steam-event application is already
-   submitted (reference `F12QN0GJ`); monitor selection rather than treating the
-   September 30 application deadline as outstanding. Continue Mobidictum/
+   submitted (reference `F12QN0GJ`), as is the separate physical-exhibitor
+   application; monitor both selections rather than treating the September 30
+   application deadline as outstanding. Continue Mobidictum/
    DevGAMM Steam-event follow-up; Galaxies and SCHMOOVEMENT are closed.
 
 Campaign links and measurement fields: [demo-launch-campaign-links.md](demo-launch-campaign-links.md).
