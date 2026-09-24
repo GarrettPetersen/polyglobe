@@ -159,6 +159,9 @@ const REVIEWED_OVERRIDES = Object.freeze({
   "We can sell these fish at the market in {0}.": reviewedLocaleOverrides("We can sell these fish at the market in {0}.", [
     "我们可以去{0}的市场卖掉这些鱼。", "Эту рыбу можно продать на рынке в {0}.", "Podemos vender este pescado en el mercado de {0}.", "Podemos vender esses peixes no mercado de {0}.", "この魚は{0}の市場で売れる。", "Diese Fische können wir auf dem Markt in {0} verkaufen.", "Nous pouvons vendre ces poissons au marché de {0}.", "Te ryby możemy sprzedać na targu w {0}.", "我們可以去{0}的市場賣掉這些魚。", "이 물고기는 {0} 시장에서 팔 수 있습니다."
   ]),
+  "Now check whether this market is selling any trade goods cheaply. We can try our hand at trade.": reviewedLocaleOverrides("Now check whether this market is selling any trade goods cheaply. We can try our hand at trade.", [
+    "现在看看这个市场有没有便宜的贸易货物。我们可以试试做买卖。", "Теперь посмотрим, нет ли на этом рынке дешёвых товаров. Можно попробовать заняться торговлей.", "Ahora veamos si este mercado vende mercancías baratas. Podemos probar suerte con el comercio.", "Agora vamos ver se este mercado vende mercadorias baratas. Podemos tentar negociar.", "この市場で安く売られている交易品がないか見てみよう。交易を試してみるのもいい。", "Sehen wir nun nach, ob dieser Markt Handelswaren günstig anbietet. Wir können uns im Handel versuchen.", "Voyons maintenant si ce marché vend des marchandises à bas prix. Nous pourrions nous essayer au commerce.", "Sprawdźmy teraz, czy na tym targu są tanie towary handlowe. Możemy spróbować swoich sił w handlu.", "現在看看這個市場有沒有便宜的貿易貨物。我們可以試試做買賣。", "이 시장에서 값싸게 파는 교역품이 있는지 살펴봅시다. 교역을 한번 해 볼 수 있겠군요."
+  ]),
   "CATCH {0} AT THE MARKED FISHING GROUND": reviewedLocaleOverrides("CATCH {0} AT THE MARKED FISHING GROUND", [
     "在标记的渔场捕捞{0}", "ПОЙМАЙТЕ {0} В ОТМЕЧЕННОМ МЕСТЕ", "PESCA {0} EN EL CALADERO MARCADO", "PESQUE {0} NO PESQUEIRO MARCADO", "印の漁場で{0}を捕る", "FANGT {0} AM MARKIERTEN FISCHGRUND", "PÊCHEZ {0} DANS LA ZONE INDIQUÉE", "ZŁÓW {0} NA OZNACZONYM ŁOWISKU", "在標記的漁場捕撈{0}", "표시된 어장에서 {0} 잡기"
   ]),

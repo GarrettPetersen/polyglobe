@@ -2484,6 +2484,7 @@ export default Object.freeze({
   "Notices tracks, calls, and other signs of unfamiliar animals.": "注意不熟悉动物的踪迹、叫声和其他迹象。",
   "Nov": "十一月",
   "Novais carries more soldiers than families. Equip them with": "诺维斯携带的士兵比家庭还多。为他们配备",
+  "Now check whether this market is selling any trade goods cheaply. We can try our hand at trade.": "现在看看这个市场有没有便宜的贸易货物。我们可以试试做买卖。",
   "Now I understand why painters return to it. Give me its outline from several bearings; each view may test just how perfect that cone truly is.": "现在我明白了为什么画家们会回归它。从几个方位给我它的轮廓；每个视图都可以测试圆锥体到底有多完美。",
   "Now I understand why people call it the smoke that thunders. Draw the gorges below it; the river's escape from that cleft is as remarkable as the fall.": "现在我明白为什么人们称它为雷鸣之烟了。画出它下面的峡谷；河流从裂缝中逃逸的过程与瀑布一样引人注目。",
   "NPC sea routes": "NPC海上航线",

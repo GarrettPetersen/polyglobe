@@ -2484,6 +2484,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Notices tracks, calls, and other signs of unfamiliar animals.",
   "Nov",
   "Novais carries more soldiers than families. Equip them with",
+  "Now check whether this market is selling any trade goods cheaply. We can try our hand at trade.",
   "Now I understand why painters return to it. Give me its outline from several bearings; each view may test just how perfect that cone truly is.",
   "Now I understand why people call it the smoke that thunders. Draw the gorges below it; the river's escape from that cleft is as remarkable as the fall.",
   "NPC sea routes",

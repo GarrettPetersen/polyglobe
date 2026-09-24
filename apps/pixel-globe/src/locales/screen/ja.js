@@ -2484,6 +2484,7 @@ export default Object.freeze({
   "Notices tracks, calls, and other signs of unfamiliar animals.": "見知らぬ動物の足跡、鳴き声、その他の兆候に気づきます。",
   "Nov": "11月",
   "Novais carries more soldiers than families. Equip them with": "ノヴァイスは家族よりも多くの兵士を運んでいる。装備してください",
+  "Now check whether this market is selling any trade goods cheaply. We can try our hand at trade.": "この市場で安く売られている交易品がないか見てみよう。交易を試してみるのもいい。",
   "Now I understand why painters return to it. Give me its outline from several bearings; each view may test just how perfect that cone truly is.": "画家たちがなぜそこに戻ってくるのかがわかりました。いくつかのベアリングからその概要を教えてください。それぞれのビューで、その円錐が実際にどれだけ完璧であるかをテストできます。",
   "Now I understand why people call it the smoke that thunders. Draw the gorges below it; the river's escape from that cleft is as remarkable as the fall.": "なぜ人々がそれを雷鳴の煙と呼ぶのかがわかりました。その下に峡谷を描きます。その裂け目からの川の脱出は、滝と同じくらい注目に値します。",
   "NPC sea routes": "NPC航路",

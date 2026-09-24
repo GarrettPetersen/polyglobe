@@ -2484,6 +2484,7 @@ export default Object.freeze({
   "Notices tracks, calls, and other signs of unfamiliar animals.": "Zauważa ślady, nawoływania i inne oznaki nieznanych zwierząt.",
   "Nov": "listopad",
   "Novais carries more soldiers than families. Equip them with": "Novais przewozi więcej żołnierzy niż rodzin. Wyposaż je w",
+  "Now check whether this market is selling any trade goods cheaply. We can try our hand at trade.": "Sprawdźmy teraz, czy na tym targu są tanie towary handlowe. Możemy spróbować swoich sił w handlu.",
   "Now I understand why painters return to it. Give me its outline from several bearings; each view may test just how perfect that cone truly is.": "Teraz rozumiem, dlaczego malarze do tego wracają. Podaj mi jego zarys na podstawie kilku łożysk; każdy widok może sprawdzić, jak doskonały jest ten stożek w rzeczywistości.",
   "Now I understand why people call it the smoke that thunders. Draw the gorges below it; the river's escape from that cleft is as remarkable as the fall.": "Teraz rozumiem, dlaczego ludzie nazywają to dymem, który grzmi. Narysuj pod nim wąwozy; Wypływ rzeki z tej rozpadliny jest równie niezwykły jak upadek.",
   "NPC sea routes": "Drogi morskie NPC",

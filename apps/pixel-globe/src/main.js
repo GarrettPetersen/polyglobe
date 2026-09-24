@@ -17416,6 +17416,9 @@ function installSaveRestoreSmokeHarness() {
           achievementProfile.lifetime.fishingTradeTutorialCompleted !== true) {
         throw new Error("Fishing tutorial sale did not complete lifetime onboarding");
       }
+      if (!captainAlertModal?.message.includes("trade goods cheaply")) {
+        throw new Error("Fishing tutorial sale did not present the follow-up trade hint");
+      }
     }
     render(performance.now(), { allowColdCoveredWorldRender: true });
     await waitForSaveRestoreSmokePersistence();
@@ -17425,7 +17428,8 @@ function installSaveRestoreSmokeHarness() {
       marketMode: market.presentation.mode,
       fishAction: market.options[2].action.type,
       stage: gameState.memory.quests.fishingTradeTutorial.stage,
-      lifetimeCompleted: achievementProfile.lifetime.fishingTradeTutorialCompleted
+      lifetimeCompleted: achievementProfile.lifetime.fishingTradeTutorialCompleted,
+      captainMessage: captainAlertModal?.message || null
     };
   };
   window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__ = Object.freeze({
@@ -28541,6 +28545,12 @@ function completeFishingTradeTutorialAfterSale(city, sale) {
   writeAchievementProfile(achievementProfile);
   achievementProfileResult = { status: "ready", profile: achievementProfile, error: null };
   showSurvivalNotice("FIRST CATCH SOLD - TUTORIAL COMPLETE", "good");
+  if (!openCaptainAlertModal(
+    "Now check whether this market is selling any trade goods cheaply. We can try our hand at trade.",
+    "happy"
+  )) {
+    throw new Error("Fishing tutorial trade hint could not open after the first sale");
+  }
   saveVoyageNow("completed fishing trade tutorial");
   return true;
 }
