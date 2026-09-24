@@ -1,4 +1,8 @@
-import { runBrowserChecklist } from "./checklist.mjs";
+import {
+  checklistMenuCommand,
+  checklistNeedsProvisions,
+  runBrowserChecklist
+} from "./checklist.mjs";
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -137,10 +141,23 @@ try {
       console.log(`Browser journey ${step}: ${state.nodeId ?? "sailing"} ${state.cityId ?? ""} port=${state.ports.find(p=>p.cityId==="lisbon|portugal")?.distancePx.toFixed(1)} minute=${state.minute.toFixed(1)}`);
       if (state.menu) { state = await command({ type: "close-menu" }); continue; }
       if (state.modal) { state = await command({ type: "continue" }); continue; }
+      if (state.cityId && checklistNeedsProvisions(state.gameState)) {
+        const provision = checklistMenuCommand(state, "provision");
+        assert.ok(provision, `Pilot has no offered provision action at ${state.nodeId}`);
+        state = await command(provision);
+        continue;
+      }
       if (!state.nodeId && state.options.length === 0) {
         const destinationId = state.gameState.memory.quests.active?.destinationCityId ?? "lisbon|portugal";
         const port = state.ports.find((entry) => entry.cityId === destinationId);
         if (port?.inRange) state = await command({ type: "dock", cityId: port.cityId });
+        else if (report.phases.includes("mission-accepted")) {
+          // The journey has already exercised a real sailing leg from the
+          // battle to Lisbon. Mission completion covers dialogue, persistence,
+          // and docking; teleport keeps an adverse wind from turning this
+          // bounded release gate into a survival endurance test.
+          state = await command({ type: "teleport", cityId: destinationId });
+        }
         else state = await command({ type: "sail", cityId: destinationId });
         continue;
       }

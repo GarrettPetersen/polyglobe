@@ -160,12 +160,19 @@ test("runtime text can only enter the canvas through the pixel raster helper", a
 
 test("pixel text validates an opaque glyph mask before applying transparent paint", async () => {
   const mainSource = await readFile(new URL("./main.js", import.meta.url), "utf8");
+  const drawSource = mainSource.slice(
+    mainSource.indexOf("function drawPixelText("),
+    mainSource.indexOf("function pixelTextRaster(")
+  );
   const rasterSource = mainSource.slice(
     mainSource.indexOf("function pixelTextRaster("),
     mainSource.indexOf("function reusablePixelScratchSurface(")
   );
   assert.match(rasterSource, /scratchCtx\.fillStyle = "#ffffff";[\s\S]*hardenPixelTextAlpha/);
   assert.match(rasterSource, /putImageData[\s\S]*globalCompositeOperation = "source-in"[\s\S]*fillStyle = color/);
+  assert.match(rasterSource, /opaquePixels === 0[\s\S]*reportRuntimeDiagnosticAssertion/);
+  assert.doesNotMatch(rasterSource, /opaquePixels === 0[\s\S]{0,120}throw/);
+  assert.match(drawSource, /catch \(error\)[\s\S]*recoverPresentationError\(error, "pixel-text-render"\)/);
 });
 
 test("the interface fonts and Pirata One result lettering ship with the game", async () => {

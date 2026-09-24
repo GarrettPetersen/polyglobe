@@ -5542,8 +5542,8 @@ return Object.freeze({
   getDestinationIds() {
     return Object.freeze(activeDestinations().map(({ id }) => id));
   },
-  focusDestination(destinationId) {
-    focusDestination(destinationId);
+  focusDestination(destinationId, options) {
+    focusDestination(destinationId, options);
   },
   moveFocus(direction) {
     return moveDestinationFocus(direction);

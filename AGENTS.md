@@ -99,6 +99,15 @@ constraints for a subtree, but must not weaken these standards.
 
 - Fail fast and loudly on broken invariants. Do not add fallbacks that hide corrupt state,
   missing content, failed initialization, or programmer errors.
+- In production game builds, "loudly" means a bounded telemetry diagnostic with the failed
+  invariant and stable context, not ending the player's session. Use the narrowest safe local
+  fallback (for example, omit one invalid visual, disable one stale action, or retain the last
+  valid state). Diagnostic mode, automated captures, and tests must still throw so developers
+  encounter the defect immediately.
+- A production frame-boundary recovery may retry one transient failure. If the identical fault
+  repeats immediately and no narrower fallback exists, return to the last completed autosave at
+  the title screen without saving possibly partial mutations. Never loop indefinitely on a
+  failing assertion or replace the whole game with a developer crash report.
 - Fail-fast assertions are the last line of defense for impossible internal states, not a
   substitute for modeling expected edge cases. Any state reachable through supported player
   input, timing, saved data, or ordinary system interaction is part of the feature contract

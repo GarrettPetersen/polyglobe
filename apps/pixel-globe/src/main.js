@@ -1718,12 +1718,19 @@ import {
   suspendMainThreadFreezeMonitor
 } from "./mainThreadFreeze.js";
 import {
+  RUNTIME_ASSERTION_DIAGNOSTIC_COOLDOWN_MS,
   handleRuntimeDiagnosticAssertion,
   isRuntimeDiagnosticAssertionError,
   loadDiagnosticMode,
   persistDiagnosticMode,
   reportRuntimeDiagnostic
 } from "./diagnosticMode.js";
+import {
+  createRuntimeFaultRecoveryState,
+  recordRuntimeFault,
+  recordRuntimeFrameSuccess,
+  runtimeFaultSignature
+} from "./runtimeFaultRecovery.js";
 import { copyCrashReport, formatCrashReport } from "./crashReport.js";
 import { fitMeasuredText, wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 import { questJournalWindow, steppedQuestJournalScroll } from "./questJournalLayout.js";
@@ -4503,6 +4510,8 @@ const mainThreadFreezeMonitor = createMainThreadFreezeMonitor();
 let displayedCrashReport = null;
 let fatalControllerPollActive = false;
 let fatalControllerConfirmPressed = false;
+const runtimeFaultRecoveryState = createRuntimeFaultRecoveryState();
+let runtimeRecoveryReloadScheduled = false;
 let performanceBenchmarkState = null;
 let worldRenderCount = 0;
 let worldFramePresented = false;
@@ -4557,13 +4566,13 @@ crashCopyButton.addEventListener("click", () => void copyDisplayedCrashReport())
 window.addEventListener("error", (event) => {
   if (event.error && shouldCaptureGlobalTelemetryError(event.error, event.filename) &&
       !isRuntimeDiagnosticAssertionError(event.error)) {
-    gameTelemetry.captureCrash(event.error, telemetryCrashContext());
+    captureUnhandledRuntimeFault(event.error, "event-handler");
   }
 });
 window.addEventListener("unhandledrejection", (event) => {
   if (shouldCaptureGlobalTelemetryError(event.reason) &&
       !isRuntimeDiagnosticAssertionError(event.reason)) {
-    gameTelemetry.captureCrash(event.reason, telemetryCrashContext());
+    captureUnhandledRuntimeFault(event.reason, "async-handler");
   }
 });
 steamPlatformBridge?.onPauseRequested(handleSteamPlatformPauseRequest);
@@ -7134,6 +7143,7 @@ function loop(nowMs) {
   const frameCpuStartMs = measureFrameCpu ? performance.now() : 0;
   try {
     runFrame(nowMs);
+    recordRuntimeFrameSuccess(runtimeFaultRecoveryState);
   } catch (error) {
     console.error(error);
     if (isTransientStaticAssetError(error) && failedWorldAssetRequests().length > 0) {
@@ -7141,6 +7151,10 @@ function loop(nowMs) {
       return;
     }
     if (isWorldWebGLContextLostError(error) && recoverLostWorldGraphicsContext()) return;
+    if (!CAPTURE_AUTOMATIC && !PERFORMANCE_BENCHMARK && !diagnosticModeEnabled &&
+        recoverRuntimeLoopFault(error, nowMs)) {
+      return;
+    }
     if (!isRuntimeDiagnosticAssertionError(error)) {
       gameTelemetry.captureCrash(error, telemetryCrashContext());
     }
@@ -7173,6 +7187,55 @@ function loop(nowMs) {
       performance.now() - frameCallbackStartedAtMs
     );
   }
+}
+
+function recoverRuntimeLoopFault(error, nowMs) {
+  const normalized = error instanceof Error ? error : new Error(String(error));
+  const incident = recordRuntimeFault(runtimeFaultRecoveryState, normalized, nowMs);
+  captureRecoverableRuntimeDiagnostic(
+    normalized,
+    "runtime-recovered",
+    `runtime-recovered:${incident.signature}`
+  );
+  frameClockSynchronizationPending = true;
+  keys.clear();
+  clearPointerSteering();
+  if (incident.action === "retry-frame") {
+    dirty = true;
+    requestAnimationFrame(loop);
+    return true;
+  }
+  if (!runtimeRecoveryReloadScheduled) {
+    runtimeRecoveryReloadScheduled = true;
+    // Reload the title instead of persisting a state that may have been only
+    // partly mutated when the assertion fired. The most recent completed
+    // autosave remains available from the title screen.
+    gameTelemetry.stop();
+    setTimeout(() => window.location.reload(), 250);
+  }
+  return true;
+}
+
+function captureUnhandledRuntimeFault(error, boundary) {
+  const normalized = error instanceof Error ? error : new Error(String(error));
+  console.error(normalized);
+  if (diagnosticModeEnabled || CAPTURE_AUTOMATIC || PERFORMANCE_BENCHMARK) {
+    gameTelemetry.captureCrash(normalized, telemetryCrashContext(boundary));
+    return false;
+  }
+  captureRecoverableRuntimeDiagnostic(
+    normalized,
+    `${boundary}-recovered`,
+    `runtime-recovered:${runtimeFaultSignature(normalized)}`
+  );
+  return true;
+}
+
+function captureRecoverableRuntimeDiagnostic(error, boundary, key) {
+  return gameTelemetry.captureDiagnostic(error, telemetryCrashContext(boundary), {
+    key: `${key}:${BUILD_REVISION}`,
+    cooldownMs: RUNTIME_ASSERTION_DIAGNOSTIC_COOLDOWN_MS
+  });
 }
 
 function captureAutomationFailure(error) {
@@ -17842,6 +17905,7 @@ function installSaveRestoreSmokeHarness() {
     async exercisePirateCommission(kind) {
       if (running || !["revenge", "suppression", "smuggling"].includes(kind)) throw new Error("Invalid pirate commission inspection");
       const issuerId = kind === "suppression" ? "lisbon|portugal" : "pirate-haven-14";
+      if (kind === "suppression") maximizeCaptureCombatLoadout();
       let foundOffer = false;
       for (let seed = 0; seed < 100; seed++) {
         gameState.voyageSeed = `pirate-contract-ui-${kind}-${seed}`;
@@ -17958,7 +18022,7 @@ function installSaveRestoreSmokeHarness() {
       await synchronizePortCityScene();
       const scene = portCityRuntime.getPresentationState();
       if (!ruined) {
-        portCityRuntime.focusDestination(PORT_CITY_LOCATION.INN);
+        portCityRuntime.focusDestination(PORT_CITY_LOCATION.INN, { immediate: true });
         render(performance.now(), { allowColdCoveredWorldRender: true });
         const label = portCityRuntime.getPresentationState().destinationLabels.find(({ id }) => id === PORT_CITY_LOCATION.INN);
         if (!label) throw new Error(`Pirate haven has no visible inn button: ${cityId}`);
@@ -48374,6 +48438,20 @@ function reportRuntimeDiagnosticAssertion(message, diagnosticKey) {
   });
 }
 
+function recoverPresentationError(error, diagnosticKey) {
+  const normalized = error instanceof Error ? error : new Error(String(error));
+  if (diagnosticModeEnabled || CAPTURE_AUTOMATIC || PERFORMANCE_BENCHMARK) {
+    throw normalized;
+  }
+  console.error(normalized);
+  captureRecoverableRuntimeDiagnostic(
+    normalized,
+    "presentation-recovered",
+    `presentation-recovered:${diagnosticKey}`
+  );
+  return false;
+}
+
 function cullLocalLayout(projectedVisible) {
   const visibleIds = new Set(projectedVisible.map((item) => item.id));
   let firstViolation = null;
@@ -49859,6 +49937,15 @@ function drawCaptainMenuItemIcon(index, x, y, active) {
 }
 
 function drawGameIcon(iconId, x, y, options = {}) {
+  try {
+    return drawGameIconStrict(iconId, x, y, options);
+  } catch (error) {
+    recoverPresentationError(error, "game-icon-render");
+    return false;
+  }
+}
+
+function drawGameIconStrict(iconId, x, y, options = {}) {
   if (!gameIconAtlasImage) throw new Error("Game icon atlas is not loaded");
   if (!gameIconOutlineAtlasImage) throw new Error("Game icon outline atlas is not initialized");
   if (!gameIconWhiteAtlasImage) throw new Error("Game icon white atlas is not initialized");
@@ -49872,11 +49959,24 @@ function drawGameIcon(iconId, x, y, options = {}) {
   const source = gameIconAtlasRect(iconId);
   const destination = gameIconDrawRect(x, y);
   ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  ctx.globalAlpha *= alpha;
-  if (contrastOutline) {
+  try {
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha *= alpha;
+    if (contrastOutline) {
+      ctx.drawImage(
+        gameIconOutlineAtlasImage,
+        source.x,
+        source.y,
+        source.w,
+        source.h,
+        destination.x,
+        destination.y,
+        destination.w,
+        destination.h
+      );
+    }
     ctx.drawImage(
-      gameIconOutlineAtlasImage,
+      white ? gameIconWhiteAtlasImage : gameIconAtlasImage,
       source.x,
       source.y,
       source.w,
@@ -49886,19 +49986,10 @@ function drawGameIcon(iconId, x, y, options = {}) {
       destination.w,
       destination.h
     );
+  } finally {
+    ctx.restore();
   }
-  ctx.drawImage(
-    white ? gameIconWhiteAtlasImage : gameIconAtlasImage,
-    source.x,
-    source.y,
-    source.w,
-    source.h,
-    destination.x,
-    destination.y,
-    destination.w,
-    destination.h
-  );
-  ctx.restore();
+  return true;
 }
 
 function controllerPromptsVisible() {
@@ -58277,6 +58368,15 @@ function fitPixelText(text, font, maxWidth, { containerId = "fit-pixel-text" } =
 }
 
 function drawPixelText(text, x, y, options = {}) {
+  try {
+    return drawPixelTextStrict(text, x, y, options);
+  } catch (error) {
+    recoverPresentationError(error, "pixel-text-render");
+    return { x: Math.round(Number(x) || 0), y: Math.round(Number(y) || 0), w: 0, h: 0 };
+  }
+}
+
+function drawPixelTextStrict(text, x, y, options = {}) {
   if (typeof text !== "string") throw new Error(`Pixel text must be a string: ${text}`);
   const renderedText = renderedUiText(text);
   const font = resolvedPixelFont(options.font || PIXEL_FONT_SMALL_8, renderedText);
@@ -58291,9 +58391,12 @@ function drawPixelText(text, x, y, options = {}) {
   const color = resolvedPixelTextColor(ctx.fillStyle, options.color);
   const raster = pixelTextRaster(compatibleText, font, color, textW);
   ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(raster, origin.x, origin.y);
-  ctx.restore();
+  try {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(raster, origin.x, origin.y);
+  } finally {
+    ctx.restore();
+  }
   return { x: origin.x, y: origin.y, w: textW, h: CITY_LABEL_H };
 }
 
@@ -58325,7 +58428,10 @@ function pixelTextRaster(text, font, color, measuredWidth) {
   const imageData = scratchCtx.getImageData(layout.padding, layout.padding, width, layout.height);
   const opaquePixels = hardenPixelTextAlpha(imageData.data);
   if (text.trim().length > 0 && opaquePixels === 0) {
-    throw new Error(`Pixel text raster contains no opaque glyph pixels: ${text}`);
+    reportRuntimeDiagnosticAssertion(
+      `Pixel text raster contains no opaque glyph pixels: ${text}`,
+      "pixel-text-empty-raster"
+    );
   }
 
   const raster = document.createElement("canvas");

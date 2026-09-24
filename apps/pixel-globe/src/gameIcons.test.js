@@ -33,6 +33,15 @@ const atlasPath = join(appRoot, "public/assets/ui/game-icons.png");
 const manifestPath = join(appRoot, "public/assets/ui/game-icons.json");
 const fallbackManifestPath = join(appRoot, "vendor/icon-packs/game-icon-source-fallbacks-v14.json");
 
+test("a broken presentation icon is reported and omitted in release builds", async () => {
+  const source = await readFile(new URL("./main.js", import.meta.url), "utf8");
+  const drawSource = source.slice(
+    source.indexOf("function drawGameIcon("),
+    source.indexOf("function controllerPromptsVisible(")
+  );
+  assert.match(drawSource, /catch \(error\)[\s\S]*recoverPresentationError\(error, "game-icon-render"\)[\s\S]*return false/);
+});
+
 test("every trade good has a unique semantic icon mapping", () => {
   const iconIds = TRADE_GOODS.map((good) => tradeGoodIconId(good.id));
   assert.equal(iconIds.length, TRADE_GOODS.length);
