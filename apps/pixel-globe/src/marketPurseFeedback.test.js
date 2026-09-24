@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   MARKET_PURSE_FEEDBACK_DURATION_MS,
   createMarketPurseFeedbackState,
+  marketPurseFeedbackLabelPosition,
   marketPurseOverlayRect,
   marketPurseFeedbackEntries,
   recordMarketPurseTransaction
@@ -28,6 +29,9 @@ test("rapid market transactions remain separate and drift in a compact pile", ()
   assert.deepEqual(entries.map(entry => entry.deltaDoubloons), [-12, 15]);
   assert.ok(Math.abs(entries[0].offsetY - entries[1].offsetY) >= 8);
   assert.ok(entries.every(entry => entry.alpha > 0));
+  const rect = marketPurseOverlayRect({ screenWidth: 256, screenHeight: 455, width: 104, height: 20 });
+  const positions = entries.map(entry => marketPurseFeedbackLabelPosition(rect, entry));
+  assert.ok(positions.every(({ x, y }) => x > rect.x + rect.w && y >= 0 && y < 455));
 });
 
 test("market feedback is scoped, bounded, expires, and respects reduced motion", () => {

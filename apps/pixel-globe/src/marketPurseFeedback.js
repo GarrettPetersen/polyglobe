@@ -19,6 +19,20 @@ export function marketPurseOverlayRect({
   return Object.freeze({ x: margin, y: margin, w: width, h: height });
 }
 
+export function marketPurseFeedbackLabelPosition(rect, entry) {
+  if (!rect || !Number.isFinite(rect.x) || !Number.isFinite(rect.y) ||
+      !Number.isFinite(rect.w) || !Number.isFinite(rect.h)) {
+    throw new Error("Market purse feedback position requires a purse rectangle");
+  }
+  if (!entry || !Number.isFinite(entry.offsetX) || !Number.isFinite(entry.offsetY)) {
+    throw new Error("Market purse feedback position requires entry offsets");
+  }
+  return Object.freeze({
+    x: rect.x + rect.w + 7 + entry.offsetX,
+    y: rect.y + 3 - entry.offsetY
+  });
+}
+
 export function createMarketPurseFeedbackState() {
   return { nextSequence: 0, entries: [] };
 }

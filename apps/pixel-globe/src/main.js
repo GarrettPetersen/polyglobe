@@ -22,6 +22,7 @@ import { runShipReplacement } from "./shipReplacementLifecycle.js";
 import { questOfferDirections } from "./questOfferDirections.js";
 import {
   createMarketPurseFeedbackState,
+  marketPurseFeedbackLabelPosition,
   marketPurseFeedbackEntries,
   marketPurseOverlayRect,
   recordMarketPurseTransaction
@@ -68540,10 +68541,9 @@ function drawMarketPurseOverlay(nowMs, view) {
   for (const entry of entries) {
     const label = `${entry.deltaDoubloons > 0 ? "+" : ""}` +
       Math.round(entry.deltaDoubloons).toLocaleString(currentLanguage);
-    const x = rect.x + rect.w - 4 - entry.offsetX;
-    // Keep the brief transaction pile above the purse so it never obscures
-    // market prices, cargo, or the factor's name.
-    const y = rect.y - 2 + entry.offsetY;
+    // Stack changes beside the corner purse. The old upward stack was clipped
+    // when the purse moved out of the market modal and into the screen corner.
+    const { x, y } = marketPurseFeedbackLabelPosition(rect, entry);
     ctx.fillStyle = rgbaFromHex(PIRATE_MENU_INK, entry.alpha * 0.4);
     drawPixelText(label, x + 1, y + 1, { font: PIXEL_FONT_SMALL_8, align: "right" });
     ctx.fillStyle = rgbaFromHex(
