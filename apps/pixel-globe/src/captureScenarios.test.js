@@ -285,7 +285,7 @@ test("the demo launch trailer follows one Ottoman captain through trade, war, an
   const battles = captures.filter((capture) => capture.sequence.kind === "fight");
   const broadsideBattles = battles.filter((capture) => capture.sequence.variant === "broadside");
   assert.equal(broadsideBattles.length, 2);
-  assert.ok(broadsideBattles.every((capture) => capture.sequence.broadsideSpeedRatio === 0.42));
+  assert.ok(broadsideBattles.every((capture) => capture.sequence.broadsideSpeedRatio === 0.16));
   assert.notEqual(
     broadsideBattles[0].encounters[0].headingDeg,
     broadsideBattles[1].encounters[0].headingDeg
@@ -318,7 +318,7 @@ test("the demo launch trailer follows one Ottoman captain through trade, war, an
   );
 
   const bombardment = captures.find((capture) => capture.sequence.variant === "bombard");
-  assert.equal(bombardment.sequence.broadsideSpeedRatio, 0.16);
+  assert.equal(bombardment.sequence.broadsideSpeedRatio, 0.1);
   assert.equal(bombardment.sequence.broadsideApproachBearingDeg, 225);
   assert.equal(bombardment.sequence.broadsideTargetDistancePx, 56);
   assert.equal(bombardment.sequence.batteryStartingHitPoints, 1);
