@@ -20,6 +20,11 @@ import { createPortAssaultForecastClient } from "./portAssaultForecastClient.js"
 import { createWorldMutationBoundary, dispatchActionEffects } from "./runtimeTransitions.js";
 import { runShipReplacement } from "./shipReplacementLifecycle.js";
 import { questOfferDirections } from "./questOfferDirections.js";
+import {
+  createMarketPurseFeedbackState,
+  marketPurseFeedbackEntries,
+  recordMarketPurseTransaction
+} from "./marketPurseFeedback.js";
 import { activeQuests } from "./activeQuests.js";
 import {
   FISHING_TRADE_TUTORIAL_STAGE,
@@ -3101,6 +3106,9 @@ const CITY_FLAG_WAVE_SPEED_RAD_PER_MS = 0.002;
 const DIALOGUE_FLAG_W = FACTION_FLAG_SOURCE_W;
 const DIALOGUE_FLAG_H = FACTION_FLAG_SOURCE_H;
 const DIALOGUE_FACTION_BLOCK_W = 128;
+const MARKET_PURSE_W = 104;
+const MARKET_PURSE_H = 20;
+const MARKET_PURSE_SPEAKER_GAP = 14;
 const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
 const LAND_VEHICLE_ASSET_VERSION = "land-vehicle-2";
 const LAND_VEHICLE_ASSET_TYPES = new Set([
@@ -4027,6 +4035,7 @@ let whaleHarpoonProjectile = null;
 let whaleBlowBursts = [];
 let whaleKillEffects = [];
 let itemAcquisitionEffects = [];
+let marketPurseFeedbackState = createMarketPurseFeedbackState();
 let goldTreasureSequence = null;
 const politicalNoticeQueue = new PoliticalNoticeQueue();
 let survivalNotice = null;
@@ -17469,6 +17478,27 @@ function installSaveRestoreSmokeHarness() {
   };
   window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__ = Object.freeze({
     journey: runBrowserJourneyCommand,
+    inspectMarketPurseFeedback(deltas = [-12, 15, -7, 24]) {
+      if (dialogueState?.kind !== "port" || dialogueState.nodeId !== "market") {
+        throw new Error("Market purse inspection requires an open market");
+      }
+      if (!Array.isArray(deltas) || deltas.length === 0) {
+        throw new Error("Market purse inspection requires transaction changes");
+      }
+      achievementNotice = null;
+      achievementNoticeQueue.length = 0;
+      marketPurseFeedbackState = createMarketPurseFeedbackState();
+      const startedAtMs = performance.now();
+      deltas.forEach((deltaDoubloons, index) => {
+        recordMarketPurseTransaction(marketPurseFeedbackState, {
+          deltaDoubloons,
+          marketId: dialogueState.cityId,
+          startedAtMs: startedAtMs + index * 24
+        });
+      });
+      render(startedAtMs + 180, { allowColdCoveredWorldRender: true });
+      return { image: ctx.canvas.toDataURL("image/png") };
+    },
     inspectCaptainMenu({ hoverReturn = false } = {}) {
       if (playerIntroModal) closePlayerIntroModal();
       if (startMenu) {
@@ -18753,6 +18783,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   whaleBlowBursts = [];
   whaleKillEffects = [];
   itemAcquisitionEffects = [];
+  marketPurseFeedbackState = createMarketPurseFeedbackState();
   cancelChartModalReframeTransition();
   goldTreasureSequence = null;
   shoreScavengeAction = null;
@@ -22579,6 +22610,7 @@ function createDialogueLayoutState() {
     optionRects: [],
     scrollOffset: 0,
     marketReturnPosition: null,
+    marketPurseRect: null,
     crewPageSize: 0,
     previousRect: null,
     nextRect: null,
@@ -22593,6 +22625,7 @@ function createDialogueLayoutState() {
 
 function invalidateDialogueOptionGeometry() {
   dialogueLayout.optionRects = [];
+  dialogueLayout.marketPurseRect = null;
   dialogueLayout.crewPageSize = 0;
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
@@ -28482,6 +28515,9 @@ function completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOr
     ...(result.colonizationDefenseStarted ? [{ type: "colony-defense" }] : []),
     { type: "ship-cargo" },
     ...(gameState.doubloons !== doubloonsBefore ? [{ type: "coins" }] : []),
+    ...((result.marketPurchase || result.marketSale) && gameState.doubloons !== doubloonsBefore
+      ? [{ type: "market-purse" }]
+      : []),
     ...(result.marketPurchase ? [{ type: "market-purchase" }] : []),
     ...(result.marketSale ? [{ type: "market-sale" }] : []),
     ...(result.questCargoTransfers?.length > 0 ? [{ type: "quest-cargo" }] : []),
@@ -28511,6 +28547,14 @@ function completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOr
     "colony-defense": () => { ensureColonizationDefenseEncounter(); },
     "ship-cargo": () => { syncShipCargoFromGameState(); },
     "coins": () => { playCoinClinkSound(); },
+    "market-purse": () => {
+      recordMarketPurseTransaction(marketPurseFeedbackState, {
+        deltaDoubloons: gameState.doubloons - doubloonsBefore,
+        marketId: currentDialogueCity().cityId,
+        startedAtMs: lastFrameMs
+      });
+      dirty = true;
+    },
     "market-purchase": () => {
       spawnItemAcquisitionEffect(result.marketPurchase.good.id, purchaseIconOrigin, lastFrameMs);
       updateFetchQuestReadinessAlerts();
@@ -29912,12 +29956,21 @@ function buildCurrentDialogueView() {
       worldEconomy,
       playerAccessiblePortCities(),
       portDialogueContext()
-    ), { origin: currentDialogueCity(), citiesById: cityById }));
+    ), {
+      origin: currentDialogueCity(),
+      citiesById: cityById,
+      formatDistanceDirection: localizedQuestDistanceDirection
+    }));
   }
   if (dialogueState.kind === "passenger") {
     return questOfferDirections(
       passengerDialogueView(dialogueState, currentDialogueCity(), currentDialoguePassenger(), gameState),
-      { origin: currentDialogueCity(), citiesById: cityById, passengerQuest: currentDialoguePassenger() }
+      {
+        origin: currentDialogueCity(),
+        citiesById: cityById,
+        passengerQuest: currentDialoguePassenger(),
+        formatDistanceDirection: localizedQuestDistanceDirection
+      }
     );
   }
   if (dialogueState.kind === "ship") {
@@ -29947,6 +30000,13 @@ function buildCurrentDialogueView() {
     );
   }
   throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
+}
+
+function localizedQuestDistanceDirection({ distanceKm, direction }) {
+  return uiText("mission.distanceDirection", {
+    distance: Math.round(distanceKm).toLocaleString(currentLanguage),
+    direction: uiText(`compass.${direction}`)
+  });
 }
 
 function fishingTradeTutorialDialogueView(view) {
@@ -68089,6 +68149,7 @@ function drawDialogueOverlay(nowMs) {
     cacheBase
   )) {
     ctx.drawImage(settledDialogueOverlayCache.canvas, 0, 0);
+    drawMarketPurseOverlay(nowMs, view);
     return;
   }
   const portraitStage = synchronizeCurrentDialoguePortraitStage(nowMs, view);
@@ -68100,6 +68161,7 @@ function drawDialogueOverlay(nowMs) {
     const cacheKey = settledDialogueOverlayCacheKey(cacheBase, portraitStage);
     if (settledDialogueOverlayCacheKeyMatches(settledDialogueOverlayCache?.key, cacheKey)) {
       ctx.drawImage(settledDialogueOverlayCache.canvas, 0, 0);
+      drawMarketPurseOverlay(nowMs, view);
       return;
     }
     const overlayCanvas = rasterizeSettledDialogueOverlay(() => {
@@ -68107,9 +68169,11 @@ function drawDialogueOverlay(nowMs) {
     });
     settledDialogueOverlayCache = { key: cacheKey, canvas: overlayCanvas };
     ctx.drawImage(overlayCanvas, 0, 0);
+    drawMarketPurseOverlay(nowMs, view);
     return;
   }
   drawDialogueOverlayContent(nowMs, subject, view, portraitStage);
+  drawMarketPurseOverlay(nowMs, view);
 }
 
 function dialoguePortraitFramesAreResident(frames) {
@@ -68153,7 +68217,9 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
     ? factionBlockX - (panelX + textXOffset) - 8
     : optionW;
   const speakerW = compactMarketSwitch
-    ? (narrowMarket ? panelW - 18 : panelW - 130)
+    ? (narrowMarket
+        ? panelW - MARKET_PURSE_W - MARKET_PURSE_SPEAKER_GAP - 18
+        : panelW - MARKET_PURSE_W - MARKET_PURSE_SPEAKER_GAP - 130)
     : portFaction ? factionBlockX - panelX - 16 : panelW - 18;
   const speakerLayout = controlTextLayout({
     label: renderedUiText(view.speaker),
@@ -68225,6 +68291,9 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
     contentHeight
   });
   const panel = geometry.panel;
+  dialogueLayout.marketPurseRect = compactMarketSwitch
+    ? { x: panel.x + 8, y: panel.y + 6, w: MARKET_PURSE_W, h: MARKET_PURSE_H }
+    : null;
   const optionBottom = panel.y + panel.h - 9;
   const compactMarketLayout = compactMarketSwitch
     ? compactMarketDialogueLayout({
@@ -68297,9 +68366,14 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
 
   ctx.fillStyle = PIRATE_MENU_INK;
   speakerLayout.lines.forEach((line, index) => {
-    drawPixelText(line, panel.x + 8, panel.y + 8 + index * dialogueLineHeight, {
+    drawPixelText(
+      line,
+      panel.x + (compactMarketSwitch ? MARKET_PURSE_W + MARKET_PURSE_SPEAKER_GAP : 8),
+      panel.y + 8 + index * dialogueLineHeight,
+      {
       font: speakerFont
-    });
+      }
+    );
   });
 
   if (compactMarketSwitch) {
@@ -68363,6 +68437,55 @@ function selectedMarketOptionContext(view, regularEntries) {
     text: renderedUiText(text),
     tone: entry.option.disabled ? null : entry.option.detailTone
   });
+}
+
+function drawMarketPurseOverlay(nowMs, view) {
+  if (view.presentation?.kind !== "market") return;
+  const rect = dialogueLayout.marketPurseRect;
+  if (!rect) throw new Error("Market purse has no dialogue layout");
+  if (!statusHudImages?.doubloon) throw new Error("Market purse requires the doubloon icon");
+
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  const icon = statusHudImages.doubloon;
+  const iconX = rect.x + 5;
+  const iconY = rect.y + Math.floor((rect.h - icon.height) / 2);
+  ctx.drawImage(icon, iconX, iconY);
+  const amount = Math.round(gameState.doubloons).toLocaleString(currentLanguage);
+  const amountWidth = measurePixelTextWidth(amount, PIXEL_FONT_LATIN_SMALL_8);
+  const amountRight = rect.x + rect.w - 6;
+  if (amountRight - amountWidth <= iconX + icon.width + 3) {
+    throw new Error(`Market purse amount does not fit without abbreviation: ${amount}`);
+  }
+  ctx.fillStyle = PIRATE_MENU_INK;
+  drawPixelText(amount, amountRight, controlTextY(rect), {
+    font: PIXEL_FONT_LATIN_SMALL_8,
+    align: "right"
+  });
+
+  const entries = marketPurseFeedbackEntries(marketPurseFeedbackState, {
+    marketId: currentDialogueCity().cityId,
+    nowMs,
+    reducedMotion: reducedMotionPreferred
+  });
+  for (const entry of entries) {
+    const label = `${entry.deltaDoubloons > 0 ? "+" : ""}` +
+      Math.round(entry.deltaDoubloons).toLocaleString(currentLanguage);
+    const x = rect.x + rect.w - 4 - entry.offsetX;
+    // Keep the brief transaction pile above the purse so it never obscures
+    // market prices, cargo, or the factor's name.
+    const y = rect.y - 2 + entry.offsetY;
+    ctx.fillStyle = rgbaFromHex(PIRATE_MENU_INK, entry.alpha * 0.4);
+    drawPixelText(label, x + 1, y + 1, { font: PIXEL_FONT_SMALL_8, align: "right" });
+    ctx.fillStyle = rgbaFromHex(
+      entry.deltaDoubloons > 0 ? PIRATE_MENU_SUCCESS : PIRATE_MENU_DANGER,
+      entry.alpha
+    );
+    drawPixelText(label, x, y, { font: PIXEL_FONT_SMALL_8, align: "right" });
+  }
+  if (entries.length > 0) dirty = true;
 }
 
 function drawMarketModeSwitch(view, modeEntries, panel, { placement = "header" } = {}) {

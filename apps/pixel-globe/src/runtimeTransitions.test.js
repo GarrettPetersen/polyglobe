@@ -52,10 +52,14 @@ test("shared completion establishes quest fleets and synchronizes cargo before s
   const context = runtimeFunctions(["completeDialogueActionEffects"], {
     refreshPirateHavenWorld: () => calls.push("pirate-world"),
     dispatchActionEffects, gameState: { doubloons: 10 }, EAST_ASIAN_MISSION_NINGBO: "ningbo",
-    isWokouHuntQuest: () => false, isTeaRaceQuest: () => true,
+    isWokouHuntQuest: () => false, isTeaRaceQuest: quest => Boolean(quest),
     reconcileForeignSettlementPolitics: () => calls.push("politics"), syncShipCargoFromGameState: () => calls.push("cargo"),
     playCoinClinkSound: () => calls.push("coins"), ensureTeaRaceEncounters: () => calls.push("fleet"),
-    saveVoyageNow: () => calls.push("save")
+    saveVoyageNow: () => calls.push("save"),
+    marketPurseFeedbackState: {}, lastFrameMs: 250, dirty: false,
+    currentDialogueCity: () => ({ cityId: "lisbon" }),
+    recordMarketPurseTransaction: (_state, transaction) => calls.push(`purse:${transaction.deltaDoubloons}`),
+    spawnItemDepartureEffect: () => calls.push("departure")
   });
   context.completeDialogueActionEffects({ acceptedQuest: {} }, { doubloonsBefore: 0, purchaseIconOrigin: null, saveReason: "quest" });
   assert.deepEqual(calls, ["politics", "cargo", "coins", "fleet", "save"]);
@@ -65,6 +69,13 @@ test("shared completion establishes quest fleets and synchronizes cargo before s
   calls.length = 0;
   context.completeDialogueActionEffects({ pirateHavenQuestChanged: true }, { doubloonsBefore: 10, purchaseIconOrigin: null, saveReason: "pirate commission" });
   assert.ok(calls.indexOf("pirate-world") < calls.indexOf("save"));
+  calls.length = 0;
+  context.gameState.doubloons = 25;
+  context.completeDialogueActionEffects(
+    { marketSale: { good: { id: "fish" } } },
+    { doubloonsBefore: 10, purchaseIconOrigin: { x: 1, y: 2 }, saveReason: null }
+  );
+  assert.deepEqual(calls, ["politics", "cargo", "coins", "purse:15", "departure"]);
 });
 
 for (const destination of ["sailing", "port-wait", "handoff"]) {

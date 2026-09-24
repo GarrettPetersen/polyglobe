@@ -70,6 +70,19 @@ test("every translated catalog covers the complete English key set", () => {
   assert.equal(translate(LANGUAGE_KOREAN, "options.language"), "언어");
 });
 
+test("mission distance and compass direction compose in each language", () => {
+  for (const { id } of SUPPORTED_LANGUAGES) {
+    const direction = translate(id, "compass.northeast");
+    const route = translate(id, "mission.distanceDirection", {
+      distance: "1,267",
+      direction
+    });
+    assert.match(route, /1,267/, `${id}: distance`);
+    assert.ok(route.includes(direction), `${id}: direction`);
+    assert.doesNotMatch(route, /\{(?:distance|direction)\}/, id);
+  }
+});
+
 test("rice cargo localizes across its principal Asian languages", () => {
   assert.equal(localizeText(LANGUAGE_CHINESE_SIMPLIFIED, "Rice"), "大米");
   assert.equal(localizeText(LANGUAGE_CHINESE_TRADITIONAL, "Rice"), "稻米");
