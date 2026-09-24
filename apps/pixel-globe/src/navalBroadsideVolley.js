@@ -7,7 +7,7 @@ import {
   NAVAL_CANNON_RANGE_PX,
   NAVAL_CANNON_SPEED_PX,
   accurateBroadsideShotIndex,
-  cannonMuzzleForeAftSpan
+  cannonMuzzleLineSpan
 } from "./navalWeapons.js";
 
 const AIMED_RANGE_JITTER_PX = 7;
@@ -26,27 +26,88 @@ export function createNavalBroadsideVolley({
   aimAtTarget = false,
   spreadRad = NAVAL_CANNON_AIM_SPREAD_RAD
 }) {
-  validateVolleyInput({
+  const normalizedHeading = normalizeDirection(heading);
+  const sideDirection = navalBroadsideDirection(normalizedHeading, sideName);
+  return createDirectedNavalVolley({
     origin,
-    heading,
     hullFootprint,
-    sideName,
     projectileCount,
     weapon,
     randomUnit,
     seedForShot,
     targetPoint,
     aimAtTarget,
-    spreadRad
+    spreadRad,
+    muzzleDirection: sideDirection,
+    muzzleLineDirection: normalizedHeading,
+    halfAngleRad: NAVAL_BROADSIDE_HALF_ANGLE_RAD,
+    label: "naval-broadside"
   });
-  const normalizedHeading = normalizeDirection(heading);
-  const sideDirection = navalBroadsideDirection(normalizedHeading, sideName);
+}
+
+export function createNavalForwardVolley({
+  origin,
+  heading,
+  hullFootprint,
+  projectileCount,
+  weapon,
+  randomUnit,
+  seedForShot,
+  targetPoint = null,
+  aimAtTarget = false,
+  spreadRad = NAVAL_CANNON_AIM_SPREAD_RAD
+}) {
+  const muzzleDirection = normalizeDirection(heading);
+  return createDirectedNavalVolley({
+    origin,
+    hullFootprint,
+    projectileCount,
+    weapon,
+    randomUnit,
+    seedForShot,
+    targetPoint,
+    aimAtTarget,
+    spreadRad,
+    muzzleDirection,
+    muzzleLineDirection: { x: -muzzleDirection.y, y: muzzleDirection.x },
+    halfAngleRad: NAVAL_BROADSIDE_HALF_ANGLE_RAD,
+    label: "naval-forward-battery"
+  });
+}
+
+function createDirectedNavalVolley({
+  origin,
+  hullFootprint,
+  projectileCount,
+  weapon,
+  randomUnit,
+  seedForShot,
+  targetPoint,
+  aimAtTarget,
+  spreadRad,
+  muzzleDirection,
+  muzzleLineDirection,
+  halfAngleRad,
+  label
+}) {
+  validateVolleyInput({
+    origin,
+    hullFootprint,
+    projectileCount,
+    weapon,
+    randomUnit,
+    seedForShot,
+    targetPoint,
+    aimAtTarget,
+    spreadRad,
+    label
+  });
   const muzzleSideOffset = broadsideHullEdgeDistance(
     hullFootprint,
     origin,
-    sideDirection
+    muzzleDirection
   );
-  const muzzleSpan = cannonMuzzleForeAftSpan(projectileCount);
+  const muzzleSpan = cannonMuzzleLineSpan(projectileCount);
   const trueShotIndex = accurateBroadsideShotIndex(projectileCount);
   const range = NAVAL_CANNON_RANGE_PX * weapon.rangeScale;
   const targetDirection = targetPoint
@@ -57,7 +118,7 @@ export function createNavalBroadsideVolley({
     : Number.POSITIVE_INFINITY;
   const targetIsAimed = aimAtTarget && targetPoint !== null &&
     targetDistance <= range * 1.08 &&
-    dot(sideDirection, targetDirection) >= Math.cos(NAVAL_BROADSIDE_HALF_ANGLE_RAD);
+    dot(muzzleDirection, targetDirection) >= Math.cos(halfAngleRad);
 
   return Object.freeze(Array.from({ length: projectileCount }, (_, shotIndex) => {
     const trueShot = shotIndex === trueShotIndex;
@@ -65,14 +126,14 @@ export function createNavalBroadsideVolley({
     const sideJitter = trueShot
       ? 0
       : (unit(randomUnit, shotIndex, 3) * 2 - 1) * MUZZLE_SIDE_JITTER_PX;
-    const startX = origin.x + normalizedHeading.x * lineT * muzzleSpan +
-      sideDirection.x * (muzzleSideOffset + sideJitter);
-    const startY = origin.y + normalizedHeading.y * lineT * muzzleSpan +
-      sideDirection.y * (muzzleSideOffset + sideJitter);
+    const startX = origin.x + muzzleLineDirection.x * lineT * muzzleSpan +
+      muzzleDirection.x * (muzzleSideOffset + sideJitter);
+    const startY = origin.y + muzzleLineDirection.y * lineT * muzzleSpan +
+      muzzleDirection.y * (muzzleSideOffset + sideJitter);
     const spread = trueShot
       ? 0
       : (unit(randomUnit, shotIndex, 1) * 2 - 1) * spreadRad;
-    const baseAim = targetIsAimed ? targetDirection : sideDirection;
+    const baseAim = targetIsAimed ? targetDirection : muzzleDirection;
     const aim = rotate(baseAim, spread);
     const projectileRange = targetIsAimed
       ? targetDistance + (unit(randomUnit, shotIndex, 2) - 0.5) * AIMED_RANGE_JITTER_PX
@@ -108,6 +169,15 @@ export function createNavalBroadsideVolley({
   }));
 }
 
+export function navalForwardTargetIsInArc(heading, origin, targetPoint) {
+  const normalizedHeading = normalizeDirection(heading);
+  const direction = normalizeDirection({
+    x: targetPoint.x - origin.x,
+    y: targetPoint.y - origin.y
+  });
+  return dot(normalizedHeading, direction) >= Math.cos(NAVAL_BROADSIDE_HALF_ANGLE_RAD);
+}
+
 export function navalBroadsideDirection(heading, sideName) {
   if (sideName !== "port" && sideName !== "starboard") {
     throw new Error(`Unknown naval broadside: ${sideName}`);
@@ -133,29 +203,28 @@ export function navalBroadsideSideForTarget(heading, origin, targetPoint) {
 function validateVolleyInput(values) {
   for (const [label, point] of [
     ["origin", values.origin],
-    ["heading", values.heading],
     ["target", values.targetPoint]
   ]) {
     if (point === null && label === "target") continue;
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
-      throw new Error(`Naval broadside has invalid ${label}`);
+      throw new Error(`${values.label} has invalid ${label}`);
     }
   }
   if (!Array.isArray(values.hullFootprint) || values.hullFootprint.length < 3) {
-    throw new Error("Naval broadside requires a hull footprint");
+    throw new Error(`${values.label} requires a hull footprint`);
   }
   if (!Number.isInteger(values.projectileCount) || values.projectileCount <= 0) {
-    throw new Error(`Invalid naval broadside projectile count: ${values.projectileCount}`);
+    throw new Error(`Invalid naval volley projectile count: ${values.projectileCount}`);
   }
   if (!values.weapon || typeof values.weapon.kind !== "string" ||
       !Number.isFinite(values.weapon.rangeScale) || !Number.isFinite(values.weapon.speedScale) ||
       !Number.isFinite(values.weapon.arcHeightScale) || !Number.isFinite(values.weapon.damage)) {
-    throw new Error("Naval broadside requires a complete weapon");
+    throw new Error(`${values.label} requires a complete weapon`);
   }
   if (typeof values.randomUnit !== "function" || typeof values.seedForShot !== "function") {
-    throw new Error("Naval broadside requires deterministic random callbacks");
+    throw new Error(`${values.label} requires deterministic random callbacks`);
   }
-  if (typeof values.aimAtTarget !== "boolean") throw new Error("Naval broadside aim flag must be boolean");
+  if (typeof values.aimAtTarget !== "boolean") throw new Error("Naval volley aim flag must be boolean");
   if (!Number.isFinite(values.spreadRad) || values.spreadRad < 0 || values.spreadRad >= Math.PI / 2) {
     throw new Error(`Invalid naval broadside spread: ${values.spreadRad}`);
   }

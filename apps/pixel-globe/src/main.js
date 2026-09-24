@@ -396,6 +396,7 @@ import {
 } from "./precipitation.js";
 import {
   DEFAULT_PLAYER_SHIP_SLUG,
+  SHIP_CANNON_LAYOUT_FORWARD,
   SHIP_PROPULSION_OAR,
   SHIP_PROPULSION_SAIL,
   SHIP_STATS,
@@ -2579,6 +2580,7 @@ import {
 import {
   broadsideArcGeometry,
   broadsideReloadGeometry,
+  forwardCannonArcGeometry,
   pointInBroadsideArc,
   projectBroadsideFrameToScreen
 } from "./broadsideControls.js";
@@ -2592,7 +2594,6 @@ import {
   NAVAL_CANNON_SPEED_PX as CANNON_SPEED_PX,
   NAVAL_WEAPON_ARROW,
   NAVAL_WEAPON_CANNON,
-  broadsideCannonCount,
   isPreGunpowderCulture,
   navalWeaponForShip,
   navalWeaponUsesBroadside
@@ -2626,9 +2627,15 @@ import {
 import { projectileHullDamage } from "./navalCombatResolution.js";
 import { createPortableNavalProjectile } from "./navalProjectileFactory.js";
 import {
-  createNavalBroadsideVolley,
   navalBroadsideSideForTarget
 } from "./navalBroadsideVolley.js";
+import {
+  cannonBatteryIsReady,
+  cannonBatterySideForTarget,
+  createNavalCannonVolley,
+  navalCannonVolleyCount,
+  reloadCannonBattery
+} from "./navalCannonBattery.js";
 import {
   firstNavalProjectileHit,
   navalProjectileMayHitBystanders,
@@ -13006,7 +13013,7 @@ function updateCaptureFight(sequence) {
   const target = npcVisualShips.get(sequence.encounterId);
   if (!target) return;
   if (sequence.holdBroadsideAim && captureDirector.elapsedSeconds <= 1.4) {
-    aimCaptureBroadsideAt(
+    aimCaptureCannonsAt(
       target.vector,
       sequence.broadsideSide,
       sequence.encounterId,
@@ -13030,8 +13037,8 @@ function updateCaptureFight(sequence) {
     emitCaptureEvent("capture-beat", { action: "engage-ship", targetId: target.id });
   }
   if (sequence.variant !== "small-arms" && captureCue("fire-broadside", 1.4)) {
-    const geometry = captureBroadsideGeometry(target.vector, sequence.broadsideSide);
-    assertCaptureBroadsideGeometry(geometry, sequence.encounterId);
+    const geometry = captureCannonGeometry(target.vector, sequence.broadsideSide);
+    assertCaptureCannonGeometry(geometry, sequence.encounterId);
     if (!fireBroadside(sequence.broadsideSide)) {
       throw new Error(`Capture could not fire ${sequence.broadsideSide} broadside`);
     }
@@ -13074,7 +13081,7 @@ function updateCapturePillage(sequence) {
   const battery = ensureShoreBatteryState(cityCall);
   if (sequence.variant === "bombard") {
     if (sequence.holdBroadsideAim && captureDirector.elapsedSeconds <= 1.0) {
-      aimCaptureBroadsideAt(
+      aimCaptureCannonsAt(
         tileCenterVector(cityCall.tileId),
         sequence.broadsideSide,
         sequence.cityId,
@@ -13083,8 +13090,8 @@ function updateCapturePillage(sequence) {
     }
     battery.engagedTargetIds.add(PLAYER_COMBAT_ID);
     if (captureCue("fire-on-port", 1.0)) {
-      const geometry = captureBroadsideGeometry(tileCenterVector(cityCall.tileId), sequence.broadsideSide);
-      assertCaptureBroadsideGeometry(geometry, sequence.cityId);
+      const geometry = captureCannonGeometry(tileCenterVector(cityCall.tileId), sequence.broadsideSide);
+      assertCaptureCannonGeometry(geometry, sequence.cityId);
       if (!fireBroadside(sequence.broadsideSide)) {
         throw new Error(`Capture could not fire on ${sequence.cityId}`);
       }
@@ -13754,9 +13761,9 @@ function updateCaptureCompanions(sequence) {
     if (captureCue("fire-on-revenge-galleon", 7.1)) {
       if (!target) throw new Error("Companions revenge galleon disappeared before the broadside");
       dismissCaptureOverlays();
-      aimCaptureBroadsideAt(target.vector, sequence.broadsideSide, sequence.encounterId);
-      const geometry = captureBroadsideGeometry(target.vector, sequence.broadsideSide);
-      assertCaptureBroadsideGeometry(geometry, sequence.encounterId);
+      aimCaptureCannonsAt(target.vector, sequence.broadsideSide, sequence.encounterId);
+      const geometry = captureCannonGeometry(target.vector, sequence.broadsideSide);
+      assertCaptureCannonGeometry(geometry, sequence.encounterId);
       if (!fireBroadside(sequence.broadsideSide)) {
         throw new Error("Companions revenge capture could not fire its broadside");
       }
@@ -14221,7 +14228,7 @@ function stageCaptureFight(sequence) {
       [MATCHLOCK_ARQUEBUSES_ITEM_ID]: 1
     };
   }
-  aimCaptureBroadsideAt(
+  aimCaptureCannonsAt(
     latLonToDirection(encounters[0].lat, encounters[0].lon),
     sequence.broadsideSide || "starboard",
     sequence.encounterId,
@@ -14229,16 +14236,16 @@ function stageCaptureFight(sequence) {
   );
 }
 
-function aimCaptureBroadsideAt(targetVector, side, targetLabel, speedRatio = 0) {
+function aimCaptureCannonsAt(targetVector, side, targetLabel, speedRatio = 0) {
   const toward = normalizeOrNull(projectTangentVector([
     targetVector[0] - ship.position[0],
     targetVector[1] - ship.position[1],
     targetVector[2] - ship.position[2]
   ], ship.position));
   if (!toward) throw new Error(`Capture could not aim at ${targetLabel}`);
-  const starboardHeading = normalizeOrNull(cross3(ship.position, toward));
-  if (!starboardHeading) throw new Error(`Capture could not resolve a broadside heading for ${targetLabel}`);
-  const heading = side === "starboard" ? starboardHeading : scaleVector(starboardHeading, -1);
+  const heading = ship.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+    ? toward
+    : captureBroadsideHeading(toward, side, targetLabel);
   ship.heading = heading;
   ship.targetHeading = heading.slice();
   const performance = captureSailingPerformance();
@@ -14248,16 +14255,30 @@ function aimCaptureBroadsideAt(targetVector, side, targetLabel, speedRatio = 0) 
     ship.position[1] + heading[1] * 0.25,
     ship.position[2] + heading[2] * 0.25
   ]);
-  assertCaptureBroadsideGeometry(captureBroadsideGeometry(targetVector, side), targetLabel);
+  assertCaptureCannonGeometry(captureCannonGeometry(targetVector, side), targetLabel);
 }
 
-function captureBroadsideGeometry(targetVector, side) {
+function captureBroadsideHeading(toward, side, targetLabel) {
+  const starboardHeading = normalizeOrNull(cross3(ship.position, toward));
+  if (!starboardHeading) {
+    throw new Error(`Capture could not resolve a broadside heading for ${targetLabel}`);
+  }
+  return side === "starboard" ? starboardHeading : scaleVector(starboardHeading, -1);
+}
+
+function captureCannonGeometry(targetVector, side) {
   const toward = normalizeOrNull(projectTangentVector([
     targetVector[0] - ship.position[0],
     targetVector[1] - ship.position[1],
     targetVector[2] - ship.position[2]
   ], ship.position));
-  if (!toward) throw new Error("Capture broadside target overlaps the player ship");
+  if (!toward) throw new Error("Capture cannon target overlaps the player ship");
+  if (ship.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD) {
+    return {
+      alignment: dot3(toward, ship.heading),
+      distancePx: vectorArcDistance(ship.position, targetVector) * PIXELS_PER_RADIAN
+    };
+  }
   const port = normalizeOrNull(cross3(ship.position, ship.heading));
   if (!port) throw new Error("Capture broadside has no port direction");
   const sideDirection = side === "port" ? port : scaleVector(port, -1);
@@ -14267,15 +14288,15 @@ function captureBroadsideGeometry(targetVector, side) {
   };
 }
 
-function assertCaptureBroadsideGeometry(geometry, targetLabel) {
+function assertCaptureCannonGeometry(geometry, targetLabel) {
   if (geometry.alignment < 0.985) {
     throw new Error(
-      `Capture broadside is not centered on ${targetLabel}: ${geometry.alignment.toFixed(3)}`
+      `Capture cannon battery is not centered on ${targetLabel}: ${geometry.alignment.toFixed(3)}`
     );
   }
   if (geometry.distancePx < 32 || geometry.distancePx > 62) {
     throw new Error(
-      `Capture broadside target ${targetLabel} is ${geometry.distancePx.toFixed(1)}px away; expected 32..62`
+      `Capture cannon target ${targetLabel} is ${geometry.distancePx.toFixed(1)}px away; expected 32..62`
     );
   }
 }
@@ -14310,7 +14331,7 @@ function stageCapturePillage(sequence) {
       }
       battery.hitPoints = sequence.batteryStartingHitPoints;
     }
-    aimCaptureBroadsideAt(
+    aimCaptureCannonsAt(
       tileCenterVector(call.tileId),
       sequence.broadsideSide,
       sequence.cityId,
@@ -16866,11 +16887,14 @@ function lakeBattleBroadsideArc(sideName) {
   const frames = battle.shipFootprints?.get(battle.player.slug);
   if (!frames) throw new Error(`Lake battle is missing hull footprints for ${battle.player.slug}`);
   const origin = { x: battle.player.x, y: battle.player.y };
-  return broadsideArcGeometry({
+  const geometry = battle.player.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+    ? forwardCannonArcGeometry
+    : broadsideArcGeometry;
+  return geometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     heading,
-    sideName,
+    ...(battle.player.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD ? {} : { sideName }),
     range: lakeBattleWeaponRange(battle.player),
     origin,
     hullFootprint: translatedShipFootprint(
@@ -16884,6 +16908,9 @@ function lakeBattleBroadsideArc(sideName) {
 function lakeBattleBroadsideSideAtPoint(point) {
   if (!lakeBattleMode?.battle || lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return null;
   if (!navalWeaponUsesBroadside(lakeBattleMode.battle.player.weapon)) return null;
+  if (lakeBattleMode.battle.player.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD) {
+    return pointInBroadsideArc(point, lakeBattleBroadsideArc("port"), 5) ? "port" : null;
+  }
   for (const sideName of ["port", "starboard"]) {
     if (pointInBroadsideArc(point, lakeBattleBroadsideArc(sideName), 5)) return sideName;
   }
@@ -17154,11 +17181,14 @@ function historicalBattleBroadsideArc(sideName) {
   const heading = { x: Math.cos(player.headingRad), y: Math.sin(player.headingRad) };
   const frames = battle.shipFootprints?.get(player.shipSlug);
   if (!frames) throw new Error(`Historical battle is missing hull footprints for ${player.shipSlug}`);
-  return broadsideArcGeometry({
+  const geometry = player.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+    ? forwardCannonArcGeometry
+    : broadsideArcGeometry;
+  return geometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     heading,
-    sideName,
+    ...(player.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD ? {} : { sideName }),
     range: player.weaponRangePx,
     origin,
     hullFootprint: translatedShipFootprint(
@@ -17172,6 +17202,10 @@ function historicalBattleBroadsideArc(sideName) {
 function historicalBattleBroadsideSideAtPoint(point) {
   if (lakeBattleMode?.kind !== "historical" ||
       !lakeBattleMode.battle || lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return null;
+  const player = historicalBattlePlayerShip(lakeBattleMode.battle);
+  if (player.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD) {
+    return pointInBroadsideArc(point, historicalBattleBroadsideArc("port"), 5) ? "port" : null;
+  }
   for (const sideName of ["port", "starboard"]) {
     if (pointInBroadsideArc(point, historicalBattleBroadsideArc(sideName), 5)) return sideName;
   }
@@ -36453,18 +36487,20 @@ function fireBroadside(sideName) {
   if (!playerHasCombatEngagement()) return false;
   const weapon = playerNavalWeapon();
   if (!navalWeaponUsesBroadside(weapon)) return false;
-  const broadsideCount = broadsideCannonCount(gameState?.ship?.cannons || 0);
-  if (ship.cannonCooldowns[sideName] > 0) return false;
+  const stats = ship.stats;
+  const volleyCount = navalCannonVolleyCount({ ...stats, cannons: gameState?.ship?.cannons || 0 });
+  if (!cannonBatteryIsReady(ship.cannonCooldowns, stats, sideName)) return false;
 
-  ship.cannonCooldowns[sideName] = weapon.reloadSeconds;
+  reloadCannonBattery(ship.cannonCooldowns, stats, sideName, weapon.reloadSeconds);
   emitCaptureEvent("weapon-fired", {
     ownerId: PLAYER_COMBAT_ID,
     weapon: weapon.kind,
     side: sideName,
-    count: broadsideCount
+    cannonLayout: stats.cannonLayout,
+    count: volleyCount
   });
-  startCombatMusicForThreat(broadsideCount >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
-  playNavalAttackSound(weapon, broadsideCount);
+  startCombatMusicForThreat(volleyCount >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
+  playNavalAttackSound(weapon, volleyCount);
 
   const heading = shipScreenHeading();
   const origin = { x: localLayout.viewX, y: localLayout.viewY };
@@ -36473,12 +36509,13 @@ function fireBroadside(sideName) {
   const aimSpreadRad = CANNON_AIM_SPREAD_RAD *
     currentPlayerPerkTotals().cannonSpreadMultiplier;
   const shotSeed = (index) => cannonSeed(sequenceBase, index, sideSalt, origin);
-  const volley = createNavalBroadsideVolley({
+  const volley = createNavalCannonVolley({
+    shipStats: stats,
     origin,
     heading,
     hullFootprint: combatShipFootprint(PLAYER_COMBAT_ID),
     sideName,
-    projectileCount: broadsideCount,
+    projectileCount: volleyCount,
     weapon,
     spreadRad: aimSpreadRad,
     seedForShot: shotSeed,
@@ -36658,6 +36695,17 @@ function drawCombatBroadsideControls() {
   if (!ship || !localLayout || !playerHasCombatEngagement()) return;
   const weapon = playerNavalWeapon();
   if (!navalWeaponUsesBroadside(weapon)) return;
+  if (ship.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD) {
+    const arc = navalBroadsideArc("port", weapon);
+    drawBroadsideReloadIndicator(
+      arc,
+      Math.max(ship.cannonCooldowns.port, ship.cannonCooldowns.starboard),
+      weapon.reloadSeconds,
+      navalArcHasEnemy(arc),
+      "firePort"
+    );
+    return;
+  }
   for (const sideName of ["port", "starboard"]) {
     const arc = navalBroadsideArc(sideName, weapon);
     const cooldown = ship.cannonCooldowns[sideName] || 0;
@@ -36751,11 +36799,14 @@ function navalBroadsideArc(sideName, weapon = playerNavalWeapon()) {
     hullFootprint: combatShipFootprint(PLAYER_COMBAT_ID),
     offset: layoutOffsetPixels()
   });
-  return broadsideArcGeometry({
+  const geometry = ship.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+    ? forwardCannonArcGeometry
+    : broadsideArcGeometry;
+  return geometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     heading,
-    sideName,
+    ...(ship.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD ? {} : { sideName }),
     range: playerNavalWeaponRangePx(weapon),
     ...projected
   });
@@ -36792,6 +36843,9 @@ function navalBroadsideSideForCombatShip(npcShipId) {
 }
 
 function navalBroadsideSideForPoint(point, weapon, padding) {
+  if (ship.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD) {
+    return pointInBroadsideArc(point, navalBroadsideArc("port", weapon), padding) ? "port" : null;
+  }
   for (const sideName of ["port", "starboard"]) {
     if (pointInBroadsideArc(point, navalBroadsideArc(sideName, weapon), padding)) return sideName;
   }
@@ -41365,6 +41419,9 @@ function npcCombatNavigation(state) {
   if (distance <= 1e-6) return null;
   const weapon = npcNavalWeapon(state);
   if (!weapon || !navalWeaponUsesBroadside(weapon)) return { routePoint: target };
+  if (state.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD) {
+    return { routePoint: target };
+  }
   return npcCombatNavigationForTactic(NPC_COMBAT_CURRENT_TACTIC_ID, {
     identity: state.id,
     origin: state,
@@ -41428,11 +41485,11 @@ function fireNpcWeaponAtTarget(state, targetId, targeting = null) {
   if (distance > CANNON_RANGE_PX * weapon.rangeScale || distance <= 1e-6) return false;
   const heading = tangentToScreenDirection(state.heading);
   if (!heading) return false;
-  const sideName = navalBroadsideSideForTarget(heading, state, target);
+  const sideName = cannonBatterySideForTarget(stats, heading, state, target);
   if (!sideName) return false;
-  if (state.broadsideCooldowns[sideName] > 0) return false;
+  if (!cannonBatteryIsReady(state.broadsideCooldowns, stats, sideName)) return false;
 
-  const volleyCount = broadsideCannonCount(stats.cannons);
+  const volleyCount = navalCannonVolleyCount(stats);
   state.weaponSequence += 1;
   const combatVolleyId = `${state.id}:${state.weaponSequence}`;
   emitCaptureEvent("weapon-fired", {
@@ -41445,7 +41502,7 @@ function fireNpcWeaponAtTarget(state, targetId, targeting = null) {
     weapon: weapon.kind,
     count: volleyCount
   });
-  state.broadsideCooldowns[sideName] = weapon.reloadSeconds;
+  reloadCannonBattery(state.broadsideCooldowns, stats, sideName, weapon.reloadSeconds);
   recordOffscreenCannonShot(state.id, state.vector, state.tileId);
   playNavalAttackSound(
     weapon,
@@ -41461,7 +41518,8 @@ function fireNpcWeaponAtTarget(state, targetId, targeting = null) {
     state.id.length * 0x51a7,
     state
   );
-  const volley = createNavalBroadsideVolley({
+  const volley = createNavalCannonVolley({
+    shipStats: stats,
     origin: state,
     heading,
     hullFootprint: combatShipFootprint(state.id),
@@ -55918,14 +55976,19 @@ function drawHistoricalBattleBroadsideControls(battle) {
   const player = historicalBattlePlayerShip(battle);
   const visibleEnemies = historicalBattleVisibleShips(battle, lakeBattleMode.camera, SCREEN_W, SCREEN_H)
     .filter((shipState) => shipState.active && shipState.sideIndex !== player.sideIndex);
-  for (const sideName of ["port", "starboard"]) {
+  const sides = player.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+    ? ["port"]
+    : ["port", "starboard"];
+  for (const sideName of sides) {
     const arc = historicalBattleBroadsideArc(sideName);
     const targetInArc = visibleEnemies.some((target) => (
       pointInBroadsideArc(historicalBattleWorldToScreen(target), arc, 7)
     ));
     drawBroadsideReloadIndicator(
       arc,
-      player.cooldowns[sideName],
+      player.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+        ? Math.max(player.cooldowns.port, player.cooldowns.starboard)
+        : player.cooldowns[sideName],
       player.weapon?.reloadSeconds || 1,
       targetInArc,
       sideName === "port" ? "firePort" : "fireStarboard"
@@ -56390,9 +56453,14 @@ function drawBattleWindIndicator({ centerX, centerY, flow, heading, stats, stren
 
 function drawLakeBattleBroadsideControls(battle) {
   if (!navalWeaponUsesBroadside(battle.player.weapon)) return;
-  for (const sideName of ["port", "starboard"]) {
+  const sides = battle.player.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+    ? ["port"]
+    : ["port", "starboard"];
+  for (const sideName of sides) {
     const arc = lakeBattleBroadsideArc(sideName);
-    const cooldown = battle.player.cooldowns[sideName];
+    const cooldown = battle.player.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+      ? Math.max(battle.player.cooldowns.port, battle.player.cooldowns.starboard)
+      : battle.player.cooldowns[sideName];
     const targetInArc = pointInBroadsideArc(
       lakeBattleCombatantPoint(battle.enemy),
       arc,

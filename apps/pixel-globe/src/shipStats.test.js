@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  SHIP_CANNON_LAYOUT_BROADSIDE,
+  SHIP_CANNON_LAYOUT_FORWARD,
   SHIP_PROPULSION_OAR,
   SHIP_PROPULSION_OAR_SAIL,
   SHIP_PROPULSION_SAIL,
@@ -13,6 +15,17 @@ import {
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
+
+test("only ships with a heavy bow battery use the forward cannon layout", () => {
+  const forwardSlugs = SHIP_STATS
+    .filter((ship) => ship.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD)
+    .map((ship) => ship.slug)
+    .sort();
+  assert.deepEqual(forwardSlugs, ["fusta", "mediterranean-galley", "penjajap"]);
+  assert.ok(SHIP_STATS
+    .filter((ship) => ship.cannons > 0 && !forwardSlugs.includes(ship.slug))
+    .every((ship) => ship.cannonLayout === SHIP_CANNON_LAYOUT_BROADSIDE));
+});
 import {
   SHIP_ACCELERATION_SCALE,
   SHIP_TOP_SPEED_SCALE,
@@ -459,7 +472,7 @@ test("the Kancabash is an armed Ottoman regional merchant", () => {
 
   assert.equal(shipLabelForSlug(trader.slug), "Kancabash");
   assert.equal(trader.propulsion, SHIP_PROPULSION_SAIL);
-  assert.ok(trader.cannons > shipStatsForSlug("caravel").cannons - 1);
+  assert.equal(trader.cannons, 4);
   assert.ok(trader.cargoCapacity > shipStatsForSlug("spanish-nao").cargoCapacity);
   assert.ok(trader.mass < shipStatsForSlug("galleon").mass);
 });

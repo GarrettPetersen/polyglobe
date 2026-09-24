@@ -405,6 +405,24 @@ test("a one-ball broadside fires its sole cannonball down the selected centerlin
   assert.ok(trueShot.targetY < trueShot.startY);
 });
 
+test("either broadside control fires a galley's single forward battery", () => {
+  for (const sideName of ["port", "starboard"]) {
+    const battle = createLakeBattle({
+      width: 455,
+      height: 256,
+      playerSlug: "mediterranean-galley",
+      enemySlug: "caravel"
+    });
+    battle.player.headingRad = 0;
+
+    assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, sideName), true);
+    assert.equal(battle.projectiles.length, battle.player.stats.cannons);
+    assert.ok(battle.projectiles.every((projectile) => projectile.targetX > projectile.startX));
+    assert.ok(battle.player.cooldowns.port > 0);
+    assert.equal(battle.player.cooldowns.port, battle.player.cooldowns.starboard);
+  }
+});
+
 test("a cannonball damages the first ship crossed before its endpoint", () => {
   const battle = createLakeBattle({
     width: 455,

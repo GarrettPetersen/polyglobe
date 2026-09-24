@@ -31,6 +31,7 @@
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
             "side": "port",
+            "layout": "forward",
             "targetId": "trailer-demo-launch-fight-hospitallers-target",
             "minimumHits": 1
           }
@@ -44,6 +45,7 @@
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
             "side": "starboard",
+            "layout": "broadside",
             "targetId": "trailer-atakebune",
             "minimumHits": 1
           }
@@ -67,6 +69,7 @@
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
             "side": "starboard",
+            "layout": "broadside",
             "targetId": "trailer-demo-fight-galleass-starboard-target",
             "minimumHits": 1
           }
@@ -85,6 +88,7 @@
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
             "side": "starboard",
+            "layout": "broadside",
             "targetId": "trailer-spanish-galleon",
             "minimumHits": 1
           }
@@ -108,6 +112,7 @@
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
             "side": "starboard",
+            "layout": "broadside",
             "targetIdPrefix": "shore-battery:",
             "minimumHits": 1
           }
@@ -126,6 +131,7 @@
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
             "side": "starboard",
+            "layout": "forward",
             "targetIdPrefix": "shore-battery:",
             "minimumHits": 1,
             "requireDisable": true
@@ -209,6 +215,7 @@
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
             "side": "starboard",
+            "layout": "forward",
             "targetId": "trailer-demo-launch-fight-venetians-target",
             "minimumHits": 1
           }
@@ -229,6 +236,7 @@
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
             "side": "port",
+            "layout": "broadside",
             "targetId": "trailer-demo-fight-galleass-port-target",
             "minimumHits": 1
           }

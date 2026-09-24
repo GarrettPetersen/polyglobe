@@ -69,12 +69,20 @@ test("pixel font sizes occupy whole logical canvas pixels", () => {
 
 test("extended Latin names remain readable in the compact Latin pixel fonts", () => {
   assert.equal(
+    pixelFontCompatibleText("Represalía, corazón, niño ¿Qué?", '8px "Dogica", monospace'),
+    "Represalía, corazón, niño ¿Qué?"
+  );
+  assert.equal(
+    pixelFontCompatibleText("Represalía, corazón, niño ¿Qué?", '8px "Silkscreen", monospace'),
+    "Represalía, corazón, niño ¿Qué?"
+  );
+  assert.equal(
     pixelFontCompatibleText("Pēwhairangi", '8px "Dogica", monospace'),
     "Pewhairangi"
   );
   assert.equal(
     pixelFontCompatibleText("Tōkyō / Łódź", '8px "Silkscreen", monospace'),
-    "Tokyo / Lodz"
+    "Tokyo / Lódz"
   );
   assert.equal(
     pixelFontCompatibleText("Pēwhairangi", '12px "zpix", monospace'),
@@ -234,5 +242,17 @@ test("every Latin pixel font contains the ownership arrow glyph", async () => {
     const buffer = await readFile(new URL(`../public/assets/fonts/${file}`, import.meta.url));
     assert.ok(fontGlyphIndex(buffer, 0x2192) > 0, `${file} is missing its arrow`);
     assert.notEqual(fontGlyphIndex(buffer, 0x2192), fontGlyphIndex(buffer, 45));
+  }
+});
+
+test("compact Latin UI fonts contain Spanish diacritics", async () => {
+  for (const file of ["Silkscreen-Regular.ttf", "dogicapixel.ttf"]) {
+    const buffer = await readFile(new URL(`../public/assets/fonts/${file}`, import.meta.url));
+    for (const character of "áéíóúñÁÉÍÓÚÑ¿¡") {
+      assert.ok(
+        fontGlyphIndex(buffer, character.codePointAt(0)) > 0,
+        `${file} is missing ${character}`
+      );
+    }
   }
 });

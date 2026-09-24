@@ -11,6 +11,8 @@ export const DEFAULT_PLAYER_SHIP_SLUG = "brigantine";
 export const SHIP_PROPULSION_SAIL = "sail";
 export const SHIP_PROPULSION_OAR = "oar";
 export const SHIP_PROPULSION_OAR_SAIL = "oar-sail";
+export const SHIP_CANNON_LAYOUT_BROADSIDE = "broadside";
+export const SHIP_CANNON_LAYOUT_FORWARD = "forward";
 export const SHIP_UPWIND_FORGIVENESS_DEG = 8;
 export const MEDITERRANEAN_GALLEY_SLUG = "mediterranean-galley";
 export const GALLEASS_SLUG = "galleass";
@@ -30,6 +32,11 @@ export const JAPANESE_ARMED_SHIP_SLUGS = Object.freeze([
   JAPANESE_KOBAYA_SLUG,
   JAPANESE_SEKIBUNE_SLUG,
   JAPANESE_ATAKEBUNE_SLUG
+]);
+const FORWARD_CANNON_SHIP_SLUGS = new Set([
+  MEDITERRANEAN_GALLEY_SLUG,
+  FUSTA_SLUG,
+  "penjajap"
 ]);
 
 const SHIP_PROPULSIONS = new Set([
@@ -223,7 +230,7 @@ const rawShipStats = [
   stats("penjajap", 2, 0.028, 0.042, 44, 3.05, 115, 45, 6, SHIP_PROPULSION_OAR_SAIL, 0, 14),
   stats("lancaran", 6, 0.024, 0.041, 48, 2.60, 195, 95, 7, SHIP_PROPULSION_OAR_SAIL, 0, 27),
   stats("royal-lancaran", 10, 0.019, 0.040, 50, 2.20, 305, 160, 8, SHIP_PROPULSION_OAR_SAIL, 0, 43),
-  stats("ottoman-coastal-trader", 8, 0.017, 0.035, 55, 1.90, 170, 240, 7)
+  stats("ottoman-coastal-trader", 4, 0.017, 0.035, 55, 1.90, 170, 240, 7)
 ];
 
 export const SHIP_STATS = Object.freeze(rawShipStats);
@@ -337,9 +344,16 @@ function stats(
   const hitPoints = Math.max(3, Math.round(mass / SHIP_MASS_PER_HIT_POINT));
   const crewCapacity = crewCapacityOverride ??
     Math.max(1, Math.round(mass / 12 + cannons * 0.75));
+  const cannonLayout = FORWARD_CANNON_SHIP_SLUGS.has(slug)
+    ? SHIP_CANNON_LAYOUT_FORWARD
+    : SHIP_CANNON_LAYOUT_BROADSIDE;
+  if (cannonLayout === SHIP_CANNON_LAYOUT_FORWARD && cannons === 0) {
+    throw new Error(`Forward cannon ship ${slug} requires at least one cannon`);
+  }
   return Object.freeze({
     slug,
     cannons,
+    cannonLayout,
     accelerationRad: accelerationRad * SHIP_ACCELERATION_SCALE * WORLD_KINEMATIC_SCALE,
     topSpeedRad: topSpeedRad * SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE,
     upwindStallAngleDeg: effectiveUpwindStallAngleDeg,

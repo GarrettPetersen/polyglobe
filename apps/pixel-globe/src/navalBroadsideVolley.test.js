@@ -4,6 +4,8 @@ import test from "node:test";
 import { cannonWeaponWithEquipment, STANDARD_CANNON_EQUIPMENT_ID } from "./cannonEquipment.js";
 import {
   createNavalBroadsideVolley,
+  createNavalForwardVolley,
+  navalForwardTargetIsInArc,
   navalBroadsideDirection,
   navalBroadsideSideForTarget
 } from "./navalBroadsideVolley.js";
@@ -69,4 +71,43 @@ test("shared broadside side conventions match player and AI targeting", () => {
   assert.equal(navalBroadsideSideForTarget(HEADING, ORIGIN, { x: 100, y: 40 }), "port");
   assert.equal(navalBroadsideSideForTarget(HEADING, ORIGIN, { x: 100, y: 160 }), "starboard");
   assert.equal(navalBroadsideSideForTarget(HEADING, ORIGIN, { x: 160, y: 100 }), null);
+});
+
+test("forward battery uses every cannon and launches from the bow", () => {
+  const volley = createNavalForwardVolley({
+    origin: ORIGIN,
+    heading: HEADING,
+    hullFootprint: FOOTPRINT,
+    projectileCount: 8,
+    weapon: WEAPON,
+    randomUnit: () => 0.5,
+    seedForShot: (index) => index + 30
+  });
+
+  assert.equal(volley.length, 8);
+  assert.ok(volley.every((shot) => shot.startX === 110));
+  assert.ok(volley.every((shot) => shot.targetX > shot.startX));
+  assert.ok(volley.some((shot) => shot.startY < ORIGIN.y));
+  assert.ok(volley.some((shot) => shot.startY > ORIGIN.y));
+});
+
+test("forward battery only aims at targets inside its bow arc", () => {
+  assert.equal(navalForwardTargetIsInArc(HEADING, ORIGIN, { x: 160, y: 100 }), true);
+  assert.equal(navalForwardTargetIsInArc(HEADING, ORIGIN, { x: 100, y: 40 }), false);
+
+  const target = { x: 150, y: 110 };
+  const volley = createNavalForwardVolley({
+    origin: ORIGIN,
+    heading: HEADING,
+    hullFootprint: FOOTPRINT,
+    projectileCount: 3,
+    weapon: WEAPON,
+    targetPoint: target,
+    aimAtTarget: true,
+    randomUnit: () => 0.5,
+    seedForShot: (index) => index + 50
+  });
+  const trueShot = volley.find((shot) => shot.trueShot);
+  assert.deepEqual({ x: trueShot.targetX, y: trueShot.targetY }, target);
+  assert.equal(trueShot.targetAimed, true);
 });

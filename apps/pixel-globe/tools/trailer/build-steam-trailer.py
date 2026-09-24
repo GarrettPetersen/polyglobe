@@ -365,6 +365,14 @@ def validate_clip_broadside(source, sidecar, start, duration, required_broadside
     volley = player_volleys[0]
     if volley.get("data", {}).get("side") != side:
         raise RuntimeError(f"{source} fired the wrong broadside")
+    expected_layout = required_broadside.get("layout", "broadside")
+    if expected_layout not in {"broadside", "forward"}:
+        raise RuntimeError(f"Invalid required cannon layout for {source}: {expected_layout}")
+    if volley.get("data", {}).get("cannonLayout") != expected_layout:
+        raise RuntimeError(
+            f"{source} fired a {volley.get('data', {}).get('cannonLayout')} cannon battery; "
+            f"expected {expected_layout}"
+        )
     start_ms = round(start * 1000)
     end_ms = round((start + duration) * 1000)
     if not start_ms <= volley.get("t", -1) < end_ms:

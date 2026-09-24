@@ -47,6 +47,10 @@ export function pixelFontCompatibleText(text, font) {
   return Array.from(text, (character) => {
     const codePoint = character.codePointAt(0);
     if (codePoint < 0xc0 || codePoint > 0x24f) return character;
+    // Silkscreen, Dogica, and Pixel Pirate ship the Latin-1 supplement.
+    // Preserve Spanish and Portuguese accents instead of flattening them;
+    // only characters outside that bundled range need transliteration.
+    if (codePoint <= 0xff) return character;
     const replacement = EXTENDED_LATIN_PIXEL_REPLACEMENTS[character];
     if (replacement) return replacement;
     const decomposed = character.normalize("NFD").replace(/[\u0300-\u036f]/g, "");

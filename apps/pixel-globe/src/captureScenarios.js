@@ -1881,8 +1881,8 @@ const CAPTURE_SCENARIOS = Object.freeze({
     side: "starboard",
     targetFactionId: "venice",
     targetShipSlug: "galleass",
-    targetLatOffsetDeg: 0.28,
-    targetLonOffsetDeg: 0.43,
+    targetLatOffsetDeg: 0.35,
+    targetLonOffsetDeg: 0.54,
     targetHeadingDeg: 235,
     escortFactionId: "venice",
     escortShipSlug: "brigantine"
@@ -1918,7 +1918,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
       cityId: "rhodes|greece",
       broadsideSide: "starboard",
       holdBroadsideAim: true,
-      broadsideSpeedRatio: 0.16,
+      broadsideSpeedRatio: 0.1,
       broadsideApproachBearingDeg: 225,
       broadsideTargetDistancePx: 56,
       batteryStartingHitPoints: 1,
@@ -3331,7 +3331,7 @@ function demoLaunchOttomanBattleScenario(value) {
       encounterId: targetId,
       broadsideSide: value.side,
       holdBroadsideAim: true,
-      broadsideSpeedRatio: 0.42,
+      broadsideSpeedRatio: 0.16,
       requireOpenWaterCourse: true,
       modalPolicy: "suppress"
     })

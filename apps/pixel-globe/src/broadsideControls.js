@@ -12,29 +12,53 @@ export function broadsideArcGeometry({
   if (sideName !== "port" && sideName !== "starboard") {
     throw new Error(`Unknown broadside arc: ${sideName}`);
   }
-  const headingLength = Math.hypot(heading?.x || 0, heading?.y || 0);
-  if (headingLength <= 0) throw new Error("Broadside arc requires a heading");
-  if (!Number.isFinite(range) || range <= 0) throw new Error(`Invalid broadside range: ${range}`);
-  if (!Number.isFinite(halfAngle) || halfAngle <= 0 || halfAngle >= Math.PI / 2) {
-    throw new Error(`Invalid broadside half angle: ${halfAngle}`);
-  }
-
-  const normalizedHeading = { x: heading.x / headingLength, y: heading.y / headingLength };
+  const normalizedHeading = normalizedArcHeading(heading, "Broadside");
   const starboard = { x: -normalizedHeading.y, y: normalizedHeading.x };
   const rawDirection = sideName === "starboard" ? starboard : { x: -starboard.x, y: -starboard.y };
+  return directedCannonArcGeometry({
+    screenWidth, screenHeight, normalizedHeading, rawDirection, range, origin, start,
+    hullFootprint, halfAngle, sideName, label: "broadside"
+  });
+}
+
+export function forwardCannonArcGeometry({
+  screenWidth,
+  screenHeight,
+  heading,
+  range,
+  origin = null,
+  start = 8,
+  hullFootprint = null,
+  halfAngle = Math.PI / 9
+}) {
+  const normalizedHeading = normalizedArcHeading(heading, "Forward cannon");
+  return directedCannonArcGeometry({
+    screenWidth, screenHeight, normalizedHeading, rawDirection: normalizedHeading, range, origin,
+    start, hullFootprint, halfAngle, sideName: "forward", label: "forward-cannon"
+  });
+}
+
+function directedCannonArcGeometry({
+  screenWidth, screenHeight, normalizedHeading, rawDirection, range, origin, start,
+  hullFootprint, halfAngle, sideName, label
+}) {
+  if (!Number.isFinite(range) || range <= 0) throw new Error(`Invalid ${label} range: ${range}`);
+  if (!Number.isFinite(halfAngle) || halfAngle <= 0 || halfAngle >= Math.PI / 2) {
+    throw new Error(`Invalid ${label} half angle: ${halfAngle}`);
+  }
   const direction = {
     x: Object.is(rawDirection.x, -0) ? 0 : rawDirection.x,
     y: Object.is(rawDirection.y, -0) ? 0 : rawDirection.y
   };
   const resolvedOrigin = origin || { x: screenWidth / 2, y: screenHeight / 2 };
   if (!Number.isFinite(resolvedOrigin.x) || !Number.isFinite(resolvedOrigin.y)) {
-    throw new Error(`Invalid broadside origin: ${resolvedOrigin.x}, ${resolvedOrigin.y}`);
+    throw new Error(`Invalid ${label} origin: ${resolvedOrigin.x}, ${resolvedOrigin.y}`);
   }
   const resolvedStart = hullFootprint
     ? broadsideHullEdgeDistance(hullFootprint, resolvedOrigin, direction)
     : start;
   if (!Number.isFinite(resolvedStart) || resolvedStart < 0) {
-    throw new Error(`Invalid broadside start: ${resolvedStart}`);
+    throw new Error(`Invalid ${label} start: ${resolvedStart}`);
   }
   const centerAngle = Math.atan2(direction.y, direction.x);
   return {
@@ -50,6 +74,12 @@ export function broadsideArcGeometry({
     startAngle: centerAngle - halfAngle,
     endAngle: centerAngle + halfAngle
   };
+}
+
+function normalizedArcHeading(heading, label) {
+  const headingLength = Math.hypot(heading?.x || 0, heading?.y || 0);
+  if (headingLength <= 0) throw new Error(`${label} arc requires a heading`);
+  return { x: heading.x / headingLength, y: heading.y / headingLength };
 }
 
 export function projectBroadsideFrameToScreen({ origin, hullFootprint, offset }) {

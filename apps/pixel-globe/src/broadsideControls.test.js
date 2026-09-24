@@ -4,6 +4,7 @@ import {
   broadsideArcGeometry,
   broadsideHullEdgeDistance,
   broadsideReloadGeometry,
+  forwardCannonArcGeometry,
   hasBroadsideCannons,
   pointInBroadsideArc,
   projectBroadsideFrameToScreen
@@ -66,6 +67,27 @@ test("broadside arcs extend from the correct side of a northbound ship", () => {
   assert.equal(pointInBroadsideArc({ x: 270, y: 128 }, starboard), true);
   assert.equal(pointInBroadsideArc({ x: 185, y: 128 }, starboard), false);
   assert.equal(pointInBroadsideArc({ x: 185, y: 128 }, port), true);
+});
+
+test("forward cannon arc begins at the bow and follows the ship heading", () => {
+  const arc = forwardCannonArcGeometry({
+    screenWidth: 200,
+    screenHeight: 200,
+    heading: { x: 1, y: 0 },
+    range: 60,
+    origin: { x: 100, y: 100 },
+    hullFootprint: [
+      { x: 90, y: 96 },
+      { x: 110, y: 96 },
+      { x: 110, y: 104 },
+      { x: 90, y: 104 }
+    ]
+  });
+
+  assert.deepEqual(arc.direction, { x: 1, y: 0 });
+  assert.equal(arc.innerRadius, 10);
+  assert.equal(pointInBroadsideArc({ x: 130, y: 100 }, arc), true);
+  assert.equal(pointInBroadsideArc({ x: 100, y: 130 }, arc), false);
 });
 
 test("broadside arcs widen away from the hull and reject bow-on taps", () => {

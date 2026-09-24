@@ -60,7 +60,7 @@ export function broadsideCannonCount(installedCannons) {
   return Math.ceil(installedCannons / 2);
 }
 
-export function cannonMuzzleForeAftSpan(projectileCount) {
+export function cannonMuzzleLineSpan(projectileCount) {
   if (!Number.isInteger(projectileCount) || projectileCount <= 0) {
     throw new Error(`Invalid broadside projectile count: ${projectileCount}`);
   }

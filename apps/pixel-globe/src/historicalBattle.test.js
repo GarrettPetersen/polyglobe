@@ -343,7 +343,7 @@ test("player controls are compact, quantized, and tick stamped for future networ
   assert.equal(Object.isFrozen(command), true);
 });
 
-test("port and starboard cannon reloads remain independent", () => {
+test("a galley's port and starboard controls share its forward battery reload", () => {
   const battle = createBattle();
   const player = historicalBattlePlayerShip(battle);
   const target = battle.ships.find((ship) => ship.sideId === OTTOMAN_SIDE_ID);
@@ -360,15 +360,16 @@ test("port and starboard cannon reloads remain independent", () => {
     event.type === "fire" && event.shipIndex === battle.playerShipIndex && !event.weaponId
   ));
 
-  assert.equal(player.cooldowns.port, 0);
+  assert.ok(player.cooldowns.port > 0);
   assert.ok(player.cooldowns.starboard > 0);
+  assert.equal(player.cooldowns.port, player.cooldowns.starboard);
   assert.ok(fireEvent.smokeProjectiles.length > 0);
   assert.ok(fireEvent.smokeProjectiles.every((projectile) => (
     projectile.kind === "cannon" && Number.isInteger(projectile.seed)
   )));
 });
 
-test("the player can fire a centerline broadside without an auto-selected target", () => {
+test("the player can fire the forward battery without an auto-selected target", () => {
   const battle = createBattle();
   const player = historicalBattlePlayerShip(battle);
   player.headingRad = 0;
@@ -378,8 +379,8 @@ test("the player can fire a centerline broadside without an auto-selected target
   assert.ok(battle.projectiles.every((projectile) => projectile.targetIndex === -1));
   const trueShot = battle.projectiles.find((projectile) => projectile.trueShot);
   assert.ok(trueShot);
-  assert.ok(Math.abs(trueShot.targetX - trueShot.startX) < 1e-9);
-  assert.ok(trueShot.targetY < trueShot.startY);
+  assert.ok(trueShot.targetX > trueShot.startX);
+  assert.ok(Math.abs(trueShot.targetY - trueShot.startY) < 1e-9);
 });
 
 test("historical wind uses the shared downwind flow convention", () => {

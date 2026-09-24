@@ -30,9 +30,12 @@ import {
 } from "./navalProjectile.js";
 import { advanceHullSplinterBursts, createHullSplinterBurst } from "./hullSplinters.js";
 import {
-  createNavalBroadsideVolley,
-  navalBroadsideSideForTarget
-} from "./navalBroadsideVolley.js";
+  cannonBatteryIsReady,
+  cannonBatterySideForTarget,
+  createNavalCannonVolley,
+  navalCannonVolleyCount,
+  reloadCannonBattery
+} from "./navalCannonBattery.js";
 import {
   pointInShipFootprint,
   shipFootprintFrame,
@@ -52,7 +55,11 @@ import {
 import {
   shipCanUseOars
 } from "./shipPropulsion.js";
-import { shipHullResistsDamage, shipStatsForSlug } from "./shipStats.js";
+import {
+  SHIP_CANNON_LAYOUT_FORWARD,
+  shipHullResistsDamage,
+  shipStatsForSlug
+} from "./shipStats.js";
 import {
   FLAT_BATTLE_PIXELS_PER_RADIAN as PIXELS_PER_RADIAN,
   advanceFlatBattleShipKinematics
@@ -531,7 +538,7 @@ export function fireHistoricalBattleBroadside(state, sideName) {
   }
   if (state.phase !== HISTORICAL_BATTLE_PHASE_ACTIVE) return false;
   const ship = historicalBattlePlayerShip(state);
-  if (!ship.active || ship.cooldowns[sideName] > 0) return false;
+  if (!ship.active || !cannonBatteryIsReady(ship.cooldowns, ship.stats, sideName)) return false;
   const targetIndex = bestBroadsideTarget(state, ship, sideName);
   return fireShipBroadside(
     state,
@@ -1040,7 +1047,7 @@ function leaderMotionIntent(state, ship, target, targetDistance) {
   }
   if (target?.active && targetDistance <= ENGAGEMENT_RANGE_PX) {
     return {
-      headingRad: broadsideApproach(ship, target),
+      headingRad: cannonApproach(ship, target),
       speedCapPx: Number.POSITIVE_INFINITY
     };
   }
@@ -1067,7 +1074,7 @@ function followerMotionIntent(state, ship, target, targetDistance) {
     };
   }
   if (target?.active && targetDistance <= ENGAGEMENT_RANGE_PX) {
-    return { headingRad: broadsideApproach(ship, target), speedCapPx: Number.POSITIVE_INFINITY };
+    return { headingRad: cannonApproach(ship, target), speedCapPx: Number.POSITIVE_INFINITY };
   }
   const leader = state.ships[squadron?.leaderIndex];
   if (!leader?.active) {
@@ -1096,6 +1103,12 @@ function broadsideApproach(ship, target) {
   const bearing = Math.atan2(target.y - ship.y, target.x - ship.x);
   const delta = signedAngle(bearing - ship.headingRad);
   return normalizeAngle(bearing - (delta >= 0 ? 1 : -1) * Math.PI / 2);
+}
+
+function cannonApproach(ship, target) {
+  return ship.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+    ? Math.atan2(target.y - ship.y, target.x - ship.x)
+    : broadsideApproach(ship, target);
 }
 
 function retreatHeading(state, ship) {
@@ -1669,8 +1682,10 @@ function updateShipWeapons(state, command) {
     firePortableWeapons(state, ship, target, distance);
     if (ship.playerControlled || !ship.weapon || distance > cannonRange(ship)) continue;
     state.metrics.broadsideChecks += 1;
-    const sideName = broadsideSideForTarget(ship, target);
-    if (sideName && ship.cooldowns[sideName] <= 0) fireShipBroadside(state, ship, target, sideName);
+    const sideName = cannonSideForTarget(ship, target);
+    if (sideName && cannonBatteryIsReady(ship.cooldowns, ship.stats, sideName)) {
+      fireShipBroadside(state, ship, target, sideName);
+    }
   }
 }
 
@@ -1682,29 +1697,27 @@ function bestBroadsideTarget(state, ship, sideName) {
     const candidate = state.ships[candidateIndex];
     if (!candidate.active || candidate.sideIndex === ship.sideIndex) continue;
     const distance = Math.hypot(candidate.x - ship.x, candidate.y - ship.y);
-    if (distance >= bestDistance || broadsideSideForTarget(ship, candidate) !== sideName) continue;
+    if (distance >= bestDistance || cannonSideForTarget(ship, candidate) !== sideName) continue;
     bestDistance = distance;
     bestIndex = candidateIndex;
   }
   return bestIndex;
 }
 
-function broadsideSideForTarget(ship, target) {
-  return navalBroadsideSideForTarget(
-    { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) },
-    ship,
-    target
-  );
+function cannonSideForTarget(ship, target) {
+  const heading = { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
+  return cannonBatterySideForTarget(ship.stats, heading, ship, target);
 }
 
 function fireShipBroadside(state, ship, target, sideName) {
-  if (!ship.weapon || ship.cooldowns[sideName] > 0 || !ship.active ||
+  if (!ship.weapon || !cannonBatteryIsReady(ship.cooldowns, ship.stats, sideName) || !ship.active ||
       (!ship.playerControlled && !target?.active)) return false;
-  ship.cooldowns[sideName] = ship.weapon.reloadSeconds;
-  const count = Math.max(1, Math.ceil(ship.stats.cannons / 2));
+  reloadCannonBattery(ship.cooldowns, ship.stats, sideName, ship.weapon.reloadSeconds);
+  const count = navalCannonVolleyCount(ship.stats);
   const heading = { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
   const targetIndex = target ? state.ships.indexOf(target) : -1;
-  const volley = createNavalBroadsideVolley({
+  const volley = createNavalCannonVolley({
+    shipStats: ship.stats,
     origin: ship,
     heading,
     hullFootprint: historicalShipWorldFootprint(state, ship),

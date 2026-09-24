@@ -245,6 +245,13 @@ test("S to Z labels retain compass and fish identity across locales", () => {
   assert.equal(screenTextTranslationCatalog("ja").Shona, "ショナ人");
 });
 
+test("Spanish uses established names for translated ship classes", () => {
+  const catalog = screenTextTranslationCatalog("es");
+  assert.equal(catalog.Brigantine, "Bergantín");
+  assert.equal(catalog.Felucca, "Faluca");
+  assert.equal(catalog.Galleass, "Galeaza");
+});
+
 test("name-culture labels identify peoples rather than their languages", () => {
   const cultureLabels = [...new Set(Object.values(NAME_CULTURE_LABELS))];
   for (const source of cultureLabels) {

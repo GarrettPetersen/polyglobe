@@ -32,10 +32,15 @@ import {
   navalProjectilePoint
 } from "./navalProjectile.js";
 import {
-  createNavalBroadsideVolley,
-  navalBroadsideDirection,
-  navalBroadsideSideForTarget
+  navalBroadsideDirection
 } from "./navalBroadsideVolley.js";
+import {
+  cannonBatteryIsReady,
+  cannonBatterySideForTarget,
+  createNavalCannonVolley,
+  navalCannonVolleyCount,
+  reloadCannonBattery
+} from "./navalCannonBattery.js";
 import {
   pointInShipFootprint,
   shipFootprintCenter,
@@ -55,6 +60,8 @@ import {
 } from "./shipPropulsion.js";
 import {
   SHIP_PROPULSION_SAIL,
+  SHIP_CANNON_LAYOUT_BROADSIDE,
+  SHIP_CANNON_LAYOUT_FORWARD,
   SHIP_STATS,
   shipHullResistsDamage,
   shipLabelForSlug,
@@ -98,6 +105,7 @@ export const LAKE_BATTLE_ENEMY_SLUGS = Object.freeze([...LAKE_BATTLE_SHIP_SLUGS,
 const LAKE_BATTLE_CITY_STATS = Object.freeze({
   slug: LAKE_BATTLE_CITY_SLUG,
   cannons: 4,
+  cannonLayout: SHIP_CANNON_LAYOUT_BROADSIDE,
   batteryGuns: 2,
   hitPoints: 2 * SHORE_BATTERY_HIT_POINTS_PER_GUN,
   crewCapacity: 24,
@@ -340,12 +348,13 @@ function fireLakeBattleBroadsideVolley(state, ship, target, sideName, aim) {
   if (!aim || (aim.kind !== "manual" && aim.kind !== "npc")) {
     throw new Error(`Invalid lake battle aiming mode: ${aim?.kind}`);
   }
-  if (ship.cooldowns[sideName] > 0 || ship.hitPoints <= 0) return false;
+  if (!cannonBatteryIsReady(ship.cooldowns, ship.stats, sideName) || ship.hitPoints <= 0) return false;
 
-  ship.cooldowns[sideName] = ship.weapon.reloadSeconds;
-  const count = Math.max(1, Math.ceil(ship.stats.cannons / 2));
+  reloadCannonBattery(ship.cooldowns, ship.stats, sideName, ship.weapon.reloadSeconds);
+  const count = navalCannonVolleyCount(ship.stats);
   const sourcePoint = lakeBattleCombatantPoint(ship);
-  const volley = createNavalBroadsideVolley({
+  const volley = createNavalCannonVolley({
+    shipStats: ship.stats,
     origin: sourcePoint,
     heading: lakeBattleHeadingVector(ship),
     hullFootprint: lakeBattleBroadsideSourceFootprint(state, ship),
@@ -802,14 +811,21 @@ function npcDesiredHeading(state, ship, target, tacticId, dt) {
   if (ship.navigationDecisionCooldown > 0) return ship.navigationCourseRad;
   ship.navigationDecisionCooldown = ENEMY_NAVIGATION_DECISION_SECONDS;
 
-  const navigation = npcCombatNavigationForTactic(tacticId, {
-    identity: ship.id,
-    origin: ship,
-    target,
-    heading: lakeBattleHeadingVector(ship),
-    weaponRangePx: lakeBattleWeaponRange(ship),
-    routeDistancePx: ENEMY_TACK_LEG_PX
-  });
+  const navigation = ship.stats.cannonLayout === SHIP_CANNON_LAYOUT_FORWARD
+    ? {
+        course: {
+          x: target.x - ship.x,
+          y: target.y - ship.y
+        }
+      }
+    : npcCombatNavigationForTactic(tacticId, {
+        identity: ship.id,
+        origin: ship,
+        target,
+        heading: lakeBattleHeadingVector(ship),
+        weaponRangePx: lakeBattleWeaponRange(ship),
+        routeDistancePx: ENEMY_TACK_LEG_PX
+      });
   if (!navigation) return ship.navigationCourseRad;
   const sailingDirection = npcSailingDirection(state, ship, navigation.course);
   const clearDistance = npcDirectionClearDistance(state, ship, sailingDirection);
@@ -908,11 +924,8 @@ function fireNpcWhenAligned(state, ship, target, tacticId) {
   }
   const targetDistance = Math.hypot(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
   if (targetDistance > lakeBattleWeaponRange(ship) * 1.04) return false;
-  const sideName = navalBroadsideSideForTarget(
-    lakeBattleHeadingVector(ship),
-    sourcePoint,
-    targetPoint
-  );
+  const heading = lakeBattleHeadingVector(ship);
+  const sideName = cannonBatterySideForTarget(ship.stats, heading, sourcePoint, targetPoint);
   if (!sideName) return false;
   return fireLakeBattleBroadsideVolley(state, ship, target, sideName, {
     kind: "npc",
