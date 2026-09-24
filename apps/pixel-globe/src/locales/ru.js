@@ -1,6 +1,7 @@
 export default {
   "connection.paused": "Соединение прервано. Плавание приостановлено, пока необходимые изображения недоступны.",
   "connection.retry": "ПОВТОРИТЬ",
+  "recovery.startupFailed": "В ИГРЕ ПРОИЗОШЛА ОШИБКА. ВАШЕ СОХРАНЕНИЕ НЕ ПОВРЕЖДЕНО. ПОПРОБУЙТЕ СНОВА.",
   "language.english": "Английский",
   "language.chineseSimplified": "Китайский (упрощ.)",
   "language.russian": "Русский",

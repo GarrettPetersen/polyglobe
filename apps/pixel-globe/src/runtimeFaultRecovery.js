@@ -1,4 +1,5 @@
 export const RUNTIME_FAULT_REPEAT_WINDOW_MS = 2_000;
+export const RUNTIME_SKIP_SAVE_PREPARATION_KEY = "marque-and-reprisal.skip-save-preparation-once";
 
 export function createRuntimeFaultRecoveryState() {
   return { signature: null, lastIncidentAtMs: -Infinity, consecutiveIncidents: 0 };
@@ -37,11 +38,35 @@ export function runtimeFaultSignature(error) {
     .padStart(8, "0");
 }
 
+export function requestSkipAutomaticSavePreparation(storage) {
+  requireSessionStorage(storage);
+  storage.setItem(RUNTIME_SKIP_SAVE_PREPARATION_KEY, "true");
+}
+
+export function consumeSkipAutomaticSavePreparation(storage) {
+  requireSessionStorage(storage);
+  const requested = shouldSkipAutomaticSavePreparation(storage);
+  storage.removeItem(RUNTIME_SKIP_SAVE_PREPARATION_KEY);
+  return requested;
+}
+
+export function shouldSkipAutomaticSavePreparation(storage) {
+  requireSessionStorage(storage);
+  return storage.getItem(RUNTIME_SKIP_SAVE_PREPARATION_KEY) === "true";
+}
+
 function assertRecoveryState(state) {
   if (!state || !Object.hasOwn(state, "signature") ||
       !(Number.isFinite(state.lastIncidentAtMs) || state.lastIncidentAtMs === -Infinity) ||
       !Number.isInteger(state.consecutiveIncidents) || state.consecutiveIncidents < 0) {
     throw new Error("Runtime fault recovery state is invalid");
+  }
+}
+
+function requireSessionStorage(storage) {
+  if (!storage || typeof storage.getItem !== "function" ||
+      typeof storage.setItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Runtime save recovery requires session storage");
   }
 }
 

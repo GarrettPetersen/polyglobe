@@ -1,6 +1,7 @@
 export default {
   "connection.paused": "Connexion interrompue. Votre voyage est en pause tant que les images nécessaires sont indisponibles.",
   "connection.retry": "RÉESSAYER",
+  "recovery.startupFailed": "LE JEU A RENCONTRÉ UNE ERREUR. VOTRE SAUVEGARDE EST INTACTE. RÉESSAYEZ.",
   "language.english": "Anglais",
   "language.chineseSimplified": "Chinois simplifié",
   "language.russian": "Russe",

@@ -108,6 +108,11 @@ constraints for a subtree, but must not weaken these standards.
   repeats immediately and no narrower fallback exists, return to the last completed autosave at
   the title screen without saving possibly partial mutations. Never loop indefinitely on a
   failing assertion or replace the whole game with a developer crash report.
+- Keep every production entry boundary under that policy, including animation frames, input and
+  browser events, asynchronous rejections, worker results, save restoration, retry callbacks, and
+  startup. A final release-only boundary must report unexpected future assertions and preserve the
+  last completed save even when no feature-specific recovery exists. Protect the developer crash
+  renderer with a source-contract test so new call sites cannot expose it in release builds.
 - Fail-fast assertions are the last line of defense for impossible internal states, not a
   substitute for modeling expected edge cases. Any state reachable through supported player
   input, timing, saved data, or ordinary system interaction is part of the feature contract

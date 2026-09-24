@@ -4,7 +4,7 @@ import test from "node:test";
 
 const MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
 
-test("save read and restore failures use the standard crash report presentation", () => {
+test("save read and restore failures report diagnostics without discarding the save", () => {
   const saveReadFailure = MAIN_SOURCE.match(
     /if \(localSaveResult\.status === "invalid"\) \{[\s\S]*?\n  \}/
   )?.[0];
@@ -13,12 +13,13 @@ test("save read and restore failures use the standard crash report presentation"
   )?.[0];
 
   assert.ok(saveReadFailure, "save-read failure branch must remain explicit");
-  assert.match(saveReadFailure, /drawFatalError\([\s\S]*telemetryCrashContext\("save-read"\)/);
+  assert.match(saveReadFailure, /captureRecoverableRuntimeDiagnostic\([\s\S]*telemetryCrashContext\("save-read"\)/);
   assert.ok(saveRestoreFailure, "save-restore handler must remain explicit");
-  assert.match(saveRestoreFailure, /drawFatalError\([\s\S]*crashContext/);
+  assert.match(saveRestoreFailure, /recoverSavedVoyageFailure\(error, crashContext\)/);
+  assert.doesNotMatch(saveRestoreFailure, /localSaveResult\s*=/);
 });
 
-test("fatal presentation freezes ordinary rendering and exposes crash details", () => {
+test("developer fatal presentation is unreachable from release failure handling", () => {
   const runFrameOpening = MAIN_SOURCE.match(
     /function runFrame\([^)]*\) \{[\s\S]*?if \(pendingWorldAssetError\)/
   )?.[0];
@@ -27,6 +28,9 @@ test("fatal presentation freezes ordinary rendering and exposes crash details", 
   )?.[0];
 
   assert.match(runFrameOpening, /if \(displayedCrashReport\) return;/);
+  assert.match(fatalPresentation, /!diagnosticModeEnabled[\s\S]*captureRecoverableRuntimeDiagnostic/);
+  assert.ok(fatalPresentation.indexOf("scheduleRuntimeTitleRecovery") <
+    fatalPresentation.indexOf("drawDeveloperFatalError"));
   assert.match(fatalPresentation, /crashCopyButton\.hidden = false/);
   assert.match(fatalPresentation, /context: crashContext/);
 });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { reportStartupFailure, startupDiagnostic, STARTUP_DIAGNOSTIC_KEY } from "./startupFailure.js";
+import { consumeStartupDiagnostic, reportStartupFailure, startupDiagnostic, STARTUP_DIAGNOSTIC_KEY } from "./startupFailure.js";
 import { PLATFORM_CLOUD_STORAGE_KEYS } from "./platformServices.js";
 import { SUPPORTED_LANGUAGES, translate } from "./localization.js";
 
@@ -12,6 +12,7 @@ function fixture({ storageFails = false } = {}) {
   }]));
   const values = new Map([["marque-and-reprisal.save", "preserved"]]);
   const root = {
+    location: { reload() { this.reloaded = true; } },
     document: { title: "Marque & Reprisal", location: { pathname: "/" },
       getElementById: id => nodes[id], querySelector: selector => nodes[selector] },
     localStorage: {
@@ -23,34 +24,31 @@ function fixture({ storageFails = false } = {}) {
   return { root, nodes, values };
 }
 
-test("early failures show an accessible localized screen and copyable local diagnostic", async () => {
+test("early failures show an accessible localized retry while preserving a local diagnostic", () => {
   const { root, nodes, values } = fixture();
   values.set("pixel_globe_language", "fr");
-  let copied;
   const report = reportStartupFailure(new Error("Cloud migration failed"), {
-    root, copy: async text => { copied = text; }, now: () => "2026-09-13T00:00:00Z"
+    root, now: () => "2026-09-13T00:00:00Z"
   });
   assert.equal(nodes["loading-screen"].dataset.state, "failed");
   assert.equal(nodes["loading-screen"].attributes.role, "alert");
   assert.equal(nodes[".shell"].attributes["aria-busy"], "false");
-  assert.equal(nodes["loading-status-text"].textContent, translate("fr", "crash.startupFailed"));
+  assert.equal(nodes["loading-status-text"].textContent, translate("fr", "recovery.startupFailed"));
   assert.equal(nodes["crash-copy-button"].hidden, false);
-  await nodes["crash-copy-button"].onclick();
-  assert.equal(copied, report);
+  assert.equal(nodes["crash-copy-button"].textContent, translate("fr", "connection.retry"));
+  nodes["crash-copy-button"].onclick();
+  assert.equal(root.location.reloaded, true);
   assert.equal(values.get(STARTUP_DIAGNOSTIC_KEY), report);
   assert.equal(values.get("marque-and-reprisal.save"), "preserved");
   assert.equal(PLATFORM_CLOUD_STORAGE_KEYS.includes(STARTUP_DIAGNOSTIC_KEY), false);
 });
 
-test("storage and clipboard failures do not conceal the original startup failure", async () => {
+test("storage failures do not conceal the original startup failure", () => {
   const { root, nodes } = fixture({ storageFails: true });
-  const report = reportStartupFailure(new Error("original failure"), {
-    root, copy: async () => { throw new Error("clipboard denied"); }
-  });
+  const report = reportStartupFailure(new Error("original failure"), { root });
   assert.match(report, /original failure/);
   assert.equal(nodes["loading-screen"].hidden, false);
-  await nodes["crash-copy-button"].onclick();
-  assert.equal(nodes["crash-copy-button"].textContent, translate("en", "crash.copyFailed"));
+  assert.equal(nodes["crash-copy-button"].textContent, translate("en", "connection.retry"));
 });
 
 test("startup reports are bounded and every supported language has the failure message", () => {
@@ -58,6 +56,16 @@ test("startup reports are bounded and every supported language has the failure m
     occurredAt: "now", edition: "demo", url: "/"
   }).length, 8192);
   for (const language of SUPPORTED_LANGUAGES) {
-    assert.notEqual(translate(language.id, "crash.startupFailed"), "crash.startupFailed");
+    assert.notEqual(translate(language.id, "recovery.startupFailed"), "recovery.startupFailed");
   }
+});
+
+test("the next successful startup consumes the stored diagnostic for telemetry", () => {
+  const values = new Map([[STARTUP_DIAGNOSTIC_KEY, "previous startup assertion"]]);
+  const storage = {
+    getItem: key => values.get(key) ?? null,
+    removeItem: key => values.delete(key)
+  };
+  assert.equal(consumeStartupDiagnostic(storage), "previous startup assertion");
+  assert.equal(consumeStartupDiagnostic(storage), null);
 });

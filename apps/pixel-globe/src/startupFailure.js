@@ -1,4 +1,3 @@
-import { copyCrashReport } from "./crashReport.js";
 import { translate } from "./localization.js";
 import { BUILD_EDITION_ID, BUILD_REVISION } from "./buildEdition.js";
 
@@ -13,7 +12,6 @@ export function startupDiagnostic(error, { occurredAt, edition, url, revision = 
 
 export function reportStartupFailure(error, {
   root = globalThis,
-  copy = copyCrashReport,
   now = () => new Date().toISOString()
 } = {}) {
   const document = root.document;
@@ -35,19 +33,20 @@ export function reportStartupFailure(error, {
   loading.dataset.phase = "bootstrap";
   loading.setAttribute("role", "alert");
   document.querySelector(".shell").setAttribute("aria-busy", "false");
-  document.getElementById("loading-status-text").textContent = translate(language, "crash.startupFailed");
+  document.getElementById("loading-status-text").textContent = translate(language, "recovery.startupFailed");
   const button = document.getElementById("crash-copy-button");
   button.hidden = false;
-  button.textContent = translate(language, "crash.copyDetails");
-  button.onclick = async () => {
-    try {
-      await copy(report);
-      button.textContent = translate(language, "crash.copied");
-    } catch (copyError) {
-      root.console.warn("Startup diagnostic could not be copied", copyError);
-      button.textContent = translate(language, "crash.copyFailed");
-    }
-  };
+  button.textContent = translate(language, "connection.retry");
+  button.onclick = () => root.location.reload();
   button.focus({ preventScroll: true });
+  return report;
+}
+
+export function consumeStartupDiagnostic(storage) {
+  if (!storage || typeof storage.getItem !== "function" || typeof storage.removeItem !== "function") {
+    throw new Error("Startup diagnostic consumption requires storage");
+  }
+  const report = storage.getItem(STARTUP_DIAGNOSTIC_KEY);
+  if (report !== null) storage.removeItem(STARTUP_DIAGNOSTIC_KEY);
   return report;
 }

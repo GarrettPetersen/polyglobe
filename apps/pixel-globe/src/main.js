@@ -1726,12 +1726,19 @@ import {
   reportRuntimeDiagnostic
 } from "./diagnosticMode.js";
 import {
+  consumeSkipAutomaticSavePreparation,
   createRuntimeFaultRecoveryState,
   recordRuntimeFault,
   recordRuntimeFrameSuccess,
-  runtimeFaultSignature
+  requestSkipAutomaticSavePreparation,
+  runtimeFaultSignature,
+  shouldSkipAutomaticSavePreparation
 } from "./runtimeFaultRecovery.js";
 import { copyCrashReport, formatCrashReport } from "./crashReport.js";
+import {
+  consumeStartupDiagnostic,
+  reportStartupFailure
+} from "./startupFailure.js";
 import { fitMeasuredText, wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 import { questJournalWindow, steppedQuestJournalScroll } from "./questJournalLayout.js";
 import { orderQuestJournalEntries } from "./questJournalOrder.js";
@@ -4553,6 +4560,7 @@ const captainMenu = createCaptainMenuState();
 const cheatCodeInput = createCheatCodeInputState();
 
 gameTelemetry.start();
+reportPriorStartupDiagnostic();
 fitCanvasToDisplay();
 window.addEventListener("resize", fitCanvasToDisplay);
 window.visualViewport?.addEventListener("resize", fitCanvasToDisplay);
@@ -4566,13 +4574,13 @@ crashCopyButton.addEventListener("click", () => void copyDisplayedCrashReport())
 window.addEventListener("error", (event) => {
   if (event.error && shouldCaptureGlobalTelemetryError(event.error, event.filename) &&
       !isRuntimeDiagnosticAssertionError(event.error)) {
-    captureUnhandledRuntimeFault(event.error, "event-handler");
+    if (captureUnhandledRuntimeFault(event.error, "event-handler")) event.preventDefault();
   }
 });
 window.addEventListener("unhandledrejection", (event) => {
   if (shouldCaptureGlobalTelemetryError(event.reason) &&
       !isRuntimeDiagnosticAssertionError(event.reason)) {
-    captureUnhandledRuntimeFault(event.reason, "async-handler");
+    if (captureUnhandledRuntimeFault(event.reason, "async-handler")) event.preventDefault();
   }
 });
 steamPlatformBridge?.onPauseRequested(handleSteamPlatformPauseRequest);
@@ -4700,9 +4708,8 @@ main().catch((err) => {
   if (CAPTURE_SCENARIO || PERFORMANCE_BENCHMARK) {
     window.__PIXEL_GLOBE_CAPTURE_ERROR__ = captureAutomationFailure(err);
   }
-  gameTelemetry.captureCrash(err, telemetryCrashContext("startup"));
   capsuleLoadingScreen.fail(err);
-  drawFatalError(err);
+  drawFatalError(err, "Prototype failed to start", telemetryCrashContext("startup"));
 });
 
 async function main() {
@@ -4831,15 +4838,15 @@ async function main() {
     : readLocalSave();
   if (localSaveResult.status === "invalid") {
     console.warn("[pixel-globe] local save is unavailable", localSaveResult.error);
-    gameTelemetry.captureCrash(localSaveResult.error, telemetryCrashContext("save-read"));
-    capsuleLoadingScreen.fail(localSaveResult.error);
-    drawFatalError(
+    captureRecoverableRuntimeDiagnostic(
       localSaveResult.error,
-      "Save could not be read",
+      "save-read-recovered",
+      `save-read-recovered:${runtimeFaultSignature(localSaveResult.error)}`,
       telemetryCrashContext("save-read")
     );
-    return;
   }
+  const skipAutomaticSavePreparation = !CAPTURE_SCENARIO &&
+    savePreparationRecoveryWasRequested();
   voyageHistoryResult = CAPTURE_SCENARIO
     ? { status: "ready", records: [], error: null }
     : readVoyageHistory();
@@ -5337,16 +5344,15 @@ async function main() {
     capsuleLoadingScreen.finish();
     return;
   }
-  if (!CAPTURE_SCENARIO && localSaveResult.status === "ready") {
+  if (!CAPTURE_SCENARIO && localSaveResult.status === "ready" &&
+      !skipAutomaticSavePreparation) {
     startMenu.isLoading = true;
     try {
       await prepareSavedVoyageForMenu(startMenu);
       startMenu.isLoading = false;
     } catch (error) {
       const crashContext = savedVoyageCrashContext(localSaveResult.save.payload);
-      gameTelemetry.captureCrash(error, crashContext);
-      capsuleLoadingScreen.fail(error);
-      drawFatalError(error, "Save could not be loaded", crashContext);
+      recoverSavedVoyageFailure(error, crashContext);
       return;
     }
   } else {
@@ -5383,6 +5389,7 @@ async function main() {
   if (CHART_RECOVERY_TEST_ENABLED) setupChartRecoveryDiagnostic();
   if (!CAPTURE_FRAME_PASS) {
     regularGameLoopStarted = true;
+    if (skipAutomaticSavePreparation) completeSavePreparationRecovery();
     requestAnimationFrame((nowMs) => {
       loop(nowMs);
       capsuleLoadingScreen.finish();
@@ -5806,7 +5813,6 @@ function showWorldAssetRetry() {
       } else {
         dialog.close();
         dialog.remove();
-        gameTelemetry.captureCrash(error, telemetryCrashContext());
         drawFatalError(error, "Prototype runtime failure");
       }
     }
@@ -7205,14 +7211,10 @@ function recoverRuntimeLoopFault(error, nowMs) {
     requestAnimationFrame(loop);
     return true;
   }
-  if (!runtimeRecoveryReloadScheduled) {
-    runtimeRecoveryReloadScheduled = true;
-    // Reload the title instead of persisting a state that may have been only
-    // partly mutated when the assertion fired. The most recent completed
-    // autosave remains available from the title screen.
-    gameTelemetry.stop();
-    setTimeout(() => window.location.reload(), 250);
-  }
+  // Reload the title instead of persisting a state that may have been only
+  // partly mutated when the assertion fired. The most recent completed
+  // autosave remains available from the title screen.
+  scheduleRuntimeTitleRecovery();
   return true;
 }
 
@@ -7228,11 +7230,82 @@ function captureUnhandledRuntimeFault(error, boundary) {
     `${boundary}-recovered`,
     `runtime-recovered:${runtimeFaultSignature(normalized)}`
   );
+  scheduleRuntimeTitleRecovery();
   return true;
 }
 
-function captureRecoverableRuntimeDiagnostic(error, boundary, key) {
-  return gameTelemetry.captureDiagnostic(error, telemetryCrashContext(boundary), {
+function scheduleRuntimeTitleRecovery() {
+  if (runtimeRecoveryReloadScheduled) return false;
+  runtimeRecoveryReloadScheduled = true;
+  keys.clear();
+  clearPointerSteering();
+  gameTelemetry.stop();
+  setTimeout(() => window.location.reload(), 250);
+  return true;
+}
+
+function savePreparationRecoveryWasRequested() {
+  try {
+    return shouldSkipAutomaticSavePreparation(window.sessionStorage);
+  } catch (error) {
+    console.warn("Save recovery request could not be read", error);
+    return false;
+  }
+}
+
+function completeSavePreparationRecovery() {
+  try {
+    consumeSkipAutomaticSavePreparation(window.sessionStorage);
+  } catch (error) {
+    console.warn("Save recovery request could not be cleared", error);
+  }
+}
+
+function recoverSavedVoyageFailure(error, crashContext) {
+  const normalized = error instanceof Error ? error : new Error(String(error));
+  captureRecoverableRuntimeDiagnostic(
+    normalized,
+    "save-restore-recovered",
+    `save-restore-recovered:${runtimeFaultSignature(normalized)}`,
+    crashContext
+  );
+  try {
+    requestSkipAutomaticSavePreparation(window.sessionStorage);
+  } catch (storageError) {
+    console.warn("Save recovery request could not be persisted", storageError);
+    reportStartupFailure(normalized);
+    return false;
+  }
+  // Reload into a clean title-screen world without automatically materializing
+  // this save once. The save itself remains untouched and Continue stays
+  // available so a later build can repair it.
+  scheduleRuntimeTitleRecovery();
+  return true;
+}
+
+function reportPriorStartupDiagnostic() {
+  if (gameTelemetry.consentStatus !== TELEMETRY_CONSENT_GRANTED) return false;
+  try {
+    const report = consumeStartupDiagnostic(window.localStorage);
+    if (report === null) return false;
+    return captureRecoverableRuntimeDiagnostic(
+      new Error(report),
+      "previous-startup-recovered",
+      `previous-startup-recovered:${runtimeFaultSignature(report)}`
+    );
+  } catch (error) {
+    console.warn("Previous startup diagnostic could not be consumed", error);
+    return false;
+  }
+}
+
+function captureRecoverableRuntimeDiagnostic(
+  error,
+  boundary,
+  key,
+  crashContext = telemetryCrashContext(boundary)
+) {
+  return gameTelemetry.captureDiagnostic(error, crashContext, {
     key: `${key}:${BUILD_REVISION}`,
     cooldownMs: RUNTIME_ASSERTION_DIAGNOSTIC_COOLDOWN_MS
   });
@@ -17503,18 +17576,12 @@ async function continueSavedVoyage() {
       dirty = true;
       return;
     }
-    gameTelemetry.captureCrash(error, crashContext);
-    localSaveResult = { status: "invalid", save: null, error };
     if (startMenu === menu) {
       menu.isLoading = false;
       menu.selectedIndex = 0;
       menu.message = "SAVE COULD NOT BE LOADED";
     }
-    drawFatalError(
-      error,
-      "Save could not be loaded",
-      crashContext
-    );
+    recoverSavedVoyageFailure(error, crashContext);
     dirty = true;
   }
 }
@@ -20834,12 +20901,14 @@ function updateTelemetryConsentSelectionFromPoint(point) {
 
 function resolveTelemetryConsent(granted) {
   gameTelemetry.setConsent(granted);
+  if (granted) reportPriorStartupDiagnostic();
   telemetryConsentModal = null;
   dirty = true;
 }
 
 function toggleAnonymousTelemetry() {
   gameTelemetry.setConsent(gameTelemetry.consentStatus !== TELEMETRY_CONSENT_GRANTED);
+  reportPriorStartupDiagnostic();
   dirty = true;
 }
 
@@ -71539,6 +71608,29 @@ function drawFatalError(
   err,
   heading = "Prototype failed to start",
   crashContext = telemetryCrashContext()
+) {
+  if (!diagnosticModeEnabled && !CAPTURE_AUTOMATIC && !PERFORMANCE_BENCHMARK) {
+    const normalized = err instanceof Error ? err : new Error(String(err));
+    captureRecoverableRuntimeDiagnostic(
+      normalized,
+      "fatal-boundary-recovered",
+      `fatal-boundary-recovered:${runtimeFaultSignature(normalized)}`
+    );
+    if (regularGameLoopStarted) scheduleRuntimeTitleRecovery();
+    else reportStartupFailure(normalized);
+    return false;
+  }
+  if (!isRuntimeDiagnosticAssertionError(err)) {
+    gameTelemetry.captureCrash(err, crashContext);
+  }
+  drawDeveloperFatalError(err, heading, crashContext);
+  return true;
+}
+
+function drawDeveloperFatalError(
+  err,
+  heading,
+  crashContext
 ) {
   ctx.fillStyle = "#1d1513";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);

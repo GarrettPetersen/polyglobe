@@ -1,6 +1,7 @@
 export default {
   "connection.paused": "Verbindung unterbrochen. Deine Reise pausiert, solange erforderliche Grafiken nicht verfügbar sind.",
   "connection.retry": "ERNEUT VERSUCHEN",
+  "recovery.startupFailed": "IM SPIEL IST EIN FEHLER AUFGETRETEN. DEIN SPIELSTAND IST SICHER. VERSUCHE ES ERNEUT.",
   "language.english": "Englisch",
   "language.chineseSimplified": "Chinesisch (vereinfacht)",
   "language.russian": "Russisch",

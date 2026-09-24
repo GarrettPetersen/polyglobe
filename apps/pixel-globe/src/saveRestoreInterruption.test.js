@@ -93,17 +93,16 @@ test("a failed restore reports the attempted ship and quest without overwriting 
     restoreSavedVoyage: async () => { throw failure; },
     isTransientStaticAssetError: () => false,
     console: { warn() {} },
-    gameTelemetry: { captureCrash: (error, context) => captured.push({ error, context }) },
-    drawFatalError: (error, heading, context) => captured.push({ error, context, heading })
+    recoverSavedVoyageFailure: (error, context) => captured.push({ error, context })
   };
   await liveFunctions(["prepareSavedVoyageForMenu", "continueSavedVoyage"], runtime).continueSavedVoyage();
-  assert.equal(captured.length, 2);
+  assert.equal(captured.length, 1, "one guarded runtime boundary owns reporting and recovery");
   for (const { error, context } of captured) {
     assert.equal(error, failure);
     assert.deepEqual(context, { screen: "save-restore", mainQuest: "explorer", ship: "galleon", redact: ["Private Captain"] });
   }
   assert.equal(JSON.stringify(payload), before);
-  assert.equal(runtime.localSaveResult.status, "invalid");
+  assert.equal(runtime.localSaveResult.status, "ready", "failed restoration must not discard the save reference");
 });
 
 test("incomplete save diagnostics explicitly identify unknown metadata", () => {

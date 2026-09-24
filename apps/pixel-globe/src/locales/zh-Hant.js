@@ -1,6 +1,7 @@
 export default {
   "connection.paused": "連線中斷。所需圖像尚未載入，航程已暫停。",
   "connection.retry": "重試",
+  "recovery.startupFailed": "遊戲發生錯誤。您的存檔安然無恙。請再試一次。",
   "language.english": "英文",
   "language.chineseSimplified": "簡體中文",
   "language.russian": "俄文",

@@ -1,6 +1,7 @@
 export default {
   "connection.paused": "Połączenie przerwane. Podróż jest wstrzymana, dopóki wymagane grafiki są niedostępne.",
   "connection.retry": "SPRÓBUJ PONOWNIE",
+  "recovery.startupFailed": "W GRZE WYSTĄPIŁ BŁĄD. TWÓJ ZAPIS JEST BEZPIECZNY. SPRÓBUJ PONOWNIE.",
   "language.english": "Angielski",
   "language.chineseSimplified": "Chiński uproszczony",
   "language.russian": "Rosyjski",

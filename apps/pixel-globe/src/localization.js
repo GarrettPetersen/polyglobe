@@ -99,6 +99,7 @@ const ENGLISH = Object.freeze({
   "options.diagnosticMode": "DIAGNOSTIC MODE",
   "connection.paused": "Connection interrupted. Your voyage is paused while required artwork is unavailable.",
   "connection.retry": "TRY AGAIN",
+  "recovery.startupFailed": "THE GAME HIT AN ERROR. YOUR SAVE IS SAFE. TRY AGAIN.",
   "crash.copyDetails": "COPY CRASH DETAILS",
   "crash.startupFailed": "THE GAME COULD NOT START. COPY THE ERROR DETAILS BELOW.",
   "crash.copied": "CRASH DETAILS COPIED",
@@ -717,6 +718,7 @@ const ENGLISH = Object.freeze({
 const CHINESE_SIMPLIFIED = Object.freeze({
   "connection.paused": "连接中断。所需图像尚未加载，航程已暂停。",
   "connection.retry": "重试",
+  "recovery.startupFailed": "游戏遇到错误。您的存档安全无损。请重试。",
   "language.english": "英文",
   "language.chineseSimplified": "简体中文",
   "language.russian": "俄语",
@@ -1397,6 +1399,7 @@ const CHINESE_SIMPLIFIED = Object.freeze({
 const JAPANESE = Object.freeze({
   "connection.paused": "接続が切れました。必要な画像を読み込めるまで航海を一時停止しています。",
   "connection.retry": "再試行",
+  "recovery.startupFailed": "ゲームでエラーが発生しました。セーブデータは安全です。もう一度お試しください。",
   "language.english": "英語",
   "language.chineseSimplified": "簡体字中国語",
   "language.russian": "ロシア語",
