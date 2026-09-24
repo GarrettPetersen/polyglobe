@@ -4,9 +4,21 @@ import test from "node:test";
 import {
   MARKET_PURSE_FEEDBACK_DURATION_MS,
   createMarketPurseFeedbackState,
+  marketPurseOverlayRect,
   marketPurseFeedbackEntries,
   recordMarketPurseTransaction
 } from "./marketPurseFeedback.js";
+
+test("market purse stays in the screen corner outside either market modal layout", () => {
+  for (const [screenWidth, screenHeight] of [[455, 256], [256, 455]]) {
+    assert.deepEqual(marketPurseOverlayRect({
+      screenWidth,
+      screenHeight,
+      width: 104,
+      height: 20
+    }), { x: 5, y: 5, w: 104, h: 20 });
+  }
+});
 
 test("rapid market transactions remain separate and drift in a compact pile", () => {
   const state = createMarketPurseFeedbackState();

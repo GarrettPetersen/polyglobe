@@ -23,6 +23,7 @@ import { questOfferDirections } from "./questOfferDirections.js";
 import {
   createMarketPurseFeedbackState,
   marketPurseFeedbackEntries,
+  marketPurseOverlayRect,
   recordMarketPurseTransaction
 } from "./marketPurseFeedback.js";
 import { activeQuests } from "./activeQuests.js";
@@ -3115,7 +3116,6 @@ const DIALOGUE_FLAG_H = FACTION_FLAG_SOURCE_H;
 const DIALOGUE_FACTION_BLOCK_W = 128;
 const MARKET_PURSE_W = 104;
 const MARKET_PURSE_H = 20;
-const MARKET_PURSE_SPEAKER_GAP = 14;
 const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
 const LAND_VEHICLE_ASSET_VERSION = "land-vehicle-2";
 const LAND_VEHICLE_ASSET_TYPES = new Set([
@@ -22644,7 +22644,6 @@ function createDialogueLayoutState() {
     optionRects: [],
     scrollOffset: 0,
     marketReturnPosition: null,
-    marketPurseRect: null,
     crewPageSize: 0,
     previousRect: null,
     nextRect: null,
@@ -22659,7 +22658,6 @@ function createDialogueLayoutState() {
 
 function invalidateDialogueOptionGeometry() {
   dialogueLayout.optionRects = [];
-  dialogueLayout.marketPurseRect = null;
   dialogueLayout.crewPageSize = 0;
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
@@ -68286,8 +68284,8 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
     : optionW;
   const speakerW = compactMarketSwitch
     ? (narrowMarket
-        ? panelW - MARKET_PURSE_W - MARKET_PURSE_SPEAKER_GAP - 18
-        : panelW - MARKET_PURSE_W - MARKET_PURSE_SPEAKER_GAP - 130)
+        ? panelW - 18
+        : panelW - 130)
     : portFaction ? factionBlockX - panelX - 16 : panelW - 18;
   const speakerLayout = controlTextLayout({
     label: renderedUiText(view.speaker),
@@ -68359,9 +68357,6 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
     contentHeight
   });
   const panel = geometry.panel;
-  dialogueLayout.marketPurseRect = compactMarketSwitch
-    ? { x: panel.x + 8, y: panel.y + 6, w: MARKET_PURSE_W, h: MARKET_PURSE_H }
-    : null;
   const optionBottom = panel.y + panel.h - 9;
   const compactMarketLayout = compactMarketSwitch
     ? compactMarketDialogueLayout({
@@ -68436,7 +68431,7 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   speakerLayout.lines.forEach((line, index) => {
     drawPixelText(
       line,
-      panel.x + (compactMarketSwitch ? MARKET_PURSE_W + MARKET_PURSE_SPEAKER_GAP : 8),
+      panel.x + 8,
       panel.y + 8 + index * dialogueLineHeight,
       {
       font: speakerFont
@@ -68509,8 +68504,12 @@ function selectedMarketOptionContext(view, regularEntries) {
 
 function drawMarketPurseOverlay(nowMs, view) {
   if (view.presentation?.kind !== "market") return;
-  const rect = dialogueLayout.marketPurseRect;
-  if (!rect) throw new Error("Market purse has no dialogue layout");
+  const rect = marketPurseOverlayRect({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    width: MARKET_PURSE_W,
+    height: MARKET_PURSE_H
+  });
   if (!statusHudImages?.doubloon) throw new Error("Market purse requires the doubloon icon");
 
   ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
