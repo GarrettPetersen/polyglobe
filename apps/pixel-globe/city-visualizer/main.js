@@ -1,5 +1,6 @@
 import { cityAssaultWaterDepthPx, cityGateGroundFeetY } from "./cityAssaultGround.js";
 import { loadImageWithRetry } from "../src/assetImageLoader.js";
+import { isRuntimeDiagnosticAssertionError } from "../src/diagnosticMode.js";
 import { PORT_ASSAULT_TRACK_START_X } from "../src/portAssaultGround.js";
 import { PORT_ASSAULT_LANE_SPACING } from "../src/portAssaultFormation.js";
 import { spriteSplinterColors } from "../src/hullSplinters.js";
@@ -300,7 +301,8 @@ export async function createCitySceneRuntime({
   onDestination = null,
   renderText = (text) => text,
   smallFontForText = (_text) => CITY_PIXEL_FONT_SMALL_8,
-  titleFontForText = (_text) => CITY_PIXEL_FONT_TITLE_8
+  titleFontForText = (_text) => CITY_PIXEL_FONT_TITLE_8,
+  reportPresentationFailure = null
 } = {}) {
 if (!(canvas instanceof HTMLCanvasElement)) {
   throw new TypeError("City scene runtime requires an HTML canvas");
@@ -314,6 +316,9 @@ for (const [label, callback] of Object.entries({ renderText, smallFontForText, t
 if (typeof onDestination !== "function") {
   throw new TypeError("City scene runtime requires a destination callback");
 }
+if (reportPresentationFailure !== null && typeof reportPresentationFailure !== "function") {
+  throw new TypeError("City scene runtime requires a presentation reporter");
+}
 const context = canvas.getContext("2d", { alpha: false });
 if (!context) throw new Error("City scene runtime could not create its 2D canvas context");
 const emissiveCanvas = separateEmissiveOverlay ? document.createElement("canvas") : null;
@@ -321,9 +326,17 @@ const emissiveContext = emissiveCanvas?.getContext("2d") || null;
 if (separateEmissiveOverlay && !emissiveContext) {
   throw new Error("City scene runtime could not create its emissive overlay context");
 }
-const pixelText = createCityPixelTextRenderer(context, () => document.createElement("canvas"));
+const pixelText = createCityPixelTextRenderer(
+  context,
+  () => document.createElement("canvas"),
+  reportPresentationFailure
+);
 const overlayPixelText = emissiveContext
-  ? createCityPixelTextRenderer(emissiveContext, () => document.createElement("canvas"))
+  ? createCityPixelTextRenderer(
+    emissiveContext,
+    () => document.createElement("canvas"),
+    reportPresentationFailure
+  )
   : pixelText;
 const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const imageCache = new Map();
@@ -4712,10 +4725,29 @@ function refreshDestinationLabelLayouts() {
 }
 
 function drawSceneLabels() {
-  drawCityNameLabel();
+  try {
+    drawCityNameLabel();
+  } catch (error) {
+    recoverCityPresentation(error, "city-name-label");
+  }
   if (state.feast && (state.feast.phase !== "afterwards" || state.feast.elapsedMs < 3000)) return;
-  drawSetSailControl();
-  drawDestinationLabels();
+  try {
+    drawSetSailControl();
+  } catch (error) {
+    recoverCityPresentation(error, "city-set-sail-label");
+  }
+  try {
+    drawDestinationLabels();
+  } catch (error) {
+    recoverCityPresentation(error, "city-destination-labels");
+  }
+}
+
+function recoverCityPresentation(error, diagnosticKey) {
+  if (typeof reportPresentationFailure !== "function" || isRuntimeDiagnosticAssertionError(error)) {
+    throw error;
+  }
+  reportPresentationFailure(error, diagnosticKey);
 }
 
 function drawCityNameLabel() {
@@ -4843,23 +4875,34 @@ function drawDestinationLabels() {
   const highlightedDestination = state.hoveredDestination ||
     destinationById(state.focusedDestinationId);
   targetContext.save();
-  targetContext.imageSmoothingEnabled = false;
-  for (const label of state.destinationLabelLayouts) {
-    drawDestinationLeader(
-      targetContext,
-      label,
-      highlightedDestination?.id === label.id
-    );
+  try {
+    targetContext.imageSmoothingEnabled = false;
+    for (const label of state.destinationLabelLayouts) {
+      try {
+        drawDestinationLeader(
+          targetContext,
+          label,
+          highlightedDestination?.id === label.id
+        );
+      } catch (error) {
+        recoverCityPresentation(error, "city-destination-leader");
+      }
+    }
+    for (const label of state.destinationLabelLayouts) {
+      try {
+        const highlighted = highlightedDestination?.id === label.id;
+        drawDestinationLabelPlate(targetContext, label, highlighted);
+        overlayPixelText.draw(label.label, label.x + 3, label.y + 1, {
+          color: PIRATE_MENU_INK,
+          font: label.font
+        });
+      } catch (error) {
+        recoverCityPresentation(error, "city-destination-label");
+      }
+    }
+  } finally {
+    targetContext.restore();
   }
-  for (const label of state.destinationLabelLayouts) {
-    const highlighted = highlightedDestination?.id === label.id;
-    drawDestinationLabelPlate(targetContext, label, highlighted);
-    overlayPixelText.draw(label.label, label.x + 3, label.y + 1, {
-      color: PIRATE_MENU_INK,
-      font: label.font
-    });
-  }
-  targetContext.restore();
 }
 
 function drawDestinationLabelPlate(targetContext, label, highlighted) {

@@ -1734,6 +1734,7 @@ import {
   runtimeFaultSignature,
   shouldSkipAutomaticSavePreparation
 } from "./runtimeFaultRecovery.js";
+import { createPresentationRecovery } from "./presentationRecovery.js";
 import { copyCrashReport, formatCrashReport } from "./crashReport.js";
 import {
   consumeStartupDiagnostic,
@@ -4765,7 +4766,14 @@ async function main() {
       onDestination: activatePortCityDestination,
       renderText: renderedUiText,
       smallFontForText: (text) => resolvedPixelFont(PIXEL_FONT_SMALL_8, text),
-      titleFontForText: (text) => languageTitleFont(currentLanguage, text)
+      titleFontForText: (text) => languageTitleFont(currentLanguage, text),
+      reportPresentationFailure: (error, diagnosticKey) => {
+        if (diagnosticKey === "city-pixel-text-empty-raster") {
+          reportRuntimeDiagnosticAssertion(error.message, diagnosticKey);
+          return;
+        }
+        recoverPresentationError(error, diagnosticKey);
+      }
     }))
   ]);
   const initializationReady = Promise.all([shellReady, startupAssets]);
@@ -46555,44 +46563,48 @@ function drawWorldInterface(nowMs) {
     characterAlertActive: Boolean(captainAlertModal)
   });
   if (!dialogueVisible && !portCityView?.sceneReady) {
-    drawLandmarkDiscoveryIndicators(nowMs);
-    drawWhaleKillingBlowIndicator(nowMs);
-    drawOverboardCrewLabels(nowMs);
-    drawCombatBroadsideControls();
-    drawSelectableInteractionOutlines(nowMs);
-    drawWindIndicator(nowMs);
-    if (minimapShouldBeVisible()) drawMinimap(nowMs);
-    drawSurvivalMeters();
-    drawStatusPersonParticles(nowMs);
-    drawStormStatus(nowMs);
-    drawCombatNotice(nowMs);
-    drawOffscreenCannonCues(nowMs);
-    drawFishCatchNotice(nowMs);
-    drawSurvivalNotice(nowMs);
-    if (portWaitState) {
-      drawPortWaitControls(nowMs);
-    } else {
-      drawAnchorButton(nowMs);
-      drawScavengeButton();
-      drawInteractionButton();
+    presentInterfaceWidget("landmark-discovery-indicators", () => drawLandmarkDiscoveryIndicators(nowMs));
+    presentInterfaceWidget("whale-killing-blow", () => drawWhaleKillingBlowIndicator(nowMs));
+    presentInterfaceWidget("overboard-crew-labels", () => drawOverboardCrewLabels(nowMs));
+    presentInterfaceWidget("combat-broadside-controls", () => drawCombatBroadsideControls());
+    presentInterfaceWidget("interaction-outlines", () => drawSelectableInteractionOutlines(nowMs));
+    presentInterfaceWidget("wind-indicator", () => drawWindIndicator(nowMs));
+    if (minimapShouldBeVisible()) {
+      presentInterfaceWidget("minimap", () => drawMinimap(nowMs));
     }
-    beginWaypointArrowFrame();
-    drawFishingTradeTutorialArrow(nowMs);
-    drawQuestDestinationArrow(nowMs);
-    drawQuestShipArrows(nowMs);
-    drawRescuedTravelerDestinationArrows(nowMs);
-    drawFetchQuestDestinationArrows(nowMs);
-    drawShipyardDividendDestinationArrows(nowMs);
-    drawColonizationDestinationArrow(nowMs);
-    drawCampaignGoalDestinationArrow(nowMs);
-    drawNaturalistDestinationArrow(nowMs);
-    drawPapalCommissionDestinationArrow(nowMs);
-    drawHospitallerMaltaDestinationArrow(nowMs);
-    drawPortNavigationHeadingArrow(nowMs);
-    drawWaypointArrowTooltip();
-    drawSurvivalHudTooltip();
-    drawDiscoveryNotice(nowMs);
-    if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
+    presentInterfaceWidget("survival-meters", () => drawSurvivalMeters());
+    presentInterfaceWidget("status-person-particles", () => drawStatusPersonParticles(nowMs));
+    presentInterfaceWidget("storm-status", () => drawStormStatus(nowMs));
+    presentInterfaceWidget("combat-notice", () => drawCombatNotice(nowMs));
+    presentInterfaceWidget("offscreen-cannon-cues", () => drawOffscreenCannonCues(nowMs));
+    presentInterfaceWidget("fish-catch-notice", () => drawFishCatchNotice(nowMs));
+    presentInterfaceWidget("survival-notice", () => drawSurvivalNotice(nowMs));
+    if (portWaitState) {
+      presentInterfaceWidget("port-wait-controls", () => drawPortWaitControls(nowMs));
+    } else {
+      presentInterfaceWidget("anchor-button", () => drawAnchorButton(nowMs));
+      presentInterfaceWidget("scavenge-button", () => drawScavengeButton());
+      presentInterfaceWidget("interaction-button", () => drawInteractionButton());
+    }
+    presentInterfaceWidget("waypoint-arrow-frame", () => beginWaypointArrowFrame());
+    presentInterfaceWidget("fishing-tutorial-arrow", () => drawFishingTradeTutorialArrow(nowMs));
+    presentInterfaceWidget("quest-destination-arrow", () => drawQuestDestinationArrow(nowMs));
+    presentInterfaceWidget("quest-ship-arrows", () => drawQuestShipArrows(nowMs));
+    presentInterfaceWidget("rescued-traveler-arrows", () => drawRescuedTravelerDestinationArrows(nowMs));
+    presentInterfaceWidget("fetch-quest-arrows", () => drawFetchQuestDestinationArrows(nowMs));
+    presentInterfaceWidget("shipyard-dividend-arrows", () => drawShipyardDividendDestinationArrows(nowMs));
+    presentInterfaceWidget("colonization-arrow", () => drawColonizationDestinationArrow(nowMs));
+    presentInterfaceWidget("campaign-goal-arrow", () => drawCampaignGoalDestinationArrow(nowMs));
+    presentInterfaceWidget("naturalist-arrow", () => drawNaturalistDestinationArrow(nowMs));
+    presentInterfaceWidget("papal-commission-arrow", () => drawPapalCommissionDestinationArrow(nowMs));
+    presentInterfaceWidget("hospitaller-arrow", () => drawHospitallerMaltaDestinationArrow(nowMs));
+    presentInterfaceWidget("port-navigation-arrow", () => drawPortNavigationHeadingArrow(nowMs));
+    presentInterfaceWidget("waypoint-tooltip", () => drawWaypointArrowTooltip());
+    presentInterfaceWidget("survival-hud-tooltip", () => drawSurvivalHudTooltip());
+    presentInterfaceWidget("discovery-notice", () => drawDiscoveryNotice(nowMs));
+    if (DEBUG_STATUS_ENABLED) {
+      presentInterfaceWidget("debug-status", () => drawTinyStatus(nowMs));
+    }
   }
   if (dialogueVisible) {
     measurePerformanceBenchmarkStage("render.dialogue", () => drawDialogueOverlay(nowMs));
@@ -46635,10 +46647,10 @@ function drawWorldInterface(nowMs) {
     measurePerformanceBenchmarkStage("render.options", drawOptionsMenu);
   }
   if (captainMenu.isOpen) drawCaptainNotebookChrome();
-  drawItemAcquisitionEffects(nowMs);
-  drawAchievementNotice(nowMs);
-  drawSavePersistenceWarning();
-  drawStormLightningFlash(nowMs);
+  presentInterfaceWidget("item-acquisition", () => drawItemAcquisitionEffects(nowMs));
+  presentInterfaceWidget("achievement-notice", () => drawAchievementNotice(nowMs));
+  presentInterfaceWidget("save-persistence-warning", () => drawSavePersistenceWarning());
+  presentInterfaceWidget("storm-lightning-flash", () => drawStormLightningFlash(nowMs));
   if (telemetryConsentModal) drawTelemetryConsentModal();
   if (sceneTimeCut) drawPortCityTransitionOverlay(nowMs);
   if (diagnosticModeEnabled) drawFrameRateOverlay();
@@ -48507,17 +48519,31 @@ function reportRuntimeDiagnosticAssertion(message, diagnosticKey) {
   });
 }
 
+let presentationRecoveryController = null;
+
+function presentationRecovery() {
+  presentationRecoveryController ??= createPresentationRecovery({
+    isDiagnosticMode: () => diagnosticModeEnabled || CAPTURE_AUTOMATIC || PERFORMANCE_BENCHMARK,
+    report: (error, diagnosticKey) => {
+      console.error(error);
+      captureRecoverableRuntimeDiagnostic(
+        error,
+        "presentation-recovered",
+        `presentation-recovered:${diagnosticKey}`
+      );
+    }
+  });
+  return presentationRecoveryController;
+}
+
+function presentInterfaceWidget(diagnosticKey, operation) {
+  return presentationRecovery().present(diagnosticKey, operation).value;
+}
+
 function recoverPresentationError(error, diagnosticKey) {
-  const normalized = error instanceof Error ? error : new Error(String(error));
-  if (diagnosticModeEnabled || CAPTURE_AUTOMATIC || PERFORMANCE_BENCHMARK) {
-    throw normalized;
-  }
-  console.error(normalized);
-  captureRecoverableRuntimeDiagnostic(
-    normalized,
-    "presentation-recovered",
-    `presentation-recovered:${diagnosticKey}`
-  );
+  presentInterfaceWidget(diagnosticKey, () => {
+    throw error instanceof Error ? error : new Error(String(error));
+  });
   return false;
 }
 

@@ -6,6 +6,7 @@ import {
   createCanvas,
   registerFont
 } from "../../../examples/globe-demo/node_modules/canvas/index.js";
+import { RuntimeDiagnosticAssertionError } from "../src/diagnosticMode.js";
 import {
   CITY_PIXEL_FONT_TITLE_8,
   CITY_PORT_TITLE_Y,
@@ -93,3 +94,81 @@ test("port titles remain at the pixel font's native scale and centered below the
   assert.equal(longTitle.x, 67);
   assert.equal(longTitle.scale, 1);
 });
+
+test("transparent city paint still draws from an opaque glyph mask", () => {
+  const canvas = createCanvas(128, 48);
+  const context = canvas.getContext("2d");
+  const renderer = createCityPixelTextRenderer(context, () => createCanvas(1, 1));
+  const faded = renderer.draw("INN", 4, 6, {
+    color: "rgba(0, 0, 0, 0)",
+    font: CITY_PIXEL_FONT_TITLE_8
+  });
+  assert.ok(faded.width > 0);
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  renderer.draw("INN", 4, 6, { color: "#ff0000", font: CITY_PIXEL_FONT_TITLE_8 });
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  let opaqueRedPixels = 0;
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    if (pixels[offset] > 200 && pixels[offset + 3] === 255) opaqueRedPixels += 1;
+  }
+  assert.ok(opaqueRedPixels > 0, "requested color must paint the opaque glyph mask");
+});
+
+test("an empty city glyph mask reports and omits the text when recovery is installed", () => {
+  const reports = [];
+  const canvas = createCanvas(64, 32);
+  const renderer = createCityPixelTextRenderer(
+    canvas.getContext("2d"),
+    silentCanvas,
+    (error, diagnosticKey) => reports.push({ message: error.message, diagnosticKey })
+  );
+  const omitted = renderer.draw("INN", 1.2, 2.2, { font: CITY_PIXEL_FONT_TITLE_8 });
+  assert.equal(reports.length, 1);
+  assert.equal(reports[0].diagnosticKey, "city-pixel-text-empty-raster");
+  assert.match(reports[0].message, /no opaque glyphs: INN/);
+  assert.ok(omitted.width >= 0);
+
+  const loud = createCityPixelTextRenderer(canvas.getContext("2d"), silentCanvas);
+  assert.throws(() => loud.draw("INN", 0, 0, { font: CITY_PIXEL_FONT_TITLE_8 }), /no opaque glyphs/);
+});
+
+test("city pixel text reports an invalid draw and stays loud for diagnostic assertions", () => {
+  const reports = [];
+  const canvas = createCanvas(64, 32);
+  const recovered = createCityPixelTextRenderer(
+    canvas.getContext("2d"),
+    () => createCanvas(1, 1),
+    (_error, diagnosticKey) => reports.push(diagnosticKey)
+  );
+  assert.deepEqual(
+    recovered.draw("INN", 1.4, 2.6, { scale: 1.5, font: CITY_PIXEL_FONT_TITLE_8 }),
+    { x: 1, y: 3, width: 0, height: 0 }
+  );
+  assert.deepEqual(reports, ["city-pixel-text-render"]);
+
+  const diagnostic = createCityPixelTextRenderer(
+    canvas.getContext("2d"),
+    silentCanvas,
+    (error, diagnosticKey) => {
+      throw new RuntimeDiagnosticAssertionError(error.message, diagnosticKey);
+    }
+  );
+  assert.throws(
+    () => diagnostic.draw("INN", 0, 0, { font: CITY_PIXEL_FONT_TITLE_8 }),
+    (error) => error instanceof RuntimeDiagnosticAssertionError &&
+      error.diagnosticKey === "city-pixel-text-empty-raster"
+  );
+});
+
+function silentCanvas() {
+  const canvas = createCanvas(64, 64);
+  const context = canvas.getContext("2d");
+  context.fillText = () => {};
+  const getContext = canvas.getContext.bind(canvas);
+  canvas.getContext = (...args) => {
+    const next = getContext(...args);
+    next.fillText = () => {};
+    return next;
+  };
+  return canvas;
+}

@@ -1,3 +1,4 @@
+import { isRuntimeDiagnosticAssertionError } from "../src/diagnosticMode.js";
 import {
   hardenPixelTextAlpha,
   pixelFontCompatibleText,
@@ -27,12 +28,15 @@ export function cityPortTitleLayout({ textWidth, textHeight, viewportWidth }) {
 
 const RASTER_CACHE_LIMIT = 128;
 
-export function createCityPixelTextRenderer(context, createCanvas) {
+export function createCityPixelTextRenderer(context, createCanvas, reportPresentationFailure = null) {
   if (!context || typeof context.drawImage !== "function") {
     throw new Error("City pixel text requires a canvas context");
   }
   if (typeof createCanvas !== "function") {
     throw new Error("City pixel text requires a canvas factory");
+  }
+  if (reportPresentationFailure !== null && typeof reportPresentationFailure !== "function") {
+    throw new Error("City pixel text recovery requires a reporter");
   }
 
   const rasterCache = new Map();
@@ -60,6 +64,21 @@ export function createCityPixelTextRenderer(context, createCanvas) {
   }
 
   function draw(text, x, y, options = {}) {
+    try {
+      return drawText(text, x, y, options);
+    } catch (error) {
+      if (!reportPresentationFailure || isRuntimeDiagnosticAssertionError(error)) throw error;
+      reportPresentationFailure(error, "city-pixel-text-render");
+      return Object.freeze({
+        x: Math.round(Number(x) || 0),
+        y: Math.round(Number(y) || 0),
+        width: 0,
+        height: 0
+      });
+    }
+  }
+
+  function drawText(text, x, y, options = {}) {
     const font = options.font || CITY_PIXEL_FONT_SMALL_8;
     const color = options.color || "#ffffff";
     const wordSpacingPx = requireWordSpacing(options.wordSpacingPx);
@@ -103,12 +122,16 @@ export function createCityPixelTextRenderer(context, createCanvas) {
     scratch.font = font;
     scratch.textAlign = "left";
     scratch.textBaseline = "alphabetic";
-    scratch.fillStyle = color;
+    // Rasterize the glyph shape independently from its paint. A fade or other
+    // transparent fill must not look like a missing font to the raster check.
+    scratch.fillStyle = "#ffffff";
     drawTextWithWordSpacing(scratch, text, layout.padding, layout.baselineY, wordSpacingPx);
     const imageData = scratch.getImageData(layout.padding, layout.padding, Math.max(1, width), layout.height);
     const opaquePixels = hardenPixelTextAlpha(imageData.data);
     if (text.trim().length > 0 && opaquePixels === 0) {
-      throw new Error(`City pixel text raster contains no opaque glyphs: ${text}`);
+      const error = new Error(`City pixel text raster contains no opaque glyphs: ${text}`);
+      if (!reportPresentationFailure) throw error;
+      reportPresentationFailure(error, "city-pixel-text-empty-raster");
     }
     const output = createCanvas();
     output.width = Math.max(1, width);
@@ -117,6 +140,10 @@ export function createCityPixelTextRenderer(context, createCanvas) {
     if (!outputContext) throw new Error(`Could not create city pixel text raster: ${text}`);
     outputContext.imageSmoothingEnabled = false;
     outputContext.putImageData(imageData, 0, 0);
+    outputContext.globalCompositeOperation = "source-in";
+    outputContext.fillStyle = color;
+    outputContext.fillRect(0, 0, output.width, output.height);
+    outputContext.globalCompositeOperation = "source-over";
     cache(rasterCache, key, output);
     return output;
   }
