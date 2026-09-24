@@ -86,8 +86,27 @@ test("mode exits discard city views, pending wipes and stale selection work with
     assert.equal(context.portCitySceneSelectionSerial, 5, "invalidate pending scene selections even without an active view");
     assert.equal(context.worldFramePresented, false);
   }
-  for (const name of ["closeLakeBattleModeToStartMenu", "returnToStartMenuFromOptions", "restoreSavedVoyage"]) {
+  for (const name of ["closeLakeBattleModeToStartMenu", "returnToStartMenu", "restoreSavedVoyage"]) {
     assert.match(declaration(name), /releaseDialogueSession\(\{ destination: "sailing", animate: false \}\)/, `${name} must discard the previous mode's city`);
+  }
+  assert.match(declaration("returnToStartMenuFromOptions"), /returnToStartMenu\(\)/);
+  assert.match(declaration("returnToStartMenuFromCaptain"), /returnToStartMenu\(\)/);
+});
+
+test("captain menu return reports a failed save and delegates a successful return", () => {
+  const declaration = source.statements.find(node => (
+    ts.isFunctionDeclaration(node) && node.name?.text === "returnToStartMenuFromCaptain"
+  )).getText(source);
+  for (const succeeds of [false, true]) {
+    const context = {
+      captainMenu: { isOpen: true, returnError: "old" },
+      dirty: false,
+      returnToStartMenu: () => succeeds
+    };
+    const result = runInNewContext(`${declaration}\nreturnToStartMenuFromCaptain();`, context);
+    assert.equal(result, succeeds);
+    assert.equal(context.captainMenu.returnError, succeeds ? null : "SAVE FAILED - TRY AGAIN");
+    assert.equal(context.dirty, !succeeds);
   }
 });
 
@@ -107,7 +126,7 @@ for (const saveSucceeds of [true, false]) {
       createStartMenuState: () => ({}), syncCanvasAriaLabel() {}, clearPointerSteering() {},
       capturePresentedFrame: () => assert.fail("menu exit must not create an old-city wipe")
     };
-    const functions = ["returnToStartMenuFromOptions", "releaseDialogueSession", "deactivatePortCityView"]
+    const functions = ["returnToStartMenuFromOptions", "returnToStartMenu", "releaseDialogueSession", "deactivatePortCityView"]
       .map(name => source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name).getText(source)).join("\n");
     const result = runInNewContext(`${functions}\nreturnToStartMenuFromOptions();`, context);
     assert.equal(result, saveSucceeds);

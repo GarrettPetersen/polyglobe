@@ -94,8 +94,14 @@ export function activeCityDestinations({
 
 // Normal arrivals focus the moored ship. Closed quays and active assaults expose
 // only departure; read-only story scenes expose no navigation at all.
-export function initialCityDestinationId(destinations) {
+export function initialCityDestinationId(destinations, { guidedDestinationId = null } = {}) {
   const ids = validateCityDestinationIds(destinations.map(destination => destination.id));
+  if (guidedDestinationId !== null) {
+    if (typeof guidedDestinationId !== "string" || !ids.has(guidedDestinationId)) {
+      throw new Error(`Guided city destination is unavailable: ${guidedDestinationId}`);
+    }
+    return guidedDestinationId;
+  }
   if (ids.size === 0) return null;
   if (ids.has(PORT_CITY_LOCATION.SHIP)) return PORT_CITY_LOCATION.SHIP;
   if (ids.has(PORT_CITY_LOCATION.SET_SAIL)) return PORT_CITY_LOCATION.SET_SAIL;

@@ -5665,6 +5665,10 @@ function shouldOfferPortugueseCartazForMarket(
 ) {
   if (session.disguisedEntry || session.portugueseCartazMarketOfferDeclined) return false;
   if (session.illicitTradeAccessPolicyId === PORTUGUESE_CROWN_SPICE_POLICY_ID) return false;
+  return portugueseCartazMarketOfferRequired(city, gameState, economy, context);
+}
+
+export function portugueseCartazMarketOfferRequired(city, gameState, economy, context) {
   if (!isPortugueseEstadoPort(city, gameState.relations.foreignSettlementExpulsions)) return false;
   const status = portugueseCartazStatus(
     gameState,

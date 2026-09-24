@@ -21,6 +21,18 @@ import { createWorldMutationBoundary, dispatchActionEffects } from "./runtimeTra
 import { runShipReplacement } from "./shipReplacementLifecycle.js";
 import { questOfferDirections } from "./questOfferDirections.js";
 import { activeQuests } from "./activeQuests.js";
+import {
+  FISHING_TRADE_TUTORIAL_STAGE,
+  activateFishingTradeTutorial,
+  advanceFishingTradeTutorialToMarket,
+  arriveAtFishingTradeTutorialMarket,
+  beginFishingTradeTutorialCatch,
+  completeFishingTradeTutorial,
+  createFishingTradeTutorialMemory,
+  fishingTradeTutorialPracticeComplete,
+  fishingTradeTutorialTargetsFishery,
+  openFishingTradeTutorialMarket
+} from "./fishingTradeTutorial.js";
 import { shipyardUpgradeCardLayout } from "./shipyardUpgradeLayout.js";
 import { commissionedShipyard, reservedSupplyShipyard, unannouncedShipyardUpgrades } from "./shipyardUpgrades.js";
 import { shipyardSupplyShipStatus, snapshotShipyardSupplyShips, restoreShipyardSupplyShips, updateShipyardSupplyOffers } from "./npcSeaRoutes.js";
@@ -1150,6 +1162,7 @@ import {
   prepareDamageSurrenderDialogue,
   preparePassengerDialogueArrival,
   prepareSurrenderPrizeDialogue,
+  portugueseCartazMarketOfferRequired,
   restorePortDialogueCityIdentity,
   returnPortDialogueToCity,
   selectPassengerDialogueOption,
@@ -3411,6 +3424,8 @@ const CAPTAIN_MENU_ACTIONS = Object.freeze([
   Object.freeze({ id: "sailing-basics", labelKey: "captain.tab.sailing", iconId: "action:quest" }),
   Object.freeze({ id: "options", labelKey: "captain.tab.options", iconId: "menu:options" })
 ]);
+const CAPTAIN_MENU_RETURN_INDEX = CAPTAIN_MENU_ACTIONS.length;
+const CAPTAIN_MENU_CONTROL_COUNT = CAPTAIN_MENU_ACTIONS.length + 1;
 const CAPTAIN_MENU_PANEL_W = 430;
 const CAPTAIN_MENU_PANEL_H = 420;
 const ABOARD_MENU_PANEL_W = 420;
@@ -7295,6 +7310,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
       "sailing",
       () => updateSailing(captureSailingSimulationSeconds(simulationSeconds))
     )) dirty = true;
+    if (maybeBeginFishingTradeTutorial()) dirty = true;
     if (maybeAutoAnchorAtNonPortQuestSite()) dirty = true;
     if (measurePerformanceBenchmarkStage("quests.journey", () => {
       const captiveChanged = maybeAdvancePirateCaptiveJourneyAtSea();
@@ -7648,6 +7664,8 @@ function createCaptainMenuState() {
     buttonRect: null,
     panelRect: null,
     closeButtonRect: null,
+    returnButtonRect: null,
+    returnError: null,
     itemRects: [],
     journalScrollLine: 0,
     journalLineCount: 0,
@@ -13880,7 +13898,7 @@ function placeCapturePlayerOnTile(navigableTileId, { headingDeg = CAPTURE_SCENAR
   resetPlayerWindState();
 }
 
-function stageCaptureFishingGround() {
+function stageCaptureFishingGround({ headingDeg = CAPTURE_SCENARIO?.player?.headingDeg ?? 0 } = {}) {
   const fishingTile = chart.tileCalls
     .filter((call) => fisheryForTileCall(call))
     .map((call) => ({
@@ -13889,7 +13907,7 @@ function stageCaptureFishingGround() {
     }))
     .sort((a, b) => a.distance - b.distance)[0]?.call;
   if (!fishingTile) throw new Error("Capture location has no visible fishery");
-  placeCapturePlayerNearTile(fishingTile.id);
+  placeCapturePlayerNearTile(fishingTile.id, { headingDeg });
   if (!hasShipItem(gameState, SHIP_ITEM_FISHING_NET)) {
     throw new Error("Capture fishing ship has no fishing net");
   }
@@ -17244,6 +17262,12 @@ function startNewVoyage() {
   playerBoundaryProbeCache = null;
   playerNavigationRecoveryState = createPlayerShipRecoveryState();
   gameState.memory.flags.sailingBasicsElapsedSeconds = 0;
+  if (achievementProfile && achievementProfile.lifetime.fishingTradeTutorialCompleted !== true) {
+    activateFishingTradeTutorial(
+      gameState.memory.quests.fishingTradeTutorial,
+      gameState.activePlaySeconds
+    );
+  }
   reframeWorldNorthUp("new voyage");
   captureVoyageStartProfile(gameState);
   if (BUILD_EDITION_ID === "full" && achievementProfile) {
@@ -17356,8 +17380,162 @@ function installSaveRestoreSmokeHarness() {
     throw new Error("Save-restore smoke harness was installed more than once");
   }
   let running = false;
+  const inspectFishingTradeTutorialMarket = async ({ complete = false } = {}) => {
+    if (!portCityRootNavigationIsActive()) {
+      throw new Error("Fishing tutorial market inspection requires the entered city scene");
+    }
+    const destinationIds = portCityRuntime.getDestinationIds();
+    if (destinationIds.length !== 1 || destinationIds[0] !== PORT_CITY_LOCATION.MARKET) {
+      throw new Error(`Fishing tutorial exposed city destinations: ${destinationIds.join(",")}`);
+    }
+    let marketPoint = null;
+    for (let y = 0; y < SCREEN_H && marketPoint === null; y += 2) {
+      for (let x = 0; x < SCREEN_W; x += 2) {
+        if (portCityRuntime.destinationAt(x, y)?.id === PORT_CITY_LOCATION.MARKET) {
+          marketPoint = { x, y };
+          break;
+        }
+      }
+    }
+    if (!marketPoint) throw new Error("Fishing tutorial city market has no clickable pixels");
+    const activation = portCityRuntime.activateAt(marketPoint.x, marketPoint.y);
+    if (activation?.id !== PORT_CITY_LOCATION.MARKET || dialogueState.nodeId !== "market") {
+      throw new Error("Fishing tutorial market was not opened through its normal city click target");
+    }
+    const market = currentDialogueView();
+    if (market.presentation?.mode !== "sell" || market.options.length !== 3 ||
+        market.options[2].action.goodId !== FISH_CARGO_GOOD_ID) {
+      throw new Error(`Fishing tutorial did not focus the fish sale: ${JSON.stringify({
+        mode: market.presentation?.mode,
+        options: market.options.map((option) => option.action)
+      })}`);
+    }
+    if (complete) {
+      chooseDialogueOption(2);
+      if (gameState.memory.quests.fishingTradeTutorial.stage !== FISHING_TRADE_TUTORIAL_STAGE.DORMANT ||
+          achievementProfile.lifetime.fishingTradeTutorialCompleted !== true) {
+        throw new Error("Fishing tutorial sale did not complete lifetime onboarding");
+      }
+    }
+    render(performance.now(), { allowColdCoveredWorldRender: true });
+    await waitForSaveRestoreSmokePersistence();
+    return {
+      complete,
+      destinationIds,
+      marketMode: market.presentation.mode,
+      fishAction: market.options[2].action.type,
+      stage: gameState.memory.quests.fishingTradeTutorial.stage,
+      lifetimeCompleted: achievementProfile.lifetime.fishingTradeTutorialCompleted
+    };
+  };
   window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__ = Object.freeze({
     journey: runBrowserJourneyCommand,
+    inspectCaptainMenu({ hoverReturn = false } = {}) {
+      if (playerIntroModal) closePlayerIntroModal();
+      if (startMenu) {
+        hasStartedVoyage = true;
+        closeStartMenu();
+      }
+      releaseDialogueSession({ destination: "sailing", animate: false });
+      if (captainAlertModal) closeCaptainAlertModal();
+      if (!chart) {
+        syncShipCargoFromGameState();
+        camera = northUpCamera(ship.position);
+        centerTileId = ship.tileId;
+        localLayout = createLocalLayout(centerTileId);
+        chart = buildChart(camera);
+      }
+      if (!captainMenu.isOpen) openCaptainMenu();
+      if (hoverReturn) {
+        const rect = captainNotebookFrame().returnButtonRect;
+        captainMenu.hoverPoint = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+      }
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      return {
+        image: ctx.canvas.toDataURL("image/png"),
+        panelRect: captainMenu.panelRect,
+        closeButtonRect: captainMenu.closeButtonRect,
+        returnButtonRect: captainMenu.returnButtonRect
+      };
+    },
+    inspectFishingTradeTutorialMarket,
+    async inspectFishingTradeTutorial({ complete = false, stopAtCity = false } = {}) {
+      if (running) throw new Error("Fishing tutorial smoke requires an idle voyage");
+      if (complete && stopAtCity) throw new Error("Fishing tutorial smoke cannot complete before opening the market");
+      if (captainMenu.isOpen) closeCaptainNotebook();
+      if (playerIntroModal) closePlayerIntroModal();
+      if (startMenu) {
+        hasStartedVoyage = true;
+        closeStartMenu();
+      }
+      if (!chart) {
+        syncShipCargoFromGameState();
+        camera = northUpCamera(ship.position);
+        centerTileId = ship.tileId;
+        localLayout = createLocalLayout(centerTileId);
+        chart = buildChart(camera);
+      }
+      releaseDialogueSession({ destination: "sailing", animate: false });
+      if (captainAlertModal) closeCaptainAlertModal();
+      gameState.memory.quests.fishingTradeTutorial = createFishingTradeTutorialMemory();
+      activateFishingTradeTutorial(
+        gameState.memory.quests.fishingTradeTutorial,
+        Math.max(0, gameState.activePlaySeconds - 60)
+      );
+      gameState.activePlaySeconds += 60;
+      stageCaptureFishingGround();
+      refreshWorldSpatialStaticEntries();
+      if (!maybeBeginFishingTradeTutorial()) throw new Error("Fishing tutorial did not begin");
+      closeCaptainAlertModal();
+      refreshWorldSpatialStaticEntries();
+      const target = fishSchoolDrawCalls(chart, lastFrameMs)
+        .map(fishInteractionCall)
+        .find((call) => fishingTradeTutorialTargetsFishery(
+          gameState.memory.quests.fishingTradeTutorial,
+          call.fishery.stockKey,
+          call.tileId
+        ));
+      if (!target) throw new Error("Fishing tutorial target is not visible");
+      if (!catchFishAtFishery(target)) throw new Error("Fishing tutorial cast could not start");
+      const action = fishingAction;
+      fishingAction = null;
+      resolveFishingAction(action);
+      closeCaptainAlertModal();
+      const destination = fishingTradeTutorialDestination();
+      placeCapturePlayerNearTile(destination.tileId, { headingDeg: 0 });
+      refreshWorldSpatialStaticEntries();
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      openPortDialogue(capturePortCallById(destination.cityId));
+      closeCaptainAlertModal();
+      for (let frame = 0; !portCityView?.sceneReady && frame < 240; frame++) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      render(lastFrameMs + 5000, { allowColdCoveredWorldRender: true });
+      if (portCityTransition || !portCityRootNavigationIsActive()) {
+        throw new Error(`Fishing tutorial did not finish entering the normal city scene: ${JSON.stringify({
+          transition: portCityTransition?.direction || null,
+          sceneReady: portCityView?.sceneReady || false,
+          nodeId: dialogueState?.nodeId || null,
+          admitted: dialogueState?.admittedToPort || false,
+          alert: Boolean(captainAlertModal),
+          assetError: pendingWorldAssetError?.message || null
+        })}`);
+      }
+      const destinationIds = portCityRuntime.getDestinationIds();
+      if (destinationIds.length !== 1 || destinationIds[0] !== PORT_CITY_LOCATION.MARKET) {
+        throw new Error(`Fishing tutorial exposed city destinations: ${destinationIds.join(",")}`);
+      }
+      if (stopAtCity) {
+        await waitForSaveRestoreSmokePersistence();
+        return {
+          complete: false,
+          destinationIds,
+          stage: gameState.memory.quests.fishingTradeTutorial.stage,
+          lifetimeCompleted: achievementProfile.lifetime.fishingTradeTutorialCompleted
+        };
+      }
+      return inspectFishingTradeTutorialMarket({ complete });
+    },
     shipyardCardViewport() {
       if (!dialogueIsPlayerShipyardUpgrades()) throw new Error("Shipyard cards are not open");
       render(performance.now(), { allowColdCoveredWorldRender: true });
@@ -18389,6 +18567,10 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   voyageStartClockMinutes = restoredWorldClock.voyageStartMinute;
   weatherParts = weatherClockParts(weatherClockMinutes);
   gameState = restoredGameState;
+  if (achievementProfile?.lifetime.fishingTradeTutorialCompleted === true &&
+      gameState.memory.quests.fishingTradeTutorial.stage !== FISHING_TRADE_TUTORIAL_STAGE.DORMANT) {
+    gameState.memory.quests.fishingTradeTutorial = createFishingTradeTutorialMemory();
+  }
   cityByTileId = candidateCatalog.cities;
   cityById = new Map([...cityByTileId.values()].map(city => [city.cityId, city]));
   portCities = candidateCatalog.ports;
@@ -19927,6 +20109,24 @@ function returnToStartMenuFromOptions() {
   if (!optionsMenu.isOpen) throw new Error("Cannot return to the start menu while options are closed");
   optionsMenu.returnError = null;
 
+  if (returnToStartMenu()) return true;
+  optionsMenu.returnError = "SAVE FAILED - TRY AGAIN";
+  dirty = true;
+  return false;
+}
+
+function returnToStartMenuFromCaptain() {
+  if (!captainMenu.isOpen) throw new Error("Cannot return to the start menu while the captain menu is closed");
+  captainMenu.returnError = null;
+
+  if (returnToStartMenu()) return true;
+  captainMenu.returnError = "SAVE FAILED - TRY AGAIN";
+  dirty = true;
+  return false;
+}
+
+function returnToStartMenu() {
+
   if (lakeBattleMode) {
     closeOptionsMenu();
     closeLakeBattleModeToStartMenu();
@@ -19939,8 +20139,6 @@ function returnToStartMenuFromOptions() {
   if (hasStartedVoyage && !saveVoyageNow("returned to start menu", {
     includeWorldTraffic: true
   })) {
-    optionsMenu.returnError = "SAVE FAILED - TRY AGAIN";
-    dirty = true;
     return false;
   }
 
@@ -20087,6 +20285,7 @@ function openCaptainMenu() {
   capturePausedView(captainMenu.viewCache, gameState, buildCaptainChartView);
   captainMenu.isOpen = true;
   captainMenu.selectedIndex = 0;
+  captainMenu.returnError = null;
   captainMenu.itemRects = [];
   captainMenu.journalScrollLine = 0;
   resetCaptainChartView();
@@ -20157,6 +20356,8 @@ function closeCaptainMenu() {
   clearPausedView(captainMenu.viewCache);
   captainMenu.panelRect = null;
   captainMenu.closeButtonRect = null;
+  captainMenu.returnButtonRect = null;
+  captainMenu.returnError = null;
   captainMenu.itemRects = [];
   captainMenu.journalRect = null;
   captainMenu.journalPreviousRect = null;
@@ -20213,7 +20414,7 @@ function handleCaptainMenuKeyDown(event) {
     captainMenu.selectedIndex = stepMenuIndex(
       captainMenu.selectedIndex,
       direction,
-      CAPTAIN_MENU_ACTIONS.length
+      CAPTAIN_MENU_CONTROL_COUNT
     );
     dirty = true;
     return;
@@ -20296,6 +20497,9 @@ function panCaptainChartMap(directionX, directionY, fraction = CAPTAIN_MAP_PAN_F
 }
 
 function activateCaptainMenuSelection(index) {
+  if (index === CAPTAIN_MENU_RETURN_INDEX) {
+    return returnToStartMenuFromCaptain();
+  }
   const action = CAPTAIN_MENU_ACTIONS[index];
   if (!action) throw new Error(`Unknown captain menu item: ${index}`);
   closeCaptainNotebookPages();
@@ -20313,6 +20517,7 @@ function activateCaptainMenuSelection(index) {
     }
   } else if (action.id === "options") openOptionsMenu();
   else throw new Error(`Unknown captain menu action: ${action.id}`);
+  return true;
 }
 
 function handleOptionsKeyDown(event) {
@@ -20914,6 +21119,7 @@ function handlePointerMove(event) {
       captainMenu.isOpen &&
       (
         pointInRect(point, captainMenu.closeButtonRect) ||
+        pointInRect(point, captainMenu.returnButtonRect) ||
         captainMenu.itemRects.some((rect) => pointInRect(point, rect))
       )
     ) ||
@@ -20995,6 +21201,11 @@ function handlePointerUp(event) {
 }
 
 function handleCaptainMenuPointerDown(event, point) {
+  if (captainMenu.returnButtonRect && pointInRect(point, captainMenu.returnButtonRect)) {
+    captainMenu.selectedIndex = CAPTAIN_MENU_RETURN_INDEX;
+    returnToStartMenuFromCaptain();
+    return;
+  }
   if (captainMenu.mapZoomOutRect && pointInRect(point, expandedRect(captainMenu.mapZoomOutRect, 3))) {
     stepCaptainChartZoom(-1);
     return;
@@ -21043,6 +21254,11 @@ function handleCaptainMenuPointerDown(event, point) {
 }
 
 function handleCaptainNotebookChromePointerDown(point) {
+  if (pointInRect(point, captainMenu.returnButtonRect)) {
+    captainMenu.selectedIndex = CAPTAIN_MENU_RETURN_INDEX;
+    returnToStartMenuFromCaptain();
+    return true;
+  }
   if (pointInRect(point, captainMenu.closeButtonRect)) {
     closeCaptainNotebook();
     return true;
@@ -21077,6 +21293,10 @@ function updateCaptainChartMapDrag(point) {
 }
 
 function updateCaptainMenuSelectionFromPoint(point) {
+  if (pointInRect(point, captainMenu.returnButtonRect)) {
+    captainMenu.selectedIndex = CAPTAIN_MENU_RETURN_INDEX;
+    return;
+  }
   for (let index = 0; index < captainMenu.itemRects.length; index++) {
     if (!pointInRect(point, captainMenu.itemRects[index])) continue;
     captainMenu.selectedIndex = index;
@@ -23045,6 +23265,12 @@ async function synchronizePortCityScene() {
       playerAccessiblePortCities(),
       portDialogueContext()
     ).locations.map(({ id }) => id);
+    if (fishingTradeTutorialRestrictsPortCity(city.cityId)) {
+      if (!availableDestinationIds.includes(PORT_CITY_LOCATION.MARKET)) {
+        throw new Error("Fishing tutorial destination has no city market");
+      }
+      availableDestinationIds = [PORT_CITY_LOCATION.MARKET];
+    }
   }
   const nodeId = dialogueState?.nodeId || dialogueState?.nextPortNodeId || null;
   const barred = ["barred", "recovering"].includes(nodeId);
@@ -23058,6 +23284,9 @@ async function synchronizePortCityScene() {
       settlementStage: "ruins", npcs: 0, fortified: false, leftBankCity: false
     } } : {}),
     availableDestinationIds,
+    guidedDestinationId: fishingTradeTutorialRestrictsPortCity(city.cityId)
+      ? PORT_CITY_LOCATION.MARKET
+      : null,
     barred,
     illicitCaughtStartedAtMs,
     label
@@ -23292,6 +23521,20 @@ function updatePortCityIllicitCaughtPresentation(nowMs) {
 
 function activatePortCityDestination({ id }) {
   if (!portCityRootNavigationIsActive()) return null;
+  if (fishingTradeTutorialRestrictsPortCity(currentDialogueCity().cityId)) {
+    if (id !== PORT_CITY_LOCATION.MARKET) {
+      throw new Error(`Fishing tutorial blocked city destination: ${id}`);
+    }
+    const view = currentDialogueView();
+    const marketIndex = view.options.findIndex((option) => (
+      option.action?.type === "node" && option.action.nodeId === "market"
+    ));
+    if (marketIndex < 0 || view.options[marketIndex].disabled) {
+      throw new Error("Fishing tutorial city market action is unavailable");
+    }
+    chooseDialogueOption(marketIndex);
+    return { openedNodeId: "market", rootOptionIndex: marketIndex };
+  }
   const entry = enterPortCityLocation(
     dialogueState,
     currentDialogueCity(),
@@ -23310,6 +23553,12 @@ function activatePortCityDestination({ id }) {
     dirty = true;
   }
   return entry;
+}
+
+function fishingTradeTutorialRestrictsPortCity(cityId) {
+  const memory = gameState?.memory?.quests?.fishingTradeTutorial;
+  return memory?.stage === FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET &&
+    memory.destinationCityId === cityId;
 }
 
 function portCityRootNavigationIsActive() {
@@ -23456,6 +23705,7 @@ function openPortDialogue(cityCall) {
     dirty = true;
     return;
   }
+  if (arriveAtFishingTradeTutorialMarketIfTarget(cityCall)) return;
   const treasureGoal = activeTreasureCampaignGoal();
   if (treasureGoal &&
       cityCall.cityId === treasureGoal.homePortCityId &&
@@ -23503,6 +23753,27 @@ function openPortDialogue(cityCall) {
   }
   saveVoyageNow("port arrival");
   dirty = true;
+}
+
+function arriveAtFishingTradeTutorialMarketIfTarget(cityCall) {
+  const memory = gameState.memory.quests.fishingTradeTutorial;
+  if (memory.stage !== FISHING_TRADE_TUTORIAL_STAGE.SAIL_TO_MARKET ||
+      memory.destinationCityId !== cityCall.cityId) {
+    return false;
+  }
+  if (!arriveAtFishingTradeTutorialMarket(memory, cityCall.cityId)) {
+    throw new Error(`Fishing tutorial could not arrive at its market: ${cityCall.cityId}`);
+  }
+  admitPlayerToPort(cityCall);
+  openPortMenu(cityCall, { initialNodeId: "root", admittedToPort: true });
+  const opened = openCaptainAlertModal(
+    `Let's go to the market in ${cityLabelText(cityCall)} and sell our catch.`,
+    "neutral"
+  );
+  if (!opened) throw new Error("Fishing tutorial market-arrival direction could not open");
+  saveVoyageNow("arrived at fishing tutorial market");
+  dirty = true;
+  return true;
 }
 
 function withPortArrivalGossip(session, cityCall) {
@@ -28227,6 +28498,53 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
   return runPlayerWorldMutation(() => performDialogueOption(optionIndex, displayedOption));
 }
 
+function assertFishingTradeTutorialActionAllowed(action) {
+  const memory = gameState.memory.quests.fishingTradeTutorial;
+  if (dialogueState.cityId !== memory.destinationCityId) return;
+  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET) {
+    if (action?.type === "node" && action.nodeId === "market") return;
+    throw new Error(`Fishing tutorial blocked port action: ${action?.type || "missing"}`);
+  }
+  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH) {
+    const allowed = action?.type === "sell" && action.goodId === FISH_CARGO_GOOD_ID;
+    if (allowed) return;
+    throw new Error(`Fishing tutorial blocked market action: ${action?.type || "missing"}`);
+  }
+}
+
+function advanceFishingTradeTutorialAfterPortAction(previousNodeId, action) {
+  const memory = gameState.memory.quests.fishingTradeTutorial;
+  if (memory.stage !== FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET ||
+      previousNodeId !== "root" || action?.type !== "node" || action.nodeId !== "market") {
+    return false;
+  }
+  if (!openFishingTradeTutorialMarket(memory, dialogueState.cityId)) {
+    throw new Error(`Fishing tutorial opened the wrong market: ${dialogueState.cityId}`);
+  }
+  dialogueState.marketMode = "sell";
+  dialogueState.selectedIndex = 2;
+  saveVoyageNow("opened fishing tutorial market");
+  return true;
+}
+
+function completeFishingTradeTutorialAfterSale(city, sale) {
+  const memory = gameState.memory.quests.fishingTradeTutorial;
+  if (memory.stage !== FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH) return false;
+  if (sale.quantity < 1) throw new Error("Fishing tutorial sale did not sell a fish");
+  if (!completeFishingTradeTutorial(memory, city.cityId)) {
+    throw new Error(`Fishing tutorial sale occurred at the wrong market: ${city.cityId}`);
+  }
+  if (!achievementProfile) {
+    throw new Error("Fishing tutorial completion requires a valid achievement profile");
+  }
+  achievementProfile.lifetime.fishingTradeTutorialCompleted = true;
+  writeAchievementProfile(achievementProfile);
+  achievementProfileResult = { status: "ready", profile: achievementProfile, error: null };
+  showSurvivalNotice("FIRST CATCH SOLD - TUTORIAL COMPLETE", "good");
+  saveVoyageNow("completed fishing trade tutorial");
+  return true;
+}
+
 function performDialogueOption(optionIndex, displayedOption) {
   const selectedDialogueState = dialogueState;
   if (!selectedDialogueState) throw new Error("Dialogue option selected without an active session");
@@ -28244,6 +28562,7 @@ function performDialogueOption(optionIndex, displayedOption) {
   invalidateDialogueOptionGeometry();
   if (dialogueState.kind === "port") {
     if (!displayedOption) throw new Error("Port dialogue selection has no displayed option");
+    assertFishingTradeTutorialActionAllowed(displayedOption.action);
     missionGiftCharacter = currentDialogueCity().character;
     const doubloonsBefore = gameState.doubloons;
     result = selectPortDialogueAction(
@@ -28255,6 +28574,7 @@ function performDialogueOption(optionIndex, displayedOption) {
       displayedOption,
       portDialogueContext()
     );
+    advanceFishingTradeTutorialAfterPortAction(previousNodeId, displayedOption.action);
     if (acknowledgesPortArrivalGreeting && portCityView) {
       markCurrentPortArrivalGreetingPresented(currentDialogueCity());
     }
@@ -28264,6 +28584,9 @@ function performDialogueOption(optionIndex, displayedOption) {
     completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOrigin,
       saveReason: portMarketTransactionSessionOpen(dialogueState) || dialogueState.crewDismissal !== null
         ? null : "port transaction" });
+    if (result.marketSale?.good?.id === FISH_CARGO_GOOD_ID) {
+      completeFishingTradeTutorialAfterSale(currentDialogueCity(), result.marketSale);
+    }
 
     if (result.action?.type === "open-passenger") {
       openPassengerDialogue(currentDialogueCity(), result.action.quest);
@@ -29527,14 +29850,14 @@ function currentDialogueView() {
 
 function buildCurrentDialogueView() {
   if (dialogueState.kind === "port") {
-    return questOfferDirections(portDialogueView(
+    return fishingTradeTutorialDialogueView(questOfferDirections(portDialogueView(
       dialogueState,
       currentDialogueCity(),
       gameState,
       worldEconomy,
       playerAccessiblePortCities(),
       portDialogueContext()
-    ), { origin: currentDialogueCity(), citiesById: cityById });
+    ), { origin: currentDialogueCity(), citiesById: cityById }));
   }
   if (dialogueState.kind === "passenger") {
     return questOfferDirections(
@@ -29569,6 +29892,53 @@ function buildCurrentDialogueView() {
     );
   }
   throw new Error(`Unknown dialogue session kind: ${dialogueState.kind}`);
+}
+
+function fishingTradeTutorialDialogueView(view) {
+  const memory = gameState?.memory?.quests?.fishingTradeTutorial;
+  if (!memory || dialogueState?.kind !== "port" ||
+      dialogueState.cityId !== memory.destinationCityId) return view;
+  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET) {
+    if (dialogueState.nodeId !== "root") {
+      throw new Error(`Fishing tutorial expected the port root, received ${dialogueState.nodeId}`);
+    }
+    const marketOptions = view.options.filter((option) => (
+      option.action?.type === "node" && option.action.nodeId === "market"
+    ));
+    if (marketOptions.length !== 1 || marketOptions[0].disabled) {
+      throw new Error("Fishing tutorial destination has no available market action");
+    }
+    return { ...view, options: marketOptions };
+  }
+  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH) {
+    if (dialogueState.nodeId !== "market" || dialogueState.marketMode !== "sell") {
+      throw new Error(
+        `Fishing tutorial sale requires the sell market; received node ${dialogueState.nodeId}, ` +
+        `mode ${dialogueState.marketMode}`
+      );
+    }
+    const buyMode = view.options.find((option) => (
+      option.action?.type === "switch-market-mode" && option.action.mode === "buy"
+    ));
+    const sellMode = view.options.find((option) => (
+      option.action?.type === "switch-market-mode" && option.action.mode === "sell"
+    ));
+    const fishSale = view.options.find((option) => (
+      option.action?.type === "sell" && option.action.goodId === FISH_CARGO_GOOD_ID
+    ));
+    if (!buyMode || !sellMode || !fishSale || fishSale.disabled) {
+      throw new Error("Fishing tutorial market cannot sell the caught fish");
+    }
+    return {
+      ...view,
+      options: [
+        { ...buyMode, disabled: true, disabledReason: "Sell the catch first." },
+        { ...sellMode, disabled: true, disabledReason: "Sell the catch first." },
+        { ...fishSale, emphasis: "quest-cargo" }
+      ]
+    };
+  }
+  return view;
 }
 
 function playerShipyardSupplyStatusText(yard) {
@@ -30821,6 +31191,36 @@ function activeFishCall() {
   return nearestFishCallNearPoint(localLayout.viewX, localLayout.viewY, FISH_INTERACTION_RADIUS_PX);
 }
 
+function maybeBeginFishingTradeTutorial() {
+  const memory = gameState?.memory?.quests?.fishingTradeTutorial;
+  if (!memory || !fishingTradeTutorialPracticeComplete(memory, gameState.activePlaySeconds)) {
+    return false;
+  }
+  if (fishingAction || dialogueState || captainAlertModal || menusAreOpen() || portWaitState) {
+    return false;
+  }
+  const call = fishSchoolDrawCalls(chart, lastFrameMs)
+    .map(fishInteractionCall)
+    .sort((a, b) => (
+      distance2(localLayout.viewX, localLayout.viewY, a.x, a.y) -
+      distance2(localLayout.viewX, localLayout.viewY, b.x, b.y) ||
+      a.id.localeCompare(b.id)
+    ))[0] || null;
+  if (!call) return false;
+  const opened = openCaptainAlertModal(
+    `I heard there are ${call.label} near here. We can catch some to sell.`,
+    "neutral"
+  );
+  if (!opened) return false;
+  beginFishingTradeTutorialCatch(memory, {
+    fisheryStockKey: call.fishery.stockKey,
+    fishTileId: call.tileId,
+    speciesLabel: call.label
+  });
+  saveVoyageNow("began fishing trade tutorial");
+  return true;
+}
+
 function nearestFishCallNearPoint(x, y, radiusPx) {
   const match = worldSpatialMatches(
     x,
@@ -31258,13 +31658,20 @@ function catchFishAtFishery(call) {
   }
   const net = playerFishingNet(gameState);
   const chance = fishingChanceForCall(call);
+  const tutorialCatch = fishingTradeTutorialTargetsFishery(
+    gameState.memory.quests.fishingTradeTutorial,
+    call.fishery.stockKey,
+    call.tileId
+  );
   fishingAction = {
     startMs: lastFrameMs,
     fishery: call.fishery,
     speciesLabel: call.fishery.speciesLabel,
     fishingNetId: net.id,
     side: fishingSideForTarget(localLayout.viewX, call.x),
-    catchSucceeded: fishingCatchSucceeds(Math.random(), chance),
+    catchSucceeded: tutorialCatch || fishingCatchSucceeds(Math.random(), chance),
+    tutorialCatch,
+    fishTileId: call.tileId,
     frameIndex: 0,
     cycleIndex: 0
   };
@@ -31329,8 +31736,40 @@ function resolveFishingAction(action) {
   syncShipCargoFromGameState();
   const depletedText = result.overfished ? " - OVERFISHED" : "";
   showFishCatchNotice(`CAUGHT ${result.speciesLabel.toUpperCase()} x${received.quantity}${depletedText}`, "good");
+  if (action.tutorialCatch) advanceFishingTradeTutorialAfterCatch(action);
   saveVoyageNow("fishing catch");
   dirty = true;
+}
+
+function advanceFishingTradeTutorialAfterCatch(action) {
+  const memory = gameState.memory.quests.fishingTradeTutorial;
+  if (!fishingTradeTutorialTargetsFishery(memory, action.fishery.stockKey, action.fishTileId)) {
+    throw new Error("Guaranteed fishing tutorial catch no longer matches its target fishery");
+  }
+  const destination = nearestFishingTradeTutorialMarket();
+  advanceFishingTradeTutorialToMarket(memory, destination.cityId);
+  const opened = openCaptainAlertModal(
+    `We can sell these fish at the market in ${cityLabelText(destination)}.`,
+    "pleased"
+  );
+  if (!opened) throw new Error("Fishing tutorial market direction could not open");
+}
+
+function nearestFishingTradeTutorialMarket() {
+  const candidates = playerAccessiblePortCities()
+    .filter((city) => !citySiteIsRuined(city))
+    .filter((city) => portEntryStatus(gameState, city, Math.floor(weatherClockMinutes)).allowed)
+    .filter((city) => !portugueseCartazMarketOfferRequired(
+      city,
+      gameState,
+      worldEconomy,
+      portDialogueContext()
+    ))
+    .map((city) => ({ city, proximity: dot3(ship.position, placedCityTargetVector(city)) }))
+    .sort((a, b) => b.proximity - a.proximity || a.city.cityId.localeCompare(b.city.cityId));
+  const destination = candidates[0]?.city || null;
+  if (!destination) throw new Error("Fishing trade tutorial found no non-hostile market");
+  return destination;
 }
 
 function playerFishCatchCapacity() {
@@ -45809,6 +46248,7 @@ function drawWorldInterface(nowMs) {
       drawInteractionButton();
     }
     beginWaypointArrowFrame();
+    drawFishingTradeTutorialArrow(nowMs);
     drawQuestDestinationArrow(nowMs);
     drawQuestShipArrows(nowMs);
     drawRescuedTravelerDestinationArrows(nowMs);
@@ -49070,13 +49510,52 @@ function drawCaptainNotebookChrome() {
   const frame = captainNotebookFrame();
   captainMenu.panelRect = frame.notebook.page;
   captainMenu.closeButtonRect = { ...frame.closeButtonRect };
+  captainMenu.returnButtonRect = { ...frame.returnButtonRect };
   ctx.save();
   drawCaptainNotebookTabs(frame.notebook);
+  drawCaptainReturnToTitleButton(frame);
   drawOptionsCloseButton(
     captainMenu.closeButtonRect,
     pointInRect(captainMenu.hoverPoint, captainMenu.closeButtonRect)
   );
   ctx.restore();
+}
+
+function drawCaptainReturnToTitleButton(frame) {
+  const rect = captainMenu.returnButtonRect;
+  const hovered = pointInRect(captainMenu.hoverPoint, rect);
+  const focused = captainMenu.selectedIndex === CAPTAIN_MENU_RETURN_INDEX;
+  drawPiratePaperInset(rect, hovered || focused || Boolean(captainMenu.returnError));
+  drawGameIcon(
+    "action:leave",
+    rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2),
+    rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2),
+    { alpha: hovered || focused ? 1 : 0.86 }
+  );
+  if (!hovered && !focused && !captainMenu.returnError) return;
+  const label = captainMenu.returnError || uiText("options.returnToMainMenu");
+  const color = captainMenu.returnError ? PIRATE_MENU_DANGER : PIRATE_MENU_INK;
+  const labelWidth = Math.min(
+    SCREEN_W - 12,
+    measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 8
+  );
+  const labelRect = {
+    x: frame.portrait
+      ? Math.min(SCREEN_W - labelWidth - 5, rect.x + rect.w + 4)
+      : Math.max(5, rect.x - labelWidth - 4),
+    y: frame.portrait
+      ? rect.y + Math.floor((rect.h - pixelFontSizePx(PIXEL_FONT_SMALL_8) - 4) / 2)
+      : rect.y + rect.h + 3,
+    w: labelWidth,
+    h: pixelFontSizePx(PIXEL_FONT_SMALL_8) + 4
+  };
+  drawPiratePaperInset(labelRect, false);
+  drawOptionsText(
+    fitPixelText(label, PIXEL_FONT_SMALL_8, labelRect.w - 6),
+    labelRect.x + Math.floor(labelRect.w / 2),
+    labelRect.y + 2,
+    { font: PIXEL_FONT_SMALL_8, align: "center", color }
+  );
 }
 
 function drawCaptainNotebookTabs(notebook) {
@@ -49338,6 +49817,8 @@ function currentReadyFetchQuestDestinations() {
 function questJournalEntries() {
   if (!gameState) return [];
   const entries = pirateHavenJournalEntries();
+  const fishingTutorialEntry = fishingTradeTutorialJournal();
+  if (fishingTutorialEntry) entries.push(fishingTutorialEntry);
   const canal = exeterCanalQuestView(gameState, cityById.get(TOPSHAM_CITY_ID), Math.max(0, weatherClockMinutes));
   if (canal?.accepted && !canal.complete) {
     entries.push({ id: "exeter-canal", title: "EXETER CANAL",
@@ -49609,6 +50090,34 @@ function questJournalEntries() {
     campaignComplete: campaignGoal?.status === CAMPAIGN_GOAL_COMPLETE,
     sovereignWarLoanId: warLoan?.id ?? null
   });
+}
+
+function fishingTradeTutorialJournal() {
+  const memory = gameState.memory.quests.fishingTradeTutorial;
+  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.DORMANT) return null;
+  const nextStep = memory.stage === FISHING_TRADE_TUTORIAL_STAGE.PRACTICE
+    ? "LEARN TO HANDLE THE SHIP"
+    : memory.stage === FISHING_TRADE_TUTORIAL_STAGE.CATCH
+      ? `CATCH ${memory.speciesLabel.toUpperCase()} AT THE MARKED FISHING GROUND`
+      : memory.stage === FISHING_TRADE_TUTORIAL_STAGE.SAIL_TO_MARKET
+        ? `SELL THE CATCH AT THE MARKET IN ${fishingTradeTutorialDestination().city.toUpperCase()}`
+        : memory.stage === FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET
+          ? `GO TO THE MARKET IN ${fishingTradeTutorialDestination().city.toUpperCase()}`
+          : memory.stage === FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH
+            ? `SELL ONE ${memory.speciesLabel.toUpperCase()}`
+            : null;
+  if (nextStep === null) throw new Error(`Unknown fishing tutorial journal stage: ${memory.stage}`);
+  return {
+    id: "fishing-trade-tutorial",
+    title: "A FIRST CATCH",
+    nextStep,
+    style: QUEST_NAVIGATION_STYLE
+  };
+}
+
+function fishingTradeTutorialDestination() {
+  const cityId = gameState.memory.quests.fishingTradeTutorial.destinationCityId;
+  return requireEntityById(cityById, cityId, "Fishing tutorial market");
 }
 
 function naturalistJournalEntry() {
@@ -50187,6 +50696,8 @@ function drawCachedCaptainChart(targetRaster, viewport) {
 function navigationMenuEntries() {
   if (!gameState) throw new Error("Navigation menu requires an active game state");
   const entries = [];
+  const fishingTutorialNavigation = fishingTradeTutorialNavigationEntry();
+  if (fishingTutorialNavigation) entries.push(fishingTutorialNavigation);
   const warLoan = gameState.memory.quests.sovereignWarLoan.contract;
   if ([SOVEREIGN_WAR_LOAN_REPAYMENT_READY, SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY].includes(
     warLoan?.status
@@ -50346,6 +50857,42 @@ function navigationMenuEntries() {
   }
   entries.push(...pirateHavenNavigationEntries(), ...shipyardDividendNavigationEntries());
   return entries;
+}
+
+function fishingTradeTutorialNavigationEntry() {
+  const memory = gameState.memory.quests.fishingTradeTutorial;
+  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.CATCH) {
+    return {
+      id: "fishing-trade-tutorial:fishery",
+      destinationName: memory.speciesLabel,
+      reason: fishingTradeTutorialNavigationLabel(memory.stage),
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: tileCenterVector(memory.fishTileId),
+      optionalWaypointId: null
+    };
+  }
+  if ([
+    FISHING_TRADE_TUTORIAL_STAGE.SAIL_TO_MARKET,
+    FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET,
+    FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH
+  ].includes(memory.stage)) {
+    const destination = fishingTradeTutorialDestination();
+    return {
+      id: "fishing-trade-tutorial:market",
+      destinationName: cityLabelText(destination),
+      reason: fishingTradeTutorialNavigationLabel(memory.stage),
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: placedCityTargetVector(destination),
+      optionalWaypointId: null
+    };
+  }
+  return null;
+}
+
+function fishingTradeTutorialNavigationLabel(stage) {
+  return stage === FISHING_TRADE_TUTORIAL_STAGE.CATCH
+    ? "CATCH FISH TO SELL"
+    : "SELL THE CATCH";
 }
 
 function activeNaturalistReportDestination() {
@@ -63994,6 +64541,40 @@ function drawQuestDestinationArrow(nowMs) {
       style: QUEST_NAVIGATION_STYLE
     });
   }
+}
+
+function drawFishingTradeTutorialArrow(nowMs) {
+  if (!ship || !chart || !localLayout || !gameState) return;
+  const memory = gameState.memory.quests.fishingTradeTutorial;
+  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.CATCH) {
+    const liveCall = fishSchoolDrawCalls(chart, nowMs)
+      // IDENTITY_SPATIAL_EXCEPTION: tile marks the location; stock key is durable identity.
+      .find((call) => call.tileId === memory.fishTileId &&
+        call.fishery.stockKey === memory.fisheryStockKey) || null;
+    const targetVector = tileCenterVector(memory.fishTileId);
+    drawWorldTargetArrow({
+      id: "fishing-trade-tutorial:fishery",
+      label: memory.speciesLabel,
+      targetVector,
+      localPoint: liveCall ? fishInteractionCall(liveCall) : localPointForGlobeVector(targetVector),
+      localYOffset: -10,
+      nowMs,
+      style: QUEST_NAVIGATION_STYLE
+    });
+    return;
+  }
+  if (memory.stage !== FISHING_TRADE_TUTORIAL_STAGE.SAIL_TO_MARKET) return;
+  const destination = fishingTradeTutorialDestination();
+  const targetVector = placedCityTargetVector(destination);
+  drawWorldTargetArrow({
+    id: "fishing-trade-tutorial:market",
+    label: cityLabelText(destination),
+    targetVector,
+    localPoint: visibleChartCity(destination) || localPointForGlobeVector(targetVector),
+    localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+    nowMs,
+    style: QUEST_NAVIGATION_STYLE
+  });
 }
 
 function sovereignWarLoanCourtDestination(contract) {

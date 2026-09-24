@@ -93,14 +93,15 @@ test("achievement profiles migrate discovery and campaign tracking forward", () 
   });
 
   assert.deepEqual(migrated, {
-    version: 4,
+    version: 5,
     unlocked: {},
     lifetime: {
       sailedShipSlugs: ["caravel"],
       seenAnimalIds: ["penguin"],
       maxVoyageDiscoveryCount: 0,
       campaignStartsByGoal: {},
-      campaignHistoryImported: false
+      campaignHistoryImported: false,
+      fishingTradeTutorialCompleted: false
     },
     platformUnlocks: {}
   });

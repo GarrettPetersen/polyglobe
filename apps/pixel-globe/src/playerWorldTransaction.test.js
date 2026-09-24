@@ -13,7 +13,7 @@ import { assertPlayerShipyardInvestmentWorldConsistency, SHIPYARD_INVESTMENT_MAT
 import { shipyardAtPort } from "./shipyards.js";
 
 const source = ts.createSourceFile("main.js", readFileSync(new URL("./main.js", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
-const transactionSource = ["finishPendingDistantWorldCommit", "snapshotVoyagePayload", "invalidateDistantWorldWorkerState", "applyDialogueOption", "performDialogueOption",
+const transactionSource = ["finishPendingDistantWorldCommit", "snapshotVoyagePayload", "invalidateDistantWorldWorkerState", "applyDialogueOption", "assertFishingTradeTutorialActionAllowed", "performDialogueOption",
   "updateDialogueNavigationPosition", "advanceDistantWorldSimulationApply", "advanceDistantWorldPartRestore", "finishDistantWorldSimulationApply"].map((name) => {
   const declaration = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name.text === name);
   assert.ok(declaration, name);

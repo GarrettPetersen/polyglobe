@@ -1,7 +1,7 @@
 import { gameStorage } from "./gameStorage.js";
 
 export const ACHIEVEMENT_PROFILE_STORAGE_KEY = "marque-and-reprisal.achievements";
-export const ACHIEVEMENT_PROFILE_VERSION = 4;
+export const ACHIEVEMENT_PROFILE_VERSION = 5;
 export const VOYAGE_ACHIEVEMENT_PROGRESS_VERSION = 2;
 
 export const ACHIEVEMENT_IDS = Object.freeze({
@@ -191,7 +191,8 @@ export function createAchievementProfile() {
       seenAnimalIds: [],
       maxVoyageDiscoveryCount: 0,
       campaignStartsByGoal: {},
-      campaignHistoryImported: false
+      campaignHistoryImported: false,
+      fishingTradeTutorialCompleted: false
     },
     platformUnlocks: {}
   };
@@ -287,13 +288,23 @@ export function migrateAchievementProfile(profile) {
     });
   }
   if (profile?.version === 3) {
+    return migrateAchievementProfile({
+      ...profile,
+      version: 4,
+      lifetime: {
+        ...profile.lifetime,
+        campaignStartsByGoal: {},
+        campaignHistoryImported: false
+      }
+    });
+  }
+  if (profile?.version === 4) {
     return {
       ...profile,
       version: ACHIEVEMENT_PROFILE_VERSION,
       lifetime: {
         ...profile.lifetime,
-        campaignStartsByGoal: {},
-        campaignHistoryImported: false
+        fishingTradeTutorialCompleted: false
       }
     };
   }
@@ -367,6 +378,9 @@ export function validateAchievementProfile(profile) {
     if (goalType.trim() === "" || !Number.isInteger(count) || count < 0) {
       throw new Error(`Invalid lifetime campaign start count: ${goalType}=${count}`);
     }
+  }
+  if (typeof profile.lifetime.fishingTradeTutorialCompleted !== "boolean") {
+    throw new Error("Invalid lifetime fishing trade tutorial completion flag");
   }
   if (typeof profile.lifetime.campaignHistoryImported !== "boolean") {
     throw new Error("Invalid campaign history import state");

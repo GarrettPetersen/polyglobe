@@ -141,6 +141,45 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "A FIRST CATCH": reviewedLocaleOverrides("A FIRST CATCH", [
+    "初次捕鱼", "ПЕРВЫЙ УЛОВ", "LA PRIMERA PESCA", "A PRIMEIRA PESCA", "初めての漁", "DER ERSTE FANG", "LA PREMIÈRE PÊCHE", "PIERWSZY POŁÓW", "初次捕魚", "첫 어획"
+  ]),
+  "FIRST CATCH SOLD - TUTORIAL COMPLETE": reviewedLocaleOverrides("FIRST CATCH SOLD - TUTORIAL COMPLETE", [
+    "第一批鱼已售出——教程完成", "ПЕРВЫЙ УЛОВ ПРОДАН — ОБУЧЕНИЕ ЗАВЕРШЕНО", "PRIMERA PESCA VENDIDA - TUTORIAL COMPLETADO", "PRIMEIRA PESCA VENDIDA - TUTORIAL CONCLUÍDO", "最初の獲物を売却 — チュートリアル完了", "ERSTER FANG VERKAUFT – EINFÜHRUNG ABGESCHLOSSEN", "PREMIÈRE PRISE VENDUE - TUTORIEL TERMINÉ", "PIERWSZY POŁÓW SPRZEDANY — SAMOUCZEK UKOŃCZONY", "第一批魚已售出——教學完成", "첫 어획 판매 완료 - 튜토리얼 완료"
+  ]),
+  "I heard there are {0} near here. We can catch some to sell.": reviewedLocaleOverrides("I heard there are {0} near here. We can catch some to sell.", [
+    "听说这附近有{0}。我们可以捕些来卖。", "Я слышал, здесь водится {0}. Можно поймать немного на продажу.", "He oído que hay {0} por aquí. Podemos pescar algunos para venderlos.", "Ouvi dizer que há {0} por aqui. Podemos pescar alguns para vender.", "この近くに{0}がいるらしい。捕って売りに行こう。", "Ich habe gehört, hier in der Nähe gibt es {0}. Wir könnten einige fangen und verkaufen.", "J’ai entendu dire qu’il y avait des {0} par ici. Nous pourrions en pêcher pour les vendre.", "Słyszałem, że w pobliżu są {0}. Możemy trochę złowić i sprzedać.", "聽說這附近有{0}。我們可以捕些來賣。", "이 근처에 {0}이 있다고 들었습니다. 조금 잡아서 팔 수 있겠군요."
+  ]),
+  "Let's go to the market in {0} and sell our catch.": reviewedLocaleOverrides("Let's go to the market in {0} and sell our catch.", [
+    "去{0}的市场卖掉我们的鱼吧。", "Зайдём на рынок в {0} и продадим улов.", "Vamos al mercado de {0} a vender la pesca.", "Vamos ao mercado de {0} vender a pesca.", "{0}の市場へ行って獲物を売ろう。", "Gehen wir zum Markt in {0} und verkaufen unseren Fang.", "Allons au marché de {0} vendre notre prise.", "Chodźmy na targ w {0} sprzedać nasz połów.", "去{0}的市場賣掉我們的魚吧。", "{0} 시장으로 가서 잡은 물고기를 팝시다."
+  ]),
+  "Sell the catch first.": reviewedLocaleOverrides("Sell the catch first.", [
+    "先卖掉捕获的鱼。", "Сначала продайте улов.", "Vende primero la pesca.", "Venda primeiro a pesca.", "まず獲物を売ろう。", "Verkauft zuerst den Fang.", "Vendez d’abord la prise.", "Najpierw sprzedaj połów.", "先賣掉捕獲的魚。", "먼저 잡은 물고기를 파세요."
+  ]),
+  "We can sell these fish at the market in {0}.": reviewedLocaleOverrides("We can sell these fish at the market in {0}.", [
+    "我们可以去{0}的市场卖掉这些鱼。", "Эту рыбу можно продать на рынке в {0}.", "Podemos vender este pescado en el mercado de {0}.", "Podemos vender esses peixes no mercado de {0}.", "この魚は{0}の市場で売れる。", "Diese Fische können wir auf dem Markt in {0} verkaufen.", "Nous pouvons vendre ces poissons au marché de {0}.", "Te ryby możemy sprzedać na targu w {0}.", "我們可以去{0}的市場賣掉這些魚。", "이 물고기는 {0} 시장에서 팔 수 있습니다."
+  ]),
+  "CATCH {0} AT THE MARKED FISHING GROUND": reviewedLocaleOverrides("CATCH {0} AT THE MARKED FISHING GROUND", [
+    "在标记的渔场捕捞{0}", "ПОЙМАЙТЕ {0} В ОТМЕЧЕННОМ МЕСТЕ", "PESCA {0} EN EL CALADERO MARCADO", "PESQUE {0} NO PESQUEIRO MARCADO", "印の漁場で{0}を捕る", "FANGT {0} AM MARKIERTEN FISCHGRUND", "PÊCHEZ {0} DANS LA ZONE INDIQUÉE", "ZŁÓW {0} NA OZNACZONYM ŁOWISKU", "在標記的漁場捕撈{0}", "표시된 어장에서 {0} 잡기"
+  ]),
+  "CATCH FISH TO SELL": reviewedLocaleOverrides("CATCH FISH TO SELL", [
+    "捕鱼出售", "ПОЙМАТЬ РЫБУ НА ПРОДАЖУ", "PESCA PARA VENDER", "PESQUE PARA VENDER", "売る魚を捕る", "FISCHE ZUM VERKAUF FANGEN", "PÊCHER POUR VENDRE", "ZŁÓW RYBY NA SPRZEDAŻ", "捕魚出售", "판매할 물고기 잡기"
+  ]),
+  "GO TO THE MARKET IN {0}": reviewedLocaleOverrides("GO TO THE MARKET IN {0}", [
+    "前往{0}的市场", "ИДИТЕ НА РЫНОК В {0}", "VE AL MERCADO DE {0}", "VÁ AO MERCADO DE {0}", "{0}の市場へ行く", "GEHT ZUM MARKT IN {0}", "ALLEZ AU MARCHÉ DE {0}", "IDŹ NA TARG W {0}", "前往{0}的市場", "{0} 시장으로 가기"
+  ]),
+  "LEARN TO HANDLE THE SHIP": reviewedLocaleOverrides("LEARN TO HANDLE THE SHIP", [
+    "熟悉船只操控", "ОСВОЙТЕСЬ С УПРАВЛЕНИЕМ КОРАБЛЁМ", "APRENDE A MANEJAR EL BARCO", "APRENDA A MANOBRAR O NAVIO", "船の操り方を覚える", "MACHT EUCH MIT DER SCHIFFSFÜHRUNG VERTRAUT", "APPRENEZ À MANŒUVRER LE NAVIRE", "NAUCZ SIĘ PROWADZIĆ STATEK", "熟悉船隻操控", "선박 조종 익히기"
+  ]),
+  "SELL ONE {0}": reviewedLocaleOverrides("SELL ONE {0}", [
+    "出售一份{0}", "ПРОДАЙТЕ ОДНУ ЕДИНИЦУ: {0}", "VENDE UNA UNIDAD DE {0}", "VENDA UMA UNIDADE DE {0}", "{0}を1つ売る", "VERKAUFT 1 {0}", "VENDEZ UNE UNITÉ DE {0}", "SPRZEDAJ 1 SZT. {0}", "出售一份{0}", "{0} 1개 판매"
+  ]),
+  "SELL THE CATCH": reviewedLocaleOverrides("SELL THE CATCH", [
+    "出售捕获的鱼", "ПРОДАТЬ УЛОВ", "VENDE LA PESCA", "VENDA A PESCA", "獲物を売る", "DEN FANG VERKAUFEN", "VENDRE LA PRISE", "SPRZEDAJ POŁÓW", "出售捕獲的魚", "잡은 물고기 판매"
+  ]),
+  "SELL THE CATCH AT THE MARKET IN {0}": reviewedLocaleOverrides("SELL THE CATCH AT THE MARKET IN {0}", [
+    "在{0}的市场出售捕获的鱼", "ПРОДАЙТЕ УЛОВ НА РЫНКЕ В {0}", "VENDE LA PESCA EN EL MERCADO DE {0}", "VENDA A PESCA NO MERCADO DE {0}", "{0}の市場で獲物を売る", "VERKAUFT DEN FANG AUF DEM MARKT IN {0}", "VENDEZ LA PRISE AU MARCHÉ DE {0}", "SPRZEDAJ POŁÓW NA TARGU W {0}", "在{0}的市場出售捕獲的魚", "{0} 시장에서 잡은 물고기 판매"
+  ]),
   "{0} Your family owes me {1} doubloons, secured by the estate. Sail for profit. When you return, you keep {2} doubloons; I take the rest. The unpaid debt grows ten percent a year.": reviewedLocaleOverrides(
     "{0} Your family owes me {1} doubloons, secured by the estate. Sail for profit. When you return, you keep {2} doubloons; I take the rest. The unpaid debt grows ten percent a year.",
     [

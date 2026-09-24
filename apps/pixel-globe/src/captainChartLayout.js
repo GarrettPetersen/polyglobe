@@ -128,6 +128,19 @@ export function captainNotebookFrameLayout({
     w: closeButtonSize,
     h: closeButtonSize
   });
+  const returnButtonRect = Object.freeze(portrait
+    ? {
+        x: NOTEBOOK_CLOSE_MARGIN,
+        y: NOTEBOOK_CLOSE_MARGIN,
+        w: closeButtonSize,
+        h: closeButtonSize
+      }
+    : {
+        x: closeButtonRect.x,
+        y: closeButtonRect.y + closeButtonRect.h + NOTEBOOK_CLOSE_GAP,
+        w: closeButtonSize,
+        h: closeButtonSize
+      });
   const available = portrait
     ? {
         x: NOTEBOOK_SCREEN_MARGIN,
@@ -157,6 +170,7 @@ export function captainNotebookFrameLayout({
   return Object.freeze({
     portrait,
     closeButtonRect,
+    returnButtonRect,
     panel,
     notebook: captainNotebookLayout({
       panel,

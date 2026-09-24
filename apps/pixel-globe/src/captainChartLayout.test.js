@@ -67,6 +67,7 @@ test("captain notebook frame reserves a top-right close button beside a landscap
   });
   assert.equal(frame.portrait, false);
   assert.deepEqual(frame.closeButtonRect, { x: 426, y: 5, w: 24, h: 24 });
+  assert.deepEqual(frame.returnButtonRect, { x: 426, y: 34, w: 24, h: 24 });
   assert.deepEqual(frame.panel, { x: 6, y: 6, w: 415, h: 244 });
   assert.equal(frame.notebook.placement, "side");
   assert.deepEqual(frame.notebook.page, { x: 118, y: 6, w: 303, h: 244 });
@@ -84,6 +85,7 @@ test("captain notebook frame reserves its top corner and attaches tabs below a p
   });
   assert.equal(frame.portrait, true);
   assert.deepEqual(frame.closeButtonRect, { x: 227, y: 5, w: 24, h: 24 });
+  assert.deepEqual(frame.returnButtonRect, { x: 5, y: 5, w: 24, h: 24 });
   assert.deepEqual(frame.panel, { x: 6, y: 34, w: 244, h: 420 });
   assert.equal(frame.notebook.placement, "bottom");
   assert.deepEqual(frame.notebook.page, { x: 6, y: 34, w: 244, h: 384 });

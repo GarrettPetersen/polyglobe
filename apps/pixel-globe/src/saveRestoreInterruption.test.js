@@ -206,6 +206,7 @@ test("restoring a building canal publishes the saved clock before rebuilding que
     let observed;
     const runtime = {
       gameState: null, restoredGameState: state, weatherClockMinutes: 0, voyageStartClockMinutes: 0,
+      achievementProfile: null,
       recoveredWhaleClockMinutes: 0,
       restoredWorldClock: { currentMinute: startMinute + elapsed, voyageStartMinute: 10 },
       weatherClockParts: minute => ({ minute }), savedShip: { typeSlug: "galleon" },

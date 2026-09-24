@@ -574,7 +574,7 @@ test("Set Sail uses the visible ocean left of the player ship as its hit target"
   );
   assert.match(
     VISUALIZER_MAIN_SOURCE,
-    /state\.focusedDestinationId = initialCityDestinationId\(activeDestinations\(\)\);/,
+    /const initialDestinationId = initialCityDestinationId\(activeDestinations\(\), \{[\s\S]*guidedDestinationId: state\.guidedDestinationId/,
     "city entry must start at the ship instead of automatically revealing the western departure area"
   );
 });

@@ -427,6 +427,7 @@ const state = {
   destinationLabelLayoutParallax: null,
   destinationLabelRows: new Map(),
   availableDestinationIds: null,
+  guidedDestinationId: null,
   barred: false,
   illicitCaughtStartedAtMs: null,
   bombardmentEventId: null,
@@ -638,6 +639,7 @@ async function selectCity(cityId, {
   playerShipSlug = null,
   saleShipSlugs = null,
   availableDestinationIds = null,
+  guidedDestinationId = null,
   foreignSettlements = null,
   factionId = null,
   label = null,
@@ -659,6 +661,10 @@ async function selectCity(cityId, {
   const validatedDestinationIds = availableDestinationIds === null
     ? null
     : validateAvailableDestinationIds(availableDestinationIds);
+  if (guidedDestinationId !== null &&
+      (typeof guidedDestinationId !== "string" || !validatedDestinationIds?.has(guidedDestinationId))) {
+    throw new Error(`Guided city destination is unavailable: ${guidedDestinationId}`);
+  }
   if (typeof barred !== "boolean") throw new Error(`Invalid barred city state: ${barred}`);
   if (illicitCaughtStartedAtMs !== null &&
       (!Number.isFinite(illicitCaughtStartedAtMs) || illicitCaughtStartedAtMs < 0)) {
@@ -682,6 +688,7 @@ async function selectCity(cityId, {
   state.destinationLabelRows.clear();
   state.foreignSettlements = selectedForeignSettlements;
   state.availableDestinationIds = validatedDestinationIds;
+  state.guidedDestinationId = guidedDestinationId;
   state.barred = barred;
   state.illicitCaughtStartedAtMs = illicitCaughtStartedAtMs;
   state.bombardmentEventId = bombardmentEventId;
@@ -721,7 +728,14 @@ async function selectCity(cityId, {
   state.lastCloudTimeMs = null;
   rebuildCitySceneRenderPlan();
   updateHover();
-  state.focusedDestinationId = initialCityDestinationId(activeDestinations());
+  const initialDestinationId = initialCityDestinationId(activeDestinations(), {
+    guidedDestinationId: state.guidedDestinationId
+  });
+  if (state.guidedDestinationId !== null) {
+    focusDestination(initialDestinationId, { immediate: true });
+  } else {
+    state.focusedDestinationId = initialDestinationId;
+  }
   if (!externalFrameClock) {
     const url = new URL(location.href);
     url.searchParams.set("city", city.id);
@@ -943,7 +957,11 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
   if (state.focusedDestinationId !== null && !destinationById(state.focusedDestinationId)) {
-    state.focusedDestinationId = initialCityDestinationId(activeDestinations());
+    const nextDestinationId = initialCityDestinationId(activeDestinations(), {
+      guidedDestinationId: state.guidedDestinationId
+    });
+    if (state.guidedDestinationId !== null) focusDestination(nextDestinationId, { immediate: true });
+    else state.focusedDestinationId = nextDestinationId;
   }
   invalidateDestinationLabelLayouts();
   updateHover();

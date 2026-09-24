@@ -149,6 +149,12 @@ test("initial focus handles normal, recovering, assault, ruins and story-only ar
   assert.equal(initialCityDestinationId(activeCityDestinations({ availableDestinationIds: null,
     features: ALL_SERVICES, assaultActive: false })), "ship");
   assert.throws(() => initialCityDestinationId([cityDestinationById("market")]), /no ship access or departure/);
+  assert.equal(initialCityDestinationId([cityDestinationById("market")], {
+    guidedDestinationId: "market"
+  }), "market");
+  assert.throws(() => initialCityDestinationId([cityDestinationById("market")], {
+    guidedDestinationId: "inn"
+  }), /Guided city destination is unavailable/);
 });
 
 

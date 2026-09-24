@@ -24,6 +24,7 @@ test("waypoints list quests and price tips before shipyard dividends", () => {
     activeNaturalistReportDestination: () => null, cityLabelText: city => city.city,
     placedCityTargetVector: () => [1, 0, 0], navigationQuestReason: () => "DELIVER",
     QUEST_NAVIGATION_STYLE: {}, OPTIONAL_NAVIGATION_STYLE: {},
+    fishingTradeTutorialNavigationEntry: () => null,
     portWaypointDestination: () => destination, portNavigationReasonLabel: () => "PRICE TIP",
     pirateHavenNavigationEntries: () => [{ id: "pirate-quest" }],
     shipyardDividendNavigationEntries: () => [{ id: "dividend-a" }, { id: "dividend-b" }]
