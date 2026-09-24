@@ -138,7 +138,7 @@ test("sailing help uses the active device's control language", () => {
   assert.match(keyboard[0].body, /left and right to turn port and starboard/i);
   assert.match(controller[0].body, /left stick left and right/i);
   assert.match(mouse[1].body, /zigzag.*tacking/i);
-  assert.match(keyboard[2].body, /hold forward to row/i);
+  assert.match(keyboard[2].body, /tap forward to keep rowing/i);
   assert.match(keyboard[2].body, /eat more/i);
   assert.match(keyboard[2].body, /back to reverse/i);
   assert.match(keyboard[3].body, /wind pins you/i);
@@ -146,16 +146,20 @@ test("sailing help uses the active device's control language", () => {
   assert.match(keyboard[3].body, /haul along the shore/i);
 });
 
-test("relative rowing uses forward while pointer rowing remains directional", () => {
+test("relative rowing explains its persistent command while pointer rowing remains directional", () => {
   const keyboard = sailingHelpPages("keyboard", CONTROL_SCHEME_RELATIVE);
   const controller = sailingHelpPages("controller", CONTROL_SCHEME_RELATIVE);
   const touch = sailingHelpPages("touch", CONTROL_SCHEME_RELATIVE);
   const absoluteKeyboard = sailingHelpPages("keyboard", CONTROL_SCHEME_ABSOLUTE);
+  const holdKeyboard = sailingHelpPages("keyboard", CONTROL_SCHEME_RELATIVE, false);
 
-  assert.match(keyboard[2].body, /hold forward to row/i);
-  assert.match(controller[2].body, /hold the left stick forward to row/i);
+  assert.match(keyboard[2].body, /tap forward to keep rowing/i);
+  assert.match(keyboard[2].body, /tap back to stop rowing/i);
+  assert.match(controller[2].body, /tap forward to keep rowing/i);
   assert.match(touch[2].body, /hold ahead to row/i);
   assert.match(absoluteKeyboard[2].body, /toward the bow to row/i);
+  assert.match(holdKeyboard[2].body, /hold forward to row/i);
+  assert.doesNotMatch(holdKeyboard[2].body, /tap forward/i);
   assert.match(absoluteKeyboard[0].body, /WASD or an arrow key/i);
   assert.match(absoluteKeyboard[3].body, /steer toward open water/i);
 });

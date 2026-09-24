@@ -22,6 +22,10 @@ test("browser options omit quit without disturbing the ordinary first row", () =
 
   const ordinary = optionsMenuRowOrder({ showWishlist: false, desktop: false });
   assert.equal(ordinary[0], OPTIONS_MENU_ROW.FULLSCREEN);
+  assert.equal(
+    ordinary.indexOf(OPTIONS_MENU_ROW.AUTO_ROW),
+    ordinary.indexOf(OPTIONS_MENU_ROW.CONTROL_SCHEME) + 1
+  );
   assert.equal(ordinary.at(-1), OPTIONS_MENU_ROW.START_MENU);
 });
 

@@ -14,6 +14,7 @@ export default {
   "language.korean": "Coreano",
   "options.title": "OPCIONES",
   "options.language": "IDIOMA",
+  "options.autoRow": "REMO AUTOMÁTICO",
   "options.controllerIcons": "ICONOS DE MANDO",
   "options.controllerIcons.automatic": "AUTOMÁTICO",
   "options.controllerIcons.xbox": "XBOX",

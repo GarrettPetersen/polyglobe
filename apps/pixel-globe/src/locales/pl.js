@@ -14,6 +14,7 @@ export default {
   "language.korean": "Koreański",
   "options.title": "OPCJE",
   "options.language": "JĘZYK",
+  "options.autoRow": "AUTO-WIOSŁA",
   "options.controllerIcons": "IKONY KONTROLERA",
   "options.controllerIcons.automatic": "AUTOMAT.",
   "options.controllerIcons.xbox": "XBOX",

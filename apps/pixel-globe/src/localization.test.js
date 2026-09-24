@@ -232,6 +232,7 @@ test("controller icon preferences use localized mode and platform labels", () =>
 
 test("control scheme help is localized in every supported language", () => {
   const keys = [
+    "options.autoRow",
     "options.controlScheme",
     "options.controlScheme.title",
     "options.controlScheme.absolute",

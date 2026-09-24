@@ -1618,6 +1618,11 @@ import {
   steeringIntentForScheme
 } from "./controlScheme.js";
 import {
+  cancelAutoRowCommand,
+  createAutoRowCommandState,
+  updateAutoRowCommand
+} from "./autoRowCommand.js";
+import {
   OPTIONS_MENU_ROW,
   optionsMenuRowIndex,
   optionsMenuRowOrder
@@ -3304,6 +3309,7 @@ let GAME_OVER_PANEL_W = 350;
 const POINTER_STEERING_DEADZONE_PX = 6;
 const CONTROLLER_GLYPH_STORAGE_KEY = "pixel_globe_controller_glyphs";
 const CONTROL_SCHEME_STORAGE_KEY = "pixel_globe_control_scheme";
+const AUTO_ROW_STORAGE_KEY = "pixel_globe_auto_row";
 let currentLanguage = initialInterfaceLanguage(
   new URLSearchParams(window.location.search).get("lang"),
   readLocalStorage(INTERFACE_LANGUAGE_STORAGE_KEY),
@@ -3386,6 +3392,7 @@ const OPTIONS_ROW_SFX = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.
 const OPTIONS_ROW_MUTE = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.MUTE);
 const OPTIONS_ROW_LANGUAGE = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.LANGUAGE);
 const OPTIONS_ROW_CONTROL_SCHEME = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.CONTROL_SCHEME);
+const OPTIONS_ROW_AUTO_ROW = optionsMenuRowIndex(OPTIONS_ROW_ORDER, OPTIONS_MENU_ROW.AUTO_ROW);
 const OPTIONS_ROW_CONTROLLER_ICONS = optionsMenuRowIndex(
   OPTIONS_ROW_ORDER,
   OPTIONS_MENU_ROW.CONTROLLER_ICONS
@@ -3982,6 +3989,7 @@ steamPlatformBridge?.onFullscreenChanged((active) => {
 });
 let keyBindings = loadKeyBindings(gameStorage);
 const keys = createHeldKeyActions();
+const autoRowCommandState = createAutoRowCommandState();
 const pointerSteering = {
   active: false,
   pointerId: null,
@@ -7608,6 +7616,7 @@ function createOptionsMenuState() {
       readLocalStorage(CONTROLLER_GLYPH_STORAGE_KEY) || CONTROLLER_GLYPH_PREFERENCE.AUTOMATIC
     ),
     controlScheme: loadStoredControlScheme(),
+    autoRowEnabled: loadStoredAutoRowEnabled(),
     fullscreenError: null,
     returnError: null,
     selectedIndex: 0,
@@ -7888,7 +7897,11 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
 }
 
 function createSailingHelpModal(inputMode) {
-  const pages = sailingHelpPages(inputMode, optionsMenu.controlScheme);
+  const pages = sailingHelpPages(
+    inputMode,
+    optionsMenu.controlScheme,
+    optionsMenu.autoRowEnabled
+  );
   return {
     kind: "sailing-help",
     inputMode,
@@ -11448,6 +11461,14 @@ function loadStoredControlScheme() {
     console.warn("[pixel-globe] discarded invalid stored control scheme", error);
     return DEFAULT_CONTROL_SCHEME;
   }
+}
+
+function loadStoredAutoRowEnabled() {
+  const raw = readLocalStorage(AUTO_ROW_STORAGE_KEY);
+  if (raw === null || raw === "true") return true;
+  if (raw === "false") return false;
+  console.warn(`[pixel-globe] discarded invalid stored auto-row setting: ${raw}`);
+  return true;
 }
 
 function readLocalStorage(key) {
@@ -15045,8 +15066,21 @@ function setControlScheme(value) {
   const normalized = normalizeControlScheme(value);
   optionsMenu.controlScheme = normalized;
   optionsMenu.controlSchemeSelectedIndex = normalized === CONTROL_SCHEME_RELATIVE ? 1 : 0;
+  if (normalized !== CONTROL_SCHEME_RELATIVE) cancelAutoRowCommand(autoRowCommandState);
   writeLocalStorage(CONTROL_SCHEME_STORAGE_KEY, normalized);
   dirty = true;
+}
+
+function setAutoRowEnabled(enabled) {
+  if (typeof enabled !== "boolean") throw new Error("Auto-row setting must be boolean");
+  optionsMenu.autoRowEnabled = enabled;
+  if (!enabled) cancelAutoRowCommand(autoRowCommandState);
+  writeLocalStorage(AUTO_ROW_STORAGE_KEY, String(enabled));
+  dirty = true;
+}
+
+function toggleAutoRowEnabled() {
+  setAutoRowEnabled(!optionsMenu.autoRowEnabled);
 }
 
 function setAudioMuted(muted) {
@@ -17221,6 +17255,7 @@ function closeStartMenu() {
 }
 
 function startNewVoyage() {
+  cancelAutoRowCommand(autoRowCommandState);
   clearPoliticalNotices();
   familyDebtReturnReminderDelivered = false;
   if (localSaveResult.status === "ready") {
@@ -20555,6 +20590,8 @@ function handleOptionsKeyDown(event) {
       setInterfaceLanguage(nextLanguage(currentLanguage, direction));
     } else if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROL_SCHEME) {
       setControlScheme(nextControlScheme(optionsMenu.controlScheme, direction));
+    } else if (optionsMenu.selectedIndex === OPTIONS_ROW_AUTO_ROW) {
+      toggleAutoRowEnabled();
     } else if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS) {
       setControllerGlyphPreference(nextControllerGlyphPreference(
         optionsMenu.controllerGlyphPreference,
@@ -20575,6 +20612,7 @@ function handleOptionsKeyDown(event) {
       setInterfaceLanguage(nextLanguage(currentLanguage));
     }
     if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROL_SCHEME) openControlSchemeMenu();
+    if (optionsMenu.selectedIndex === OPTIONS_ROW_AUTO_ROW) toggleAutoRowEnabled();
     if (optionsMenu.selectedIndex === OPTIONS_ROW_CONTROLLER_ICONS) {
       setControllerGlyphPreference(nextControllerGlyphPreference(optionsMenu.controllerGlyphPreference));
     }
@@ -21392,6 +21430,11 @@ function handleOptionsPointerDown(point) {
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_CONTROL_SCHEME])) {
     optionsMenu.selectedIndex = OPTIONS_ROW_CONTROL_SCHEME;
     openControlSchemeMenu();
+    return;
+  }
+  if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_AUTO_ROW])) {
+    optionsMenu.selectedIndex = OPTIONS_ROW_AUTO_ROW;
+    toggleAutoRowEnabled();
     return;
   }
   if (pointInRect(point, optionsMenu.rowRects[OPTIONS_ROW_CONTROLLER_ICONS])) {
@@ -23611,6 +23654,7 @@ function capturePresentedFrame() {
 function openPortDialogue(cityCall) {
   if (!gameState) throw new Error("Cannot open port dialogue before game state is ready");
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
+  cancelAutoRowCommand(autoRowCommandState);
   clearPortNavigationWaypointsAt(gameState, cityCall.cityId);
   const arrivingBattery = ensureShoreBatteryState(cityCall);
   const continuingBombardment = arrivingBattery
@@ -27639,6 +27683,7 @@ function toggleAnchor({ findCastaway = true } = {}) {
   }
   if (!canAnchorAtCurrentShore()) return false;
   anchored = true;
+  cancelAutoRowCommand(autoRowCommandState);
   initialAnimalEncounterRollPending = true;
   stopShipMotion();
   playAnchorHandlingSound({ raising: false });
@@ -34516,7 +34561,11 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
     travelEligible
   ) {
     const opened = openCaptainAlertModal(
-      rowingTutorialMessage(sailingTutorialInputMode, optionsMenu.controlScheme),
+      rowingTutorialMessage(
+        sailingTutorialInputMode,
+        optionsMenu.controlScheme,
+        optionsMenu.autoRowEnabled
+      ),
       "neutral"
     );
     if (opened) flags.oarTutorialShown = true;
@@ -34574,7 +34623,7 @@ function inputCommandForShip() {
   const captureHeading = captureAutopilotHeading();
   if (captureHeading) return directionalShipInputCommand(captureHeading);
   const pointerVector = pointerSteeringInputVector();
-  const intent = steeringIntentForScheme({
+  const rawIntent = steeringIntentForScheme({
     scheme: optionsMenu.controlScheme,
     left: keys.has(KEY_ACTION.STEER_LEFT),
     right: keys.has(KEY_ACTION.STEER_RIGHT),
@@ -34583,6 +34632,22 @@ function inputCommandForShip() {
     controllerX: controllerSteering?.dx * controllerSteering?.strength || 0,
     controllerY: controllerSteering?.dy * controllerSteering?.strength || 0
   });
+  const canRow = shipCanUseOars(currentPlayerEffectiveShipStats());
+  const autoRow = updateAutoRowCommand(autoRowCommandState, {
+    enabled: optionsMenu.autoRowEnabled,
+    relativeControls: optionsMenu.controlScheme === CONTROL_SCHEME_RELATIVE,
+    canRow,
+    forwardHeld: rawIntent.relativeForward,
+    reverseHeld: rawIntent.relativeBackward || (
+      optionsMenu.controlScheme === CONTROL_SCHEME_RELATIVE &&
+      keys.has(KEY_ACTION.STEER_DOWN)
+    )
+  });
+  const intent = {
+    ...rawIntent,
+    relativeForward: autoRow.ahead,
+    relativeBackward: autoRow.astern
+  };
   const steeringActive = Boolean(pointerVector) || intent.relativeBackward ||
     intent.relativeForward || intent.relativeTurn !== 0 ||
     intent.absoluteX !== 0 || intent.absoluteY !== 0;
@@ -34598,7 +34663,6 @@ function inputCommandForShip() {
       cameraSpaceHeadingForShip(pointerVector.dx, pointerVector.dy)
     );
   }
-  const canRow = shipCanUseOars(currentPlayerEffectiveShipStats());
   const canPivot = shipCanPivotInPlace(
     currentPlayerEffectiveShipStats(),
     playerHasCombatEngagement()
@@ -57319,6 +57383,7 @@ function drawOptionsSettingsRow(index, rowRect) {
   } else if (index === OPTIONS_ROW_MUTE) drawOptionsMuteRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_LANGUAGE) drawOptionsLanguageRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_CONTROL_SCHEME) drawOptionsControlSchemeRow(rowRect, highlighted);
+  else if (index === OPTIONS_ROW_AUTO_ROW) drawOptionsAutoRowRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_CONTROLLER_ICONS) drawOptionsControllerIconsRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_CONTROLS) drawOptionsControlsRow(rowRect, highlighted);
   else if (index === OPTIONS_ROW_DIAGNOSTIC_MODE) drawOptionsDiagnosticModeRow(rowRect, highlighted);
@@ -57914,6 +57979,16 @@ function drawOptionsControlSchemeRow(rowRect, highlighted) {
     font,
     valueColor: PIRATE_MENU_CHART_LINE,
     containerId: "options-control-scheme"
+  });
+}
+
+function drawOptionsAutoRowRow(rowRect, highlighted) {
+  drawOptionsPairedRow(rowRect, highlighted, {
+    label: uiText("options.autoRow"),
+    value: `< ${uiText(optionsMenu.autoRowEnabled ? "telemetry.on" : "telemetry.off")} >`,
+    font: PIXEL_FONT_SMALL_8,
+    valueColor: optionsMenu.autoRowEnabled ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK_MUTED,
+    containerId: "options-auto-row"
   });
 }
 

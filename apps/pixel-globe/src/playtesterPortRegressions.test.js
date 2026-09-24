@@ -279,6 +279,7 @@ test("a hostile toll offer intercepts attempted docking before opening the barre
   const city = { cityId: "calais|france", factionId: "france", character: {} };
   const battery = { playerHailed: false, playerAttackActive: false, gunCount: 2 };
   const context = { gameState: {}, weatherClockMinutes: 100,
+    autoRowCommandState: {}, cancelAutoRowCommand: () => {},
     clearPortNavigationWaypointsAt: () => {}, ensureShoreBatteryState: () => battery,
     continuingPortBombardmentThreat: () => null, shoreBatteryIsDisabled: () => false,
     setBackgroundMusicTrack: () => {}, musicTrackForCity: () => "port", citySiteIsRuined: () => false,

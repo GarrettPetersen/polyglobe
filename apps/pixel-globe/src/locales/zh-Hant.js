@@ -14,6 +14,7 @@ export default {
   "language.korean": "韓文",
   "options.title": "選項",
   "options.language": "語言",
+  "options.autoRow": "自動划槳",
   "options.controllerIcons": "控制器圖示",
   "options.controllerIcons.automatic": "自動",
   "options.controllerIcons.xbox": "XBOX",

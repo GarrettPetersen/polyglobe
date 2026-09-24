@@ -14,6 +14,7 @@ export default {
   "language.korean": "한국어",
   "options.title": "설정",
   "options.language": "언어",
+  "options.autoRow": "자동 노젓기",
   "options.controllerIcons": "컨트롤러 아이콘",
   "options.controllerIcons.automatic": "자동",
   "options.controllerIcons.xbox": "엑스박스",

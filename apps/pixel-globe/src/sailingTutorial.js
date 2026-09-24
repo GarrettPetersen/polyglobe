@@ -133,7 +133,11 @@ export function sailingTutorialTravelIsEligible({ anchored, combatEngaged, whale
   return !anchored && !combatEngaged && !whaleTowActive;
 }
 
-export function sailingHelpPages(inputMode, controlScheme = DEFAULT_CONTROL_SCHEME) {
+export function sailingHelpPages(
+  inputMode,
+  controlScheme = DEFAULT_CONTROL_SCHEME,
+  autoRowEnabled = true
+) {
   if (!SAILING_HELP_INPUT_MODES.has(inputMode)) {
     throw new Error(`Unknown sailing help input mode: ${inputMode}`);
   }
@@ -180,7 +184,7 @@ export function sailingHelpPages(inputMode, controlScheme = DEFAULT_CONTROL_SCHE
     {
       title: "ROWING",
       diagram: "row",
-      body: rowingTutorialMessage(inputMode, normalizedControlScheme)
+      body: rowingTutorialMessage(inputMode, normalizedControlScheme, autoRowEnabled)
     },
     {
       title: "ESCAPE THE SHORE",
@@ -190,9 +194,16 @@ export function sailingHelpPages(inputMode, controlScheme = DEFAULT_CONTROL_SCHE
   ];
 }
 
-export function rowingTutorialMessage(inputMode, controlScheme = DEFAULT_CONTROL_SCHEME) {
+export function rowingTutorialMessage(
+  inputMode,
+  controlScheme = DEFAULT_CONTROL_SCHEME,
+  autoRowEnabled = true
+) {
   if (!SAILING_HELP_INPUT_MODES.has(inputMode)) {
     throw new Error(`Unknown sailing help input mode: ${inputMode}`);
+  }
+  if (typeof autoRowEnabled !== "boolean") {
+    throw new Error("Rowing help requires a boolean auto-row setting");
   }
   const normalizedControlScheme = normalizeControlScheme(controlScheme);
   if (inputMode === "touch") {
@@ -201,14 +212,15 @@ export function rowingTutorialMessage(inputMode, controlScheme = DEFAULT_CONTROL
   if (inputMode === "mouse") {
     return "On an oared ship, hold ahead to row or behind to reverse. Hold to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
   }
-  if (inputMode === "keyboard") {
-    return normalizedControlScheme === CONTROL_SCHEME_RELATIVE
-      ? "On an oared ship, hold forward to row, back to reverse, or left/right while stopped to turn in place. Release to rest; more rowers are stronger but eat more."
-      : "On an oared ship, hold toward the bow to row, behind it to reverse, or to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
+  if (normalizedControlScheme === CONTROL_SCHEME_RELATIVE) {
+    return autoRowEnabled
+      ? "Tap forward to keep rowing. Hold back to reverse, or tap back to stop rowing. While stopped, hold left/right to turn in place. More rowers pull harder but eat more."
+      : "Hold forward to row and back to reverse. While stopped, hold left/right to turn in place. More rowers pull harder but eat more.";
   }
-  return normalizedControlScheme === CONTROL_SCHEME_RELATIVE
-    ? "On an oared ship, hold the left stick forward to row, back to reverse, or left/right while stopped to turn in place. Release to rest; more rowers are stronger but eat more."
-    : "On an oared ship, hold the left stick toward the bow to row, behind it to reverse, or to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
+  if (inputMode === "keyboard") {
+    return "On an oared ship, hold toward the bow to row, behind it to reverse, or to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
+  }
+  return "On an oared ship, hold the left stick toward the bow to row, behind it to reverse, or to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
 }
 
 function assertEarlySailingHelpState(state) {
