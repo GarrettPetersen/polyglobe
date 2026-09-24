@@ -19,7 +19,7 @@ import { CARIBBEAN_GINGER_FETCH_STAGE, maybeSpawnCaribbeanGingerQuest } from "..
 import { createWorldEconomy } from "../../src/economy.js";
 import { withForeignSettlements1522 } from "../../src/foreignSettlements.js";
 import { createCrewRecruitmentOffer } from "../../src/crewMembers.js";
-import { cargoUsed, factionReputation, hireCrewMemberAtPort, migrateGameState, setPlayerShipStats, validateGameState } from "../../src/gameState.js";
+import { capturePortMissionEligibility, cargoUsed, factionReputation, hireCrewMemberAtPort, migrateGameState, setPlayerShipStats, validateGameState } from "../../src/gameState.js";
 import assert from "node:assert/strict";
 import { completeChefRecruitment, completeVikingLongshipAcquisition } from "../../src/innQuestTransactions.js";
 import { dialogueOptionIconId } from "../../src/gameIcons.js";
@@ -529,7 +529,10 @@ export function contextForScenario(scenario) {
     get pirateHavenQuestOffer() {
       return pirateHavenQuestOffer(scenario.gameState.memory.pirateHavens, scenario.city, {
         havens: scenario.portCities.filter(city => city.isPirateHideout), merchants: [],
-        simMinute: scenario.simMinute ?? 0, sailingDistanceKm: () => 100
+        simMinute: scenario.simMinute ?? 0, sailingDistanceKm: () => 100,
+        suppressionEligible: scenario.city.isPirateHideout
+          ? undefined
+          : capturePortMissionEligibility(scenario.gameState).eligible
       });
     },
     random: () => scenario.randomStream === undefined ? 0.75 : nextSeededRandom(scenario.randomStream),

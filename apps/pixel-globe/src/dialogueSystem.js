@@ -7682,7 +7682,7 @@ function buyView(session, city, gameState, economy, context) {
   rows.push(option("Back", { type: "leave-market", nodeId: "root" }, {
     placement: "port-exit"
   }));
-  rows.push(option("Undo all trades", { type: "undo-market" }, {
+  rows.push(option("Undo trades", { type: "undo-market" }, {
     disabled: !marketUndoAvailable(session),
     placement: "port-exit"
   }));
@@ -7690,8 +7690,8 @@ function buyView(session, city, gameState, economy, context) {
     speaker: speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     text: city.isPirateHideout
-      ? `No receipts, no questions. Doubloons ${gameState.doubloons}. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`
-      : `${cityLabel(city)} market. Doubloons ${gameState.doubloons}. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`,
+      ? `No receipts, no questions. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`
+      : `${cityLabel(city)} market. Cargo ${hold.physicalWholeUnits}/${hold.capacity}.`,
     feedback: session.feedback,
     feedbackLineReserve: 2,
     optionHeight: 22,
@@ -8548,7 +8548,7 @@ function sellView(session, city, gameState, economy, context) {
   rows.push(option("Back", { type: "leave-market", nodeId: "root" }, {
     placement: "port-exit"
   }));
-  rows.push(option("Undo all trades", { type: "undo-market" }, {
+  rows.push(option("Undo trades", { type: "undo-market" }, {
     disabled: !marketUndoAvailable(session),
     placement: "port-exit"
   }));
@@ -8576,7 +8576,7 @@ function marketUndoConfirmationView(session, city) {
     bodyTone: "danger",
     feedback: null,
     options: [
-      option("Undo all trades", {
+      option("Undo trades", {
         type: "confirm-market-undo"
       }),
       option("Let the bargains stand", { type: "cancel-market-undo" }, {
@@ -9396,9 +9396,9 @@ function joinWithAnd(parts) {
 }
 
 export function worldPriceIndicator(comparison) {
-  if (comparison.direction === "high") return `${Math.abs(comparison.percent)}% ABOVE WORLD`;
-  if (comparison.direction === "low") return `${Math.abs(comparison.percent)}% BELOW WORLD`;
-  if (comparison.direction === "fair") return "= WORLD PRICE";
+  if (comparison.direction === "high") return `WORLD +${Math.abs(comparison.percent)}%`;
+  if (comparison.direction === "low") return `WORLD -${Math.abs(comparison.percent)}%`;
+  if (comparison.direction === "fair") return "WORLD =";
   throw new Error(`Unknown world price direction: ${comparison.direction}`);
 }
 
@@ -9407,7 +9407,7 @@ function marketStockIndicator(stock) {
 }
 
 function marketCargoSpaceIndicator(totalSize) {
-  return `SPACE ${totalSize} EACH`;
+  return `SPACE ${totalSize}`;
 }
 
 function marketProfitIndicator(pnlLabel) {

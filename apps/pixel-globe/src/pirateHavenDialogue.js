@@ -24,7 +24,7 @@ export function pirateHavenCommissionView(state, city, context) {
     text: !offer ? "I have no business for you today."
       : kind === "revenge" ? `${offer.targetCaptainName} stole my share. My silver cup was last seen aboard ${offer.targetShipName} near ${offer.targetPortName}. Bring it here; I'll pay ${offer.reward} doubloons.`
       : kind === "smuggling" ? `A stolen chest is waiting for us in ${offer.pickupName}. Collect it from the waterfront between eight at night and five in the morning, then bring it here for ${offer.reward} doubloons. Keep it quiet.`
-      : `I will mark ${offer.havenName} on your chart: ${offer.distanceKm} kilometres by sea. Silence its shore guns and storm the camp. Return for ${offer.reward} doubloons.`,
+      : `Scouts discovered a pirate haven at ${offer.havenName}, ${offer.distanceKm} km by sea. We need a captain to suppress it. I will mark it on your chart. Silence its shore guns, storm the camp, and return for ${offer.reward} doubloons.`,
     options: [...(offer ? [{ label: "I will undertake it", action: { type: "accept-pirate-haven-quest", offer } }] : []), back] };
 }
 export function selectPirateHavenCommission(state, city, action, context) {

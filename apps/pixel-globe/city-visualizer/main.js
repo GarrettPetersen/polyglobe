@@ -1,4 +1,5 @@
 import { cityAssaultWaterDepthPx, cityGateGroundFeetY } from "./cityAssaultGround.js";
+import { loadImageWithRetry } from "../src/assetImageLoader.js";
 import { PORT_ASSAULT_TRACK_START_X } from "../src/portAssaultGround.js";
 import { PORT_ASSAULT_LANE_SPACING } from "../src/portAssaultFormation.js";
 import { spriteSplinterColors } from "../src/hullSplinters.js";
@@ -5442,11 +5443,10 @@ function cityPeopleAtlasUrl(manifest) {
 function loadImage(url) {
   url = resolveCitySceneAssetUrl(url, import.meta.url);
   if (imageCache.has(url)) return imageCache.get(url);
-  const request = new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error(`Could not load image: ${url}`));
-    image.src = url;
+  const request = loadImageWithRetry({
+    src: url,
+    label: `city scene image: ${url}`,
+    createImage: () => new Image()
   }).catch((error) => {
     if (imageCache.get(url) === request) imageCache.delete(url);
     throw error;

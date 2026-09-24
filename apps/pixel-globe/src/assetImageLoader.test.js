@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   STREAMED_IMAGE_RETRY_DELAYS_MS,
@@ -46,6 +47,13 @@ test("image loading reports a persistent failure only after all retries", async 
     "/missing.png?retry=1",
     "/missing.png?retry=2"
   ]);
+});
+
+test("the city scene retries required atlas images instead of failing on one request", () => {
+  const source = readFileSync(new URL("../city-visualizer/main.js", import.meta.url), "utf8");
+  assert.match(source, /import \{ loadImageWithRetry \} from "\.\.\/src\/assetImageLoader\.js"/);
+  assert.match(source, /const request = loadImageWithRetry\(\{/);
+  assert.match(source, /if \(imageCache\.get\(url\) === request\) imageCache\.delete\(url\)/);
 });
 
 function createFakeImageFactory({ failures, requestedSources }) {

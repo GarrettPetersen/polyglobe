@@ -1377,6 +1377,8 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   const market = portDialogueView(session, city, gameState, economy, [city]);
   assert.match(market.text, /Market specie: \d+ db/);
+  assert.doesNotMatch(market.text, /Doubloons/);
+  assert.match(market.text, /Cargo \d+\/20/);
   assert.equal(market.feedbackLineReserve, 2);
   assert.equal(market.optionHeight, 22);
   assert.ok(market.options.some((option) => /\d+ db/.test(option.label)));
@@ -1385,7 +1387,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.ok(market.options.some((option) => /STOCK \d+/.test(option.detail || "")));
   assert.ok(market.options
     .filter((option) => option.action.type === "buy")
-    .every((option) => /SPACE [1-4] EACH/.test(option.detail || "")));
+    .every((option) => /SPACE [1-4]/.test(option.detail || "")));
   assert.ok(market.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(market.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   const buyIndex = market.options.findIndex((option) => (
@@ -1416,7 +1418,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.equal(sell.optionHeight, 22);
   assert.equal(sell.options.at(-2).label, "Back to city");
   assert.equal(sell.options.at(-2).placement, "port-exit");
-  assert.equal(sell.options.at(-1).label, "Undo all trades");
+  assert.equal(sell.options.at(-1).label, "Undo trades");
   assert.equal(sell.options.at(-1).placement, "port-exit");
   assert.equal(sell.options.at(-1).disabled, false);
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.detail || "")));
@@ -1436,7 +1438,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     "Sell",
     "No cargo to sell",
     "Back to city",
-    "Undo all trades"
+    "Undo trades"
   ]);
 });
 
@@ -2172,7 +2174,7 @@ test("port menus pin Back to city and Leave Port after their ordinary actions", 
   )));
   assert.deepEqual(buy.options.slice(-2).map((entry) => entry.label), [
     "Back to city",
-    "Undo all trades"
+    "Undo trades"
   ]);
   assert.equal(buy.optionColumns, 2);
 
@@ -2289,7 +2291,7 @@ test("market rows put unit and bulk actions together and undo every purchase on 
   assert.equal(initial.options[initialUndoIndex].placement, "port-exit");
   assert.deepEqual(
     dialogueOptionGroups(initial.options).exits.map((entry) => entry.option.label),
-    ["Back to city", "Undo all trades"]
+    ["Back to city", "Undo trades"]
   );
   const port = economy.portStates.get(city.cityId);
   const before = {
@@ -2493,7 +2495,7 @@ test("one market ledger undoes alternating purchases and sales together", () => 
 
   view = portDialogueView(session, city, gameState, economy, [city]);
   const undoIndex = view.options.findIndex((entry) => entry.action.type === "undo-market");
-  assert.equal(view.options[undoIndex].label, "Undo all trades");
+  assert.equal(view.options[undoIndex].label, "Undo trades");
   assert.equal(view.options[undoIndex].disabled, false);
   selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex);
   assert.equal(portMarketTransactionSessionOpen(session), true);
@@ -2569,7 +2571,7 @@ test("switching from a completed sale restores buy-row market context", () => {
   const buyRow = view.options.find((entry) => entry.action.type === "buy" && !entry.disabled);
   assert.ok(buyRow);
   assert.match(buyRow.detail, /DUTY/);
-  assert.match(buyRow.detail, /SPACE \d+ EACH/);
+  assert.match(buyRow.detail, /SPACE \d+/);
   assert.match(buyRow.detail, /WORLD/);
   assert.match(buyRow.detail, /STOCK/);
 });
@@ -2697,9 +2699,9 @@ test("sell all matches the same sequence of rounded prices as individual sales",
 });
 
 test("market comparisons use pixel-font-safe directional wording", () => {
-  assert.equal(worldPriceIndicator({ direction: "high", percent: 18 }), "18% ABOVE WORLD");
-  assert.equal(worldPriceIndicator({ direction: "low", percent: -12 }), "12% BELOW WORLD");
-  assert.equal(worldPriceIndicator({ direction: "fair", percent: 3 }), "= WORLD PRICE");
+  assert.equal(worldPriceIndicator({ direction: "high", percent: 18 }), "WORLD +18%");
+  assert.equal(worldPriceIndicator({ direction: "low", percent: -12 }), "WORLD -12%");
+  assert.equal(worldPriceIndicator({ direction: "fair", percent: 3 }), "WORLD =");
   assert.throws(
     () => worldPriceIndicator({ direction: "sideways", percent: 0 }),
     /Unknown world price direction/

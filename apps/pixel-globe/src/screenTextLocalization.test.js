@@ -298,10 +298,10 @@ test("tribute, feast day, market comparison, and survival labels retain their do
   assert.equal(catalog["{0} agrees to pay tribute to {1}."], "{0}同意向{1}缴纳贡礼。");
   assert.equal(catalog["{0}{1} remains independent but agrees to pay tribute to {2}."], "{0}{1}保持独立，但同意向{2}缴纳贡礼。");
   assert.equal(catalog[". Each year, on All Saints' Day, one falcon shall be rendered to the Viceroy of Sicily."], "。每年諸聖日，須向西西里副王進獻一隻獵鷹。");
-  assert.equal(catalog["{0}% ABOVE WORLD"], "高于世界价格{0}%");
-  assert.equal(catalog["{0}% BELOW WORLD"], "低于世界价格{0}%");
-  assert.equal(screenTextTranslationCatalog("ja")["{0}% ABOVE WORLD"], "世界価格より{0}%高い");
-  assert.equal(screenTextTranslationCatalog("ja")["{0}% BELOW WORLD"], "世界価格より{0}%安い");
+  assert.equal(catalog["WORLD +{0}%"], "世界 +{0}%");
+  assert.equal(catalog["WORLD -{0}%"], "世界 -{0}%");
+  assert.equal(screenTextTranslationCatalog("ja")["WORLD +{0}%"], "世界 +{0}%");
+  assert.equal(screenTextTranslationCatalog("ja")["WORLD -{0}%"], "世界 -{0}%");
   assert.equal(screenTextTranslationCatalog("ko")["{0}% BUILT"], "{0}% 건설 완료");
   assert.equal(screenTextTranslationCatalog("pt-BR")["{0}% casualty resistance"], "{0}% de chance de evitar baixas na tripulação");
   assert.doesNotMatch(catalog[". Each year, on All Saints' Day, one falcon shall be rendered to the Viceroy of Sicily."], /万圣节/u);

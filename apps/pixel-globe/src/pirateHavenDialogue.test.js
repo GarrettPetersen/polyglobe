@@ -10,7 +10,7 @@ const merchant={id:"merchant-12",seed:77,name:"Santa Maria",captainName:"Joao",r
 for(const city of [haven,port]) test(`every enabled pirate commission action works at ${city.city}`,()=>{
  const state=createGameState({cargoCapacity:20});
  const context={simMinute:0,pirateRevengeTargetPresent:true,get pirateHavenQuestOffer(){return pirateHavenQuestOffer(state.memory.pirateHavens,city,{
-  offerRoll: 0, contractKind: "revenge", havens:[haven],merchants:[merchant],sailingDistanceKm:()=>200,simMinute:0});}};
+  offerRoll: 0, contractKind: "revenge", havens:[haven],merchants:[merchant],sailingDistanceKm:()=>200,simMinute:0,suppressionEligible:true});}};
  const view=()=>pirateHavenCommissionView(state,city,context);
  const accept=view().options.find(o=>o.action.type==="accept-pirate-haven-quest").action;
  selectPirateHavenCommission(state,city,accept,context);
@@ -59,8 +59,12 @@ test("a merchant moving between presentation and acceptance refreshes the offer 
 test("returning suppression patrons offer payment here and pay only once", () => {
   const state = createGameState({ cargoCapacity: 20 });
   const context = { simMinute: 0, pirateHavenQuestOffer: pirateHavenQuestOffer(state.memory.pirateHavens, port, {
-    offerRoll: 0, havens: [haven], merchants: [], sailingDistanceKm: () => 200, simMinute: 0
+    offerRoll: 0, havens: [haven], merchants: [], sailingDistanceKm: () => 200, simMinute: 0,
+    suppressionEligible: true
   }) };
+  assert.match(context.pirateHavenQuestOffer && pirateHavenCommissionView(state, port, context).text,
+    /scouts discovered a pirate haven/i);
+  assert.match(pirateHavenCommissionView(state, port, context).text, /need a captain to suppress it/);
   selectPirateHavenCommission(state, port, { type: "accept-pirate-haven-quest", offer: context.pirateHavenQuestOffer }, context);
   ruinPirateHaven(state.memory.pirateHavens, haven.cityId, 0);
   const view = pirateHavenCommissionView(state, port, context);

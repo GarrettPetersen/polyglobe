@@ -537,12 +537,54 @@ const REVIEWED_OVERRIDES = Object.freeze({
     "zh-Hant": "市場交易仍記在賬簿中。",
     ko: "시장 거래는 장부에 그대로 기록되어 있습니다."
   }),
-  "Undo all trades": Object.freeze({
-    "zh-Hans": "撤销所有交易", ru: "Отменить все сделки", es: "Deshacer todas las transacciones",
-    "pt-BR": "Desfazer todas as transações", ja: "すべての取引を取り消す",
-    de: "Alle Geschäfte rückgängig machen", fr: "Annuler toutes les transactions",
-    pl: "Cofnij wszystkie transakcje", "zh-Hant": "撤銷所有交易", ko: "모든 거래 되돌리기"
-  }),
+  "{0} market. Cargo {1}/{2}.": reviewedLocaleOverrides("{0} market. Cargo {1}/{2}.", [
+    "{0}市场。货物 {1}/{2}。", "Рынок {0}. Груз {1}/{2}.", "Mercado de {0}. Carga {1}/{2}.",
+    "Mercado de {0}. Carga {1}/{2}.", "{0}市場。貨物 {1}/{2}。", "Markt {0}. Fracht {1}/{2}.",
+    "Marché de {0}. Cargaison {1}/{2}.", "Rynek {0}. Ładunek {1}/{2}.",
+    "{0}市場。貨物 {1}/{2}。", "{0} 시장. 화물 {1}/{2}."
+  ]),
+  "No receipts, no questions. Cargo {0}/{1}.": reviewedLocaleOverrides("No receipts, no questions. Cargo {0}/{1}.", [
+    "不留收据，不问缘由。货物 {0}/{1}。", "Без квитанций и вопросов. Груз {0}/{1}.",
+    "Sin recibos ni preguntas. Carga {0}/{1}.", "Sem recibos nem perguntas. Carga {0}/{1}.",
+    "領収書も詮索もなし。貨物 {0}/{1}。", "Keine Belege, keine Fragen. Fracht {0}/{1}.",
+    "Ni reçu, ni question. Cargaison {0}/{1}.", "Bez rachunków i pytań. Ładunek {0}/{1}.",
+    "不留收據，不問緣由。貨物 {0}/{1}。", "영수증도 질문도 없다. 화물 {0}/{1}."
+  ]),
+  "Undo trades": reviewedLocaleOverrides("Undo trades", [
+    "撤销交易", "Отменить сделки", "Deshacer operaciones", "Desfazer negócios", "取引を取り消す",
+    "Geschäfte rückgängig", "Annuler échanges", "Cofnij transakcje", "撤銷交易", "거래 되돌리기"
+  ]),
+  "WORLD +{0}%": reviewedLocaleOverrides("WORLD +{0}%", [
+    "世界 +{0}%", "МИР +{0}%", "MUNDO +{0}%", "MUNDO +{0}%", "世界 +{0}%",
+    "WELT +{0}%", "MONDE +{0}%", "ŚWIAT +{0}%", "世界 +{0}%", "세계 +{0}%"
+  ]),
+  "WORLD -{0}%": reviewedLocaleOverrides("WORLD -{0}%", [
+    "世界 -{0}%", "МИР -{0}%", "MUNDO -{0}%", "MUNDO -{0}%", "世界 -{0}%",
+    "WELT -{0}%", "MONDE -{0}%", "ŚWIAT -{0}%", "世界 -{0}%", "세계 -{0}%"
+  ]),
+  "WORLD =": reviewedLocaleOverrides("WORLD =", [
+    "世界 =", "МИР =", "MUNDO =", "MUNDO =", "世界 =", "WELT =", "MONDE =", "ŚWIAT =", "世界 =", "세계 ="
+  ]),
+  "SPACE {0}": reviewedLocaleOverrides("SPACE {0}", [
+    "舱位 {0}", "МЕСТО {0}", "ESPACIO {0}", "ESPAÇO {0}", "容量 {0}", "PLATZ {0}",
+    "PLACE {0}", "MIEJSCE {0}", "艙位 {0}", "공간 {0}"
+  ]),
+  "STOCK {0}": reviewedLocaleOverrides("STOCK {0}", [
+    "库存 {0}", "ЗАПАС {0}", "STOCK {0}", "ESTOQUE {0}", "在庫 {0}", "LAGER {0}",
+    "STOCK {0}", "ZAPAS {0}", "庫存 {0}", "재고 {0}"
+  ]),
+  "Scouts discovered a pirate haven at {0}, {1} km by sea. We need a captain to suppress it. I will mark it on your chart. Silence its shore guns, storm the camp, and return for {2} doubloons.": reviewedLocaleOverrides("Scouts discovered a pirate haven at {0}, {1} km by sea. We need a captain to suppress it. I will mark it on your chart. Silence its shore guns, storm the camp, and return for {2} doubloons.", [
+    "我们的斥候发现了{0}的海盗巢穴，航程{1}公里。我们需要一位船长前去剿灭。我会在你的海图上标出位置。压制岸炮，攻下营地，再回来领取{2}达布隆。",
+    "Наши разведчики обнаружили пиратское убежище в {0}, в {1} километрах по морю. Нужен капитан, который его уничтожит. Я отмечу место на вашей карте. Подавите береговые орудия, возьмите лагерь штурмом и возвращайтесь за {2} дублонами.",
+    "Nuestros exploradores han descubierto un refugio pirata en {0}, a {1} kilómetros por mar. Necesitamos un capitán que lo suprima. Lo marcaré en tu carta. Silencia sus cañones costeros, asalta el campamento y vuelve por {2} doblones.",
+    "Nossos batedores descobriram um refúgio pirata em {0}, a {1} quilômetros por mar. Precisamos de um capitão para suprimi-lo. Vou marcá-lo em sua carta. Silencie os canhões costeiros, tome o acampamento e volte para receber {2} dobrões.",
+    "斥候が{0}に海賊の根城を発見した。海路で{1}キロだ。これを討つ船長が要る。海図に印を付けよう。沿岸砲を沈黙させ、野営地を攻め落とし、{2}ダブロンを受け取りに戻れ。",
+    "Unsere Kundschafter haben bei {0}, {1} Kilometer auf dem Seeweg, ein Piratenversteck entdeckt. Wir brauchen einen Kapitän, der es aushebt. Ich markiere es auf Eurer Karte. Bringt die Küstengeschütze zum Schweigen, stürmt das Lager und kehrt für {2} Dublonen zurück.",
+    "Nos éclaireurs ont découvert un repaire de pirates à {0}, à {1} kilomètres par mer. Il nous faut un capitaine pour le supprimer. Je le marquerai sur votre carte. Réduisez ses canons côtiers au silence, prenez le camp d’assaut et revenez chercher {2} doublons.",
+    "Nasi zwiadowcy odkryli kryjówkę piratów w {0}, {1} kilometrów drogą morską. Potrzebujemy kapitana, który ją zlikwiduje. Zaznaczę ją na twojej mapie. Ucisz działa nadbrzeżne, zdobądź obóz i wróć po {2} dublonów.",
+    "我們的斥候發現了{0}的海盜巢穴，航程{1}公里。我們需要一位船長前去剿滅。我會在你的海圖上標出位置。壓制岸炮，攻下營地，再回來領取{2}達布隆。",
+    "정찰대가 해로로 {1}킬로미터 떨어진 {0}에서 해적 소굴을 발견했습니다. 이를 소탕할 선장이 필요합니다. 해도에 위치를 표시하겠습니다. 해안포를 침묵시키고 야영지를 습격한 뒤 돌아오면 {2}다블룬을 드리겠습니다."
+  ]),
   "Assault armour coverage +{0}%": Object.freeze({
     "zh-Hans": "突击护甲覆盖 +{0}%", ru: "Покрытие брони при штурме +{0}%",
     es: "Cobertura de armadura en asalto +{0}%",

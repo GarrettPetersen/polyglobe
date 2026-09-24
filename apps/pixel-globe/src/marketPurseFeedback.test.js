@@ -4,11 +4,17 @@ import test from "node:test";
 import {
   MARKET_PURSE_FEEDBACK_DURATION_MS,
   createMarketPurseFeedbackState,
+  marketPurseFeedbackLayerOpacity,
   marketPurseFeedbackLabelPosition,
   marketPurseOverlayRect,
   marketPurseFeedbackEntries,
   recordMarketPurseTransaction
 } from "./marketPurseFeedback.js";
+
+test("fading feedback keeps glyph rasters opaque and applies transparency while drawing", () => {
+  assert.deepEqual(marketPurseFeedbackLayerOpacity(0.01), { shadow: 0.004, text: 0.01 });
+  assert.throws(() => marketPurseFeedbackLayerOpacity(-0.01), /Invalid market purse feedback opacity/);
+});
 
 test("market purse stays in the screen corner outside either market modal layout", () => {
   for (const [screenWidth, screenHeight] of [[455, 256], [256, 455]]) {

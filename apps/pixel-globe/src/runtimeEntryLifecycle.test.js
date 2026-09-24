@@ -339,5 +339,13 @@ test("sailing prepares shoreline connector caches incrementally before render fa
     text("advanceTerrainConnectorLayerPrefetch"),
     /TERRAIN_CONNECTOR_PREFETCH_BUDGET_MS/
   );
+  assert.match(
+    text("advanceTerrainConnectorLayerPrefetch"),
+    /cached\.revision === revision && !geometryPrefetchRequired/
+  );
+  assert.match(
+    text("terrainConnectorLayer"),
+    /surfaceDetailLayerCoversViewport/
+  );
   assert.match(text("terrainConnectorLayer"), /advanceTerrainConnectorLayerBuild\(build, Infinity\)/);
 });

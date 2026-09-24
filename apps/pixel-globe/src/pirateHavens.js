@@ -161,11 +161,15 @@ function offerHash(text) {
 }
 export function pirateHavenQuestOffer(memory, city, {
   havens, merchants, ports = [], sailingDistanceKm, simMinute, voyageSeed = "pirate-business",
-  offerRoll, contractKind, contactForPort, issuerEconomy = null
+  offerRoll, contractKind, contactForPort, issuerEconomy = null, suppressionEligible
 }) {
   minute(simMinute);
+  if (!city.isPirateHideout && typeof suppressionEligible !== "boolean") {
+    throw new Error("Pirate suppression offers require port-assault mission eligibility");
+  }
   if (pirateQuestsForPortType(memory, city).length > 0) return null;
   if (city.isPirateHideout && pirateHavenIsRuined(memory, city.cityId, simMinute)) return null;
+  if (!city.isPirateHideout && !suppressionEligible) return null;
   const period = Math.floor(simMinute / PIRATE_OFFER_PERIOD_MINUTES);
   const seed = `${voyageSeed}|${city.cityId}|${period}`;
   const policyKind = city.isPirateHideout ? "pirate-contract" : "pirate-suppression";

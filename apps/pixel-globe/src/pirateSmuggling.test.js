@@ -10,7 +10,8 @@ import { portCityLocationForRootAction, PORT_CITY_LOCATION } from "./portCityNav
 const haven = { cityId: "pirate-haven-1", city: "Black Gull Cove", isPirateHideout: true };
 const port = { cityId: "lisbon|portugal", city: "Lisbon" };
 const context = { simMinute: 0, offerRoll: 0, contractKind: "smuggling", havens: [haven], merchants: [], ports: [port],
-  sailingDistanceKm: () => 200, contactForPort: () => ({ id: "port-staff:lisbon:merchant", name: "Joao Pereira" }) };
+  sailingDistanceKm: () => 200, contactForPort: () => ({ id: "port-staff:lisbon:merchant", name: "Joao Pereira" }),
+  suppressionEligible: true };
 function campaign() {
   const state = createGameState({ cargoCapacity: 20 });
   const offer = pirateHavenQuestOffer(state.memory.pirateHavens, haven, context);

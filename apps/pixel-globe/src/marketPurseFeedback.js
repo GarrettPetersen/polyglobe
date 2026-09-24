@@ -33,6 +33,13 @@ export function marketPurseFeedbackLabelPosition(rect, entry) {
   });
 }
 
+export function marketPurseFeedbackLayerOpacity(alpha) {
+  if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) {
+    throw new Error(`Invalid market purse feedback opacity: ${alpha}`);
+  }
+  return Object.freeze({ shadow: alpha * 0.4, text: alpha });
+}
+
 export function createMarketPurseFeedbackState() {
   return { nextSequence: 0, entries: [] };
 }

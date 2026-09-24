@@ -9,7 +9,7 @@ import { createPirateHavenMemory, validatePirateHavenMemory, pirateHavenQuestOff
 const haven={cityId:"pirate-haven-1",city:"Black Gull Cove",isPirateHideout:true};
 const port={cityId:"lisbon|portugal",city:"Lisbon"};
 const merchant={id:"merchant-12",seed:77,name:"Santa Maria",captainName:"Joao",role:"merchant",hitPoints:10,currentPort:port};
-const context={offerRoll: 0, contractKind: "revenge", havens:[haven],merchants:[merchant],sailingDistanceKm:()=>200,simMinute:0};
+const context={offerRoll: 0, contractKind: "revenge", havens:[haven],merchants:[merchant],sailingDistanceKm:()=>200,simMinute:0,suppressionEligible:true};
 test("pirate commissions appear only at their canonical issuer without allowing duplicate contracts", async () => {
   const { pirateQuestAtIssuer } = await import("./pirateHavens.js");
   const { pirateHavenCommissionView, selectPirateHavenCommission } = await import("./pirateHavenDialogue.js");
@@ -64,6 +64,12 @@ test("suppression reveals one haven, ruins persist six months, then ordinary vis
  assert.equal(pirateHavenIsVisible(restored,haven.cityId,deadline,false),false);
  assert.equal(pirateHavenIsVisible(restored,haven.cityId,deadline,true),true);
  assert.ok(pirateHavenQuestOffer(restored,port,{...context,simMinute:deadline}));
+});
+test("suppression work is withheld until the ship can undertake a port assault",()=>{
+ const memory=createPirateHavenMemory();
+ assert.equal(pirateHavenQuestOffer(memory,port,{...context,suppressionEligible:false}),null);
+ assert.equal(pirateHavenQuestOffer(memory,port,{...context,suppressionEligible:true})?.kind,"suppression");
+ assert.throws(()=>pirateHavenQuestOffer(memory,port,{...context,suppressionEligible:undefined}),/port-assault mission eligibility/);
 });
 test("legitimate ports know no pirate commerce while active havens know both kinds of port", () => {
  const state=createGameState({cargoCapacity:20});

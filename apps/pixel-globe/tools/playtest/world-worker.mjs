@@ -231,7 +231,7 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
         completePirateHavenQuest(voyage.gameState, haven.cityId, "revenge", minute);
         pirateCommissions++;
         if (month % 8 === 2) {
-          const suppressionContext = { ...commissionContext, havens: [haven] };
+          const suppressionContext = { ...commissionContext, havens: [haven], suppressionEligible: true };
           const suppression = voyage.ports.map(port => pirateHavenQuestOffer(memory, port, suppressionContext)).find(Boolean);
           assert.ok(suppression, "Campaign requires a nearby suppression issuer");
           const issuer = voyage.ports.find(port => port.cityId === suppression.originCityId);

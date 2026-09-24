@@ -23,6 +23,7 @@ import { questOfferDirections } from "./questOfferDirections.js";
 import {
   createMarketPurseFeedbackState,
   marketPurseFeedbackLabelPosition,
+  marketPurseFeedbackLayerOpacity,
   marketPurseFeedbackEntries,
   marketPurseOverlayRect,
   recordMarketPurseTransaction
@@ -568,6 +569,7 @@ import {
   consumePendingDiscoveryPortDialogue,
   advanceCapturePortMissionAfterConquest,
   capturePortMissionMatchesConquest,
+  capturePortMissionEligibility,
   capturePortMissionLoadoutRecommendation,
   capturePortMissionOfferForCity,
   createPortEntryStatusContext,
@@ -3955,9 +3957,9 @@ const coralReefMaskedSpriteCache = new Map();
 const coralReefNearbyTileIdsCache = new Map();
 const surfaceDetailLayerCache = new WeakMap();
 const SURFACE_DETAIL_LAYER_MARGIN_PX = 96;
-const TERRAIN_CONNECTOR_LAYER_MARGIN_PX = 128;
-const TERRAIN_CONNECTOR_PREFETCH_MARGIN_PX = 64;
-const TERRAIN_CONNECTOR_PREFETCH_BUDGET_MS = 3;
+const TERRAIN_CONNECTOR_LAYER_MARGIN_PX = 192;
+const TERRAIN_CONNECTOR_PREFETCH_MARGIN_PX = 128;
+const TERRAIN_CONNECTOR_PREFETCH_BUDGET_MS = 4;
 const WATER_FOREGROUND_LAYER_MARGIN_PX = 160;
 const pixelTextRasterCache = new Map();
 const pixelTextFontLayoutCache = new Map();
@@ -58315,7 +58317,10 @@ function pixelTextRaster(text, font, color, measuredWidth) {
   scratchCtx.font = font;
   scratchCtx.textAlign = "left";
   scratchCtx.textBaseline = "alphabetic";
-  scratchCtx.fillStyle = color;
+  // Rasterize the glyph shape independently from its paint. A caller may
+  // intentionally use transparent text during a fade; that must not look like
+  // a missing font or glyph to the raster validator.
+  scratchCtx.fillStyle = "#ffffff";
   scratchCtx.fillText(text, layout.padding, layout.baselineY);
   const imageData = scratchCtx.getImageData(layout.padding, layout.padding, width, layout.height);
   const opaquePixels = hardenPixelTextAlpha(imageData.data);
@@ -58330,6 +58335,10 @@ function pixelTextRaster(text, font, color, measuredWidth) {
   if (!rasterCtx) throw new Error(`Could not create pixel text raster for: ${text}`);
   rasterCtx.imageSmoothingEnabled = false;
   rasterCtx.putImageData(imageData, 0, 0);
+  rasterCtx.globalCompositeOperation = "source-in";
+  rasterCtx.fillStyle = color;
+  rasterCtx.fillRect(0, 0, width, layout.height);
+  rasterCtx.globalCompositeOperation = "source-over";
 
   if (pixelTextRasterCache.size >= PIXEL_TEXT_RASTER_CACHE_LIMIT) {
     const oldestKey = pixelTextRasterCache.keys().next().value;
@@ -58778,6 +58787,30 @@ function drawTerrainConnectorLayer(layer, viewportBounds = null) {
 }
 
 function terrainConnectorLayer(faceCalls, activeChart) {
+  const cacheKey = worldChartRenderCacheKey(activeChart);
+  const cached = terrainConnectorLayerCache.get(cacheKey);
+  const prefetch = terrainConnectorLayerPrefetch;
+  if (
+    cached &&
+    prefetch?.cacheKey === cacheKey &&
+    prefetch.baseLayer === cached &&
+    prefetch.revision === terrainConnectorLayerRevision() &&
+    activeChart === chart
+  ) {
+    const offset = chartOffsetPixels(activeChart);
+    const viewport = {
+      minX: -offset.x,
+      minY: -offset.y,
+      maxX: SCREEN_W - offset.x,
+      maxY: SCREEN_H - offset.y
+    };
+    if (surfaceDetailLayerCoversViewport({
+      x: cached.x,
+      y: cached.y,
+      width: cached.canvas.width,
+      height: cached.canvas.height
+    }, viewport, TILE_ART_SIZE)) return cached;
+  }
   const build = createTerrainConnectorLayerBuild(faceCalls, activeChart);
   while (!build.complete) advanceTerrainConnectorLayerBuild(build, Infinity);
   return build.layer;
@@ -58804,7 +58837,7 @@ function advanceTerrainConnectorLayerPrefetch(activeChart) {
     maxY: SCREEN_H - offset.y
   };
   if (!terrainConnectorLayerPrefetch) {
-    if (!cachedLayerPrefetchRequired({
+    const geometryPrefetchRequired = cachedLayerPrefetchRequired({
       x: cached.x,
       y: cached.y,
       width: cached.canvas.width,
@@ -58812,7 +58845,8 @@ function advanceTerrainConnectorLayerPrefetch(activeChart) {
     }, viewport, {
       requiredMargin: TILE_ART_SIZE,
       prefetchMargin: TERRAIN_CONNECTOR_PREFETCH_MARGIN_PX
-    })) return false;
+    });
+    if (cached.revision === revision && !geometryPrefetchRequired) return false;
     const build = createTerrainConnectorLayerBuild(activeChart.faceCalls, activeChart, {
       forceRebuild: true
     });
@@ -68547,13 +68581,15 @@ function drawMarketPurseOverlay(nowMs, view) {
     // Stack changes beside the corner purse. The old upward stack was clipped
     // when the purse moved out of the market modal and into the screen corner.
     const { x, y } = marketPurseFeedbackLabelPosition(rect, entry);
-    ctx.fillStyle = rgbaFromHex(PIRATE_MENU_INK, entry.alpha * 0.4);
+    const opacity = marketPurseFeedbackLayerOpacity(entry.alpha);
+    ctx.save();
+    ctx.globalAlpha = opacity.shadow;
+    ctx.fillStyle = PIRATE_MENU_INK;
     drawPixelText(label, x + 1, y + 1, { font: PIXEL_FONT_SMALL_8, align: "right" });
-    ctx.fillStyle = rgbaFromHex(
-      entry.deltaDoubloons > 0 ? PIRATE_MENU_SUCCESS : PIRATE_MENU_DANGER,
-      entry.alpha
-    );
+    ctx.globalAlpha = opacity.text;
+    ctx.fillStyle = entry.deltaDoubloons > 0 ? PIRATE_MENU_SUCCESS : PIRATE_MENU_DANGER;
     drawPixelText(label, x, y, { font: PIXEL_FONT_SMALL_8, align: "right" });
+    ctx.restore();
   }
   if (entries.length > 0) dirty = true;
 }
@@ -71501,7 +71537,10 @@ function pirateQuestOfferForCity(city, simMinute) {
       graceUntilPortVisit: npc.graceUntilPortVisit, commissioned: supplyShipIds.has(npc.id),
       captainName: npcShipCaptains.get(npc.id)?.name })) : [],
     sailingDistanceKm: sailingDistanceBetweenPorts, simMinute,
-    issuerEconomy: city.isPirateHideout ? null : portEconomySummary(worldEconomy, city)
+    issuerEconomy: city.isPirateHideout ? null : portEconomySummary(worldEconomy, city),
+    suppressionEligible: city.isPirateHideout
+      ? undefined
+      : capturePortMissionEligibility(gameState).eligible
   });
 }
 
