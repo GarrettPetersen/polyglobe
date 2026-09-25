@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   CAMPAIGN_GOAL_EXPLORER,
+  CAMPAIGN_GOAL_VERSION,
   CAMPAIGN_GOAL_FAMILY_DEBT,
   CAMPAIGN_GOAL_TREASURE,
   CAMPAIGN_GOAL_WHITE_WHALE,
@@ -147,12 +148,16 @@ test("version 114 family debt saves gain visit gating and advice memory", () => 
   legacy.memory.campaignGoal.version = 1;
   delete legacy.memory.campaignGoal.repaymentEligible;
   delete legacy.memory.campaignGoal.partialPaymentAdviceSeen;
+  delete legacy.memory.campaignGoal.unreportedInterest;
+  delete legacy.memory.campaignGoal.interestFollowsAbsence;
 
   const restored = migrateGameState(legacy, null);
   assert.equal(restored.version, GAME_STATE_VERSION);
-  assert.equal(restored.memory.campaignGoal.version, 2);
+  assert.equal(restored.memory.campaignGoal.version, CAMPAIGN_GOAL_VERSION);
   assert.equal(restored.memory.campaignGoal.repaymentEligible, true);
   assert.equal(restored.memory.campaignGoal.partialPaymentAdviceSeen, false);
+  assert.equal(restored.memory.campaignGoal.unreportedInterest, 0);
+  assert.equal(restored.memory.campaignGoal.interestFollowsAbsence, false);
   validateGameState(restored);
 });
 

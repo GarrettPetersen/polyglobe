@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   CAMPAIGN_DESTINATION_DISCOVERY,
+  CAMPAIGN_GOAL_VERSION,
   CAMPAIGN_DESTINATION_HOME,
   CAMPAIGN_DESTINATION_WHITE_WHALE_SIGHTING,
   CAMPAIGN_GOAL_COMPLETE,
@@ -14,6 +15,7 @@ import {
   FAMILY_DEBT_PRINCIPAL,
   FAMILY_DEBT_PROTECTED_PURSE,
   FAMILY_DEBT_RETURN_BUFFER_DAYS,
+  advanceFamilyDebtInterest,
   campaignGoalDestination,
   campaignGoalIntroPhase,
   campaignDialogueView,
@@ -30,6 +32,7 @@ import {
   drunkenCampaignHomecomingSteps,
   explorerDiscoveryReward,
   explorerPatronOutlook,
+  familyDebtChargedDoubloons,
   familyDebtHomecomingEligible,
   familyDebtOriginExchange,
   familyDebtPartialPaymentAdvice,
@@ -38,6 +41,7 @@ import {
   markCampaignGoalIntroSeen,
   markFamilyDebtPartialPaymentAdviceSeen,
   markWhiteWhaleKilled,
+  migrateCampaignGoalPortIdentities,
   reachWhiteWhaleSighting,
   recordCampaignGoalPortVisit,
   recordWhiteWhaleSighting,
@@ -302,6 +306,103 @@ test("explorer destination returns home after finding the patron's assigned wond
     homePortTileId: CHARACTER.homePortTileId,
     reason: "report-discovery"
   });
+});
+
+test("family debt compounds each day away from home and the payment names that interest", () => {
+  const day = 24 * 60;
+  const goal = createCampaignGoal({
+    playerCharacter: CHARACTER,
+    startMinute: 0,
+    type: CAMPAIGN_GOAL_FAMILY_DEBT
+  });
+  assert.equal(familyDebtChargedDoubloons(goal), FAMILY_DEBT_PRINCIPAL);
+  advanceFamilyDebtInterest(goal, day / 2, { atHomePort: false });
+  assert.equal(goal.debtBalance, FAMILY_DEBT_PRINCIPAL);
+  assert.equal(familyDebtChargedDoubloons(goal), FAMILY_DEBT_PRINCIPAL);
+
+  const away = advanceFamilyDebtInterest(goal, 10 * day, { atHomePort: false });
+  const awayInterest = FAMILY_DEBT_PRINCIPAL * (Math.pow(1 + 0.10 / 365.25, 10) - 1);
+  assert.equal(away.chargedDays, 10);
+  assert.ok(Math.abs(away.interest - awayInterest) < 0.001);
+  assert.ok(Math.abs(goal.unreportedInterest - awayInterest) < 0.001);
+  assert.equal(familyDebtChargedDoubloons(goal), Math.ceil(goal.debtBalance));
+  assert.ok(familyDebtChargedDoubloons(goal) > FAMILY_DEBT_PRINCIPAL);
+  const repeated = advanceFamilyDebtInterest(goal, 10 * day, { atHomePort: false });
+  assert.equal(repeated.interest, 0);
+
+  advanceFamilyDebtInterest(goal, 15 * day, { atHomePort: true });
+  assert.ok(Math.abs(goal.debtBalance - (FAMILY_DEBT_PRINCIPAL + awayInterest)) < 0.001);
+  assert.equal(goal.lastAccruedMinute, 15 * day);
+
+  const result = settleFamilyDebtHomecoming(goal, { currentMinute: 15 * day, doubloons: 500 });
+  assert.ok(Math.abs(result.accruedInterest - awayInterest) < 0.001);
+  assert.ok(Math.abs(result.previousBalance - FAMILY_DEBT_PRINCIPAL) < 0.001);
+  assert.equal(goal.unreportedInterest, 0);
+  const steps = campaignHomecomingSteps(goal, result, CHARACTER, new Map());
+  assert.match(steps[0].text, /interest added/i);
+  assert.match(steps[0].text, new RegExp(Math.round(awayInterest).toLocaleString("en-US")));
+
+  const balanceAfterPayment = goal.debtBalance;
+  recordCampaignGoalPortVisit(goal, "quanzhou|china");
+  advanceFamilyDebtInterest(goal, 20 * day, { atHomePort: false });
+  const secondInterest = balanceAfterPayment * (Math.pow(1 + 0.10 / 365.25, 5) - 1);
+  assert.ok(Math.abs(goal.unreportedInterest - secondInterest) < 0.001);
+  assert.throws(
+    () => advanceFamilyDebtInterest(goal, 21 * day, { atHomePort: "away" }),
+    /home-port presence/
+  );
+});
+
+test("a partial day at home is not billed on the next day away", () => {
+  const day = 24 * 60;
+  const goal = createCampaignGoal({
+    playerCharacter: CHARACTER,
+    startMinute: 0,
+    type: CAMPAIGN_GOAL_FAMILY_DEBT
+  });
+  advanceFamilyDebtInterest(goal, 10 * day, { atHomePort: false });
+  const balanceAfterVoyage = goal.debtBalance;
+  advanceFamilyDebtInterest(goal, 10.5 * day, { atHomePort: true });
+  assert.equal(goal.lastAccruedMinute, 10.5 * day);
+  assert.equal(goal.debtBalance, balanceAfterVoyage);
+  advanceFamilyDebtInterest(goal, 11.5 * day, { atHomePort: false });
+  const oneDayInterest = balanceAfterVoyage * (Math.pow(1 + 0.10 / 365.25, 1) - 1);
+  assert.ok(Math.abs(goal.debtBalance - (balanceAfterVoyage + oneDayInterest)) < 0.001);
+});
+
+test("older family debt saves charge their existing gap once, then only while away", () => {
+  const day = 24 * 60;
+  const legacy = createCampaignGoal({
+    playerCharacter: CHARACTER,
+    startMinute: 0,
+    type: CAMPAIGN_GOAL_FAMILY_DEBT
+  });
+  legacy.version = 2;
+  delete legacy.unreportedInterest;
+  delete legacy.interestFollowsAbsence;
+  const goal = migrateCampaignGoalPortIdentities(legacy, {
+    homePortCityId: CHARACTER.homePortCityId
+  });
+  assert.equal(goal.version, CAMPAIGN_GOAL_VERSION);
+  assert.equal(goal.interestFollowsAbsence, false);
+  assert.equal(goal.unreportedInterest, 0);
+
+  const backlog = advanceFamilyDebtInterest(goal, 30 * day, { atHomePort: true });
+  const expected = FAMILY_DEBT_PRINCIPAL * (Math.pow(1 + 0.10 / 365.25, 30) - 1);
+  assert.ok(Math.abs(backlog.interest - expected) < 0.001);
+  assert.equal(goal.interestFollowsAbsence, true);
+  assert.equal(goal.lastAccruedMinute, 30 * day);
+  const chargedBalance = goal.debtBalance;
+  advanceFamilyDebtInterest(goal, 40 * day, { atHomePort: true });
+  assert.equal(goal.debtBalance, chargedBalance);
+  assert.equal(goal.lastAccruedMinute, 40 * day);
+
+  const settled = settleFamilyDebtHomecoming(goal, { currentMinute: 40 * day, doubloons: 500 });
+  assert.ok(Math.abs(settled.accruedInterest - expected) < 0.001);
+  assert.match(
+    campaignHomecomingSteps(goal, settled, CHARACTER, new Map())[0].text,
+    /interest added/i
+  );
 });
 
 test("family debt compounds daily and preserves the last 100 doubloons", () => {

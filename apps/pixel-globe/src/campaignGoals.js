@@ -17,7 +17,7 @@ import {
   validateTreasureCampaignFields
 } from "./treasureCampaign.js";
 
-export const CAMPAIGN_GOAL_VERSION = 2;
+export const CAMPAIGN_GOAL_VERSION = 3;
 export const CAMPAIGN_GOAL_EXPLORER = "explorer";
 export const CAMPAIGN_GOAL_FAMILY_DEBT = "family-debt";
 export const CAMPAIGN_GOAL_WHITE_WHALE = "white-whale-revenge";
@@ -106,6 +106,8 @@ const CAMPAIGN_GOAL_DEFINITIONS = Object.freeze({
       debtBalance: FAMILY_DEBT_PRINCIPAL,
       annualInterestRate: FAMILY_DEBT_ANNUAL_RATE,
       lastAccruedMinute: startMinute,
+      unreportedInterest: 0,
+      interestFollowsAbsence: true,
       protectedPurse: FAMILY_DEBT_PROTECTED_PURSE,
       totalPaid: 0,
       repaymentEligible: true,
@@ -165,16 +167,30 @@ export function migrateCampaignGoalPortIdentities(goal, {
   legacyCityIdForPortReference = null
 }) {
   if (!goal || typeof goal !== "object") throw new Error("Campaign goal must be an object");
-  const versioned = goal.version === 1 && goal.type === CAMPAIGN_GOAL_FAMILY_DEBT
-    ? {
-        ...goal,
-        version: CAMPAIGN_GOAL_VERSION,
-        repaymentEligible: true,
-        partialPaymentAdviceSeen: goal.status === CAMPAIGN_GOAL_COMPLETE
-      }
-    : goal.version === 1
-      ? { ...goal, version: CAMPAIGN_GOAL_VERSION }
-      : goal;
+  let versioned = goal;
+  if (versioned.version === 1 && versioned.type === CAMPAIGN_GOAL_FAMILY_DEBT) {
+    versioned = {
+      ...versioned,
+      repaymentEligible: true,
+      partialPaymentAdviceSeen: versioned.status === CAMPAIGN_GOAL_COMPLETE
+    };
+  }
+  if (!Number.isInteger(versioned.version) || versioned.version < CAMPAIGN_GOAL_VERSION) {
+    versioned = { ...versioned, version: CAMPAIGN_GOAL_VERSION };
+  }
+  if (versioned.type === CAMPAIGN_GOAL_FAMILY_DEBT &&
+      (typeof versioned.interestFollowsAbsence !== "boolean" ||
+        !Number.isFinite(versioned.unreportedInterest))) {
+    // Older voyages billed every elapsed day at the next homecoming. The first
+    // advance still does that once; later days are billed only while away.
+    versioned = {
+      ...versioned,
+      unreportedInterest: Number.isFinite(versioned.unreportedInterest)
+        ? versioned.unreportedInterest
+        : 0,
+      interestFollowsAbsence: versioned.interestFollowsAbsence === true
+    };
+  }
   const migrated = {
     ...versioned,
     homePortCityId: requireEntityId(homePortCityId, "Migrated campaign home port")
@@ -385,8 +401,9 @@ export function familyDebtPayoffProjection(goal, currentMinute, additionalDays =
   const projectionMinute = Math.max(currentMinute, goal.lastAccruedMinute);
   const recoveredClockMinutes = projectionMinute - currentMinute;
   const elapsedDays = (projectionMinute - goal.lastAccruedMinute) / MINUTES_PER_DAY + additionalDays;
-  const projectedBalance = goal.debtBalance * Math.pow(
-    1 + goal.annualInterestRate / DAYS_PER_YEAR,
+  const projectedBalance = compoundDebtBalance(
+    goal.debtBalance,
+    goal.annualInterestRate,
     elapsedDays
   );
   return {
@@ -458,20 +475,69 @@ export function settleExplorerHomecoming(goal, {
   };
 }
 
+export function familyDebtChargedDoubloons(goal) {
+  validateCampaignGoal(goal);
+  if (goal.type !== CAMPAIGN_GOAL_FAMILY_DEBT) {
+    throw new Error("Charged family debt requires a family-debt goal");
+  }
+  return Math.ceil(goal.debtBalance);
+}
+
+// Whole days away from the home port compound into the balance so the quest
+// journal can show them. Days on the home port advance the accrual clock
+// without a charge. unreportedInterest keeps the sum for the payment dialogue
+// after those daily posts have already moved the ledger.
+export function advanceFamilyDebtInterest(goal, currentMinute, { atHomePort }) {
+  validateCampaignGoal(goal);
+  if (goal.type !== CAMPAIGN_GOAL_FAMILY_DEBT) {
+    throw new Error("Family debt interest requires a family-debt goal");
+  }
+  assertSimulationMinute(currentMinute);
+  if (typeof atHomePort !== "boolean") {
+    throw new Error("Family debt interest requires a home-port presence flag");
+  }
+  if (goal.status !== CAMPAIGN_GOAL_ACTIVE) {
+    return { chargedDays: 0, interest: 0, balance: goal.debtBalance };
+  }
+  if (!goal.interestFollowsAbsence) {
+    return chargeHistoricalFamilyDebt(goal, currentMinute);
+  }
+  if (atHomePort) {
+    if (currentMinute > goal.lastAccruedMinute) goal.lastAccruedMinute = currentMinute;
+    return { chargedDays: 0, interest: 0, balance: goal.debtBalance };
+  }
+  const elapsedMinutes = currentMinute - goal.lastAccruedMinute;
+  if (elapsedMinutes < MINUTES_PER_DAY) {
+    return { chargedDays: 0, interest: 0, balance: goal.debtBalance };
+  }
+  const wholeDays = Math.floor(elapsedMinutes / MINUTES_PER_DAY);
+  goal.lastAccruedMinute += wholeDays * MINUTES_PER_DAY;
+  const previousBalance = goal.debtBalance;
+  goal.debtBalance = compoundDebtBalance(previousBalance, goal.annualInterestRate, wholeDays);
+  const interest = goal.debtBalance - previousBalance;
+  goal.unreportedInterest += interest;
+  return { chargedDays: wholeDays, interest, balance: goal.debtBalance };
+}
+
 export function settleFamilyDebtHomecoming(goal, { currentMinute, doubloons }) {
   validateCampaignGoal(goal);
   if (goal.type !== CAMPAIGN_GOAL_FAMILY_DEBT) throw new Error("Debt settlement requires a family-debt goal");
   assertSimulationMinute(currentMinute);
   if (!Number.isInteger(doubloons) || doubloons < 0) throw new Error(`Invalid doubloon purse: ${doubloons}`);
-  const previousBalance = goal.debtBalance;
+  const chargedBalance = goal.debtBalance;
+  const unreportedInterest = goal.unreportedInterest;
   const projection = familyDebtPayoffProjection(goal, currentMinute);
   const canPayInFull = doubloons >= Math.ceil(projection.projectedBalance) + goal.protectedPurse;
   if (!goal.repaymentEligible && !canPayInFull) {
     throw new Error("Family debt repayment requires a visit to another port or full payment");
   }
+  const remainderInterest = Math.max(0, projection.projectedBalance - chargedBalance);
+  const accruedInterest = unreportedInterest + remainderInterest;
+  const previousBalance = projection.projectedBalance - accruedInterest;
   goal.debtBalance = projection.projectedBalance;
   goal.lastAccruedMinute = projection.projectionMinute;
-  const accruedInterest = Math.max(0, goal.debtBalance - previousBalance);
+  goal.unreportedInterest = 0;
+  goal.interestFollowsAbsence = true;
   const availablePayment = Math.max(0, doubloons - goal.protectedPurse);
   const payment = Math.min(availablePayment, Math.ceil(goal.debtBalance));
   goal.debtBalance = Math.max(0, goal.debtBalance - payment);
@@ -1713,6 +1779,12 @@ function validateFamilyDebtGoal(goal) {
     throw new Error(`Invalid family debt interest: ${goal.annualInterestRate}`);
   }
   assertSimulationMinute(goal.lastAccruedMinute);
+  if (!Number.isFinite(goal.unreportedInterest) || goal.unreportedInterest < 0) {
+    throw new Error(`Invalid unreported family debt interest: ${goal.unreportedInterest}`);
+  }
+  if (typeof goal.interestFollowsAbsence !== "boolean") {
+    throw new Error("Family debt requires absence-accounting state");
+  }
   if (!Number.isInteger(goal.protectedPurse) || goal.protectedPurse < 0) {
     throw new Error(`Invalid protected purse: ${goal.protectedPurse}`);
   }
@@ -1785,6 +1857,27 @@ function assertPerson(character) {
 
 function assertSimulationMinute(value) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid simulation minute: ${value}`);
+}
+
+function compoundDebtBalance(balance, annualRate, elapsedDays) {
+  return balance * Math.pow(1 + annualRate / DAYS_PER_YEAR, elapsedDays);
+}
+
+function chargeHistoricalFamilyDebt(goal, currentMinute) {
+  const previousBalance = goal.debtBalance;
+  const previousMinute = goal.lastAccruedMinute;
+  const projection = familyDebtPayoffProjection(goal, currentMinute);
+  goal.debtBalance = projection.projectedBalance;
+  goal.lastAccruedMinute = projection.projectionMinute;
+  const interest = Math.max(0, goal.debtBalance - previousBalance);
+  goal.unreportedInterest += interest;
+  goal.interestFollowsAbsence = true;
+  const elapsedMinutes = Math.max(0, projection.projectionMinute - previousMinute);
+  return {
+    chargedDays: Math.floor(elapsedMinutes / MINUTES_PER_DAY),
+    interest,
+    balance: goal.debtBalance
+  };
 }
 
 function formatDoubloons(value) {

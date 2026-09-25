@@ -1072,9 +1072,10 @@ import {
   createCampaignDialogueSession,
   drunkenCampaignHomecomingSteps,
   explorerWonderCatalog,
+  advanceFamilyDebtInterest,
+  familyDebtChargedDoubloons,
   familyDebtHomecomingEligible,
   familyDebtPartialPaymentAdvice,
-  familyDebtPayoffProjection,
   isExplorerLeadAssignable,
   isExplorerWonder,
   markWhiteWhaleKilled,
@@ -20590,6 +20591,7 @@ function recenterCaptainChartMap() {
 function openCaptainMenu() {
   if (!gameState || startMenu || gameOverReason || playerIntroModal || captainAlertModal) return;
   switchNotebookPage(null);
+  accrueDisplayedFamilyDebt();
   capturePausedView(captainMenu.viewCache, gameState, buildCaptainChartView);
   captainMenu.isOpen = true;
   captainMenu.selectedIndex = 0;
@@ -37948,6 +37950,19 @@ function updateFishAnimation(nowMs) {
   return true;
 }
 
+function accrueDisplayedFamilyDebt() {
+  const goal = gameState?.memory?.campaignGoal;
+  if (!goal || goal.type !== CAMPAIGN_GOAL_FAMILY_DEBT || goal.status !== CAMPAIGN_GOAL_ACTIVE) {
+    return false;
+  }
+  if (!ship) return false;
+  const inHomeCity = portCityView?.cityId === goal.homePortCityId;
+  if (!inHomeCity && !Number.isInteger(ship.tileId)) return false;
+  const atHomePort = inHomeCity || ship.tileId === goal.homePortTileId;
+  const result = advanceFamilyDebtInterest(goal, Math.max(0, weatherClockMinutes), { atHomePort });
+  return result.interest > 0;
+}
+
 function updateWeather(gameClockElapsedRealSeconds, nowMs) {
   if (!runtimeWeather || !weatherBake) return false;
   if (weatherTimeScale > 0) {
@@ -37956,6 +37971,7 @@ function updateWeather(gameClockElapsedRealSeconds, nowMs) {
       timeScale: weatherTimeScale
     });
   }
+  if (accrueDisplayedFamilyDebt() && captainMenu.isOpen) refreshCaptainChartView();
   weatherParts = weatherClockParts(weatherClockMinutes);
   const dayNightNotice = firstDayNightNoticeState
     ? advanceFirstDayNightNoticeState(firstDayNightNoticeState, {
@@ -50496,10 +50512,7 @@ function questJournalEntries() {
     const familyDebtSummary = campaignGoal.status !== CAMPAIGN_GOAL_COMPLETE &&
         campaignGoal.type === CAMPAIGN_GOAL_FAMILY_DEBT
       ? uiText("quest.familyDebtOutstanding", {
-          amount: `${formatCompactNumber(Math.ceil(familyDebtPayoffProjection(
-            campaignGoal,
-            Math.max(0, weatherClockMinutes)
-          ).projectedBalance))} DB`,
+          amount: `${familyDebtChargedDoubloons(campaignGoal).toLocaleString("en-US")} DB`,
           city: cityLabelText(campaignGoalHomeCity())
         })
       : null;
