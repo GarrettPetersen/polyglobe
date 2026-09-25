@@ -202,3 +202,32 @@ test("labels retain vertical rows across a full horizontal pan", () => {
     for (let i=0;i<labels.length;i++) for(let j=i+1;j<labels.length;j++) assert.equal(overlaps(labels[i],labels[j]),false);
   }
 });
+
+test("city labels move below the status box and leave labels beside it in place", () => {
+  const obstacle = { x: 5, y: 5, width: 159, height: 70 };
+  const labels = layoutCityDestinationLabels({
+    entries: [
+      entry("market", "Market", 46, { x: 40, y: 50 }),
+      entry("shipyard", "Shipyard", 60, { x: 320, y: 90 })
+    ],
+    viewportWidth: 455,
+    viewportHeight: 256,
+    obstacles: [obstacle]
+  });
+  const market = labels.find((label) => label.id === "market");
+  const shipyard = labels.find((label) => label.id === "shipyard");
+  assert.ok(market.y >= obstacle.y + obstacle.height + 2);
+  assert.equal(overlapsRect(market, obstacle), false);
+  assert.ok(shipyard.y < obstacle.y + obstacle.height);
+  assert.throws(() => layoutCityDestinationLabels({
+    entries: [entry("market", "Market", 46, { x: 40, y: 50 })],
+    viewportWidth: 455,
+    viewportHeight: 256,
+    obstacles: [{ x: 0, y: 0, width: 0, height: 10 }]
+  }), /positive size/);
+});
+
+function overlapsRect(label, obstacle) {
+  return label.x < obstacle.x + obstacle.width && label.x + label.width > obstacle.x &&
+    label.y < obstacle.y + obstacle.height && label.y + label.height > obstacle.y;
+}

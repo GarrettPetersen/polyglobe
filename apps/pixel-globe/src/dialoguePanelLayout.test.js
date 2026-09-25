@@ -226,6 +226,22 @@ test("landscape greetings remain compact without moving the portrait down", () =
   });
 });
 
+test("a reserved status bar keeps dialogue portraits below it", () => {
+  const layout = dialoguePanelGeometry({
+    screenWidth: 455,
+    screenHeight: 256,
+    contentHeight: 127,
+    minimumTop: 40
+  });
+
+  assert.ok(layout.portraits.left.y >= 40);
+  assert.ok(layout.panel.y > layout.portraits.left.y);
+  assert.throws(
+    () => dialoguePanelGeometry({ screenWidth: 256, screenHeight: 256, contentHeight: 120, minimumTop: -1 }),
+    /Invalid dialogue minimum top/
+  );
+});
+
 test("dialogue actions stay inside the panel when text requests too much height", () => {
   const layout = dialogueOptionLayout({
     desiredY: 310,

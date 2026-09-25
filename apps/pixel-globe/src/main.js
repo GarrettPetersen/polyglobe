@@ -25,9 +25,10 @@ import {
   marketPurseFeedbackLabelPosition,
   marketPurseFeedbackLayerOpacity,
   marketPurseFeedbackEntries,
-  marketPurseOverlayRect,
+  purseChangeFromDisplayedTotal,
   recordMarketPurseTransaction
 } from "./marketPurseFeedback.js";
+import { modalStatusBarLayout } from "./modalStatusBar.js";
 import { activeQuests } from "./activeQuests.js";
 import {
   FISHING_TRADE_TUTORIAL_STAGE,
@@ -3139,8 +3140,7 @@ const CITY_FLAG_WAVE_SPEED_RAD_PER_MS = 0.002;
 const DIALOGUE_FLAG_W = FACTION_FLAG_SOURCE_W;
 const DIALOGUE_FLAG_H = FACTION_FLAG_SOURCE_H;
 const DIALOGUE_FACTION_BLOCK_W = 128;
-const MARKET_PURSE_W = 104;
-const MARKET_PURSE_H = 20;
+const PURSE_CHANGE_LANE_PX = 36;
 const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
 const LAND_VEHICLE_ASSET_VERSION = "land-vehicle-2";
 const LAND_VEHICLE_ASSET_TYPES = new Set([
@@ -4072,6 +4072,7 @@ let whaleBlowBursts = [];
 let whaleKillEffects = [];
 let itemAcquisitionEffects = [];
 let marketPurseFeedbackState = createMarketPurseFeedbackState();
+let purseFeedbackBaseline = null;
 let goldTreasureSequence = null;
 const politicalNoticeQueue = new PoliticalNoticeQueue();
 let survivalNotice = null;
@@ -5260,6 +5261,7 @@ async function main() {
     campaignGoalType,
     voyageSeed
   });
+  forgetPurseFeedbackBaseline();
   landTradeSystem.foreignSettlementExpulsions =
     gameState.relations.foreignSettlementExpulsions;
   landTradeSystem.suzeraintyMemory = gameState.relations.diplomacy.suzerainties;
@@ -12485,6 +12487,7 @@ function stageCaptureSequence() {
     placeCapturePlayerNearTile(city.tileId);
     stageCaptureFactorPortrait(sequence, city);
     gameState.doubloons = 12_000;
+  forgetPurseFeedbackBaseline();
     if (sequence.variant === "sell") {
       const good = tradeGoodById(sequence.goodId);
       const quantity = sequence.transactionCount;
@@ -12682,6 +12685,7 @@ function stageCaptureCity(sequence) {
   const city = captureCityById(sequence.cityId);
   placeCapturePlayerNearTile(city.tileId);
   gameState.doubloons = 12_000;
+  forgetPurseFeedbackBaseline();
   if (sequence.variant === "shipyard-purchase") {
     stageCaptureShipyardPurchase(sequence, city);
   }
@@ -12855,6 +12859,7 @@ function stageCaptureShipyardPurchase(sequence, city) {
   });
   yard.usedListings = [];
   gameState.doubloons = Math.max(gameState.doubloons, price + 20_000);
+  forgetPurseFeedbackBaseline();
 }
 
 function updateCaptureCityShipyardPurchase(sequence) {
@@ -14909,6 +14914,7 @@ function stageCaptureLoadout(sequence) {
   placeCapturePlayerNearTile(city.tileId);
   stopShipMotion();
   gameState.doubloons = 12_000;
+  forgetPurseFeedbackBaseline();
   gameState.ship.loadoutId = null;
   syncShipCargoFromGameState();
 }
@@ -17723,7 +17729,6 @@ function installSaveRestoreSmokeHarness() {
       deltas.forEach((deltaDoubloons, index) => {
         recordMarketPurseTransaction(marketPurseFeedbackState, {
           deltaDoubloons,
-          marketId: dialogueState.cityId,
           startedAtMs: startedAtMs + index * 24
         });
       });
@@ -18868,6 +18873,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   voyageStartClockMinutes = restoredWorldClock.voyageStartMinute;
   weatherParts = weatherClockParts(weatherClockMinutes);
   gameState = restoredGameState;
+  forgetPurseFeedbackBaseline();
   if (achievementProfile?.lifetime.fishingTradeTutorialCompleted === true &&
       gameState.memory.quests.fishingTradeTutorial.stage !== FISHING_TRADE_TUTORIAL_STAGE.DORMANT) {
     gameState.memory.quests.fishingTradeTutorial = createFishingTradeTutorialMemory();
@@ -28752,9 +28758,6 @@ function completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOr
     ...(result.colonizationDefenseStarted ? [{ type: "colony-defense" }] : []),
     { type: "ship-cargo" },
     ...(gameState.doubloons !== doubloonsBefore ? [{ type: "coins" }] : []),
-    ...((result.marketPurchase || result.marketSale) && gameState.doubloons !== doubloonsBefore
-      ? [{ type: "market-purse" }]
-      : []),
     ...(result.marketPurchase ? [{ type: "market-purchase" }] : []),
     ...(result.marketSale ? [{ type: "market-sale" }] : []),
     ...(result.questCargoTransfers?.length > 0 ? [{ type: "quest-cargo" }] : []),
@@ -28784,14 +28787,6 @@ function completeDialogueActionEffects(result, { doubloonsBefore, purchaseIconOr
     "colony-defense": () => { ensureColonizationDefenseEncounter(); },
     "ship-cargo": () => { syncShipCargoFromGameState(); },
     "coins": () => { playCoinClinkSound(); },
-    "market-purse": () => {
-      recordMarketPurseTransaction(marketPurseFeedbackState, {
-        deltaDoubloons: gameState.doubloons - doubloonsBefore,
-        marketId: currentDialogueCity().cityId,
-        startedAtMs: lastFrameMs
-      });
-      dirty = true;
-    },
     "market-purchase": () => {
       spawnItemAcquisitionEffect(result.marketPurchase.good.id, purchaseIconOrigin, lastFrameMs);
       updateFetchQuestReadinessAlerts();
@@ -46488,6 +46483,7 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
   if (typeof allowColdCoveredWorldRender !== "boolean") {
     throw new Error("World render requires an explicit cold-cover policy");
   }
+  observeDisplayedDoubloons(nowMs);
   layoutPresentationEscape = null;
   worldRenderCount++;
   gpuShipDrawCommands = [];
@@ -46518,6 +46514,7 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
     return;
   }
   if (portCityView?.sceneReady) {
+    syncPortCityDestinationLabelObstacles();
     drawPortCityScene(nowMs);
     drawWorldInterface(nowMs);
     return;
@@ -46663,6 +46660,14 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
   drawWorldInterface(nowMs);
 }
 
+function modalStatusBarShouldShow() {
+  return dialogueOverlayIsVisible({
+    dialogueActive: Boolean(dialogueState) && !portCityRootPresentationIsOwned() &&
+      !portCityIllicitEvent && !colonistLandingInProgress() && !chefFeastSceneOnly(),
+    characterAlertActive: Boolean(captainAlertModal)
+  });
+}
+
 function drawWorldInterface(nowMs) {
   const sceneTimeCut = portCityTransition?.sceneTimeCut === true;
   if (!sceneTimeCut) {
@@ -46672,11 +46677,7 @@ function drawWorldInterface(nowMs) {
     drawRecoverablePlayerSurface("port-assault", () => drawPortAssaultOverlay(nowMs));
   }
   if (portCityRootPresentationIsOwned() && !portCityView.sceneReady) return;
-  const dialogueVisible = dialogueOverlayIsVisible({
-    dialogueActive: Boolean(dialogueState) && !portCityRootPresentationIsOwned() &&
-      !portCityIllicitEvent && !colonistLandingInProgress() && !chefFeastSceneOnly(),
-    characterAlertActive: Boolean(captainAlertModal)
-  });
+  const dialogueVisible = modalStatusBarShouldShow();
   if (!dialogueVisible && !portCityView?.sceneReady) {
     presentInterfaceWidget("landmark-discovery-indicators", () => drawLandmarkDiscoveryIndicators(nowMs));
     presentInterfaceWidget("whale-killing-blow", () => drawWhaleKillingBlowIndicator(nowMs));
@@ -46688,6 +46689,7 @@ function drawWorldInterface(nowMs) {
       presentInterfaceWidget("minimap", () => drawMinimap(nowMs));
     }
     presentInterfaceWidget("survival-meters", () => drawSurvivalMeters());
+    presentInterfaceWidget("purse-change", () => drawDoubloonChangeMarks(nowMs, stackedDoubloonChangeAnchor()));
     presentInterfaceWidget("status-person-particles", () => drawStatusPersonParticles(nowMs));
     presentInterfaceWidget("storm-status", () => drawStormStatus(nowMs));
     presentInterfaceWidget("combat-notice", () => drawCombatNotice(nowMs));
@@ -46721,6 +46723,11 @@ function drawWorldInterface(nowMs) {
       presentInterfaceWidget("debug-status", () => drawTinyStatus(nowMs));
     }
   }
+  if (!dialogueVisible && portCityView?.sceneReady) {
+    presentInterfaceWidget("survival-meters", () => drawSurvivalMeters());
+    presentInterfaceWidget("purse-change", () => drawDoubloonChangeMarks(nowMs, stackedDoubloonChangeAnchor()));
+    presentInterfaceWidget("survival-hud-tooltip", () => drawSurvivalHudTooltip());
+  }
   if (dialogueVisible && !reconcileShipDialogueForPresentation()) {
     measurePerformanceBenchmarkStage("render.dialogue", () => {
       drawRecoverablePlayerSurface(
@@ -46729,6 +46736,9 @@ function drawWorldInterface(nowMs) {
         dialogueLayoutFailureDismiss()
       );
     });
+  }
+  if (dialogueVisible) {
+    presentInterfaceWidget("modal-status-bar", () => drawModalStatusBar(nowMs));
   }
   if (!dialogueVisible) {
     presentInterfaceWidget("captain-menu-button", () => drawCaptainMenuButton());
@@ -67225,8 +67235,9 @@ function statusHudTooltipGeometry() {
 
 function statusHudTooltipsAvailable() {
   return Boolean(
-    gameState && ship && !gameOverReason && !dialogueState && !playerIntroModal &&
-    !captainAlertModal && !startMenu && !menusAreOpen()
+    gameState && ship && !gameOverReason && !playerIntroModal &&
+    !captainAlertModal && !startMenu && !menusAreOpen() &&
+    (!dialogueState || portCityRootPresentationIsOwned())
   );
 }
 
@@ -68688,7 +68699,6 @@ function drawDialogueOverlay(nowMs) {
     cacheBase
   )) {
     ctx.drawImage(settledDialogueOverlayCache.canvas, 0, 0);
-    drawMarketPurseOverlay(nowMs, view);
     return;
   }
   const portraitStage = synchronizeCurrentDialoguePortraitStage(nowMs, view);
@@ -68700,7 +68710,6 @@ function drawDialogueOverlay(nowMs) {
     const cacheKey = settledDialogueOverlayCacheKey(cacheBase, portraitStage);
     if (settledDialogueOverlayCacheKeyMatches(settledDialogueOverlayCache?.key, cacheKey)) {
       ctx.drawImage(settledDialogueOverlayCache.canvas, 0, 0);
-      drawMarketPurseOverlay(nowMs, view);
       return;
     }
     const overlayCanvas = rasterizeSettledDialogueOverlay(() => {
@@ -68708,11 +68717,9 @@ function drawDialogueOverlay(nowMs) {
     });
     settledDialogueOverlayCache = { key: cacheKey, canvas: overlayCanvas };
     ctx.drawImage(overlayCanvas, 0, 0);
-    drawMarketPurseOverlay(nowMs, view);
     return;
   }
   drawDialogueOverlayContent(nowMs, subject, view, portraitStage);
-  drawMarketPurseOverlay(nowMs, view);
 }
 
 function dialoguePortraitFramesAreResident(frames) {
@@ -68834,7 +68841,8 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   const geometry = dialoguePanelGeometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
-    contentHeight
+    contentHeight,
+    minimumTop: dialoguePanelMinimumTop()
   });
   const panel = geometry.panel;
   const optionBottom = panel.y + panel.h - 9;
@@ -69020,58 +69028,169 @@ function selectedMarketOptionContext(view, regularEntries, { onlySelected = fals
   });
 }
 
-function drawMarketPurseOverlay(nowMs, view) {
-  if (view.presentation?.kind !== "market") return;
-  const rect = marketPurseOverlayRect({
-    screenWidth: SCREEN_W,
-    screenHeight: SCREEN_H,
-    width: MARKET_PURSE_W,
-    height: MARKET_PURSE_H
-  });
-  if (!statusHudImages?.doubloon) throw new Error("Market purse requires the doubloon icon");
-
-  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  const icon = statusHudImages.doubloon;
-  const iconX = rect.x + 5;
-  const iconY = rect.y + Math.floor((rect.h - icon.height) / 2);
-  ctx.drawImage(icon, iconX, iconY);
-  const amount = Math.round(gameState.doubloons).toLocaleString(currentLanguage);
-  const amountWidth = measurePixelTextWidth(amount, PIXEL_FONT_LATIN_SMALL_8);
-  const amountRight = rect.x + rect.w - 6;
-  if (amountRight - amountWidth <= iconX + icon.width + 3) {
-    throw new Error(`Market purse amount does not fit without abbreviation: ${amount}`);
-  }
-  ctx.fillStyle = PIRATE_MENU_INK;
-  drawPixelText(amount, amountRight, controlTextY(rect), {
-    font: PIXEL_FONT_LATIN_SMALL_8,
-    align: "right"
-  });
-
+function drawDoubloonChangeMarks(nowMs, anchor) {
   const entries = marketPurseFeedbackEntries(marketPurseFeedbackState, {
-    marketId: currentDialogueCity().cityId,
     nowMs,
     reducedMotion: reducedMotionPreferred
   });
   for (const entry of entries) {
     const label = `${entry.deltaDoubloons > 0 ? "+" : ""}` +
       Math.round(entry.deltaDoubloons).toLocaleString(currentLanguage);
-    // Stack changes beside the corner purse. The old upward stack was clipped
-    // when the purse moved out of the market modal and into the screen corner.
-    const { x, y } = marketPurseFeedbackLabelPosition(rect, entry);
+    const { x, y } = marketPurseFeedbackLabelPosition(anchor, entry);
     const opacity = marketPurseFeedbackLayerOpacity(entry.alpha);
     ctx.save();
     ctx.globalAlpha = opacity.shadow;
     ctx.fillStyle = PIRATE_MENU_INK;
-    drawPixelText(label, x + 1, y + 1, { font: PIXEL_FONT_SMALL_8, align: "right" });
+    drawPixelText(label, x + 1, y + 1, { font: PIXEL_FONT_SMALL_8, align: "left" });
     ctx.globalAlpha = opacity.text;
     ctx.fillStyle = entry.deltaDoubloons > 0 ? PIRATE_MENU_SUCCESS : PIRATE_MENU_DANGER;
-    drawPixelText(label, x, y, { font: PIXEL_FONT_SMALL_8, align: "right" });
+    drawPixelText(label, x, y, { font: PIXEL_FONT_SMALL_8, align: "left" });
     ctx.restore();
   }
   if (entries.length > 0) dirty = true;
+}
+
+function stackedDoubloonChangeAnchor() {
+  const { panel } = survivalHudLayout();
+  return { x: panel.x + panel.width + 4, y: panel.y + 3 };
+}
+
+function forgetPurseFeedbackBaseline() {
+  purseFeedbackBaseline = null;
+}
+
+function observeDisplayedDoubloons(nowMs) {
+  if (!gameState || !hasStartedVoyage || startMenu || gameOverReason) {
+    purseFeedbackBaseline = null;
+    return;
+  }
+  const noted = purseChangeFromDisplayedTotal(purseFeedbackBaseline, gameState.doubloons);
+  purseFeedbackBaseline = noted.baseline;
+  if (noted.delta === null) return;
+  recordMarketPurseTransaction(marketPurseFeedbackState, {
+    deltaDoubloons: noted.delta,
+    startedAtMs: nowMs
+  });
+}
+
+function dialoguePanelMinimumTop() {
+  if (!modalStatusBarShouldShow()) return 6;
+  return currentModalStatusBarLayout().h + 2;
+}
+
+function fitPanelBelowModalStatusBar(panel) {
+  const top = dialoguePanelMinimumTop();
+  if (panel.y >= top) return panel;
+  const bottom = Math.min(SCREEN_H - 6, panel.y + panel.h);
+  const height = Math.max(1, bottom - top);
+  return { x: panel.x, y: top, w: panel.w, h: height };
+}
+
+function syncPortCityDestinationLabelObstacles() {
+  if (!portCityRuntime?.setDestinationLabelObstacles || !gameState || !ship) return;
+  const obstacles = [modalStatusBarShouldShow()
+    ? modalStatusBarObstacle()
+    : stackedStatusObstacle()];
+  if (!modalStatusBarShouldShow() && captainMenuButtonIsAvailable()) {
+    const button = getCaptainMenuButtonRect();
+    obstacles.push({ x: button.x, y: button.y, width: button.w, height: button.h });
+  }
+  portCityRuntime.setDestinationLabelObstacles(obstacles);
+}
+
+function stackedStatusObstacle() {
+  const { panel } = survivalHudLayout();
+  return {
+    x: panel.x,
+    y: panel.y,
+    width: panel.width + PURSE_CHANGE_LANE_PX,
+    height: panel.height
+  };
+}
+
+function modalStatusBarObstacle() {
+  const layout = currentModalStatusBarLayout();
+  return { x: layout.x, y: layout.y, width: layout.w, height: layout.h };
+}
+
+function currentModalStatusBarLayout() {
+  return modalStatusBarLayout({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    items: modalStatusBarItems()
+  });
+}
+
+function modalStatusBarItems() {
+  const snapshot = shipHudStatus(gameState);
+  const hud = survivalHudLayout(snapshot.cargo);
+  const drinkIconCount = Math.max(0, Math.ceil(snapshot.survival.drinkDays));
+  const foodIconCount = remainingSupplyDayCount(snapshot.survival.foodDays);
+  const measured = [
+    ["date", shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]), false],
+    ["doubloons", formatCompactNumber(gameState.doubloons), true],
+    ["water", `${drinkIconCount}`, true],
+    ["food", `${foodIconCount}`, true],
+    ["crew", `${gameState.ship.crew}`, true],
+    ["cargo", `${hud.occupiedCount}/${snapshot.cargo.capacity}`, true]
+  ];
+  return measured.map(([id, text, hasIcon]) => {
+    const textWidth = measurePixelTextWidth(text, PIXEL_FONT_LATIN_SMALL_8);
+    const iconWidth = hasIcon ? 8 : 0;
+    return {
+      id,
+      text,
+      hasIcon,
+      width: Math.max(1, Math.ceil(iconWidth + textWidth))
+    };
+  });
+}
+
+function drawModalStatusBar(nowMs) {
+  const items = modalStatusBarItems();
+  const layout = modalStatusBarLayout({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    items
+  });
+  const byId = new Map(items.map((item) => [item.id, item]));
+  drawPirateHudPanel({ x: layout.x, y: layout.y, w: layout.w, h: layout.h });
+  ctx.fillStyle = PIRATE_MENU_INK;
+  let doubloonAnchor = null;
+  for (const placed of layout.items) {
+    const item = byId.get(placed.id);
+    const icon = item.hasIcon ? modalStatusIcon(placed.id) : null;
+    const textX = icon ? placed.x + (placed.id === "cargo" ? SURVIVAL_CRATE_SIZE : icon.width) + 2 : placed.x;
+    if (placed.id === "cargo") {
+      ctx.drawImage(
+        statusHudImages.crates,
+        0, 0, SURVIVAL_CRATE_SIZE, SURVIVAL_CRATE_SIZE,
+        placed.x, placed.y + 4, SURVIVAL_CRATE_SIZE, SURVIVAL_CRATE_SIZE
+      );
+    } else if (icon) {
+      ctx.drawImage(icon, placed.x, placed.y + 4);
+    }
+    drawPixelText(item.text, textX, placed.y + 3, { font: PIXEL_FONT_LATIN_SMALL_8 });
+    if (placed.id === "doubloons") {
+      doubloonAnchor = {
+        x: textX,
+        y: layout.y + layout.h + 2
+      };
+    }
+  }
+  if (!doubloonAnchor) throw new Error("Modal status bar has no doubloon count");
+  drawDoubloonChangeMarks(nowMs, doubloonAnchor);
+}
+
+function modalStatusIcon(id) {
+  const icon = id === "doubloons" ? statusHudImages?.doubloon
+    : id === "water" ? statusHudImages?.water
+    : id === "food" ? statusHudImages?.food
+    : id === "crew" ? statusHudImages?.crew
+    : id === "cargo" ? statusHudImages?.crates
+    : null;
+  if (!icon) throw new Error(`Modal status bar is missing the ${id} icon`);
+  return icon;
 }
 
 function drawMarketModeSwitch(view, modeEntries, panel, { placement = "header" } = {}) {
@@ -69127,7 +69246,8 @@ function settledDialogueOverlayCacheBase(view, subject) {
     selectedIndex: dialogueState.selectedIndex,
     scrollOffset: dialogueLayout.scrollOffset,
     screenWidth: SCREEN_W,
-    screenHeight: SCREEN_H
+    screenHeight: SCREEN_H,
+    statusBarHeight: dialoguePanelMinimumTop()
   };
 }
 
@@ -69172,7 +69292,8 @@ function settledDialogueOverlayCacheBaseMatches(a, b) {
     a.selectedIndex === b.selectedIndex &&
     a.scrollOffset === b.scrollOffset &&
     a.screenWidth === b.screenWidth &&
-    a.screenHeight === b.screenHeight
+    a.screenHeight === b.screenHeight &&
+    a.statusBarHeight === b.statusBarHeight
   );
 }
 
@@ -69201,12 +69322,12 @@ function drawCustomLoadoutDialogueOverlay(dialogueView) {
   const minimumPanelHeight = 80 + presentation.fields.length * 24 +
     optionRows * optionHeight + footerGap;
   const panelH = Math.min(Math.max(244, minimumPanelHeight), SCREEN_H - 12);
-  const panel = {
+  const panel = fitPanelBelowModalStatusBar({
     x: Math.floor((SCREEN_W - panelW) / 2),
     y: Math.floor((SCREEN_H - panelH) / 2),
     w: panelW,
     h: panelH
-  };
+  });
   const compactWidth = panel.w < 320;
   const left = panel.x + 10;
   const right = panel.x + panel.w - 10;
@@ -69331,12 +69452,12 @@ function drawCrewRecruitmentDialogueOverlay(nowMs, dialogueView) {
   const rows = Math.ceil(candidates.length / columns);
   const cardHeight = 66;
   const panelH = Math.min(SCREEN_H - 12, Math.max(116, 72 + rows * cardHeight + 30));
-  const panel = {
+  const panel = fitPanelBelowModalStatusBar({
     x: Math.floor((SCREEN_W - panelW) / 2),
     y: Math.floor((SCREEN_H - panelH) / 2),
     w: panelW,
     h: panelH
-  };
+  });
   drawPiratePaperModal(panel, 0.88);
   drawOptionsText("CREW MUSTER", panel.x + panel.w / 2, panel.y + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
@@ -69462,12 +69583,12 @@ function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
   const columns = crewDialogueGridColumns(panelW);
   const cardHeight = 56;
   const panelH = Math.min(SCREEN_H - 12, Math.max(188, SCREEN_H - 24));
-  const panel = {
+  const panel = fitPanelBelowModalStatusBar({
     x: Math.floor((SCREEN_W - panelW) / 2),
     y: Math.floor((SCREEN_H - panelH) / 2),
     w: panelW,
     h: panelH
-  };
+  });
   drawPiratePaperModal(panel, 0.9);
   drawOptionsText("REDUCE CREW", panel.x + 10, panel.y + 10, {
     color: PIRATE_MENU_DANGER
@@ -69667,7 +69788,7 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
 
-  const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
+  const panel = fitPanelBelowModalStatusBar({ x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 });
   const allOptionGroups = dialogueOptionGroups(dialogueView.options);
   const tabEntries = allOptionGroups.regular.filter((entry) => (
     entry.option.action.type === "shipyard-ledger-tab"
@@ -70370,7 +70491,7 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
   const vessel = createShipyardShipView(candidateSlug);
   const comparison = createShipComparisonView(presentation.currentShipSlug, candidateSlug);
   ensureShipyardSideViewLoaded(candidateSlug);
-  const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
+  const panel = fitPanelBelowModalStatusBar({ x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 });
   const compact = SCREEN_H > SCREEN_W;
   const optionWidth = panel.w - 18;
   const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_DIALOGUE_8, optionWidth);

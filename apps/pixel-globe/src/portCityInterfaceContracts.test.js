@@ -83,7 +83,9 @@ test("pending city activation neither draws nor accepts input through the legacy
     draw,
     /drawPortCityTransitionOverlay\(nowMs\)[\s\S]*portCityRootPresentationIsOwned\(\) && !portCityView\.sceneReady\) return;/
   );
-  assert.match(draw, /dialogueActive: Boolean\(dialogueState\) && !portCityRootPresentationIsOwned\(\)/);
+  assert.match(draw, /const dialogueVisible = modalStatusBarShouldShow\(\)/);
+  const visibility = functionSource("modalStatusBarShouldShow", "drawWorldInterface");
+  assert.match(visibility, /dialogueActive: Boolean\(dialogueState\) && !portCityRootPresentationIsOwned\(\)/);
 
   const keys = functionSource("dispatchWorldOverlayKey", "dispatchWorldOverlayPointerDown");
   assert.match(keys, /portCityRootPresentationIsOwned\(\)[\s\S]*event\.preventDefault\(\)/);

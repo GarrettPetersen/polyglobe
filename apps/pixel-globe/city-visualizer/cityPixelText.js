@@ -10,20 +10,108 @@ import {
 export const CITY_PIXEL_FONT_SMALL_8 = '8px "Silkscreen", monospace';
 export const CITY_PIXEL_FONT_TITLE_8 = '8px "Pixel Pirate", monospace';
 export const CITY_PORT_TITLE_Y = 14;
+const CITY_PORT_TITLE_MARGIN_PX = 4;
+const CITY_PORT_TITLE_OBSTACLE_GAP_PX = 4;
 
-export function cityPortTitleLayout({ textWidth, textHeight, viewportWidth }) {
+export function cityPortTitleLayout({
+  textWidth,
+  textHeight,
+  viewportWidth,
+  obstacles = []
+}) {
   for (const [label, value] of Object.entries({ textWidth, textHeight, viewportWidth })) {
     if (!Number.isInteger(value) || value <= 0) {
       throw new Error(`Invalid city port title ${label}: ${value}`);
     }
   }
-  return Object.freeze({
+  const reserved = validateTitleObstacles(obstacles);
+  const preferred = {
     x: Math.round((viewportWidth - textWidth) / 2),
     y: CITY_PORT_TITLE_Y,
     width: textWidth,
     height: textHeight,
     scale: 1
+  };
+  if (!titleHitsObstacles(preferred, reserved)) return Object.freeze(preferred);
+
+  const lowestObstacleBottom = reserved.reduce(
+    (bottom, obstacle) => Math.max(bottom, obstacle.y + obstacle.height),
+    preferred.y
+  );
+  for (let y = preferred.y; y <= lowestObstacleBottom; y++) {
+    const placed = titleInRow({ ...preferred, y }, reserved, viewportWidth);
+    if (placed) return Object.freeze(placed);
+  }
+  return Object.freeze(preferred);
+}
+
+function titleInRow(title, obstacles, viewportWidth) {
+  const gaps = titleRowGaps(title, obstacles, viewportWidth);
+  if (gaps.length === 0) return null;
+  const center = viewportWidth / 2;
+  gaps.sort((left, right) => (
+    Math.abs((left[0] + left[1]) / 2 - center) - Math.abs((right[0] + right[1]) / 2 - center) ||
+    (right[1] - right[0]) - (left[1] - left[0]) ||
+    left[0] - right[0]
+  ));
+  const [gapStart, gapEnd] = gaps[0];
+  return {
+    ...title,
+    x: Math.round(gapStart + (gapEnd - gapStart - title.width) / 2)
+  };
+}
+
+function validateTitleObstacles(obstacles) {
+  if (!Array.isArray(obstacles)) {
+    throw new Error("City port title obstacles must be an array");
+  }
+  return obstacles.map((obstacle) => {
+    if (!obstacle || !["x", "y", "width", "height"].every((key) => Number.isFinite(obstacle[key]))) {
+      throw new Error("City port title obstacle requires a finite rectangle");
+    }
+    if (obstacle.width <= 0 || obstacle.height <= 0) {
+      throw new Error("City port title obstacle must have positive size");
+    }
+    return obstacle;
   });
+}
+
+function titleHitsObstacles(title, obstacles) {
+  return obstacles.some((obstacle) => (
+    title.x < obstacle.x + obstacle.width + CITY_PORT_TITLE_OBSTACLE_GAP_PX &&
+    title.x + title.width + CITY_PORT_TITLE_OBSTACLE_GAP_PX > obstacle.x &&
+    title.y < obstacle.y + obstacle.height + CITY_PORT_TITLE_OBSTACLE_GAP_PX &&
+    title.y + title.height + CITY_PORT_TITLE_OBSTACLE_GAP_PX > obstacle.y
+  ));
+}
+
+function titleRowGaps(title, obstacles, viewportWidth) {
+  const blocked = obstacles
+    .filter((obstacle) => (
+      title.y < obstacle.y + obstacle.height + CITY_PORT_TITLE_OBSTACLE_GAP_PX &&
+      title.y + title.height + CITY_PORT_TITLE_OBSTACLE_GAP_PX > obstacle.y
+    ))
+    .map((obstacle) => [
+      obstacle.x - CITY_PORT_TITLE_OBSTACLE_GAP_PX,
+      obstacle.x + obstacle.width + CITY_PORT_TITLE_OBSTACLE_GAP_PX
+    ])
+    .sort((left, right) => left[0] - right[0] || left[1] - right[1]);
+  const merged = [];
+  for (const range of blocked) {
+    const last = merged.at(-1);
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
+    else merged.push([range[0], range[1]]);
+  }
+  const limit = viewportWidth - CITY_PORT_TITLE_MARGIN_PX;
+  let cursor = CITY_PORT_TITLE_MARGIN_PX;
+  const gaps = [];
+  for (const [start, end] of merged) {
+    const gapEnd = Math.min(start, limit);
+    if (gapEnd - cursor >= title.width) gaps.push([cursor, gapEnd]);
+    cursor = Math.max(cursor, end);
+  }
+  if (limit - cursor >= title.width) gaps.push([cursor, limit]);
+  return gaps;
 }
 
 const RASTER_CACHE_LIMIT = 128;

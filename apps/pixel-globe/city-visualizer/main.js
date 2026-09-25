@@ -439,6 +439,8 @@ const state = {
   gameIconAtlas: null,
   destinationLabelLayouts: Object.freeze([]),
   destinationLabelLayoutParallax: null,
+  destinationLabelObstacleSignature: "[]",
+  destinationLabelObstacles: [],
   destinationLabelRows: new Map(),
   availableDestinationIds: null,
   guidedDestinationId: null,
@@ -4665,7 +4667,9 @@ function drawPersonSprite(targetContext, {
 }
 
 function prepareDestinationLabelLayouts() {
-  if (state.destinationLabelLayoutParallax === state.parallax) return;
+  const obstacleSignature = JSON.stringify(state.destinationLabelObstacles);
+  if (state.destinationLabelLayoutParallax === state.parallax &&
+      state.destinationLabelObstacleSignature === obstacleSignature) return;
   const setSailHasWorldControl = Boolean(setSailControlRect());
   const entries = activeDestinations()
     .filter((destination) => (
@@ -4704,19 +4708,25 @@ function prepareDestinationLabelLayouts() {
       state.cameraPanTarget = null;
     }
   }
+  const titleObstacle = cityTitleLabelObstacle();
   state.destinationLabelLayouts = layoutCityDestinationLabels({
     entries,
     viewportWidth: canvas.width,
     viewportHeight: canvas.height,
-    pinnedLabel: retainedPin
+    pinnedLabel: retainedPin,
+    obstacles: titleObstacle
+      ? [...state.destinationLabelObstacles, titleObstacle]
+      : state.destinationLabelObstacles
   });
   for (const label of state.destinationLabelLayouts) state.destinationLabelRows.set(label.id, label.y);
   state.destinationLabelLayoutParallax = state.parallax;
+  state.destinationLabelObstacleSignature = obstacleSignature;
 }
 
 function invalidateDestinationLabelLayouts() {
   state.destinationLabelLayouts = Object.freeze([]);
   state.destinationLabelLayoutParallax = null;
+  state.destinationLabelObstacleSignature = null;
 }
 
 function refreshDestinationLabelLayouts() {
@@ -4750,15 +4760,30 @@ function recoverCityPresentation(error, diagnosticKey) {
   reportPresentationFailure(error, diagnosticKey);
 }
 
-function drawCityNameLabel() {
+function currentCityTitleLayout() {
+  if (!state.city?.label) return null;
   const localizedCityLabel = renderText(state.city.label);
   const cityLabel = localizedCityLabel.toUpperCase();
   const cityFont = titleFontForText(cityLabel);
-  const cityTitle = cityPortTitleLayout({
+  return cityPortTitleLayout({
     textWidth: overlayPixelText.measure(cityLabel, cityFont, { wordSpacingPx: 4 }),
     textHeight: overlayPixelText.height(cityFont),
-    viewportWidth: canvas.width
+    viewportWidth: canvas.width,
+    obstacles: state.destinationLabelObstacles
   });
+}
+
+function cityTitleLabelObstacle() {
+  const title = currentCityTitleLayout();
+  if (!title) return null;
+  return { x: title.x, y: title.y, width: title.width, height: title.height };
+}
+
+function drawCityNameLabel() {
+  const cityTitle = currentCityTitleLayout();
+  if (!cityTitle) return;
+  const cityLabel = renderText(state.city.label).toUpperCase();
+  const cityFont = titleFontForText(cityLabel);
   overlayPixelText.draw(cityLabel, cityTitle.x + 1, cityTitle.y + 1, {
     color: PIRATE_MENU_INK,
     font: cityFont,
@@ -5823,6 +5848,22 @@ return Object.freeze({
     invalidateDestinationLabelLayouts();
     citySceneRenderer.invalidateStaticCache();
     updateHover();
+  },
+  setDestinationLabelObstacles(obstacles) {
+    if (!Array.isArray(obstacles)) {
+      throw new Error("City destination label obstacles must be an array");
+    }
+    const signature = JSON.stringify(obstacles);
+    if (signature === state.destinationLabelObstacleSignature) return;
+    state.destinationLabelObstacles = obstacles.map((obstacle) => Object.freeze({
+      x: obstacle.x,
+      y: obstacle.y,
+      width: obstacle.width,
+      height: obstacle.height
+    }));
+    state.destinationLabelRows.clear();
+    state.destinationLabelObstacleSignature = null;
+    state.destinationLabelLayoutParallax = null;
   }
 });
 }

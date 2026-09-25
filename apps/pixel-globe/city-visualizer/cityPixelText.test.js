@@ -95,6 +95,53 @@ test("port titles remain at the pixel font's native scale and centered below the
   assert.equal(longTitle.scale, 1);
 });
 
+test("a narrow port title moves beside the status box and the menu button", () => {
+  const statusBox = { x: 5, y: 5, width: 159, height: 70 };
+  const menuButton = { x: 224, y: 5, width: 27, height: 27 };
+  const title = cityPortTitleLayout({
+    textWidth: 52,
+    textHeight: 8,
+    viewportWidth: 256,
+    obstacles: [statusBox, menuButton]
+  });
+  assert.equal(title.y, CITY_PORT_TITLE_Y);
+  assert.ok(title.x >= statusBox.x + statusBox.width + 4);
+  assert.ok(title.x + title.width <= menuButton.x - 4);
+  assert.equal(cityPortTitleLayout({
+    textWidth: 52,
+    textHeight: 8,
+    viewportWidth: 455,
+    obstacles: [statusBox, { x: 423, y: 5, width: 27, height: 27 }]
+  }).x, Math.round((455 - 52) / 2));
+  assert.equal(cityPortTitleLayout({
+    textWidth: 52,
+    textHeight: 8,
+    viewportWidth: 256,
+    obstacles: [{ x: 0, y: 0, width: 256, height: 22 }]
+  }).x, Math.round((256 - 52) / 2));
+  assert.throws(() => cityPortTitleLayout({
+    textWidth: 52,
+    textHeight: 8,
+    viewportWidth: 256,
+    obstacles: [{ x: 0, y: 0, width: 0, height: 10 }]
+  }), /positive size/);
+});
+
+test("a title wider than the top gap drops below the menu and stays beside the status box", () => {
+  const statusBox = { x: 5, y: 5, width: 159, height: 70 };
+  const menuButton = { x: 224, y: 5, width: 27, height: 27 };
+  const title = cityPortTitleLayout({
+    textWidth: 56,
+    textHeight: 16,
+    viewportWidth: 256,
+    obstacles: [statusBox, menuButton]
+  });
+  assert.ok(title.y >= menuButton.y + menuButton.height + 4);
+  assert.ok(title.x >= statusBox.x + statusBox.width + 4);
+  assert.ok(title.x + title.width <= 256 - 4);
+  assert.ok(title.y + title.height <= statusBox.y + statusBox.height);
+});
+
 test("transparent city paint still draws from an opaque glyph mask", () => {
   const canvas = createCanvas(128, 48);
   const context = canvas.getContext("2d");

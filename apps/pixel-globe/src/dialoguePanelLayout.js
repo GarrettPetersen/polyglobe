@@ -195,20 +195,24 @@ function distributeChoiceWidths({ desiredWidths, availableWidth, minimumWidth })
 export function dialoguePanelGeometry({
   screenWidth,
   screenHeight,
-  contentHeight
+  contentHeight,
+  minimumTop = 6
 }) {
   if (!Number.isFinite(screenWidth) || screenWidth <= 0) throw new Error("Invalid dialogue screen width");
   if (!Number.isFinite(screenHeight) || screenHeight <= 0) throw new Error("Invalid dialogue screen height");
   if (!Number.isFinite(contentHeight) || contentHeight <= 0) {
     throw new Error("Invalid dialogue content height");
   }
+  if (!Number.isFinite(minimumTop) || minimumTop < 0) {
+    throw new Error(`Invalid dialogue minimum top: ${minimumTop}`);
+  }
 
   const x = 6;
-  const preferredY = screenHeight > screenWidth ? 96 : 78;
-  const minimumY = 6;
+  const minimumY = minimumTop;
   const portraitSize = 64;
   const portraitOverlap = 8;
   const minimumPanelY = minimumY + portraitSize - portraitOverlap;
+  const preferredY = Math.max(screenHeight > screenWidth ? 96 : 78, minimumPanelY);
   const w = screenWidth - x * 2;
   const requiredHeight = Math.max(108, contentHeight);
   const y = Math.min(preferredY, Math.max(minimumPanelY, screenHeight - 7 - requiredHeight));

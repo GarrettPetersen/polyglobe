@@ -1,35 +1,29 @@
 export const MARKET_PURSE_FEEDBACK_DURATION_MS = 1050;
 const MARKET_PURSE_FEEDBACK_LIMIT = 8;
 
-export function marketPurseOverlayRect({
-  screenWidth,
-  screenHeight,
-  width,
-  height,
-  margin = 5
-}) {
-  for (const [label, value] of Object.entries({ screenWidth, screenHeight, width, height, margin })) {
-    if (!Number.isInteger(value) || value < 0) {
-      throw new Error(`Invalid market purse ${label}: ${value}`);
-    }
+export function purseChangeFromDisplayedTotal(previousTotal, nextTotal) {
+  if (previousTotal !== null && (!Number.isFinite(previousTotal) || previousTotal < 0)) {
+    throw new Error(`Invalid previous doubloon total: ${previousTotal}`);
   }
-  if (width <= 0 || height <= 0 || margin * 2 + width > screenWidth || margin * 2 + height > screenHeight) {
-    throw new Error(`Market purse does not fit viewport: ${screenWidth}x${screenHeight}`);
+  if (!Number.isFinite(nextTotal) || nextTotal < 0) {
+    throw new Error(`Invalid doubloon total: ${nextTotal}`);
   }
-  return Object.freeze({ x: margin, y: margin, w: width, h: height });
+  const next = Math.round(nextTotal);
+  if (previousTotal === null) return Object.freeze({ baseline: next, delta: null });
+  const delta = next - Math.round(previousTotal);
+  return Object.freeze({ baseline: next, delta: delta === 0 ? null : delta });
 }
 
-export function marketPurseFeedbackLabelPosition(rect, entry) {
-  if (!rect || !Number.isFinite(rect.x) || !Number.isFinite(rect.y) ||
-      !Number.isFinite(rect.w) || !Number.isFinite(rect.h)) {
-    throw new Error("Market purse feedback position requires a purse rectangle");
+export function marketPurseFeedbackLabelPosition(anchor, entry) {
+  if (!anchor || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) {
+    throw new Error("Purse change label requires the doubloon count anchor");
   }
   if (!entry || !Number.isFinite(entry.offsetX) || !Number.isFinite(entry.offsetY)) {
     throw new Error("Market purse feedback position requires entry offsets");
   }
   return Object.freeze({
-    x: rect.x + rect.w + 7 + entry.offsetX,
-    y: rect.y + 3 - entry.offsetY
+    x: anchor.x + entry.offsetX,
+    y: anchor.y - entry.offsetY
   });
 }
 
@@ -46,22 +40,17 @@ export function createMarketPurseFeedbackState() {
 
 export function recordMarketPurseTransaction(state, {
   deltaDoubloons,
-  marketId,
   startedAtMs
 }) {
   assertMarketPurseFeedbackState(state);
   if (!Number.isFinite(deltaDoubloons) || deltaDoubloons === 0) {
     throw new Error(`Market purse feedback requires a non-zero finite change: ${deltaDoubloons}`);
   }
-  if (typeof marketId !== "string" || marketId.length === 0) {
-    throw new Error("Market purse feedback requires a market id");
-  }
   if (!Number.isFinite(startedAtMs) || startedAtMs < 0) {
     throw new Error(`Market purse feedback requires a valid start time: ${startedAtMs}`);
   }
   state.entries.push({
     deltaDoubloons: Math.round(deltaDoubloons),
-    marketId,
     sequence: state.nextSequence++,
     startedAtMs
   });
@@ -71,14 +60,10 @@ export function recordMarketPurseTransaction(state, {
 }
 
 export function marketPurseFeedbackEntries(state, {
-  marketId,
   nowMs,
   reducedMotion = false
 }) {
   assertMarketPurseFeedbackState(state);
-  if (typeof marketId !== "string" || marketId.length === 0) {
-    throw new Error("Market purse feedback display requires a market id");
-  }
   if (!Number.isFinite(nowMs) || nowMs < 0) {
     throw new Error(`Market purse feedback display requires a valid time: ${nowMs}`);
   }
@@ -88,9 +73,7 @@ export function marketPurseFeedbackEntries(state, {
   state.entries = state.entries.filter(entry => (
     nowMs - entry.startedAtMs < MARKET_PURSE_FEEDBACK_DURATION_MS
   ));
-  return state.entries
-    .filter(entry => entry.marketId === marketId)
-    .map(entry => {
+  return state.entries.map(entry => {
       const progress = Math.max(0, Math.min(
         1,
         (nowMs - entry.startedAtMs) / MARKET_PURSE_FEEDBACK_DURATION_MS

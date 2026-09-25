@@ -75,7 +75,7 @@ test("shared completion establishes quest fleets and synchronizes cargo before s
     { marketSale: { good: { id: "fish" } } },
     { doubloonsBefore: 10, purchaseIconOrigin: { x: 1, y: 2 }, saveReason: null }
   );
-  assert.deepEqual(calls, ["politics", "cargo", "coins", "purse:15", "departure"]);
+  assert.deepEqual(calls, ["politics", "cargo", "coins", "departure"]);
 });
 
 for (const destination of ["sailing", "port-wait", "handoff"]) {

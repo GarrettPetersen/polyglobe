@@ -8,10 +8,12 @@ export function layoutCityDestinationLabels({
   entries,
   viewportWidth,
   viewportHeight,
-  pinnedLabel = null
+  pinnedLabel = null,
+  obstacles = []
 }) {
   requireViewport(viewportWidth, viewportHeight);
   if (!Array.isArray(entries)) throw new Error("City destination label layout requires entries");
+  const reserved = validateLabelObstacles(obstacles);
   const seenIds = new Set();
   const prepared = entries.map((entry) => {
     validateEntry(entry, viewportWidth, viewportHeight);
@@ -61,7 +63,7 @@ export function layoutCityDestinationLabels({
   const placed = [];
   for (const entry of prepared) {
     const maximumY = viewportHeight - CITY_DESTINATION_LABEL_BOTTOM_PX - entry.height;
-    const y = nearestFreeY(entry, placed, maximumY);
+    const y = nearestFreeY(entry, placed, reserved, maximumY);
     placed.push(Object.freeze({
       id: entry.id,
       label: entry.label,
@@ -136,7 +138,7 @@ export function cityDestinationLeader(label, viewportWidth, viewportHeight) {
   });
 }
 
-function nearestFreeY(entry, placed, maximumY) {
+function nearestFreeY(entry, placed, obstacles, maximumY) {
   const minimumY = CITY_DESTINATION_LABEL_TOP_PX;
   const maximumOffset = Math.max(
     entry.desiredY - minimumY,
@@ -152,16 +154,44 @@ function nearestFreeY(entry, placed, maximumY) {
         width: entry.width,
         height: entry.height
       };
-      if (!placed.some((other) => verticalRowsOverlapWithGap(
+      const hitsLabel = placed.some((other) => verticalRowsOverlapWithGap(
         candidate,
         other,
         CITY_DESTINATION_LABEL_GAP_PX
-      ))) return candidateY;
+      ));
+      const hitsObstacle = obstacles.some((obstacle) => rectsOverlapWithGap(
+        candidate,
+        obstacle,
+        CITY_DESTINATION_LABEL_GAP_PX
+      ));
+      if (!hitsLabel && !hitsObstacle) return candidateY;
     }
   }
   throw new Error(
     `City destination labels cannot fit without overlap: ${entry.id} in ${maximumY - minimumY}px`
   );
+}
+
+function rectsOverlapWithGap(label, obstacle, gap) {
+  return label.x < obstacle.x + obstacle.width + gap &&
+    label.x + label.width + gap > obstacle.x &&
+    label.y < obstacle.y + obstacle.height + gap &&
+    label.y + label.height + gap > obstacle.y;
+}
+
+function validateLabelObstacles(obstacles) {
+  if (!Array.isArray(obstacles)) {
+    throw new Error("City destination label obstacles must be an array");
+  }
+  return obstacles.map((obstacle) => {
+    if (!obstacle || !["x", "y", "width", "height"].every((key) => Number.isFinite(obstacle[key]))) {
+      throw new Error("City destination label obstacle requires a finite rectangle");
+    }
+    if (obstacle.width <= 0 || obstacle.height <= 0) {
+      throw new Error("City destination label obstacle must have positive size");
+    }
+    return obstacle;
+  });
 }
 
 function verticalRowsOverlapWithGap(left, right, gap) {
