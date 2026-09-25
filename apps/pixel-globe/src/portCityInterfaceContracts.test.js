@@ -104,6 +104,10 @@ test("city resynchronization holds the prior scene until its replacement cache i
   const synchronization = functionSource("synchronizePortCityScene", "beginPortCityIllicitCaughtPresentation");
   assert.match(
     synchronization,
+    /enqueue\(synchronizePortCitySceneNow\)[\s\S]*await portCitySceneSyncQueue\.drained\(\)/
+  );
+  assert.match(
+    synchronization,
     /if \(portCityView\.sceneReady\)[\s\S]*preparationSnapshot = capturePresentedFrame\(\)[\s\S]*sceneReady = false/
   );
   assert.ok(

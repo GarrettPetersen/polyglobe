@@ -17,6 +17,7 @@ import { cityPortApproachOverride } from "./cityGeographyCorrections.js";
 import { chartCityLocationId, indexChartCityLocations } from "./chartCityLocations.js";
 import { offscreenCannonCue, CANNON_CUE_DURATION_MS } from "./offscreenCannonCue.js";
 import { createPortAssaultForecastClient } from "./portAssaultForecastClient.js";
+import { createAsyncOperationQueue } from "./asyncOperationQueue.js";
 import { createWorldMutationBoundary, dispatchActionEffects } from "./runtimeTransitions.js";
 import { runShipReplacement } from "./shipReplacementLifecycle.js";
 import { questOfferDirections } from "./questOfferDirections.js";
@@ -3905,6 +3906,7 @@ const portAssaultForecastClient = createPortAssaultForecastClient({
   onReady: () => { invalidateDialogueView(); dirty = true; }
 });
 let portCitySceneSyncKey = null;
+const portCitySceneSyncQueue = createAsyncOperationQueue();
 let portCityWeatherCache = null;
 let portCitySceneSelectionSerial = 0;
 let portCityPointerDown = null;
@@ -23704,6 +23706,14 @@ function queuePortCitySceneSync() {
 }
 
 async function synchronizePortCityScene() {
+  // Opening a port queues one sync and the caller awaits another. They must
+  // not select the city at the same time: the loser returns with the scene
+  // hidden and its destination labels already cleared.
+  await portCitySceneSyncQueue.enqueue(synchronizePortCitySceneNow);
+  await portCitySceneSyncQueue.drained();
+}
+
+async function synchronizePortCitySceneNow() {
   if (!portCityView || !portCityRuntime) return;
   const city = currentPortCitySceneCity();
   let availableDestinationIds = [];
