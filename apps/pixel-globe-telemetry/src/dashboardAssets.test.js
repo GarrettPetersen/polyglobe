@@ -6,7 +6,7 @@ const css = await readFile(new URL("../dashboard/dashboard.css", import.meta.url
 const html = await readFile(new URL("../dashboard/index.html", import.meta.url), "utf8");
 
 test("voyage starts occupy a full dashboard row", () => {
-  assert.match(css, /\.starts-panel,\s*\.channels-panel,\s*\.performance-panel,\s*\.map-integrity-panel,\s*\.crashes-panel\s*{\s*grid-column:\s*1\s*\/\s*-1;/);
+  assert.match(css, /\.starts-panel,\s*\.channels-panel,\s*\.performance-panel,\s*\.map-integrity-panel,\s*\.text-layout-panel,\s*\.crashes-panel\s*{\s*grid-column:\s*1\s*\/\s*-1;/);
   assert.match(html, /<article class="panel starts-panel">/);
 });
 
@@ -16,6 +16,14 @@ test("map integrity diagnostics have a dedicated dashboard feed", () => {
   assert.match(css, /\.map-integrity-card/);
   assert.match(html, /<details id="fixed-map-integrity"[^>]*hidden>/);
   assert.match(html, /id="fixed-map-integrity-list"/);
+});
+
+test("text overflow diagnostics have a dedicated dashboard feed", () => {
+  assert.match(html, /<article class="panel text-layout-panel">/);
+  assert.match(html, /id="text-layout-list"/);
+  assert.match(css, /\.text-layout-card/);
+  assert.match(html, /<details id="fixed-text-layout"[^>]*hidden>/);
+  assert.match(html, /id="fixed-text-layout-list"/);
 });
 
 test("persistent performance incidents have a full-width dashboard feed", () => {

@@ -648,6 +648,7 @@ export default {
   "storm.manOverboardRecoveredMany": "선원 {count}명 구조",
   "storm.manOverboardDrownedOne": "선원 한 명을 잃었다",
   "storm.manOverboardDrownedMany": "선원 {count}명을 바다에서 잃었다",
+  "storm.manOverboardNoBerth": "빈 자리가 없어 끌어올릴 수 없다",
   "hud.tooltip.localDate": "현지 날짜: {date}",
   "hud.tooltip.doubloons": "두블룬 {count}개",
   "hud.tooltip.hull": "선체 내구도: {current}/{maximum}",

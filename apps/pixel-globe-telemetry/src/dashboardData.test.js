@@ -88,6 +88,27 @@ test("dashboard performance incidents split at their independent all-fixed curso
   assert.match(queries.performanceStatus, /AS historical_reports/);
 });
 
+test("dashboard text overflow is its own diagnostic feed", () => {
+  const queries = dashboardQueries(
+    7,
+    "2026-08-05T12:00:00.000Z",
+    "2026-08-05T12:30:00.000Z",
+    "2026-08-05T13:00:00.000Z",
+    "2026-08-05T13:30:00.000Z"
+  );
+  assert.match(queries.crashes, /WHERE blob1 = 'crash'/);
+  assert.match(queries.crashes, /Compact market dialogue dimensions do not fit the panel/);
+  assert.doesNotMatch(queries.crashes, /UiTextLayoutWarning/);
+  assert.match(queries.textLayoutIssues, /blob14 = 'UiTextLayoutWarning'/);
+  assert.match(queries.textLayoutIssues, /Compact market dialogue dimensions do not fit the panel/);
+  assert.match(queries.totals, /Compact market dialogue dimensions do not fit the panel/);
+  assert.match(queries.textLayoutIssues, /timestamp > toDateTime\('2026-08-05 13:30:00'\)/);
+  assert.match(queries.fixedTextLayoutIssues, /timestamp <= toDateTime\('2026-08-05 13:30:00'\)/);
+  assert.match(queries.textLayoutStatus, /AS active_reports/);
+  assert.match(queries.textLayoutStatus, /AS historical_reports/);
+  assert.match(queries.textLayoutIssues, /ORDER BY last_seen DESC, affected_installations DESC/);
+});
+
 test("dashboard crash reports split at the all-fixed cursor", () => {
   const queries = dashboardQueries(7, "2026-08-05T12:34:56.000Z");
   assert.match(queries.crashes, /timestamp > toDateTime\('2026-08-05 12:34:56'\)/);
@@ -238,6 +259,20 @@ test("dashboard snapshots normalize aggregate query rows", () => {
       last_seen: "2026-07-25 10:45:00.000"
     }],
     fixedMapIntegrityIssues: [],
+    textLayoutStatus: [{ active_reports: 4, historical_reports: 6 }],
+    textLayoutIssues: [{
+      revision: "abc123",
+      channel: "steam-demo",
+      platform: "steam",
+      screen: "start-menu",
+      error_name: "UiTextLayoutWarning",
+      message: "UI text line-truncation in captain-choice-skill",
+      reports: 4,
+      affected_installations: 3,
+      first_seen: "2026-07-25 10:50:00.000",
+      last_seen: "2026-07-25 10:55:00.000"
+    }],
+    fixedTextLayoutIssues: [],
     performanceStatus: [{ active_reports: 3, historical_reports: 4 }],
     crashStatus: [{ active_reports: 2, historical_reports: 3 }],
     crashes: [{
@@ -270,7 +305,8 @@ test("dashboard snapshots normalize aggregate query rows", () => {
   "2026-07-25T12:00:00.000Z",
   "2026-07-25T11:30:00.000Z",
   "2026-07-25T11:45:00.000Z",
-  "2026-07-25T11:50:00.000Z");
+  "2026-07-25T11:50:00.000Z",
+  "2026-07-25T11:55:00.000Z");
   assert.equal(snapshot.totals.averageSessionMinutes, 3.8);
   assert.equal(snapshot.totals.voyageStarts, 180);
   assert.equal(snapshot.totals.crashesPerThousandSessions, 5);
@@ -289,6 +325,14 @@ test("dashboard snapshots normalize aggregate query rows", () => {
     activeReports: 1,
     historicalReports: 10
   });
+  assert.equal(snapshot.schemaVersion, 4);
+  assert.deepEqual(snapshot.textLayoutCursor, {
+    allFixedAt: "2026-07-25T11:55:00.000Z",
+    activeReports: 4,
+    historicalReports: 6
+  });
+  assert.equal(snapshot.textLayoutIssues[0].message, "UI text line-truncation in captain-choice-skill");
+  assert.equal(snapshot.textLayoutIssues[0].errorName, "UiTextLayoutWarning");
   assert.equal(snapshot.crashes[0].message, "Boom");
   assert.equal(snapshot.fixedCrashes[0].message, "Old boom");
   assert.deepEqual(snapshot.mapIntegrityIssues[0], {

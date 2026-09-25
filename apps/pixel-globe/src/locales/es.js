@@ -648,6 +648,7 @@ export default {
   "storm.manOverboardRecoveredMany": "{count} TRIPULANTES RESCATADOS",
   "storm.manOverboardDrownedOne": "SE PERDIÓ UN TRIPULANTE",
   "storm.manOverboardDrownedMany": "{count} TRIPULANTES PERDIDOS EN EL MAR",
+  "storm.manOverboardNoBerth": "NO HAY LITERA PARA IZARLOS",
   "hud.tooltip.localDate": "Fecha local: {date}",
   "hud.tooltip.doubloons": "{count} doblones",
   "hud.tooltip.hull": "Resistencia del casco: {current}/{maximum}",

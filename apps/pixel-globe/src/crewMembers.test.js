@@ -8,6 +8,7 @@ import {
   advanceCrewSailingExperience,
   advanceCrewWoundRecovery,
   availableCrewRosterMembers,
+  createCrewMember,
   createCrewRecruitmentMemory,
   createCrewRecruitmentOffer,
   createCrewRoster,
@@ -19,6 +20,7 @@ import {
   migrateCrewRosterOriginTraits,
   removeCrewCasualties,
   removeCrewMembersById,
+  restoreCrewMemberMakingRoom,
   restoreDismissedCrew,
   validateCrewAggregate,
   validateCrewRecruitmentMemory,
@@ -358,6 +360,56 @@ test("aggregate validation rejects orphaned crew and count drift", () => {
   state.ship.crew = 0;
   assert.throws(() => validateCrewAggregate(state), /cannot retain/);
 });
+
+test("recovering a sailor onto a full ship displaces the last generic berth", () => {
+  const occupant = sailor("crew-occupant");
+  const swimmer = sailor("crew-swimmer");
+  const state = crewState([occupant]);
+  state.ship.crewCapacity = state.ship.crew;
+  const recovered = restoreCrewMemberMakingRoom(state, swimmer);
+  assert.equal(recovered.restored, true);
+  assert.equal(recovered.alreadyAboard, false);
+  assert.equal(recovered.displacedMemberId, occupant.id);
+  assert.deepEqual(state.crewRoster.map(({ id }) => id), [swimmer.id]);
+  assert.equal(state.ship.crew, 2);
+  validateCrewAggregate(state);
+});
+
+test("a full ship with no generic roster cannot board a recovered sailor", () => {
+  const swimmer = sailor("crew-swimmer");
+  const state = crewState([]);
+  state.ship.crew = 1;
+  state.ship.crewCapacity = 1;
+  const blocked = restoreCrewMemberMakingRoom(state, swimmer);
+  assert.deepEqual(blocked, { restored: false, displacedMemberId: null, alreadyAboard: false });
+  assert.equal(state.ship.crew, 1);
+  assert.deepEqual(state.crewRoster, []);
+});
+
+test("a sailor already aboard is not given a second berth", () => {
+  const aboard = sailor("crew-aboard");
+  const state = crewState([aboard]);
+  const result = restoreCrewMemberMakingRoom(state, aboard);
+  assert.equal(result.restored, true);
+  assert.equal(result.alreadyAboard, true);
+  assert.equal(result.displacedMemberId, null);
+  assert.equal(state.crewRoster.length, 1);
+  assert.equal(state.ship.crew, 2);
+});
+
+function sailor(id) {
+  return createCrewMember({
+    id,
+    name: id,
+    nameCulture: "portuguese",
+    religionId: "roman-catholic",
+    nationalityId: "portugal",
+    homePort: PORT,
+    appearanceId: "samurai-sword",
+    crewTypeId: "ronin",
+    recruitedAtMinute: 0
+  });
+}
 
 function crewState(crewRoster) {
   const state = {

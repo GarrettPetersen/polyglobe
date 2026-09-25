@@ -3370,6 +3370,7 @@ export default Object.freeze({
   "That fine canvas draws cleanly. You can feel it in the deck.": "上質な帆布の帆が風をよく受ける。甲板にいてもその力が伝わる。",
   "That is {0}. We have warrants enough to paper a cabin. The reward is {1} doubloons.": "{0}だ。船室の壁を埋めるほど逮捕状が出ている。賞金は{1}ダブロンだ。",
   "That is certainly a panda. How did a creature of the bamboo hills come to stand watch on your deck?": "間違いなくパンダだ。竹林の山に棲む生き物が、どうして君の船の見張りをしているんだ？",
+  "That is not available.": "今はできぬ。",
   "That is the floor. It has never moved. Hand me the purse before you misplace gravity.": "それが床です。それは一度も動いたことはありません。重力を間違える前に財布を渡してください。",
   "That is the sea's favorite trick.": "それは海のお気に入りのトリックです。",
   "That little masked thief is aboard! Count the biscuits.": "あの小さな覆面泥棒が乗っています！ビスケットを数えます。",

@@ -91,6 +91,12 @@ After resolving or classifying the returned incidents, run
 `npm run map-integrity:mark-fixed`; earlier reports remain available in the
 dashboard's collapsed history.
 
+Clipped and overflowing interface text is a diagnostic, not a crash. The dashboard
+lists those `UiTextLayoutWarning` reports in their own Text overflow section. Run
+`npm run text-layout` for incidents after the text-layout cursor, then
+`npm run text-layout:mark-fixed` once they are addressed. Earlier overflow reports
+stay in that section's collapsed history.
+
 ## Dashboard
 
 The same Worker serves the aggregate operations dashboard at:

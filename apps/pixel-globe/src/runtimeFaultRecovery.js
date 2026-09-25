@@ -1,5 +1,29 @@
+import { isLayoutPresentationFailure } from "./layoutPresentationFailure.js";
+
 export const RUNTIME_FAULT_REPEAT_WINDOW_MS = 2_000;
 export const RUNTIME_SKIP_SAVE_PREPARATION_KEY = "marque-and-reprisal.skip-save-preparation-once";
+
+export class UnrecoverableGameDataError extends Error {
+  constructor(message) {
+    if (typeof message !== "string" || message.length === 0) {
+      throw new Error("Unrecoverable game data requires a message");
+    }
+    super(message);
+    this.name = "UnrecoverableGameDataError";
+  }
+}
+
+export function isUnrecoverableGameDataFailure(error) {
+  return error instanceof Error && error.name === "UnrecoverableGameDataError";
+}
+
+// Display and formatting failures always continue. The title screen is only
+// for saved data that cannot be repaired in memory.
+export function runtimeFaultRecoveryAction(error) {
+  if (isLayoutPresentationFailure(error)) return "continue-frame";
+  if (isUnrecoverableGameDataFailure(error)) return "reload-title";
+  return "continue-frame";
+}
 
 export function createRuntimeFaultRecoveryState() {
   return { signature: null, lastIncidentAtMs: -Infinity, consecutiveIncidents: 0 };
@@ -15,7 +39,7 @@ export function recordRuntimeFault(state, error, nowMs) {
   state.lastIncidentAtMs = nowMs;
   state.consecutiveIncidents = repeated ? state.consecutiveIncidents + 1 : 1;
   return Object.freeze({
-    action: state.consecutiveIncidents >= 2 ? "reload-title" : "retry-frame",
+    action: runtimeFaultRecoveryAction(error),
     signature,
     consecutiveIncidents: state.consecutiveIncidents
   });

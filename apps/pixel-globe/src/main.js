@@ -39,7 +39,8 @@ import {
   createFishingTradeTutorialMemory,
   fishingTradeTutorialPracticeComplete,
   fishingTradeTutorialTargetsFishery,
-  openFishingTradeTutorialMarket
+  openFishingTradeTutorialMarket,
+  presentFishingTradeTutorialDialogue
 } from "./fishingTradeTutorial.js";
 import { shipyardUpgradeCardLayout } from "./shipyardUpgradeLayout.js";
 import { commissionedShipyard, reservedSupplyShipyard, unannouncedShipyardUpgrades } from "./shipyardUpgrades.js";
@@ -808,6 +809,7 @@ import { repairShipHullOverTime } from "./shipRepair.js";
 import {
   NAMED_CREW_ROLE_CHEF,
   addNamedCrewMember,
+  canAddNamedCrewMember,
   createNamedCrewDeathNotice,
   genericCrewCount,
   hasPermanentCrewBerth,
@@ -906,6 +908,7 @@ import {
   removeCrewCasualties,
   removeCrewMembersById,
   restoreCrewMember,
+  restoreCrewMemberMakingRoom,
   restoreDismissedCrew,
   validateCrewAggregate,
   woundCrewMembers
@@ -1672,6 +1675,8 @@ import {
   dialogueOptionWindow,
   dialoguePanelGeometry,
   compactMarketDialogueLayout,
+  compactMarketHeaderMetrics,
+  fitCompactMarketHeader,
   marketModeSwitchLayout,
   stepCharacterAlertChoicePage
 } from "./dialoguePanelLayout.js";
@@ -1728,9 +1733,11 @@ import {
 import {
   consumeSkipAutomaticSavePreparation,
   createRuntimeFaultRecoveryState,
+  isUnrecoverableGameDataFailure,
   recordRuntimeFault,
   recordRuntimeFrameSuccess,
   requestSkipAutomaticSavePreparation,
+  runtimeFaultRecoveryAction,
   runtimeFaultSignature,
   shouldSkipAutomaticSavePreparation
 } from "./runtimeFaultRecovery.js";
@@ -7214,15 +7221,14 @@ function recoverRuntimeLoopFault(error, nowMs) {
   frameClockSynchronizationPending = true;
   keys.clear();
   clearPointerSteering();
-  if (incident.action === "retry-frame") {
-    dirty = true;
-    requestAnimationFrame(loop);
+  if (incident.action === "reload-title") {
+    // Saved data could not be repaired. The last completed autosave remains
+    // available from the title screen.
+    scheduleRuntimeTitleRecovery();
     return true;
   }
-  // Reload the title instead of persisting a state that may have been only
-  // partly mutated when the assertion fired. The most recent completed
-  // autosave remains available from the title screen.
-  scheduleRuntimeTitleRecovery();
+  dirty = true;
+  requestAnimationFrame(loop);
   return true;
 }
 
@@ -7238,7 +7244,9 @@ function captureUnhandledRuntimeFault(error, boundary) {
     `${boundary}-recovered`,
     `runtime-recovered:${runtimeFaultSignature(normalized)}`
   );
-  scheduleRuntimeTitleRecovery();
+  if (runtimeFaultRecoveryAction(normalized) === "reload-title") {
+    scheduleRuntimeTitleRecovery();
+  }
   return true;
 }
 
@@ -7423,7 +7431,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     pendingWorldSimulationError = null;
     throw error;
   }
-  if (reconcileActiveShipDialogueTarget()) dirty = true;
+  if (reconcileShipDialogueForPresentation()) dirty = true;
   if (diagnosticModeEnabled && sampleFrameRate(frameRateMeter, nowMs)) dirty = true;
   pollGamepadControls(nowMs);
   const realFrameSeconds = elapsedAnimationFrameSeconds(lastFrameMs, nowMs, {
@@ -7606,6 +7614,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   );
   measurePerformanceBenchmarkStage("audio.music", () => updateMusicContext(nowMs));
   if (!CAPTURE_SCENARIO && hasStartedVoyage && !surfaceIceEntrapmentActive &&
+      runtimeFaultRecoveryState.consecutiveIncidents === 0 &&
       nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
     schedulePeriodicAutosave(nowMs);
   }
@@ -7635,13 +7644,13 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     lastOverlayMs = nowMs;
   } else if (!renderDue && !simulationPaused && !startMenu && !creditsMenu.isOpen && !playerIntroModal &&
       nowMs - lastOverlayMs > 250) {
-    if (minimapShouldBeVisible()) drawMinimap(nowMs);
-    drawSurvivalMeters();
-    drawSavePersistenceWarning();
-    drawSurvivalHudTooltip();
-    drawStatusPersonParticles(nowMs);
-    if (portWaitState) drawPortWaitControls(nowMs);
-    else drawCaptainMenuButton();
+    if (minimapShouldBeVisible()) presentInterfaceWidget("minimap", () => drawMinimap(nowMs));
+    presentInterfaceWidget("survival-meters", () => drawSurvivalMeters());
+    presentInterfaceWidget("save-persistence-warning", () => drawSavePersistenceWarning());
+    presentInterfaceWidget("survival-hud-tooltip", () => drawSurvivalHudTooltip());
+    presentInterfaceWidget("status-person-particles", () => drawStatusPersonParticles(nowMs));
+    if (portWaitState) presentInterfaceWidget("port-wait-controls", () => drawPortWaitControls(nowMs));
+    else presentInterfaceWidget("captain-menu-button", () => drawCaptainMenuButton());
     lastOverlayMs = nowMs;
   }
   updatePlatformActivity();
@@ -10376,7 +10385,7 @@ function currentInteractionInputOwner() {
 }
 
 function dispatchWorldOverlayKey(event, keyAction) {
-  if (reconcileActiveShipDialogueTarget()) {
+  if (reconcileShipDialogueForPresentation()) {
     event.preventDefault();
     return true;
   }
@@ -10410,7 +10419,15 @@ function dispatchWorldOverlayKey(event, keyAction) {
 }
 
 function dispatchWorldOverlayPointerDown(event, point) {
-  if (reconcileActiveShipDialogueTarget()) {
+  if (layoutPresentationEscape && pointInRect(point, layoutPresentationEscape.rect)) {
+    event.preventDefault();
+    const dismiss = layoutPresentationEscape.dismiss;
+    layoutPresentationEscape = null;
+    dismiss();
+    dirty = true;
+    return true;
+  }
+  if (reconcileShipDialogueForPresentation()) {
     event.preventDefault();
     return true;
   }
@@ -10459,7 +10476,7 @@ function dispatchWorldOverlayPointerDown(event, point) {
 }
 
 function dispatchWorldOverlayPointerMove(event, point) {
-  if (reconcileActiveShipDialogueTarget()) return true;
+  if (reconcileShipDialogueForPresentation()) return true;
   const owner = currentInteractionInputOwner();
   if (owner === INTERACTION_INPUT.WORLD) return false;
   if (owner === INTERACTION_INPUT.TELEMETRY_CONSENT) {
@@ -23265,7 +23282,7 @@ function crewDialogueSelectableOptionRows(view) {
 function handleCanvasWheel(event) {
   noteCurrentSessionActivity();
   if (Math.abs(event.deltaY) < 1) return;
-  if (reconcileActiveShipDialogueTarget()) {
+  if (reconcileShipDialogueForPresentation()) {
     event.preventDefault();
     return;
   }
@@ -28666,6 +28683,11 @@ function chooseDialogueOption(optionIndex) {
   // Controller polling can deliver a confirm on the frame where a dialogue
   // transition removes or repaginates its options. There is no action to take.
   if (selected === null) return false;
+  if (selected.disabled) {
+    dialogueState.feedback = selected.disabledReason || "That is not available.";
+    dirty = true;
+    return false;
+  }
   if (dialogueActionBlockedByActivationGuard(
     dialogueActivationGuard,
     dialogueState,
@@ -28772,31 +28794,45 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
 
 function assertFishingTradeTutorialActionAllowed(action) {
   const memory = gameState.memory.quests.fishingTradeTutorial;
-  if (dialogueState.cityId !== memory.destinationCityId) return;
+  if (dialogueState.cityId !== memory.destinationCityId) return false;
+  let diagnostic = null;
   if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET) {
-    if (action?.type === "node" && action.nodeId === "market") return;
-    throw new Error(`Fishing tutorial blocked port action: ${action?.type || "missing"}`);
-  }
-  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH) {
+    if (action?.type === "node" && action.nodeId === "market") return false;
+    diagnostic = `Fishing tutorial blocked port action: ${action?.type || "missing"}`;
+  } else if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH) {
     const allowed = action?.type === "sell" && action.goodId === FISH_CARGO_GOOD_ID;
-    if (allowed) return;
-    throw new Error(`Fishing tutorial blocked market action: ${action?.type || "missing"}`);
-  }
-}
-
-function advanceFishingTradeTutorialAfterPortAction(previousNodeId, action) {
-  const memory = gameState.memory.quests.fishingTradeTutorial;
-  if (memory.stage !== FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET ||
-      previousNodeId !== "root" || action?.type !== "node" || action.nodeId !== "market") {
+    if (allowed) return false;
+    diagnostic = `Fishing tutorial blocked market action: ${action?.type || "missing"}`;
+  } else {
     return false;
   }
-  if (!openFishingTradeTutorialMarket(memory, dialogueState.cityId)) {
-    throw new Error(`Fishing tutorial opened the wrong market: ${dialogueState.cityId}`);
-  }
-  dialogueState.marketMode = "sell";
-  dialogueState.selectedIndex = 2;
-  saveVoyageNow("opened fishing tutorial market");
+  reportRuntimeDiagnosticAssertion(diagnostic, "fishing-tutorial-blocked-action");
+  dialogueState.feedback = memory.stage === FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH
+    ? "Sell the catch first."
+    : "That is not available.";
   return true;
+}
+
+function syncFishingTradeTutorialMarket() {
+  const memory = gameState?.memory?.quests?.fishingTradeTutorial;
+  if (!memory || dialogueState?.kind !== "port" ||
+      dialogueState.cityId !== memory.destinationCityId) {
+    return false;
+  }
+  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET &&
+      dialogueState.nodeId === "market") {
+    if (!openFishingTradeTutorialMarket(memory, dialogueState.cityId)) return false;
+    dialogueState.marketMode = "sell";
+    dialogueState.selectedIndex = 2;
+    saveVoyageNow("opened fishing tutorial market");
+    return true;
+  }
+  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH &&
+      dialogueState.nodeId === "market" && dialogueState.marketMode !== "sell") {
+    dialogueState.marketMode = "sell";
+    return true;
+  }
+  return false;
 }
 
 function completeFishingTradeTutorialAfterSale(city, sale) {
@@ -28839,8 +28875,18 @@ function performDialogueOption(optionIndex, displayedOption) {
     : null;
   invalidateDialogueOptionGeometry();
   if (dialogueState.kind === "port") {
-    if (!displayedOption) throw new Error("Port dialogue selection has no displayed option");
-    assertFishingTradeTutorialActionAllowed(displayedOption.action);
+    if (!displayedOption) {
+      reportRuntimeDiagnosticAssertion(
+        "Port dialogue selection has no displayed option",
+        "port-dialogue-missing-option"
+      );
+      return;
+    }
+    if (displayedOption.disabled) {
+      dialogueState.feedback = displayedOption.disabledReason || "That is not available.";
+      return;
+    }
+    if (assertFishingTradeTutorialActionAllowed(displayedOption.action)) return;
     missionGiftCharacter = currentDialogueCity().character;
     const doubloonsBefore = gameState.doubloons;
     result = selectPortDialogueAction(
@@ -28852,7 +28898,7 @@ function performDialogueOption(optionIndex, displayedOption) {
       displayedOption,
       portDialogueContext()
     );
-    advanceFishingTradeTutorialAfterPortAction(previousNodeId, displayedOption.action);
+    syncFishingTradeTutorialMarket();
     if (acknowledgesPortArrivalGreeting && portCityView) {
       markCurrentPortArrivalGreetingPresented(currentDialogueCity());
     }
@@ -30123,6 +30169,9 @@ function currentDialogueView() {
     ruinedSite: dialogueState.kind === "port" && dialogueState.nodeId === "root" &&
       citySiteIsRuined(currentDialogueCity())
   });
+  // Entering the market, including from a loadout detour or a city hotspot,
+  // has to advance the tutorial before the cached view is reused.
+  if (syncFishingTradeTutorialMarket()) clearPausedView(dialogueViewCache);
   return cachedPausedView(dialogueViewCache, dialogueState, buildCurrentDialogueView);
 }
 
@@ -30190,49 +30239,26 @@ function localizedQuestDistanceDirection({ distanceKm, direction }) {
 
 function fishingTradeTutorialDialogueView(view) {
   const memory = gameState?.memory?.quests?.fishingTradeTutorial;
-  if (!memory || dialogueState?.kind !== "port" ||
-      dialogueState.cityId !== memory.destinationCityId) return view;
-  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET) {
-    if (dialogueState.nodeId !== "root") {
-      throw new Error(`Fishing tutorial expected the port root, received ${dialogueState.nodeId}`);
-    }
-    const marketOptions = view.options.filter((option) => (
-      option.action?.type === "node" && option.action.nodeId === "market"
-    ));
-    if (marketOptions.length !== 1 || marketOptions[0].disabled) {
-      throw new Error("Fishing tutorial destination has no available market action");
-    }
-    return { ...view, options: marketOptions };
-  }
-  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH) {
-    if (dialogueState.nodeId !== "market" || dialogueState.marketMode !== "sell") {
-      throw new Error(
-        `Fishing tutorial sale requires the sell market; received node ${dialogueState.nodeId}, ` +
-        `mode ${dialogueState.marketMode}`
-      );
-    }
-    const buyMode = view.options.find((option) => (
-      option.action?.type === "switch-market-mode" && option.action.mode === "buy"
-    ));
-    const sellMode = view.options.find((option) => (
-      option.action?.type === "switch-market-mode" && option.action.mode === "sell"
-    ));
-    const fishSale = view.options.find((option) => (
-      option.action?.type === "sell" && option.action.goodId === FISH_CARGO_GOOD_ID
-    ));
-    if (!buyMode || !sellMode || !fishSale || fishSale.disabled) {
-      throw new Error("Fishing tutorial market cannot sell the caught fish");
-    }
-    return {
-      ...view,
-      options: [
-        { ...buyMode, disabled: true, disabledReason: "Sell the catch first." },
-        { ...sellMode, disabled: true, disabledReason: "Sell the catch first." },
-        { ...fishSale, emphasis: "quest-cargo" }
-      ]
-    };
-  }
+  if (!memory || dialogueState?.kind !== "port") return view;
+  const presentation = presentFishingTradeTutorialDialogue({
+    memory,
+    cityId: dialogueState.cityId,
+    nodeId: dialogueState.nodeId,
+    marketMode: dialogueState.marketMode,
+    options: view.options,
+    fishGoodId: FISH_CARGO_GOOD_ID
+  });
+  if (presentation.kind === "unchanged") return view;
+  if (presentation.kind === "restricted") return { ...view, options: presentation.options };
+  reportFishingTradeTutorialGuidance(presentation.kind);
   return view;
+}
+
+function reportFishingTradeTutorialGuidance(kind) {
+  const diagnostic = kind === "market-unavailable"
+    ? "Fishing tutorial destination has no available market action"
+    : "Fishing tutorial market cannot sell the caught fish";
+  reportRuntimeDiagnosticAssertion(diagnostic, "fishing-tutorial-guidance");
 }
 
 function playerShipyardSupplyStatusText(yard) {
@@ -30506,6 +30532,19 @@ function reconcileActiveShipDialogueTarget() {
   if (strategicShipExists && visualShipExists) return false;
   releaseDialogueSession({ destination: "sailing" });
   resumeShipAfterOverlayIfReady();
+  return true;
+}
+
+function reconcileShipDialogueForPresentation() {
+  const npcShipId = dialogueState?.kind === "ship" ? dialogueState.npcShipId : null;
+  if (!reconcileActiveShipDialogueTarget()) return false;
+  // The ship can leave the local view during the same frame that opened or
+  // continued the conversation. Close it and keep sailing; the diagnostic is
+  // how we learn which encounters still disappear underneath the player.
+  reportRuntimeDiagnosticAssertion(
+    `Dialogue NPC ship is no longer available: ${npcShipId}`,
+    "dialogue-npc-ship-unavailable"
+  );
   return true;
 }
 
@@ -38776,18 +38815,34 @@ function updateOverboardCrew(dt) {
       }
     }
   }
-  if (rescued.length > 0 || drowned.length > 0) {
-    const resolvedIds = new Set([...rescued, ...drowned].map((entry) => entry.id));
+  const recovered = [];
+  const stranded = [];
+  for (const entry of rescued) {
+    if (restoreSweptCrewMember(entry)) recovered.push(entry);
+    else stranded.push(entry);
+  }
+  if (stranded.length > 0) {
+    const pendingNotice = stranded.some((entry) => entry.berthBlockedReported !== true);
+    for (const entry of stranded) entry.berthBlockedReported = true;
+    if (pendingNotice) {
+      reportRuntimeDiagnosticAssertion(
+        `Recovered crew member ${stranded[0].character.id} has no available berth`,
+        "overboard-crew-berth"
+      );
+      showSurvivalNotice(uiText("storm.manOverboardNoBerth"), "warn");
+    }
+  }
+  if (recovered.length > 0 || drowned.length > 0) {
+    const resolvedIds = new Set([...recovered, ...drowned].map((entry) => entry.id));
     overboardCrew = overboardCrew.filter((entry) => !resolvedIds.has(entry.id));
-    for (const entry of rescued) restoreSweptCrewMember(entry);
     for (const entry of drowned) recordDrownedCrewMember(entry);
     syncShipCargoFromGameState();
-    if (rescued.length > 0) {
+    if (recovered.length > 0) {
       playCollectionDingSound();
-      emitCaptureEvent("capture-beat", { action: "crew-recovered", count: rescued.length });
+      emitCaptureEvent("capture-beat", { action: "crew-recovered", count: recovered.length });
       showSurvivalNotice(uiText(
-        rescued.length === 1 ? "storm.manOverboardRecoveredOne" : "storm.manOverboardRecoveredMany",
-        { count: rescued.length }
+        recovered.length === 1 ? "storm.manOverboardRecoveredOne" : "storm.manOverboardRecoveredMany",
+        { count: recovered.length }
       ), "good");
     }
     if (drowned.length > 0) {
@@ -38799,7 +38854,7 @@ function updateOverboardCrew(dt) {
       presentPendingNamedCrewDeathNotice();
     }
     scheduleEventAutosave(
-      rescued.length > 0 ? "recovered crew overboard" : "crew drowned overboard"
+      recovered.length > 0 ? "recovered crew overboard" : "crew drowned overboard"
     );
   }
   return true;
@@ -38807,15 +38862,21 @@ function updateOverboardCrew(dt) {
 
 function restoreSweptCrewMember(entry) {
   if (entry.kind === "named") {
+    if (!canAddNamedCrewMember(gameState) && genericCrewCount(gameState) <= 0) return false;
     addNamedCrewMember(gameState, entry.character, entry.character.role, {
       replaceGenericWhenFull: true
     });
-    return;
+    return true;
   }
   if (entry.kind !== "crew") throw new Error(`Unknown overboard crew kind: ${entry.kind}`);
-  if (!restoreCrewMember(gameState, entry.character)) {
-    throw new Error(`Recovered crew member ${entry.character.id} has no available berth`);
+  const result = restoreCrewMemberMakingRoom(gameState, entry.character);
+  if (result.displacedMemberId) {
+    reportRuntimeDiagnosticAssertion(
+      `Recovered crew member ${entry.character.id} displaced ${result.displacedMemberId} to free a berth`,
+      "overboard-crew-berth"
+    );
   }
+  return result.restored;
 }
 
 function recordDrownedCrewMember(entry) {
@@ -46384,6 +46445,7 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
   if (typeof allowColdCoveredWorldRender !== "boolean") {
     throw new Error("World render requires an explicit cold-cover policy");
   }
+  layoutPresentationEscape = null;
   worldRenderCount++;
   gpuShipDrawCommands = [];
   gpuWorldUnderlay = null;
@@ -46393,11 +46455,17 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
   worldRenderer.canvas.hidden = Boolean(lakeBattleMode) && !duelPortAssaultVisible;
   if (lakeBattleMode) {
     ctx = screenCtx;
-    drawLakeBattleMode(nowMs);
+    drawRecoverablePlayerSurface("lake-battle", () => drawLakeBattleMode(nowMs));
     if (dialogueState?.kind === HISTORICAL_BATTLE_DIALOGUE_KIND) {
-      drawDialogueOverlay(nowMs);
+      drawRecoverablePlayerSurface(
+        "dialogue-overlay",
+        () => drawDialogueOverlay(nowMs),
+        dialogueLayoutFailureDismiss()
+      );
     }
-    if (optionsMenu.isOpen) drawOptionsMenu();
+    if (optionsMenu.isOpen) {
+      drawRecoverablePlayerSurface("options-menu", drawOptionsMenu, closeOptionsMenu);
+    }
     return;
   }
   ctx = screenCtx;
@@ -46554,8 +46622,12 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
 
 function drawWorldInterface(nowMs) {
   const sceneTimeCut = portCityTransition?.sceneTimeCut === true;
-  if (!sceneTimeCut) drawPortCityTransitionOverlay(nowMs);
-  if (portAssaultState) drawPortAssaultOverlay(nowMs);
+  if (!sceneTimeCut) {
+    drawRecoverablePlayerSurface("port-city-transition", () => drawPortCityTransitionOverlay(nowMs));
+  }
+  if (portAssaultState) {
+    drawRecoverablePlayerSurface("port-assault", () => drawPortAssaultOverlay(nowMs));
+  }
   if (portCityRootPresentationIsOwned() && !portCityView.sceneReady) return;
   const dialogueVisible = dialogueOverlayIsVisible({
     dialogueActive: Boolean(dialogueState) && !portCityRootPresentationIsOwned() &&
@@ -46606,53 +46678,99 @@ function drawWorldInterface(nowMs) {
       presentInterfaceWidget("debug-status", () => drawTinyStatus(nowMs));
     }
   }
-  if (dialogueVisible) {
-    measurePerformanceBenchmarkStage("render.dialogue", () => drawDialogueOverlay(nowMs));
+  if (dialogueVisible && !reconcileShipDialogueForPresentation()) {
+    measurePerformanceBenchmarkStage("render.dialogue", () => {
+      drawRecoverablePlayerSurface(
+        "dialogue-overlay",
+        () => drawDialogueOverlay(nowMs),
+        dialogueLayoutFailureDismiss()
+      );
+    });
   }
-  if (!dialogueVisible) drawCaptainMenuButton();
+  if (!dialogueVisible) {
+    presentInterfaceWidget("captain-menu-button", () => drawCaptainMenuButton());
+  }
   if (discoveriesMenu.isOpen) {
-    measurePerformanceBenchmarkStage("render.discoveries", drawDiscoveriesMenu);
+    measurePerformanceBenchmarkStage("render.discoveries", () => {
+      drawRecoverablePlayerSurface("discoveries-menu", drawDiscoveriesMenu, closeDiscoveriesMenu);
+    });
   }
   if (shipInfoMenu.isOpen) {
-    measurePerformanceBenchmarkStage("render.shipInfo", drawShipInfoMenu);
+    measurePerformanceBenchmarkStage("render.shipInfo", () => {
+      drawRecoverablePlayerSurface("ship-info-menu", drawShipInfoMenu, closeShipInfoMenu);
+    });
   }
   if (politicsMenu.isOpen) {
-    measurePerformanceBenchmarkStage("render.politics", () => drawPoliticsMenu());
+    measurePerformanceBenchmarkStage("render.politics", () => {
+      drawRecoverablePlayerSurface("politics-menu", () => drawPoliticsMenu(), closePoliticsMenu);
+    });
   }
   if (navigationMenu.isOpen) {
-    measurePerformanceBenchmarkStage("render.navigation", drawNavigationMenu);
+    measurePerformanceBenchmarkStage("render.navigation", () => {
+      drawRecoverablePlayerSurface("navigation-menu", drawNavigationMenu, closeNavigationMenu);
+    });
   }
   if (aboardMenu.isOpen) {
-    measurePerformanceBenchmarkStage("render.aboard", drawAboardMenu);
+    measurePerformanceBenchmarkStage("render.aboard", () => {
+      drawRecoverablePlayerSurface("aboard-menu", drawAboardMenu, closeAboardMenu);
+    });
   }
   if (captainMenu.isOpen && !captainChildMenuIsOpen()) {
-    measurePerformanceBenchmarkStage("render.captain", () => drawCaptainMenu(nowMs));
+    measurePerformanceBenchmarkStage("render.captain", () => {
+      drawRecoverablePlayerSurface("captain-menu", () => drawCaptainMenu(nowMs), closeCaptainMenu);
+    });
   }
-  if (gameOverReason) drawGameOverOverlay(nowMs);
-  if (playerIntroModal && !startMenu && !creditsMenu.isOpen) drawPlayerIntroModal(nowMs);
-  if (captainAlertModal && !startMenu && !creditsMenu.isOpen) drawCaptainAlertModal(nowMs);
+  if (gameOverReason) {
+    drawRecoverablePlayerSurface(
+      "game-over",
+      () => drawGameOverOverlay(nowMs),
+      gameOverRestartIsAvailable(lastFrameMs) ? () => restartAfterGameOver() : null
+    );
+  }
+  if (playerIntroModal && !startMenu && !creditsMenu.isOpen) {
+    drawRecoverablePlayerSurface("player-intro", () => drawPlayerIntroModal(nowMs), closePlayerIntroModal);
+  }
+  if (captainAlertModal && !startMenu && !creditsMenu.isOpen) {
+    drawRecoverablePlayerSurface("captain-alert", () => drawCaptainAlertModal(nowMs), closeCaptainAlertModal);
+  }
   if (startMenu) {
-    measurePerformanceBenchmarkStage("render.startMenu", () => drawStartMenu(nowMs));
+    measurePerformanceBenchmarkStage("render.startMenu", () => {
+      drawRecoverablePlayerSurface("start-menu", () => drawStartMenu(nowMs));
+    });
   }
   if (pastVoyagesMenu.isOpen) {
-    measurePerformanceBenchmarkStage("render.pastVoyages", drawPastVoyagesMenu);
+    measurePerformanceBenchmarkStage("render.pastVoyages", () => {
+      drawRecoverablePlayerSurface("past-voyages-menu", drawPastVoyagesMenu, closePastVoyagesMenu);
+    });
   }
   if (achievementsMenu.isOpen) {
-    measurePerformanceBenchmarkStage("render.achievements", drawAchievementsMenu);
+    measurePerformanceBenchmarkStage("render.achievements", () => {
+      drawRecoverablePlayerSurface("achievements-menu", drawAchievementsMenu, closeAchievementsMenu);
+    });
   }
   if (creditsMenu.isOpen) {
-    measurePerformanceBenchmarkStage("render.credits", drawCreditsMenu);
+    measurePerformanceBenchmarkStage("render.credits", () => {
+      drawRecoverablePlayerSurface("credits-menu", drawCreditsMenu, closeCreditsMenu);
+    });
   }
   if (optionsMenu.isOpen) {
-    measurePerformanceBenchmarkStage("render.options", drawOptionsMenu);
+    measurePerformanceBenchmarkStage("render.options", () => {
+      drawRecoverablePlayerSurface("options-menu", drawOptionsMenu, closeOptionsMenu);
+    });
   }
-  if (captainMenu.isOpen) drawCaptainNotebookChrome();
+  if (captainMenu.isOpen) {
+    drawRecoverablePlayerSurface("captain-notebook-chrome", drawCaptainNotebookChrome, closeCaptainMenu);
+  }
   presentInterfaceWidget("item-acquisition", () => drawItemAcquisitionEffects(nowMs));
   presentInterfaceWidget("achievement-notice", () => drawAchievementNotice(nowMs));
   presentInterfaceWidget("save-persistence-warning", () => drawSavePersistenceWarning());
   presentInterfaceWidget("storm-lightning-flash", () => drawStormLightningFlash(nowMs));
-  if (telemetryConsentModal) drawTelemetryConsentModal();
-  if (sceneTimeCut) drawPortCityTransitionOverlay(nowMs);
+  if (telemetryConsentModal) {
+    drawRecoverablePlayerSurface("telemetry-consent", drawTelemetryConsentModal);
+  }
+  if (sceneTimeCut) {
+    drawRecoverablePlayerSurface("port-city-transition", () => drawPortCityTransitionOverlay(nowMs));
+  }
   if (diagnosticModeEnabled) drawFrameRateOverlay();
   if (CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK && !CAPTURE_FRAME_PASS) {
     screenCtx.save();
@@ -48520,6 +48638,7 @@ function reportRuntimeDiagnosticAssertion(message, diagnosticKey) {
 }
 
 let presentationRecoveryController = null;
+let layoutPresentationEscape = null;
 
 function presentationRecovery() {
   presentationRecoveryController ??= createPresentationRecovery({
@@ -48538,6 +48657,54 @@ function presentationRecovery() {
 
 function presentInterfaceWidget(diagnosticKey, operation) {
   return presentationRecovery().present(diagnosticKey, operation).value;
+}
+
+function dialogueLayoutFailureDismiss() {
+  if (!dialogueState) return null;
+  if (dialogueState.kind === "campaign-goal" || dialogueState.kind === HISTORICAL_BATTLE_DIALOGUE_KIND) {
+    return null;
+  }
+  return () => navigateBackFromDialogue();
+}
+
+function drawRecoverablePlayerSurface(diagnosticKey, operation, dismiss = null) {
+  if (diagnosticModeEnabled || CAPTURE_AUTOMATIC || PERFORMANCE_BENCHMARK) {
+    operation();
+    return;
+  }
+  try {
+    operation();
+  } catch (error) {
+    if (isUnrecoverableGameDataFailure(error)) throw error;
+    const normalized = error instanceof Error ? error : new Error(String(error));
+    console.error(normalized);
+    reportRuntimeDiagnosticAssertion(normalized.message || "Player surface failed", diagnosticKey);
+    if (typeof ctx.reset === "function") ctx.reset();
+    else ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (typeof dismiss !== "function") return;
+    const rect = {
+      x: 8,
+      y: SCREEN_H - 36,
+      w: SCREEN_W - 16,
+      h: 28
+    };
+    layoutPresentationEscape = { rect, dismiss };
+    drawLayoutPresentationEscape(rect);
+  }
+}
+
+function drawLayoutPresentationEscape(rect) {
+  ctx.save();
+  ctx.fillStyle = "rgba(16, 20, 23, 0.72)";
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.fillStyle = "#f4e7c5";
+  ctx.fillRect(rect.x + 2, rect.y + 2, rect.w - 4, rect.h - 4);
+  ctx.restore();
+  presentInterfaceWidget("layout-presentation-escape", () => {
+    drawPixelText(uiText("common.close"), rect.x + rect.w / 2, rect.y + 8, {
+      align: "center"
+    });
+  });
 }
 
 function recoverPresentationError(error, diagnosticKey) {
@@ -56874,7 +57041,8 @@ function drawCaptainSelection() {
     ? panelWidth - 20
     : Math.floor((panelWidth - 20 - gap) / 2);
   const skillBesidePortrait = stackCards && provisionalCardW >= 250;
-  const preferredCardH = skillBesidePortrait ? 116 : 158;
+  const tallSkillReserve = languageUsesTallPixelMetrics(currentLanguage) ? 84 : 0;
+  const preferredCardH = (skillBesidePortrait ? 116 : 158) + tallSkillReserve;
   const preferredPanelH = 29 + footerH + 7 + preferredCardH * (stackCards ? 2 : 1) +
     (stackCards ? gap : 0);
   const panelHeight = Math.min(preferredPanelH, SCREEN_H - 4);
@@ -57015,8 +57183,11 @@ function drawCaptainSelection() {
     );
     ctx.fillStyle = PIRATE_MENU_INK;
     const lineHeight = localizedLineHeight(9);
+    const skillBottom = skillRect.y + skillRect.h;
     let skillTextY = skillRect.y;
-    for (const line of skillHeadingLines) {
+    const headingCapacity = Math.max(0, Math.floor((skillBottom - skillTextY) / lineHeight));
+    const visibleHeadings = skillHeadingLines.slice(0, headingCapacity);
+    for (const line of visibleHeadings) {
       drawPixelText(line, skillRect.x, skillTextY, { font: PIXEL_FONT_SMALL_8 });
       skillTextY += lineHeight;
     }
@@ -57026,12 +57197,32 @@ function drawCaptainSelection() {
       PIXEL_FONT_SMALL_8,
       skillRect.w
     );
-    const finalTextBottom = skillTextY + Math.max(0, effectLines.length - 1) * lineHeight + 8;
-    if (finalTextBottom > skillRect.y + skillRect.h) {
-      throw new Error(`Captain choice skill effects overflow for ${skill.id}`);
+    const effectCapacity = Math.max(0, Math.floor((skillBottom - skillTextY - 8) / lineHeight) + (skillBottom > skillTextY + 8 ? 1 : 0));
+    const visibleEffects = effectLines.slice(0, Math.max(0, effectCapacity));
+    if (visibleHeadings.length < skillHeadingLines.length || visibleEffects.length < effectLines.length) {
+      const requiredLineCount = skillHeadingLines.length + effectLines.length;
+      const maximumLineCount = visibleHeadings.length + visibleEffects.length;
+      if (requiredLineCount > maximumLineCount && maximumLineCount > 0) {
+        gameTelemetry.recordUiTextLayout({
+          kind: "line-truncation",
+          containerId: "captain-choice-skill",
+          text: `${skill.label}: ${skill.effectLabels.join(" / ")}`,
+          availableWidthPx: Math.max(1, skillRect.w),
+          requiredLineCount,
+          maximumLineCount,
+          viewportWidthPx: SCREEN_W,
+          viewportHeightPx: SCREEN_H
+        }, telemetryCrashContext());
+      } else if (maximumLineCount <= 0) {
+        reportRuntimeDiagnosticAssertion(
+          `Captain choice skill effects overflow for ${skill.id}`,
+          "captain-choice-skill-overflow"
+        );
+      }
     }
     ctx.fillStyle = PIRATE_MENU_SUCCESS;
-    for (const line of effectLines) {
+    for (const line of visibleEffects) {
+      if (skillTextY + 8 > skillBottom) break;
       drawPixelText(line, skillRect.x, skillTextY, { font: PIXEL_FONT_SMALL_8 });
       skillTextY += lineHeight;
     }
@@ -68585,8 +68776,15 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   let bodyLines = wrapPixelText(view.text, dialogueFont, bodyTextW, bodyLineLimit);
   const bodyEndOffset = textYOffset +
     (topicLines.length + bodyLines.length + feedbackSlotCount) * dialogueLineHeight;
-  const optionYOffset = compactMarketSwitch
-    ? (narrowMarket ? 82 : 50)
+  const compactHeader = compactMarketSwitch
+    ? compactMarketHeaderMetrics({
+        bodyOffset: textYOffset,
+        lineHeight: dialogueLineHeight,
+        narrow: narrowMarket
+      })
+    : null;
+  const optionYOffset = compactHeader
+    ? compactHeader.headerHeight
     : portGreeting ? bodyEndOffset + 5 : Math.max(64, bodyEndOffset + 5);
   const contentHeight = optionYOffset + optionRowCount * optionHeight +
     (optionGroups.exits.length > 0 && optionGroups.regular.length > 0 ? 4 : 0) + 9;
@@ -68597,14 +68795,39 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   });
   const panel = geometry.panel;
   const optionBottom = panel.y + panel.h - 9;
-  const compactMarketLayout = compactMarketSwitch
+  const fittedCompactHeader = compactHeader
+    ? fitCompactMarketHeader(compactHeader, panel.h, { optionHeight })
+    : null;
+  if (compactHeader && fittedCompactHeader?.clamped !== false) {
+    const lineHeight = Math.max(1, dialogueLineHeight);
+    const requiredLineCount = Math.max(2, Math.ceil(compactHeader.headerHeight / lineHeight));
+    const fittedHeight = fittedCompactHeader?.headerHeight ?? lineHeight;
+    const maximumLineCount = Math.max(1, Math.min(
+      requiredLineCount - 1,
+      Math.floor(Math.max(fittedHeight, lineHeight) / lineHeight)
+    ));
+    const overflowText = renderedUiText(view.speaker || view.text || "compact market").trim();
+    if (overflowText && speakerW > 0 && requiredLineCount > maximumLineCount) {
+      gameTelemetry.recordUiTextLayout({
+        kind: "line-truncation",
+        containerId: "compact-market-dialogue",
+        text: overflowText,
+        availableWidthPx: speakerW,
+        requiredLineCount,
+        maximumLineCount,
+        viewportWidthPx: SCREEN_W,
+        viewportHeightPx: SCREEN_H
+      }, telemetryCrashContext());
+    }
+  }
+  const compactMarketLayout = fittedCompactHeader
     ? compactMarketDialogueLayout({
         panel,
         regularCount: regularOptionRows.length,
         exitCount: optionGroups.exits.length,
-        headerHeight: optionYOffset,
-        bodyOffset: textYOffset,
-        contextOffset: narrowMarket ? 69 : 39,
+        headerHeight: fittedCompactHeader.headerHeight,
+        bodyOffset: fittedCompactHeader.bodyOffset,
+        contextOffset: fittedCompactHeader.contextOffset,
         optionHeight
       })
     : null;
@@ -68709,7 +68932,7 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
       drawPixelText(
         fitPixelText(marketContext.text, PIXEL_FONT_SMALL_8, optionW),
         textX,
-        compactMarketLayout.contextY,
+        compactMarketLayout?.contextY ?? textYOffset,
         { font: PIXEL_FONT_SMALL_8 }
       );
     }
@@ -68820,14 +69043,17 @@ function drawMarketModeSwitch(view, modeEntries, panel, { placement = "header" }
   for (const mode of ["buy", "sell"]) {
     const entry = entriesByMode.get(mode);
     const rect = layout.hitRects[mode];
-    dialogueLayout.optionRects.push({ index: entry.index, rect });
-    const selected = dialogueState.selectedIndex === entry.index;
+    const disabled = entry.option.disabled === true;
+    if (!disabled) dialogueLayout.optionRects.push({ index: entry.index, rect });
+    const selected = !disabled && dialogueState.selectedIndex === entry.index;
     if (selected) {
       ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
       ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
     }
     const label = renderedUiText(entry.option.label).toUpperCase();
-    ctx.fillStyle = mode === view.presentation.mode ? PIRATE_MENU_INK : PIRATE_MENU_PAPER;
+    ctx.fillStyle = disabled
+      ? PIRATE_MENU_INK_MUTED
+      : mode === view.presentation.mode ? PIRATE_MENU_INK : PIRATE_MENU_PAPER;
     drawPixelText(label, rect.x + Math.floor(rect.w / 2), controlTextY(rect), {
       font: PIXEL_FONT_SMALL_8,
       align: "center"
@@ -71642,8 +71868,17 @@ function drawFatalError(
       "fatal-boundary-recovered",
       `fatal-boundary-recovered:${runtimeFaultSignature(normalized)}`
     );
-    if (regularGameLoopStarted) scheduleRuntimeTitleRecovery();
-    else reportStartupFailure(normalized);
+    if (runtimeFaultRecoveryAction(normalized) === "reload-title") {
+      if (regularGameLoopStarted) scheduleRuntimeTitleRecovery();
+      else reportStartupFailure(normalized);
+      return false;
+    }
+    if (regularGameLoopStarted) {
+      dirty = true;
+      requestAnimationFrame(loop);
+      return false;
+    }
+    reportStartupFailure(normalized);
     return false;
   }
   if (!isRuntimeDiagnosticAssertionError(err)) {

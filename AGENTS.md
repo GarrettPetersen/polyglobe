@@ -97,35 +97,50 @@ constraints for a subtree, but must not weaken these standards.
 
 ## Error handling and resilience
 
-- Fail fast and loudly on broken invariants. Do not add fallbacks that hide corrupt state,
-  missing content, failed initialization, or programmer errors.
-- In production game builds, "loudly" means a bounded telemetry diagnostic with the failed
-  invariant and stable context, not ending the player's session. Use the narrowest safe local
-  fallback (for example, omit one invalid visual, disable one stale action, or retain the last
-  valid state). Diagnostic mode, automated captures, and tests must still throw so developers
-  encounter the defect immediately.
-- A production frame-boundary recovery may retry one transient failure. If the identical fault
-  repeats immediately and no narrower fallback exists, return to the last completed autosave at
-  the title screen without saving possibly partial mutations. Never loop indefinitely on a
-  failing assertion or replace the whole game with a developer crash report.
+- Do not put a fatal assertion in player-reachable code unless the state is impossible.
+  Supported play, timing, saved data, localization, fonts, and ordinary system interaction
+  are part of the feature contract. Handle them deliberately. A bad layout, clipped line,
+  omitted widget, or disabled action is better than ending the voyage.
+- In production, a failed check must emit a bounded telemetry diagnostic with the failed
+  invariant and stable context, then keep the game going. Use the narrowest safe local
+  fallback: keep the last valid visual, clip or compress the text, omit one widget, or
+  disable one stale action. Do not throw, reload to the title, or show a developer crash
+  report for a presentation or layout failure. That failure always has a narrower fallback.
+- Reserve a throw for an impossible internal state, such as a broken identity, an unknown
+  closed-set variant, or a mutation that would persist a partial change. Even then, a
+  production build reports the diagnostic and continues when a local fallback exists.
+  Diagnostic mode, automated captures, and tests must still throw so developers encounter
+  the defect immediately.
+- Do not add fallbacks that hide corrupt state, missing content, failed initialization, or
+  programmer errors. Report the failed invariant. Do not pretend a broken fact is valid,
+  and do not save a partial mutation.
+- Return to the title screen only when saved game data is corrupted and cannot be
+  recovered in memory. Leave that save on disk. A display, formatting, layout, or other
+  presentation failure must never take this path, including an assert added later that a
+  player can reach. Report it and keep the current voyage. Never replace the game with a
+  developer crash report. Do not autosave a frame that just failed.
 - Keep every production entry boundary under that policy, including animation frames, input and
   browser events, asynchronous rejections, worker results, save restoration, retry callbacks, and
   startup. A final release-only boundary must report unexpected future assertions and preserve the
   last completed save even when no feature-specific recovery exists. Protect the developer crash
   renderer with a source-contract test so new call sites cannot expose it in release builds.
 - Fail-fast assertions are the last line of defense for impossible internal states, not a
-  substitute for modeling expected edge cases. Any state reachable through supported player
-  input, timing, saved data, or ordinary system interaction is part of the feature contract
-  and must be handled deliberately.
+  substitute for modeling expected edge cases and not a way to reject an awkward layout.
+  Any state reachable through supported player input, timing, saved data, localization, or
+  ordinary system interaction is part of the feature contract and must be handled
+  deliberately.
 - Prevent invalid transitions at their source. Player-facing actions must be omitted or shown
   disabled with an explanation when their preconditions are not met; do not offer an action
   and rely on its mutation function to crash after selection.
 - Define transition eligibility once and use the same policy for presentation and mutation.
   Keep the mutation-side assertion as defense in depth so stale or non-UI callers still fail
-  loudly, but never duplicate a weaker approximation of the rule in the UI.
+  at the boundary. In production that failure is the same telemetry diagnostic and local
+  fallback, not a session-ending crash. Never duplicate a weaker approximation of the rule
+  in the UI.
 - Validate constructed runtime states before they become active. Renderers and dialogue views
-  may assert their input contracts, but their callers must not create a player-reachable state
-  that violates those contracts.
+  may assert corrupt inputs such as non-finite sizes or unknown variants. They must not throw
+  because supported text, a font, or a panel does not fit. Callers must not create a
+  player-reachable state that violates a renderer contract.
 - Catch errors only when the caller can add useful context, retry safely, translate an
   expected boundary failure, or perform necessary cleanup. Never swallow errors.
 - Distinguish expected user-facing failure from impossible internal state. Do not turn an

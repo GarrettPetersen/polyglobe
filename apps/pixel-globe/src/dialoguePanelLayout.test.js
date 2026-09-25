@@ -6,6 +6,8 @@ import {
   characterAlertChoiceTextLayout,
   characterAlertGeometry,
   compactMarketDialogueLayout,
+  compactMarketHeaderMetrics,
+  fitCompactMarketHeader,
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
   dialogueFeedbackTextLines,
@@ -413,6 +415,37 @@ test("compact market layout gives taller viewports additional goods instead of p
     }),
     /do not fit/
   );
+});
+
+test("compact market headers keep the speaker above the context in tall fonts", () => {
+  const english = compactMarketHeaderMetrics({ bodyOffset: 27, lineHeight: 10, narrow: false });
+  assert.deepEqual(english, { bodyOffset: 27, contextOffset: 39, headerHeight: 50 });
+  const tall = compactMarketHeaderMetrics({ bodyOffset: 53, lineHeight: 14, narrow: false });
+  assert.ok(tall.contextOffset > tall.bodyOffset);
+  assert.ok(tall.headerHeight > tall.contextOffset);
+  const layout = compactMarketDialogueLayout({
+    panel: { x: 6, y: 40, w: 468, h: 280 },
+    regularCount: 4,
+    exitCount: 2,
+    headerHeight: tall.headerHeight,
+    bodyOffset: tall.bodyOffset,
+    contextOffset: tall.contextOffset
+  });
+  assert.ok(layout.bodyY < layout.contextY);
+  assert.ok(layout.contextY < layout.stack.y);
+  const fitted = fitCompactMarketHeader(tall, 70, { bottomInset: 9, optionHeight: 22 });
+  assert.equal(fitted.clamped, true);
+  assert.ok(fitted.headerHeight + 9 + 22 <= 70);
+  const clamped = compactMarketDialogueLayout({
+    panel: { x: 6, y: 6, w: 200, h: 70 },
+    regularCount: 1,
+    exitCount: 0,
+    headerHeight: fitted.headerHeight,
+    bodyOffset: fitted.bodyOffset,
+    contextOffset: fitted.contextOffset,
+    optionHeight: 22
+  });
+  assert.ok(clamped.stack.visibleRegularCount >= 1);
 });
 
 test("narrow market headers reserve separate rows for the mode switch and context", () => {

@@ -3370,6 +3370,7 @@ export default Object.freeze({
   "That fine canvas draws cleanly. You can feel it in the deck.": "Это тонкое парусное полотно хорошо ловит ветер — чувствуется даже на палубе.",
   "That is {0}. We have warrants enough to paper a cabin. The reward is {1} doubloons.": "Вот и {0}. Ордеров хватит, чтобы оклеить ими всю каюту. Награда — {1} дублонов.",
   "That is certainly a panda. How did a creature of the bamboo hills come to stand watch on your deck?": "Это точно панда. Как зверь из бамбуковых гор оказался на страже на вашей палубе?",
+  "That is not available.": "Сейчас это нельзя.",
   "That is the floor. It has never moved. Hand me the purse before you misplace gravity.": "Это пол. Оно никогда не двигалось. Дай мне сумочку, пока не потерял гравитацию.",
   "That is the sea's favorite trick.": "Это любимый трюк моря.",
   "That little masked thief is aboard! Count the biscuits.": "Этот маленький вор в маске на борту! Посчитайте печенье.",

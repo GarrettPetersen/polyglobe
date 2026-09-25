@@ -648,6 +648,7 @@ export default {
   "storm.manOverboardRecoveredMany": "СПАСЕНО: {count}",
   "storm.manOverboardDrownedOne": "ОДИН МОРЯК ПОГИБ",
   "storm.manOverboardDrownedMany": "ПОГИБЛО В МОРЕ: {count}",
+  "storm.manOverboardNoBerth": "НЕТ КОЙКИ, ЧТОБЫ ПОДНЯТЬ ИХ НА БОРТ",
   "hud.tooltip.localDate": "Местная дата: {date}",
   "hud.tooltip.doubloons": "Дублоны: {count}",
   "hud.tooltip.hull": "Прочность корпуса: {current}/{maximum}",

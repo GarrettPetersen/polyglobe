@@ -93,6 +93,73 @@ export function completeFishingTradeTutorial(memory, cityId) {
   return true;
 }
 
+// Port admission can open the loadout, and a market can be entered by more than
+// the root button. Those are playable states. Only the destination's root menu
+// is narrowed to the market, and only an open sell market is narrowed to the catch.
+export function presentFishingTradeTutorialDialogue({
+  memory,
+  cityId,
+  nodeId,
+  marketMode,
+  options,
+  fishGoodId
+}) {
+  validateFishingTradeTutorialMemory(memory);
+  if (typeof cityId !== "string" || cityId === "") {
+    throw new Error("Fishing tutorial dialogue requires a city id");
+  }
+  if (typeof nodeId !== "string" || nodeId === "") {
+    throw new Error("Fishing tutorial dialogue requires a node id");
+  }
+  if (!Array.isArray(options)) throw new Error("Fishing tutorial dialogue requires options");
+  if (cityId !== memory.destinationCityId ||
+      ![
+        FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET,
+        FISHING_TRADE_TUTORIAL_STAGE.SELL_FISH
+      ].includes(memory.stage)) {
+    return Object.freeze({ kind: "unchanged" });
+  }
+  if (memory.stage === FISHING_TRADE_TUTORIAL_STAGE.OPEN_MARKET) {
+    if (nodeId !== "root") return Object.freeze({ kind: "unchanged" });
+    const marketOptions = options.filter((option) => (
+      option.action?.type === "node" && option.action.nodeId === "market"
+    ));
+    if (marketOptions.length !== 1 || marketOptions[0].disabled) {
+      return Object.freeze({ kind: "market-unavailable" });
+    }
+    return Object.freeze({
+      kind: "restricted",
+      options: Object.freeze(marketOptions)
+    });
+  }
+  if (nodeId !== "market" || marketMode !== "sell") {
+    return Object.freeze({ kind: "unchanged" });
+  }
+  if (typeof fishGoodId !== "string" || fishGoodId === "") {
+    throw new Error("Fishing tutorial sale guidance requires the caught good");
+  }
+  const buyMode = options.find((option) => (
+    option.action?.type === "switch-market-mode" && option.action.mode === "buy"
+  ));
+  const sellMode = options.find((option) => (
+    option.action?.type === "switch-market-mode" && option.action.mode === "sell"
+  ));
+  const fishSale = options.find((option) => (
+    option.action?.type === "sell" && option.action.goodId === fishGoodId
+  ));
+  if (!buyMode || !sellMode || !fishSale || fishSale.disabled) {
+    return Object.freeze({ kind: "sale-unavailable" });
+  }
+  return Object.freeze({
+    kind: "restricted",
+    options: Object.freeze([
+      { ...buyMode, disabled: true, disabledReason: "Sell the catch first." },
+      { ...sellMode, disabled: true, disabledReason: "Sell the catch first." },
+      { ...fishSale, emphasis: "quest-cargo" }
+    ])
+  });
+}
+
 export function validateFishingTradeTutorialMemory(memory) {
   if (!memory || typeof memory !== "object" || Array.isArray(memory) ||
       memory.version !== FISHING_TRADE_TUTORIAL_VERSION) {

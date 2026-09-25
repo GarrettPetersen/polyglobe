@@ -648,6 +648,7 @@ export default {
   "storm.manOverboardRecoveredMany": "{count} MANN GERETTET",
   "storm.manOverboardDrownedOne": "EIN SEEMANN GING VERLOREN",
   "storm.manOverboardDrownedMany": "{count} MANN AUF SEE VERLOREN",
+  "storm.manOverboardNoBerth": "KEINE KOJE, UM SIE AN BORD ZU HOLEN",
   "hud.tooltip.localDate": "Ortsdatum: {date}",
   "hud.tooltip.doubloons": "{count} Dublonen",
   "hud.tooltip.hull": "Rumpfstärke: {current}/{maximum}",

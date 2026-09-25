@@ -68,6 +68,11 @@ function renderDashboard(data) {
     data.fixedMapIntegrityIssues || [],
     data.mapIntegrityCursor
   );
+  renderTextLayoutIssues(
+    data.textLayoutIssues || [],
+    data.fixedTextLayoutIssues || [],
+    data.textLayoutCursor
+  );
   renderCrashes(data.crashes, data.fixedCrashes, data.crashCursor);
 }
 
@@ -484,6 +489,61 @@ function freezeIssueCard(row) {
   copy.append(heading, context, profile);
   card.append(copy, count);
   return card;
+}
+
+function renderTextLayoutIssues(rows, fixedRows, cursor) {
+  const target = document.querySelector("#text-layout-list");
+  const fixedSection = document.querySelector("#fixed-text-layout");
+  const fixedTarget = document.querySelector("#fixed-text-layout-list");
+  target.replaceChildren();
+  fixedTarget.replaceChildren();
+  setText("text-layout-summary", cursor?.allFixedAt
+    ? `${compact(cursor.activeReports)} reports since last fix pass`
+    : `${compact(cursor?.activeReports || 0)} overflow reports`);
+  if (rows.length === 0) {
+    target.append(emptyState(cursor?.allFixedAt
+      ? `No text overflow reported since ${formatDateTime(cursor.allFixedAt)}.`
+      : "No clipped or overflowing interface text in this period."));
+  } else {
+    renderTextLayoutCards(target, rows, false);
+  }
+  const showHistory = Boolean(cursor?.allFixedAt) &&
+    (fixedRows.length > 0 || cursor.historicalReports > 0);
+  fixedSection.hidden = !showHistory;
+  fixedSection.open = false;
+  if (!showHistory) return;
+  setText(
+    "fixed-text-layout-summary",
+    `${compact(cursor.historicalReports)} earlier reports through ` +
+      `${formatDateTime(cursor.allFixedAt)} (collapsed)`
+  );
+  if (fixedRows.length === 0) {
+    fixedTarget.append(emptyState("No earlier text overflow groups in this reporting window."));
+  } else {
+    renderTextLayoutCards(fixedTarget, fixedRows, true);
+  }
+}
+
+function renderTextLayoutCards(target, rows, fixed) {
+  for (const row of rows) {
+    const card = element(
+      "article",
+      `crash-card text-layout-card${fixed ? " fixed" : ""}`
+    );
+    const copy = document.createElement("div");
+    const heading = document.createElement("h3");
+    heading.textContent = row.message || "(no message)";
+    const detail = document.createElement("p");
+    detail.textContent = `${row.channel} / ${row.platform} / ${row.screen} / ` +
+      `${row.revision.slice(0, 10)} | ${row.affectedInstallations} installation` +
+      `${row.affectedInstallations === 1 ? "" : "s"} | last ${formatDateTime(row.lastSeen)}`;
+    copy.append(heading, detail);
+    const count = element("strong", "crash-count");
+    count.textContent = compact(row.reports);
+    count.title = `${row.reports} reports`;
+    card.append(copy, count);
+    target.append(card);
+  }
 }
 
 function renderCrashes(rows, fixedRows, cursor) {

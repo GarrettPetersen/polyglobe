@@ -3,9 +3,11 @@ import {
   normalizeCrashCursor,
   normalizeMapIntegrityCursor,
   normalizePerformanceCursor,
+  normalizeTextLayoutCursor,
   readCrashCursor,
   readMapIntegrityCursor,
-  readPerformanceCursor
+  readPerformanceCursor,
+  readTextLayoutCursor
 } from "./crashCursor.js";
 
 const DATASET = "marque_and_reprisal_game_events";
@@ -21,12 +23,19 @@ export async function fetchDashboardSnapshot(env, windowDays, {
   if (typeof fetchImpl !== "function") throw new Error("Dashboard analytics requires fetch");
   const accountId = requiredSecret(env.ANALYTICS_ACCOUNT_ID, "ANALYTICS_ACCOUNT_ID");
   const apiToken = requiredSecret(env.ANALYTICS_API_TOKEN, "ANALYTICS_API_TOKEN");
-  const [crashCursor, performanceCursor, mapIntegrityCursor] = await Promise.all([
+  const [crashCursor, performanceCursor, mapIntegrityCursor, textLayoutCursor] = await Promise.all([
     readCrashCursor(env),
     readPerformanceCursor(env),
-    readMapIntegrityCursor(env)
+    readMapIntegrityCursor(env),
+    readTextLayoutCursor(env)
   ]);
-  const queries = dashboardQueries(days, crashCursor, performanceCursor, mapIntegrityCursor);
+  const queries = dashboardQueries(
+    days,
+    crashCursor,
+    performanceCursor,
+    mapIntegrityCursor,
+    textLayoutCursor
+  );
   const entries = await Promise.all(Object.entries(queries).map(async ([name, sql]) => {
     const rows = await queryAnalyticsEngine({ accountId, apiToken, sql, fetchImpl });
     return [name, rows];
@@ -37,7 +46,8 @@ export async function fetchDashboardSnapshot(env, windowDays, {
     generatedAt,
     crashCursor,
     performanceCursor,
-    mapIntegrityCursor
+    mapIntegrityCursor,
+    textLayoutCursor
   );
 }
 
@@ -45,12 +55,14 @@ export function dashboardQueries(
   windowDays,
   crashCursor = null,
   performanceCursor = null,
-  mapIntegrityCursor = null
+  mapIntegrityCursor = null,
+  textLayoutCursor = null
 ) {
   const days = validateDashboardWindow(windowDays);
   const crashCursorTimestamp = analyticsCursorTimestamp(crashCursor);
   const performanceCursorTimestamp = analyticsCursorTimestamp(performanceCursor);
   const mapIntegrityCursorTimestamp = analyticsCursorTimestamp(mapIntegrityCursor);
+  const textLayoutCursorTimestamp = analyticsCursorTimestamp(textLayoutCursor);
   const where = `
     blob4 != 'deployment-check'
     AND timestamp > NOW() - INTERVAL '${days}' DAY
@@ -77,7 +89,7 @@ export function dashboardQueries(
           blob1 = 'voyage_start' AND blob17 = '${ACCURATE_VOYAGE_START_PROFILE}', 1, 0
         ))) AS voyage_starts,
         round(SUM(_sample_interval * if(blob1 = 'voyage_end', 1, 0))) AS voyages,
-        round(SUM(_sample_interval * if(blob1 = 'crash', 1, 0))) AS crashes
+        round(SUM(_sample_interval * if(${crashEventCondition()}, 1, 0))) AS crashes
       FROM ${DATASET}
       WHERE ${where}
     `,
@@ -98,7 +110,7 @@ export function dashboardQueries(
           blob1 = 'voyage_start' AND blob17 = '${ACCURATE_VOYAGE_START_PROFILE}', 1, 0
         ))) AS voyage_starts,
         round(SUM(_sample_interval * if(blob1 = 'voyage_end', 1, 0))) AS voyages,
-        round(SUM(_sample_interval * if(blob1 = 'crash', 1, 0))) AS crashes
+        round(SUM(_sample_interval * if(${crashEventCondition()}, 1, 0))) AS crashes
       FROM ${DATASET}
       WHERE ${where}
       GROUP BY day
@@ -236,6 +248,15 @@ export function dashboardQueries(
       where,
       `timestamp <= toDateTime('${mapIntegrityCursorTimestamp}')`
     ),
+    textLayoutStatus: textLayoutStatusQuery(where, textLayoutCursorTimestamp),
+    textLayoutIssues: textLayoutGroupsQuery(
+      where,
+      `timestamp > toDateTime('${textLayoutCursorTimestamp}')`
+    ),
+    fixedTextLayoutIssues: textLayoutGroupsQuery(
+      where,
+      `timestamp <= toDateTime('${textLayoutCursorTimestamp}')`
+    ),
     crashStatus: `
       SELECT
         round(SUM(_sample_interval * if(
@@ -245,7 +266,7 @@ export function dashboardQueries(
           timestamp <= toDateTime('${crashCursorTimestamp}'), 1, 0
         ))) AS historical_reports
       FROM ${DATASET}
-      WHERE blob1 = 'crash' AND ${where}
+      WHERE ${crashEventCondition()} AND ${where}
     `,
     crashes: crashGroupsQuery(where, `timestamp > toDateTime('${crashCursorTimestamp}')`),
     fixedCrashes: crashGroupsQuery(where, `timestamp <= toDateTime('${crashCursorTimestamp}')`)
@@ -287,6 +308,47 @@ function mapIntegrityEventCondition() {
         blob17 IN ('chart-repair', 'chart-stitch-recovered') OR
         (blob17 = 'runtime-assertion' AND position('chart' IN lowerUTF8(blob15)) > 0)
       )`;
+}
+
+function textLayoutStatusQuery(where, cursorTimestamp) {
+  return `
+      SELECT
+        round(SUM(_sample_interval * if(
+          timestamp > toDateTime('${cursorTimestamp}'), 1, 0
+        ))) AS active_reports,
+        round(SUM(_sample_interval * if(
+          timestamp <= toDateTime('${cursorTimestamp}'), 1, 0
+        ))) AS historical_reports
+      FROM ${DATASET}
+      WHERE ${textLayoutEventCondition()} AND ${where}
+    `;
+}
+
+function textLayoutGroupsQuery(where, cursorCondition) {
+  return `
+      SELECT blob3 AS revision, blob4 AS channel, blob5 AS platform,
+        blob17 AS screen, blob14 AS error_name, blob15 AS message,
+        count() AS reports, count(DISTINCT index1) AS affected_installations,
+        min(timestamp) AS first_seen, max(timestamp) AS last_seen
+      FROM ${DATASET}
+      WHERE ${textLayoutEventCondition()} AND ${cursorCondition} AND ${where}
+      GROUP BY revision, channel, platform, screen, error_name, message
+      ORDER BY last_seen DESC, affected_installations DESC
+      LIMIT 60
+    `;
+}
+
+function textLayoutEventCondition() {
+  return `(blob1 = 'diagnostic' AND blob14 = 'UiTextLayoutWarning') OR ${textLayoutMessageCondition()}`;
+}
+
+function crashEventCondition() {
+  return `blob1 = 'crash' AND NOT (${textLayoutMessageCondition()})`;
+}
+
+function textLayoutMessageCondition() {
+  // Older clients threw this when a tall wrapped market header overflowed.
+  return "blob15 = 'Compact market dialogue dimensions do not fit the panel'";
 }
 
 function lowFrameRateGroupsQuery(where, cursorCondition) {
@@ -339,7 +401,7 @@ function crashGroupsQuery(where, cursorCondition) {
         count(DISTINCT index1) AS affected_installations,
         min(timestamp) AS first_seen, max(timestamp) AS last_seen
       FROM ${DATASET}
-      WHERE blob1 = 'crash' AND ${cursorCondition} AND ${where}
+      WHERE ${crashEventCondition()} AND ${cursorCondition} AND ${where}
       GROUP BY fingerprint, revision, channel, platform, screen, error_name, message
       ORDER BY last_seen DESC, reports DESC
       LIMIT 40
@@ -352,17 +414,20 @@ export function buildDashboardSnapshot(
   generatedAt = new Date().toISOString(),
   crashCursor = null,
   performanceCursor = null,
-  mapIntegrityCursor = null
+  mapIntegrityCursor = null,
+  textLayoutCursor = null
 ) {
   const days = validateDashboardWindow(windowDays);
   const normalizedCrashCursor = normalizeCrashCursor(crashCursor);
   const normalizedPerformanceCursor = normalizePerformanceCursor(performanceCursor);
   const normalizedMapIntegrityCursor = normalizeMapIntegrityCursor(mapIntegrityCursor);
+  const normalizedTextLayoutCursor = normalizeTextLayoutCursor(textLayoutCursor);
   for (const name of Object.keys(dashboardQueries(
     days,
     normalizedCrashCursor,
     normalizedPerformanceCursor,
-    normalizedMapIntegrityCursor
+    normalizedMapIntegrityCursor,
+    normalizedTextLayoutCursor
   ))) {
     if (!Array.isArray(results?.[name])) throw new Error(`Missing dashboard query result: ${name}`);
   }
@@ -404,8 +469,9 @@ export function buildDashboardSnapshot(
   const crashStatusRow = results.crashStatus[0] || {};
   const performanceStatusRow = results.performanceStatus[0] || {};
   const mapIntegrityStatusRow = results.mapIntegrityStatus[0] || {};
+  const textLayoutStatusRow = results.textLayoutStatus[0] || {};
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     generatedAt: requiredString(generatedAt, "generatedAt"),
     windowDays: days,
     totals,
@@ -423,6 +489,11 @@ export function buildDashboardSnapshot(
       allFixedAt: normalizedMapIntegrityCursor,
       activeReports: nonnegativeNumber(mapIntegrityStatusRow.active_reports),
       historicalReports: nonnegativeNumber(mapIntegrityStatusRow.historical_reports)
+    },
+    textLayoutCursor: {
+      allFixedAt: normalizedTextLayoutCursor,
+      activeReports: nonnegativeNumber(textLayoutStatusRow.active_reports),
+      historicalReports: nonnegativeNumber(textLayoutStatusRow.historical_reports)
     },
     playtime,
     daily: results.daily.map((row) => ({
@@ -489,6 +560,8 @@ export function buildDashboardSnapshot(
     fixedFreezeIssues: normalizeFreezeRows(results.fixedFreezeIssues),
     mapIntegrityIssues: normalizeMapIntegrityRows(results.mapIntegrityIssues),
     fixedMapIntegrityIssues: normalizeMapIntegrityRows(results.fixedMapIntegrityIssues),
+    textLayoutIssues: normalizeTextLayoutRows(results.textLayoutIssues),
+    fixedTextLayoutIssues: normalizeTextLayoutRows(results.fixedTextLayoutIssues),
     crashes: normalizeCrashRows(results.crashes),
     fixedCrashes: normalizeCrashRows(results.fixedCrashes)
   };
@@ -552,6 +625,21 @@ function normalizeFreezeRows(rows) {
       firstSeen: requiredString(row.first_seen, "freeze first seen"),
       lastSeen: requiredString(row.last_seen, "freeze last seen")
     }));
+}
+
+function normalizeTextLayoutRows(rows) {
+  return rows.map((row) => ({
+    revision: requiredString(row.revision, "text layout revision"),
+    channel: requiredString(row.channel, "text layout channel"),
+    platform: requiredString(row.platform, "text layout platform"),
+    screen: requiredString(row.screen, "text layout screen"),
+    errorName: requiredString(row.error_name, "text layout error"),
+    message: optionalString(row.message),
+    reports: nonnegativeNumber(row.reports),
+    affectedInstallations: nonnegativeNumber(row.affected_installations),
+    firstSeen: requiredString(row.first_seen, "text layout first seen"),
+    lastSeen: requiredString(row.last_seen, "text layout last seen")
+  }));
 }
 
 function normalizeCrashRows(rows) {

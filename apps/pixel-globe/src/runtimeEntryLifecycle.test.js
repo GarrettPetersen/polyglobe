@@ -318,7 +318,7 @@ test("runtime reconciles mutable dialogue targets before every input and render 
     node => ts.isFunctionDeclaration(node) && node.name.text === name
   ).getText(source);
   assert.ok(
-    text("runFrame").indexOf("reconcileActiveShipDialogueTarget()") <
+    text("runFrame").indexOf("reconcileShipDialogueForPresentation()") <
       text("runFrame").indexOf("pollGamepadControls(nowMs)"),
     "ship dialogue targets must be reconciled before controller input and rendering"
   );
@@ -326,8 +326,12 @@ test("runtime reconciles mutable dialogue targets before every input and render 
     "dispatchWorldOverlayKey",
     "dispatchWorldOverlayPointerDown",
     "dispatchWorldOverlayPointerMove",
-    "handleCanvasWheel"
-  ]) assert.match(text(name), /reconcileActiveShipDialogueTarget\(\)/);
+    "handleCanvasWheel",
+    "drawWorldInterface"
+  ]) assert.match(text(name), /reconcileShipDialogueForPresentation\(\)/);
+  const presentation = text("reconcileShipDialogueForPresentation");
+  assert.match(presentation, /reconcileActiveShipDialogueTarget\(\)/);
+  assert.match(presentation, /reportRuntimeDiagnosticAssertion\(/);
 });
 
 test("sailing prepares shoreline connector caches incrementally before render fallback", () => {

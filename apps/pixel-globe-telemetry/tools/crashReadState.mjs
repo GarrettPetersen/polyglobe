@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
-const REPORT_KINDS = Object.freeze(["crash", "performance", "map-integrity"]);
+const REPORT_KINDS = Object.freeze(["crash", "performance", "map-integrity", "text-layout"]);
 
 export async function rememberCrashReportRead({ readAt, previousCursor }) {
   return rememberTelemetryReportRead("crash", { readAt, previousCursor });
@@ -12,6 +12,10 @@ export async function rememberPerformanceReportRead({ readAt, previousCursor }) 
 
 export async function rememberMapIntegrityReportRead({ readAt, previousCursor }) {
   return rememberTelemetryReportRead("map-integrity", { readAt, previousCursor });
+}
+
+export async function rememberTextLayoutReportRead({ readAt, previousCursor }) {
+  return rememberTelemetryReportRead("text-layout", { readAt, previousCursor });
 }
 
 async function rememberTelemetryReportRead(kind, { readAt, previousCursor }) {
@@ -37,6 +41,10 @@ export async function readRememberedPerformanceReport() {
 
 export async function readRememberedMapIntegrityReport() {
   return readRememberedTelemetryReport("map-integrity");
+}
+
+export async function readRememberedTextLayoutReport() {
+  return readRememberedTelemetryReport("text-layout");
 }
 
 async function readRememberedTelemetryReport(kind) {

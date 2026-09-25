@@ -3370,6 +3370,7 @@ export default Object.freeze({
   "That fine canvas draws cleanly. You can feel it in the deck.": "고운 돛천이 바람을 잘 받습니다. 갑판에서도 그 힘이 느껴져요.",
   "That is {0}. We have warrants enough to paper a cabin. The reward is {1} doubloons.": "{0}입니다. 선실 벽을 도배할 만큼 체포 영장이 많습니다. 현상금은 {1}더블룬입니다.",
   "That is certainly a panda. How did a creature of the bamboo hills come to stand watch on your deck?": "틀림없는 판다군요. 대나무 산에 사는 동물이 어떻게 당신의 배 갑판에서 보초를 서게 됐을까요?",
+  "That is not available.": "지금은 할 수 없다.",
   "That is the floor. It has never moved. Hand me the purse before you misplace gravity.": "그것이 바닥이다. 그것은 결코 움직이지 않았습니다. 중력을 잃어버리기 전에 지갑을 나에게 건네주세요.",
   "That is the sea's favorite trick.": "그것은 바다가 가장 좋아하는 속임수입니다.",
   "That little masked thief is aboard! Count the biscuits.": "그 작은 가면을 쓴 도둑이 타고 있어요! 비스킷의 수를 세어보세요.",

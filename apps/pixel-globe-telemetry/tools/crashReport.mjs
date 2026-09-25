@@ -50,6 +50,7 @@ export function crashSummarySql(windowHours, after = null) {
       max(timestamp) AS last_seen
     FROM ${ANALYTICS_ENGINE_DATASET}
     WHERE blob1 = 'crash'
+      AND blob15 != 'Compact market dialogue dimensions do not fit the panel'
       AND blob4 != 'deployment-check'
       AND timestamp > NOW() - INTERVAL '${interval}' HOUR
       ${afterCursorSql(after)}
@@ -69,6 +70,7 @@ export function crashGroupsSql(windowHours, after = null) {
       max(timestamp) AS last_seen
     FROM ${ANALYTICS_ENGINE_DATASET}
     WHERE blob1 = 'crash'
+      AND blob15 != 'Compact market dialogue dimensions do not fit the panel'
       AND blob4 != 'deployment-check'
       AND timestamp > NOW() - INTERVAL '${interval}' HOUR
       ${afterCursorSql(after)}

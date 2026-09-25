@@ -159,6 +159,9 @@ const REVIEWED_OVERRIDES = Object.freeze({
   "Let's go to the market in {0} and sell our catch.": reviewedLocaleOverrides("Let's go to the market in {0} and sell our catch.", [
     "去{0}的市场卖掉我们的鱼吧。", "Зайдём на рынок в {0} и продадим улов.", "Vamos al mercado de {0} a vender la pesca.", "Vamos ao mercado de {0} vender a pesca.", "{0}の市場へ行って獲物を売ろう。", "Gehen wir zum Markt in {0} und verkaufen unseren Fang.", "Allons au marché de {0} vendre notre prise.", "Chodźmy na targ w {0} sprzedać nasz połów.", "去{0}的市場賣掉我們的魚吧。", "{0} 시장으로 가서 잡은 물고기를 팝시다."
   ]),
+  "That is not available.": reviewedLocaleOverrides("That is not available.", [
+    "现在办不到。", "Сейчас это нельзя.", "Eso no se puede hacer.", "Isso não se pode fazer.", "今はできぬ。", "Das geht jetzt nicht.", "Cela ne se peut pas.", "Teraz tego nie można.", "現在辦不到。", "지금은 할 수 없다."
+  ]),
   "Sell the catch first.": reviewedLocaleOverrides("Sell the catch first.", [
     "先卖掉捕获的鱼。", "Сначала продайте улов.", "Vende primero la pesca.", "Venda primeiro a pesca.", "まず獲物を売ろう。", "Verkauft zuerst den Fang.", "Vendez d’abord la prise.", "Najpierw sprzedaj połów.", "先賣掉捕獲的魚。", "먼저 잡은 물고기를 파세요."
   ]),

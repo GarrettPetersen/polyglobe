@@ -67,7 +67,7 @@ test("city Escape activates Set Sail and the normal captain menu remains availab
   assert.match(keys, /event\.key === "Escape"[\s\S]*PORT_CITY_LOCATION\.SET_SAIL/);
   const availability = functionSource("captainMenuButtonIsAvailable", "drawCaptainMenu");
   assert.match(availability, /dialogueActive: Boolean\(dialogueState\) && !portCityRootPresentationIsOwned\(\)/);
-  assert.match(MAIN_SOURCE, /if \(!dialogueVisible\) drawCaptainMenuButton\(\);/);
+  assert.match(MAIN_SOURCE, /if \(!dialogueVisible\) \{\s*presentInterfaceWidget\("captain-menu-button", \(\) => drawCaptainMenuButton\(\)\);\s*\}/);
 });
 
 test("pending city activation neither draws nor accepts input through the legacy port menu", () => {
@@ -81,7 +81,7 @@ test("pending city activation neither draws nor accepts input through the legacy
   const draw = functionSource("drawWorldInterface", "minimapShouldBeVisible");
   assert.match(
     draw,
-    /drawPortCityTransitionOverlay\(nowMs\);[\s\S]*portCityRootPresentationIsOwned\(\) && !portCityView\.sceneReady\) return;/
+    /drawPortCityTransitionOverlay\(nowMs\)[\s\S]*portCityRootPresentationIsOwned\(\) && !portCityView\.sceneReady\) return;/
   );
   assert.match(draw, /dialogueActive: Boolean\(dialogueState\) && !portCityRootPresentationIsOwned\(\)/);
 
@@ -195,6 +195,7 @@ test("confirm input during dialogue repagination cannot activate a missing optio
   const choice = functionSource("chooseDialogueOption", "applyDialogueOption");
   assert.match(choice, /displayedDialogueOptionAt\(currentDialogueView\(\)\.options, optionIndex\)/);
   assert.match(choice, /if \(selected === null\) return false/);
+  assert.match(choice, /if \(selected\.disabled\)/);
 });
 
 function functionSource(name, nextName) {

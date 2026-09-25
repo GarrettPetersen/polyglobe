@@ -648,6 +648,7 @@ export default {
   "storm.manOverboardRecoveredMany": "救回{count}名船員",
   "storm.manOverboardDrownedOne": "一名船員葬身海中",
   "storm.manOverboardDrownedMany": "{count}名船員葬身海中",
+  "storm.manOverboardNoBerth": "船上沒有鋪位，拉不上來",
   "hud.tooltip.localDate": "當地日期：{date}",
   "hud.tooltip.doubloons": "達布隆：{count}",
   "hud.tooltip.hull": "船體強度：{current}/{maximum}",

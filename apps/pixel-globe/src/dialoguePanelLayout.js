@@ -287,6 +287,59 @@ export function marketModeSwitchLayout({
   });
 }
 
+export function compactMarketHeaderMetrics({
+  bodyOffset,
+  lineHeight,
+  narrow
+}) {
+  if (!Number.isFinite(bodyOffset) || bodyOffset <= 0) {
+    throw new Error(`Compact market header requires a body offset: ${bodyOffset}`);
+  }
+  if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
+    throw new Error(`Compact market header requires a line height: ${lineHeight}`);
+  }
+  if (typeof narrow !== "boolean") {
+    throw new Error("Compact market header requires a narrow-layout decision");
+  }
+  // A wrapped speaker in a tall font can push the body below the English
+  // context line. Keep body, context, and the option header in that order.
+  const minimumContextOffset = narrow ? 69 : 39;
+  const minimumHeaderHeight = narrow ? 82 : 50;
+  const contextOffset = Math.max(minimumContextOffset, bodyOffset + lineHeight);
+  const headerHeight = Math.max(minimumHeaderHeight, contextOffset + lineHeight);
+  return Object.freeze({ bodyOffset, contextOffset, headerHeight });
+}
+
+// A short viewport can be shorter than a wrapped tall-font header. Keep one
+// option row and the body/context/header order rather than rejecting the panel.
+export function fitCompactMarketHeader(metrics, panelHeight, {
+  bottomInset = 9,
+  optionHeight = 22
+} = {}) {
+  if (!metrics || ![metrics.bodyOffset, metrics.contextOffset, metrics.headerHeight].every(Number.isFinite)) {
+    throw new Error("Compact market fitting requires header metrics");
+  }
+  if (!Number.isFinite(panelHeight) || panelHeight <= 0) {
+    throw new Error(`Compact market fitting requires a panel height: ${panelHeight}`);
+  }
+  if (!Number.isFinite(bottomInset) || bottomInset < 0 || !Number.isFinite(optionHeight) || optionHeight <= 0) {
+    throw new Error("Compact market fitting requires a bottom inset and option height");
+  }
+  const ordered = metrics.contextOffset > metrics.bodyOffset &&
+    metrics.headerHeight > metrics.contextOffset;
+  if (ordered && metrics.headerHeight + bottomInset + optionHeight <= panelHeight) {
+    return Object.freeze({ ...metrics, clamped: false });
+  }
+  const headerHeight = panelHeight - bottomInset - optionHeight;
+  if (!(headerHeight > 2)) return null;
+  return Object.freeze({
+    bodyOffset: headerHeight - 2,
+    contextOffset: headerHeight - 1,
+    headerHeight,
+    clamped: true
+  });
+}
+
 export function compactMarketDialogueLayout({
   panel,
   regularCount,

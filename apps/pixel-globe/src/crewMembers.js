@@ -450,6 +450,32 @@ export function restoreCrewMember(state, member) {
   return true;
 }
 
+export function restoreCrewMemberMakingRoom(state, member) {
+  validateCrewMember(member);
+  if (crewRosterMembers(state).some(({ id }) => id === member.id)) {
+    return Object.freeze({ restored: true, displacedMemberId: null, alreadyAboard: true });
+  }
+  if (restoreCrewMember(state, member)) {
+    return Object.freeze({ restored: true, displacedMemberId: null, alreadyAboard: false });
+  }
+  const occupant = crewRosterMembers(state).at(-1) || null;
+  if (!occupant) {
+    return Object.freeze({ restored: false, displacedMemberId: null, alreadyAboard: false });
+  }
+  dismissCrewMember(state, occupant.id);
+  if (!restoreCrewMember(state, member)) {
+    state.crewRoster.push(occupant);
+    state.ship.crew += 1;
+    validateCrewAggregate(state);
+    return Object.freeze({ restored: false, displacedMemberId: null, alreadyAboard: false });
+  }
+  return Object.freeze({
+    restored: true,
+    displacedMemberId: occupant.id,
+    alreadyAboard: false
+  });
+}
+
 export function removeCrewCasualties(state, requestedLoss, random = Math.random) {
   if (!Number.isInteger(requestedLoss) || requestedLoss < 0) {
     throw new Error(`Invalid individual crew loss: ${requestedLoss}`);

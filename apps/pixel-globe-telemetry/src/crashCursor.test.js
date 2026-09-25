@@ -6,9 +6,11 @@ import {
   normalizeCrashCursor,
   normalizeMapIntegrityCursor,
   normalizePerformanceCursor,
+  normalizeTextLayoutCursor,
   readCrashCursor,
   readMapIntegrityCursor,
-  readPerformanceCursor
+  readPerformanceCursor,
+  readTextLayoutCursor
 } from "./crashCursor.js";
 
 test("crash cursors normalize to unambiguous UTC timestamps", () => {
@@ -69,4 +71,22 @@ test("map integrity cursors use an independent shared telemetry key", async () =
   });
   assert.equal(cursor, "2026-08-05T14:00:00.000Z");
   assert.deepEqual(reads, ["map-integrity/all-fixed-at"]);
+});
+
+test("text layout cursors use an independent shared telemetry key", async () => {
+  assert.equal(
+    normalizeTextLayoutCursor("2026-08-05 15:00:00Z"),
+    "2026-08-05T15:00:00.000Z"
+  );
+  const reads = [];
+  const cursor = await readTextLayoutCursor({
+    TELEMETRY_STATE: {
+      get: async (key) => {
+        reads.push(key);
+        return "2026-08-05T15:00:00.000Z";
+      }
+    }
+  });
+  assert.equal(cursor, "2026-08-05T15:00:00.000Z");
+  assert.deepEqual(reads, ["ui-text-layout/all-fixed-at"]);
 });

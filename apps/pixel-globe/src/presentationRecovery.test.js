@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 
 import { createPresentationRecovery } from "./presentationRecovery.js";
+import { UnrecoverableGameDataError } from "./runtimeFaultRecovery.js";
 
 const MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
 const CITY_TEXT_SOURCE = readFileSync(new URL("../city-visualizer/cityPixelText.js", import.meta.url), "utf8");
@@ -41,6 +42,18 @@ test("presentation recovery stays loud in diagnostic mode and still requires a r
     }),
     /Survival meter icon is not loaded/
   );
+  const releaseRecovery = createPresentationRecovery({
+    isDiagnosticMode: () => false,
+    report: () => {
+      throw new Error("unrecoverable data must not be reported instead of returning to the title");
+    }
+  });
+  assert.throws(
+    () => releaseRecovery.present("survival-meters", () => {
+      throw new UnrecoverableGameDataError("Saved voyage has a duplicate ship id");
+    }),
+    /duplicate ship id/
+  );
   assert.throws(
     () => createPresentationRecovery({ isDiagnosticMode: () => false, report: null }),
     /requires a reporter/
@@ -51,10 +64,14 @@ test("live sailing widgets and city labels recover without hiding a modal", () =
   const worldInterface = functionSource(MAIN_SOURCE, "function drawWorldInterface(", "function drawLandmarkDiscoveryIndicators(");
   assert.match(worldInterface, /presentInterfaceWidget\("survival-meters"/);
   assert.match(worldInterface, /presentInterfaceWidget\("campaign-goal-arrow"/);
-  assert.match(worldInterface, /if \(dialogueVisible\) \{[\s\S]*drawDialogueOverlay\(nowMs\)/);
+  assert.match(worldInterface, /if \(dialogueVisible && !reconcileShipDialogueForPresentation\(\)\) \{[\s\S]*drawRecoverablePlayerSurface\(\s*"dialogue-overlay",\s*\(\) => drawDialogueOverlay\(nowMs\)/);
   assert.doesNotMatch(worldInterface, /presentInterfaceWidget\("dialogue-overlay"/);
-  assert.match(worldInterface, /if \(startMenu\) \{[\s\S]*drawStartMenu\(nowMs\)/);
+  assert.match(worldInterface, /if \(startMenu\) \{[\s\S]*drawRecoverablePlayerSurface\(\s*"start-menu", \(\) => drawStartMenu\(nowMs\)\)/);
   assert.doesNotMatch(worldInterface, /presentInterfaceWidget\("start-menu"/);
+  assert.match(MAIN_SOURCE, /function drawRecoverablePlayerSurface\(diagnosticKey, operation, dismiss = null\)/);
+  assert.match(MAIN_SOURCE, /if \(isUnrecoverableGameDataFailure\(error\)\) throw error;/);
+  assert.match(MAIN_SOURCE, /if \(diagnosticModeEnabled \|\| CAPTURE_AUTOMATIC \|\| PERFORMANCE_BENCHMARK\) \{\s*operation\(\);\s*return;\s*\}/);
+  assert.match(MAIN_SOURCE, /layoutPresentationEscape && pointInRect\(point, layoutPresentationEscape\.rect\)/);
 
   const cityLabels = functionSource(CITY_SOURCE, "function drawSceneLabels(", "function drawCityNameLabel(");
   assert.match(cityLabels, /recoverCityPresentation\(error, "city-name-label"\)/);

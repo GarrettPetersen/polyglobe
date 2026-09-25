@@ -3370,6 +3370,7 @@ export default Object.freeze({
   "That fine canvas draws cleanly. You can feel it in the deck.": "這帆布製成的帆迎風舒展，連甲板都感受得到。",
   "That is {0}. We have warrants enough to paper a cabin. The reward is {1} doubloons.": "就是{0}。逮捕令多得足以貼滿一間船艙。賞金是{1}達布隆。",
   "That is certainly a panda. How did a creature of the bamboo hills come to stand watch on your deck?": "這肯定是隻熊貓。竹山裡的生靈怎麼會跑到你的船上值守？",
+  "That is not available.": "現在辦不到。",
   "That is the floor. It has never moved. Hand me the purse before you misplace gravity.": "那是地板。它從未動過。在你失去重力之前把錢包遞給我。",
   "That is the sea's favorite trick.": "这是大海最喜欢的把戏。",
   "That little masked thief is aboard! Count the biscuits.": "那個蒙面小賊就在船上！數一數餅乾。",

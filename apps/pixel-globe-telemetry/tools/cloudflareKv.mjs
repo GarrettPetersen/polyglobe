@@ -4,9 +4,11 @@ import {
   CRASH_CURSOR_KEY,
   MAP_INTEGRITY_CURSOR_KEY,
   PERFORMANCE_CURSOR_KEY,
+  TEXT_LAYOUT_CURSOR_KEY,
   normalizeCrashCursor,
   normalizeMapIntegrityCursor,
-  normalizePerformanceCursor
+  normalizePerformanceCursor,
+  normalizeTextLayoutCursor
 } from "../src/crashCursor.js";
 
 export const TELEMETRY_STATE_NAMESPACE_TITLE = "marque-and-reprisal-telemetry-state";
@@ -29,6 +31,15 @@ export async function readRemoteMapIntegrityCursor(options = {}) {
     MAP_INTEGRITY_CURSOR_KEY,
     normalizeMapIntegrityCursor,
     "map integrity",
+    options
+  );
+}
+
+export async function readRemoteTextLayoutCursor(options = {}) {
+  return readRemoteCursor(
+    TEXT_LAYOUT_CURSOR_KEY,
+    normalizeTextLayoutCursor,
+    "text layout",
     options
   );
 }
@@ -64,6 +75,16 @@ export async function writeRemoteMapIntegrityCursor(value, options = {}) {
     value,
     normalizeMapIntegrityCursor,
     "map integrity",
+    options
+  );
+}
+
+export async function writeRemoteTextLayoutCursor(value, options = {}) {
+  return writeRemoteCursor(
+    TEXT_LAYOUT_CURSOR_KEY,
+    value,
+    normalizeTextLayoutCursor,
+    "text layout",
     options
   );
 }

@@ -5,10 +5,12 @@ import {
   readRemoteCrashCursor,
   readRemoteMapIntegrityCursor,
   readRemotePerformanceCursor,
+  readRemoteTextLayoutCursor,
   TELEMETRY_STATE_NAMESPACE_TITLE,
   writeRemoteCrashCursor,
   writeRemoteMapIntegrityCursor,
-  writeRemotePerformanceCursor
+  writeRemotePerformanceCursor,
+  writeRemoteTextLayoutCursor
 } from "./cloudflareKv.mjs";
 
 const environment = Object.freeze({
@@ -94,5 +96,29 @@ test("map integrity cursor operations use their own KV key", async () => {
   assert.equal(valueRequests.length, 2);
   assert.equal(valueRequests.every((request) => (
     request.url.includes("map-integrity%2Fall-fixed-at")
+  )), true);
+});
+
+test("text layout cursor operations use their own KV key", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options = {}) => {
+    requests.push({ url, options });
+    if (url.includes("?per_page=100")) {
+      return Response.json({
+        success: true,
+        result: [{ id: "namespace-id", title: TELEMETRY_STATE_NAMESPACE_TITLE }]
+      });
+    }
+    if (options.method === "PUT") return Response.json({ success: true });
+    return new Response("2026-08-05T16:00:00.000Z");
+  };
+
+  await readRemoteTextLayoutCursor({ environment, fetchImpl });
+  await writeRemoteTextLayoutCursor("2026-08-05T17:00:00Z", { environment, fetchImpl });
+
+  const valueRequests = requests.filter((request) => request.url.includes("/values/"));
+  assert.equal(valueRequests.length, 2);
+  assert.equal(valueRequests.every((request) => (
+    request.url.includes("ui-text-layout%2Fall-fixed-at")
   )), true);
 });

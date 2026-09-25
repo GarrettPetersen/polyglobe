@@ -648,6 +648,7 @@ export default {
   "storm.manOverboardRecoveredMany": "URATOWANO {count} LUDZI",
   "storm.manOverboardDrownedOne": "STRACONO MARYNARZA",
   "storm.manOverboardDrownedMany": "STRACONO {count} LUDZI NA MORZU",
+  "storm.manOverboardNoBerth": "BRAK KOI, BY ICH WCIĄGNĄĆ",
   "hud.tooltip.localDate": "Data lokalna: {date}",
   "hud.tooltip.doubloons": "Dublony: {count}",
   "hud.tooltip.hull": "Wytrzymałość kadłuba: {current}/{maximum}",

@@ -648,6 +648,7 @@ export default {
   "storm.manOverboardRecoveredMany": "{count} MARINS REPÊCHÉS",
   "storm.manOverboardDrownedOne": "UN MARIN A ÉTÉ PERDU",
   "storm.manOverboardDrownedMany": "{count} MARINS PERDUS EN MER",
+  "storm.manOverboardNoBerth": "PAS DE COUCHETTE POUR LES HALER",
   "hud.tooltip.localDate": "Date locale : {date}",
   "hud.tooltip.doubloons": "{count} doublons",
   "hud.tooltip.hull": "Solidité de la coque : {current}/{maximum}",

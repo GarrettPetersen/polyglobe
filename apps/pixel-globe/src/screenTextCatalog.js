@@ -3370,6 +3370,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "That fine canvas draws cleanly. You can feel it in the deck.",
   "That is {0}. We have warrants enough to paper a cabin. The reward is {1} doubloons.",
   "That is certainly a panda. How did a creature of the bamboo hills come to stand watch on your deck?",
+  "That is not available.",
   "That is the floor. It has never moved. Hand me the purse before you misplace gravity.",
   "That is the sea's favorite trick.",
   "That little masked thief is aboard! Count the biscuits.",

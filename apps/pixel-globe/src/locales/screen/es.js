@@ -3370,6 +3370,7 @@ export default Object.freeze({
   "That fine canvas draws cleanly. You can feel it in the deck.": "Esta lona fina despliega bien la vela; se nota hasta en la cubierta.",
   "That is {0}. We have warrants enough to paper a cabin. The reward is {1} doubloons.": "Es {0}. Tenemos órdenes de arresto suficientes para empapelar una cabina. La recompensa es de {1} doblones.",
   "That is certainly a panda. How did a creature of the bamboo hills come to stand watch on your deck?": "Sin duda es un panda. ¿Cómo llegó una criatura de las colinas de bambú a vigilar la cubierta de tu barco?",
+  "That is not available.": "Eso no se puede hacer.",
   "That is the floor. It has never moved. Hand me the purse before you misplace gravity.": "Ese es el piso. Nunca se ha movido. Pásame el bolso antes de que pierdas la gravedad.",
   "That is the sea's favorite trick.": "Ése es el truco favorito del mar.",
   "That little masked thief is aboard! Count the biscuits.": "¡Ese pequeño ladrón enmascarado está a bordo! Cuente las galletas.",
