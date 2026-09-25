@@ -1,4 +1,5 @@
 import { haulFlatBattleShipAlongShore } from "./flatBattleShoreHauling.js";
+import { applyRowingStaminaAdvance, rowingStaminaAllowsExertion } from "./rowingStamina.js";
 import {
   createBattleSpatialGrid,
   queryBattleSpatialGrid,
@@ -50,7 +51,8 @@ import {
   SHIP_ROWING_MODE_IDLE,
   SHIP_ROWING_MODE_PIVOT_PORT,
   SHIP_ROWING_MODE_PIVOT_STARBOARD,
-  normalizeShipRowingMode
+  normalizeShipRowingMode,
+  shipRowingModeIsActive
 } from "./shipRowingAnimation.js";
 import {
   shipCanUseOars
@@ -251,7 +253,7 @@ export function createHistoricalBattle({
   return state;
 }
 
-export function updateHistoricalBattle(state, dt, input = {}) {
+export function updateHistoricalBattle(state, dt, input = {}, exertion = null) {
   assertBattle(state);
   if (!Number.isFinite(dt) || dt < 0 || dt > MAX_FRAME_SECONDS) {
     throw new Error(`Invalid historical battle frame time: ${dt}`);
@@ -262,7 +264,7 @@ export function updateHistoricalBattle(state, dt, input = {}) {
   let firstStep = true;
   let advanced = false;
   while (state.accumulatorSeconds + 1e-9 >= HISTORICAL_BATTLE_FIXED_STEP_SECONDS) {
-    stepHistoricalBattle(state, firstStep ? command : commandWithoutOneShotActions(command));
+    stepHistoricalBattle(state, firstStep ? command : commandWithoutOneShotActions(command), exertion);
     state.accumulatorSeconds -= HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
     firstStep = false;
     advanced = true;
@@ -313,7 +315,7 @@ export function validateHistoricalBattleReplay(replay) {
   return replay;
 }
 
-export function updateHistoricalBattleReplay(state, dt, replay) {
+export function updateHistoricalBattleReplay(state, dt, replay, exertion = null) {
   assertBattle(state);
   validateHistoricalBattleReplay(replay);
   if (state.scenario.id !== replay.scenarioId || state.playerSideId !== replay.playerSideId ||
@@ -327,7 +329,7 @@ export function updateHistoricalBattleReplay(state, dt, replay) {
   state.accumulatorSeconds = Math.min(MAX_ACCUMULATED_SECONDS, state.accumulatorSeconds + dt);
   let advanced = false;
   while (state.accumulatorSeconds + 1e-9 >= HISTORICAL_BATTLE_FIXED_STEP_SECONDS) {
-    stepHistoricalBattle(state, replayCommandAtTick(replay.commands, state.tick));
+    stepHistoricalBattle(state, replayCommandAtTick(replay.commands, state.tick), exertion);
     state.accumulatorSeconds -= HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
     advanced = true;
     if (state.phase !== HISTORICAL_BATTLE_PHASE_ACTIVE) break;
@@ -580,7 +582,7 @@ export function historicalBattleSnapshot(state) {
   });
 }
 
-function stepHistoricalBattle(state, command) {
+function stepHistoricalBattle(state, command, exertion = null) {
   state.tick += 1;
   state.elapsedSeconds += HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
   const wind = historicalBattleWindAt(state.scenario.map.wind, state.elapsedSeconds);
@@ -591,7 +593,7 @@ function stepHistoricalBattle(state, command) {
   updateSquadronLeaders(state);
   updateStrategicObjectives(state);
   refreshTargets(state);
-  updateShipMotion(state, command);
+  updateShipMotion(state, command, exertion);
   rebuildBattleSpatialGrid(state.spatialGrid, state.ships);
   if (state.tick % 2 === 0) resolveHistoricalShipCollisions(state);
   updateShipWeapons(state, command);
@@ -953,7 +955,7 @@ function nearestEnemyIndex(state, shipIndex, radius) {
   return bestCounterpartIndex >= 0 ? bestCounterpartIndex : bestIndex;
 }
 
-function updateShipMotion(state, command) {
+function updateShipMotion(state, command, exertion = null) {
   const player = state.ships[state.playerShipIndex];
   for (let index = 0; index < state.ships.length; index++) {
     const ship = state.ships[index];
@@ -1025,7 +1027,8 @@ function updateShipMotion(state, command) {
       desiredHeading,
       rowingMode,
       speedCapPx,
-      wakeEnabled
+      wakeEnabled,
+      ship.playerControlled ? exertion : null
     );
   }
 }
@@ -1154,17 +1157,29 @@ function moveShipWithStandardPropulsion(
   desiredHeading,
   rowingMode,
   speedCapPx = Number.POSITIVE_INFINITY,
-  wakeEnabled = true
+  wakeEnabled = true,
+  exertion = null
 ) {
   const dt = HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
+  const exertionAllowed = exertion ? rowingStaminaAllowsExertion(exertion.state) : true;
+  const effectiveRowingMode = exertionAllowed ? rowingMode : SHIP_ROWING_MODE_IDLE;
   ship.previousX = ship.x;
   ship.previousY = ship.y;
   ship.previousHeadingRad = ship.headingRad;
+  let hauledDistance = 0;
+  const recordPlayerExertion = () => {
+    if (!(ship.playerControlled && exertion)) return;
+    applyRowingStaminaAdvance(exertion.state, {
+      dt,
+      exerting: exertionAllowed && (shipRowingModeIsActive(rowingMode) || hauledDistance > 0),
+      capacitySeconds: exertion.capacitySeconds
+    });
+  };
   const kinematics = advanceFlatBattleShipKinematics({
     ship,
     dt,
     desiredHeadingRad: desiredHeading,
-    rowingMode,
+    rowingMode: effectiveRowingMode,
     windDirectionRad: state.wind.directionRad,
     windStrength: state.wind.strength,
     speedCapPx,
@@ -1175,6 +1190,7 @@ function moveShipWithStandardPropulsion(
   const nextY = ship.y + Math.sin(kinematics.movementHeadingRad) * distance;
   if (historicalBattleMapEscapeAt(state.map, ship.sideId, nextX, nextY)) {
     escapeShip(state, ship);
+    recordPlayerExertion();
     return;
   }
   const clearance = ship.role === "galleass" ? 10 : 7;
@@ -1184,13 +1200,14 @@ function moveShipWithStandardPropulsion(
   } else {
     ship.speedPx *= 0.28;
   }
-  if (ship.playerControlled) {
-    haulFlatBattleShipAlongShore({
+  if (ship.playerControlled && exertionAllowed) {
+    hauledDistance = haulFlatBattleShipAlongShore({
       ship, dt, desiredHeadingRad: desiredHeading,
       previousX: ship.previousX, previousY: ship.previousY,
       canOccupy: (x, y) => historicalBattleMapWaterAt(state.map, x, y, clearance)
     });
   }
+  recordPlayerExertion();
   updateHistoricalShipWake(ship, dt, wakeEnabled);
 }
 

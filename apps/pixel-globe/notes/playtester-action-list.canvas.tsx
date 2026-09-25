@@ -136,8 +136,8 @@ const WORLD: Item[] = [
   },
   {
     action: "Let a sailing ship crawl through a foul narrow",
-    status: "Open",
-    detail: "Oared ships can row, with no stamina meter. A sailing ship has no short tow or warp for a headwind in a strait.",
+    status: "Shipped",
+    detail: "Rowing and hauling along shore spend a stamina bar in world sailing, lake battles, and historical battles. It hides when full, blinks when the crew is exhausted, and returns with rest. A boatswain, spare sweeps, a kedge and warp, and a larger or more experienced crew make it last longer.",
     note: "First"
   },
   {

@@ -6,7 +6,8 @@ const ADDITIVE_PERKS = new Set([
   "damageResistanceChance",
   "crewCasualtyResistanceChance",
   "hullRepairHitPointsPerDay",
-  "portAssaultArmorCoverageFlat"
+  "portAssaultArmorCoverageFlat",
+  "staminaSecondsFlat"
 ]);
 
 const MULTIPLICATIVE_PERKS = new Set([
@@ -29,7 +30,8 @@ const MULTIPLICATIVE_PERKS = new Set([
   "portAssaultMeleeDamageMultiplier",
   "portAssaultArrowDamageMultiplier",
   "portAssaultFirearmDamageMultiplier",
-  "portAssaultDefenseMultiplier"
+  "portAssaultDefenseMultiplier",
+  "staminaDurationMultiplier"
 ]);
 
 export const MAX_DAMAGE_RESISTANCE_CHANCE = 0.8;
@@ -171,6 +173,10 @@ export function perkEffectLabels(perks) {
   if (perks.disguiseChanceBonus) {
     labels.push(`Hostile-port disguise +${Math.round(perks.disguiseChanceBonus * 100)}%`);
   }
+  if (perks.staminaDurationMultiplier) {
+    labels.push(`Oar endurance lasts ${percent(perks.staminaDurationMultiplier)} longer`);
+  }
+  if (perks.staminaSecondsFlat) labels.push(`Oar endurance +${perks.staminaSecondsFlat}s`);
   if (perks.foodDurationMultiplier) labels.push(`Food lasts ${percent(perks.foodDurationMultiplier)} longer`);
   if (perks.waterDurationMultiplier) labels.push(`Water lasts ${percent(perks.waterDurationMultiplier)} longer`);
   if (perks.cannonReloadMultiplier) labels.push(`Cannon reload ${percent(perks.cannonReloadMultiplier)} faster`);

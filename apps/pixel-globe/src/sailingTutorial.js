@@ -154,15 +154,15 @@ export function sailingHelpPages(
     controller: "Tilt the left stick left and right to turn port and starboard. Hold it forward to sail or row on the current heading."
   };
   const absoluteHaulingCopy = {
-    touch: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly.",
-    mouse: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly.",
-    keyboard: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly.",
-    controller: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly."
+    touch: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly. Their strength is limited and returns with rest.",
+    mouse: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly. Their strength is limited and returns with rest.",
+    keyboard: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly. Their strength is limited and returns with rest.",
+    controller: "If wind pins you against a riverbank or coast, steer toward open water. Your crew immediately begins to haul along the shore, very slowly. Their strength is limited and returns with rest."
   };
   const relativeHaulingCopy = {
     ...absoluteHaulingCopy,
-    keyboard: "If wind pins you against a riverbank or coast, hold forward. Your crew begins to haul along the shore, very slowly.",
-    controller: "If wind pins you against a riverbank or coast, hold forward. Your crew begins to haul along the shore, very slowly."
+    keyboard: "If wind pins you against a riverbank or coast, hold forward. Your crew begins to haul along the shore, very slowly. Their strength is limited and returns with rest.",
+    controller: "If wind pins you against a riverbank or coast, hold forward. Your crew begins to haul along the shore, very slowly. Their strength is limited and returns with rest."
   };
   const steeringCopy = normalizedControlScheme === CONTROL_SCHEME_RELATIVE
     ? relativeSteeringCopy
@@ -207,20 +207,20 @@ export function rowingTutorialMessage(
   }
   const normalizedControlScheme = normalizeControlScheme(controlScheme);
   if (inputMode === "touch") {
-    return "On an oared ship, hold ahead to row or behind to reverse. Hold to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
+    return "On an oared ship, hold ahead to row or behind to reverse. Hold to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more. Their strength is limited and returns with rest.";
   }
   if (inputMode === "mouse") {
-    return "On an oared ship, hold ahead to row or behind to reverse. Hold to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
+    return "On an oared ship, hold ahead to row or behind to reverse. Hold to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more. Their strength is limited and returns with rest.";
   }
   if (normalizedControlScheme === CONTROL_SCHEME_RELATIVE) {
     return autoRowEnabled
-      ? "Tap forward to keep rowing. Hold back to reverse, or tap back to stop rowing. While stopped, hold left/right to turn in place. More rowers pull harder but eat more."
-      : "Hold forward to row and back to reverse. While stopped, hold left/right to turn in place. More rowers pull harder but eat more.";
+      ? "Tap forward to keep rowing. Hold back to reverse, or tap back to stop rowing. While stopped, hold left/right to turn in place. More rowers pull harder but eat more. Their strength is limited and returns with rest."
+      : "Hold forward to row and back to reverse. While stopped, hold left/right to turn in place. More rowers pull harder but eat more. Their strength is limited and returns with rest.";
   }
   if (inputMode === "keyboard") {
-    return "On an oared ship, hold toward the bow to row, behind it to reverse, or to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
+    return "On an oared ship, hold toward the bow to row, behind it to reverse, or to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more. Their strength is limited and returns with rest.";
   }
-  return "On an oared ship, hold the left stick toward the bow to row, behind it to reverse, or to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more.";
+  return "On an oared ship, hold the left stick toward the bow to row, behind it to reverse, or to either side while stopped to turn in place. Release to rest; more rowers are stronger but eat more. Their strength is limited and returns with rest.";
 }
 
 function assertEarlySailingHelpState(state) {

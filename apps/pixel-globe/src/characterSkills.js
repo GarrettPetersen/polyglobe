@@ -55,6 +55,9 @@ export const CHARACTER_SKILLS = Object.freeze([
     topSpeedMultiplier: 1.05,
     accelerationMultiplier: 1.05
   }),
+  skill("boatswain", "Boatswain", "Spells the crew at the sweeps and the warp, so they last longer along a foul shore.", {
+    staminaDurationMultiplier: 1.35
+  }),
   skill("master-helmsman", "Master Helmsman", "Coaxes the ship through turns and closer to the wind.", {
     turnRateMultiplier: 1.1,
     windwardAngleReductionDeg: 2

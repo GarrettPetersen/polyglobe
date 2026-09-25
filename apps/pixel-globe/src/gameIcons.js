@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-53";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-54";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -282,6 +282,10 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "item:incendiary-arrows": nikoichu("RPG_Skill_Flaming_Shot_Fire_Arrow.png", ICON_COLOR.danger),
   "item:bronze-fish-hooks": nikoichu("Tools_Crafting_Fishing_Rod_Hook.png", ICON_COLOR.gold),
   "item:zamzam-flask": nikoichu("Weather_Water_Droplet_Liquid_Rain_Element_Big.png", ICON_COLOR.dialogue),
+  "item:spare-sweeps": nikoichu("Tools_Crafting_Fishing_Harpoon_Spear.png", ICON_COLOR.timber),
+  "item:kedge-and-warp": projectAsset("public/assets/ui/anchor.png", null, {
+    lightMonotone: ICON_COLOR.timber
+  }),
 
   "good:gunpowder": pirate(42),
   "good:matchlocks": pirate(45),

@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-53",
+  "version": "resurrect-icons-54",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 240,
@@ -2588,10 +2588,34 @@
       "lightMonotone": "#4d65b4"
     },
     {
-      "id": "good:gunpowder",
+      "id": "item:spare-sweeps",
       "rect": {
         "x": 240,
         "y": 208,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:kedge-and-warp",
+      "rect": {
+        "x": 0,
+        "y": 224,
+        "w": 16,
+        "h": 16
+      },
+      "packId": null,
+      "assetPath": "public/assets/ui/anchor.png",
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "good:gunpowder",
+      "rect": {
+        "x": 16,
+        "y": 224,
         "w": 16,
         "h": 16
       },
@@ -2601,7 +2625,7 @@
     {
       "id": "good:matchlocks",
       "rect": {
-        "x": 0,
+        "x": 32,
         "y": 224,
         "w": 16,
         "h": 16
@@ -2612,7 +2636,7 @@
     {
       "id": "good:coal",
       "rect": {
-        "x": 16,
+        "x": 48,
         "y": 224,
         "w": 16,
         "h": 16

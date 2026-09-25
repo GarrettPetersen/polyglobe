@@ -144,6 +144,10 @@ test("sailing help uses the active device's control language", () => {
   assert.match(keyboard[3].body, /wind pins you/i);
   assert.match(keyboard[3].body, /hold forward/i);
   assert.match(keyboard[3].body, /haul along the shore/i);
+  assert.match(keyboard[2].body, /strength is limited and returns with rest/);
+  assert.match(keyboard[3].body, /strength is limited and returns with rest/);
+  assert.match(touch[2].body, /strength is limited and returns with rest/);
+  assert.match(touch[3].body, /strength is limited and returns with rest/);
 });
 
 test("relative rowing explains its persistent command while pointer rowing remains directional", () => {

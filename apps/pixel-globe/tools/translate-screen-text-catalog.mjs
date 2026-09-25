@@ -639,6 +639,7 @@ const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedPortFactorRecognitionOverrides(),
   ...reviewedTreasurePirateSearchOverrides(),
   ...reviewedWaypointProvisionWarningOverrides(),
+  ...reviewedRowingStaminaOverrides(),
   "The hoard is ours: {0} units of gold and Captain {1}'s treasure. Every pirate afloat will hunt us. Set course for {2}; I marked it on the chart. The old crew bars the way.": Object.freeze({
     "zh-Hans": "宝藏归我们了：{0}份黄金，还有{1}船长的宝物。海上的每个海盗都会来追杀我们。转舵驶向{2}；我已在海图上标出航路。那帮旧船员会挡道。",
     ru: "Клад наш: {0} мер золота и сокровище капитана {1}. Теперь за нами погонится всякий пират на море. Держать курс на {2}; я отметил путь на карте. Старая команда преградит дорогу.",
@@ -5085,6 +5086,84 @@ function reviewedPortFactorRecognitionOverrides() {
     source,
     reviewedLocaleOverrides(source, values)
   ]));
+}
+
+function reviewedRowingStaminaOverrides() {
+  return {
+    "Boatswain": reviewedLocaleOverrides("Boatswain", [
+      "水手长", "Боцман", "Contramaestre", "Contramestre", "甲板長", "Bootsmann",
+      "Maître d'équipage", "Bosman", "水手長", "갑판장"
+    ]),
+    "Spells the crew at the sweeps and the warp, so they last longer along a foul shore.": reviewedLocaleOverrides(
+      "Spells the crew at the sweeps and the warp, so they last longer along a foul shore.",
+      [
+        "安排船员轮换划桨和曳缆，使他们在险恶的近岸航道上更能持久。",
+        "Распределяет вахты у вёсел и на верпе, так что команда дольше держится у опасного берега.",
+        "Releva a la tripulación en los remos y en el cabo de leva, para que aguanten más junto a una costa difícil.",
+        "Revez a tripulação nos remos e no cabo de alagem, para que durem mais junto a uma costa difícil.",
+        "櫂と引き綱の番を組み、険しい岸沿いでも乗組員が長く漕げるようにする。",
+        "Teilt die Wachen an Riemen und Verholtau, damit die Besatzung an einer bösen Küste länger aushält.",
+        "Relève l'équipage aux avirons et à la touée, afin qu'il tienne plus longtemps le long d'une côte mauvaise.",
+        "Rozdziela wachty przy wiosłach i na warpie, żeby załoga dłużej wytrzymała przy zdradliwym brzegu.",
+        "安排船員輪換划槳和曳纜，使他們在險惡的近岸航道上更能持久。",
+        "노와 끌줄의 당번을 짜, 험한 해안에서도 선원이 더 오래 버티게 합니다."
+      ]
+    ),
+    "Spare Sweeps": reviewedLocaleOverrides("Spare Sweeps", [
+      "备用桨", "Запасные вёсла", "Remos de respeto", "Remos sobressalentes", "予備の櫂",
+      "Reserve-Riemen", "Avirons de rechange", "Zapasowe wiosła", "備用槳", "예비 노"
+    ]),
+    "Extra oars, kept ready when the first set splits.": reviewedLocaleOverrides(
+      "Extra oars, kept ready when the first set splits.",
+      [
+        "额外的桨，第一套断裂时即可替换。",
+        "Лишние вёсла, готовые, когда первая пара треснет.",
+        "Remos de más, listos cuando se parte el primer juego.",
+        "Remos a mais, prontos quando o primeiro jogo parte.",
+        "最初の一組が折れたときのための予備の櫂。",
+        "Zusätzliche Riemen, bereit wenn der erste Satz bricht.",
+        "Des avirons en plus, prêts quand le premier jeu se fend.",
+        "Dodatkowe wiosła, gotowe gdy pierwszy komplet pęknie.",
+        "額外的槳，第一套斷裂時即可替換。",
+        "첫 노가 부러지면 바로 쓸 여분의 노."
+      ]
+    ),
+    "Kedge and Warp": reviewedLocaleOverrides("Kedge and Warp", [
+      "小锚与曳缆", "Верп и перлинь", "Ancla de leva y cabo", "Âncora de alagem e cabo", "小錨と引き綱",
+      "Warpanker und Trosse", "Ancre à touer et câble", "Kotwica zawoźna i lina", "小錨與曳纜", "작은 닻과 끌줄"
+    ]),
+    "A light anchor and a long line for hauling the ship off a lee shore.": reviewedLocaleOverrides(
+      "A light anchor and a long line for hauling the ship off a lee shore.",
+      [
+        "一只轻锚和一条长缆，用来把船从下风岸曳开。",
+        "Лёгкий якорь и длинный перлинь, чтобы стащить судно с подветренного берега.",
+        "Un ancla ligera y un cabo largo para halar el barco de una costa de sotavento.",
+        "Uma âncora leve e um cabo longo para puxar o navio de uma costa de sotavento.",
+        "風下の岸から船を引き出すための軽い錨と長い綱。",
+        "Ein leichter Anker und eine lange Trosse, um das Schiff von einer Leeküste zu verholen.",
+        "Une ancre légère et un long câble pour haler le navire d'une côte sous le vent.",
+        "Lekka kotwica i długa lina, by ściągnąć statek z zawietrznego brzegu.",
+        "一隻輕錨和一條長纜，用來把船從下風岸曳開。",
+        "바람이 밀어붙이는 해안에서 배를 끌어내는 가벼운 닻과 긴 줄."
+      ]
+    ),
+    "Oar endurance lasts {0} longer": reviewedLocaleOverrides("Oar endurance lasts {0} longer", [
+      "划桨耐力延长{0}", "Выносливость на вёслах дольше на {0}", "La resistencia al remo dura un {0} más",
+      "A resistência nos remos dura {0} a mais", "漕ぎの持久力が{0}延びる", "Ruderausdauer hält {0} länger",
+      "L'endurance aux avirons dure {0} de plus", "Wytrzymałość przy wiosłach trwa o {0} dłużej",
+      "划槳耐力延長{0}", "노 젓기 지구력이 {0} 더 오래갑니다"
+    ]),
+    "WebDeployFailed": reviewedLocaleOverrides("WebDeployFailed", [
+      "WebDeployFailed", "WebDeployFailed", "WebDeployFailed", "WebDeployFailed", "WebDeployFailed",
+      "WebDeployFailed", "WebDeployFailed", "WebDeployFailed", "WebDeployFailed", "WebDeployFailed"
+    ]),
+    "Oar endurance +{0}s": reviewedLocaleOverrides("Oar endurance +{0}s", [
+      "划桨耐力+{0}秒", "Выносливость на вёслах +{0} с", "Resistencia al remo +{0} s",
+      "Resistência nos remos +{0} s", "漕ぎの持久力+{0}秒", "Ruderausdauer +{0} s",
+      "Endurance aux avirons +{0} s", "Wytrzymałość przy wiosłach +{0} s",
+      "划槳耐力+{0}秒", "노 젓기 지구력 +{0}초"
+    ])
+  };
 }
 
 function reviewedWaypointProvisionWarningOverrides() {

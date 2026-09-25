@@ -331,6 +331,16 @@ import {
   shipHullIsDamaged
 } from "./shipHullBar.js";
 import {
+  ROWING_STAMINA_BAR_COLOR,
+  applyRowingStaminaAdvance,
+  createRowingStaminaState,
+  rowingStaminaAllowsExertion,
+  rowingStaminaBarLayout,
+  rowingStaminaBarShouldDraw,
+  rowingStaminaCapacitySeconds,
+  rowingStaminaFraction
+} from "./rowingStamina.js";
+import {
   PLAYER_SHIP_COMBAT_COLOR,
   shipCombatAllegianceColor
 } from "./shipCombatPresentation.js";
@@ -4350,6 +4360,7 @@ let surfaceIceEntrapmentActive = false;
 let weatherDrawTick = -1;
 let ship;
 let playerHaulBlockedSeconds = 0;
+let playerRowingStamina = createRowingStaminaState();
 let playerBoundaryAssistContact = null;
 let playerBoundaryProbeCache = null;
 let playerNavigationRecoveryState = createPlayerShipRecoveryState();
@@ -15750,7 +15761,8 @@ function createLakeBattleModeState() {
     leftArrowRects: [],
     rightArrowRects: [],
     actionRects: [],
-    pauseButtonRect: null
+    pauseButtonRect: null,
+    rowingStamina: createRowingStaminaState()
   };
 }
 
@@ -15788,7 +15800,8 @@ function createHistoricalBattleModeState() {
     pendingFireStarboard: false,
     replay: null,
     resultRecorded: false,
-    closingDialogueShown: false
+    closingDialogueShown: false,
+    rowingStamina: createRowingStaminaState()
   };
 }
 
@@ -16077,6 +16090,7 @@ function restartHistoricalBattle({ replay = null } = {}) {
   lakeBattleMode.cannonSmokeBursts = [];
   lakeBattleMode.resultReadyAtMs = null;
   lakeBattleMode.replay = replay;
+  lakeBattleMode.rowingStamina = createRowingStaminaState();
   lakeBattleMode.resultRecorded = false;
   lakeBattleMode.closingDialogueShown = false;
   lakeBattleMode.selectedIndex = 0;
@@ -16245,6 +16259,7 @@ function restartLakeBattle() {
     enemySlug,
     shipFootprints: shipFootprintsBySlug
   });
+  lakeBattleMode.rowingStamina = createRowingStaminaState();
   lakeBattleMode.screen = LAKE_BATTLE_SCREEN_ACTIVE;
   lakeBattleMode.sinkEffects = [];
   lakeBattleMode.resultReadyAtMs = null;
@@ -16444,7 +16459,7 @@ function updateLakeBattleModeFrame(dt, nowMs) {
   if (lakeBattleMode.screen !== LAKE_BATTLE_SCREEN_ACTIVE) return false;
   const battle = lakeBattleMode.battle;
   if (!battle) throw new Error("Active lake battle screen has no battle state");
-  updateLakeBattle(battle, dt, lakeBattleInputCommand());
+  updateLakeBattle(battle, dt, lakeBattleInputCommand(), playerRowingStaminaContext());
   processLakeBattleEvents(battle);
   if (battle.phase !== LAKE_BATTLE_PHASE_ACTIVE) {
     startLakeBattleSinkSequence(battle, nowMs);
@@ -16473,8 +16488,8 @@ function updateHistoricalBattleModeFrame(dt, nowMs) {
   const battle = lakeBattleMode.battle;
   if (!battle) throw new Error("Active historical battle screen has no battle state");
   const advanced = lakeBattleMode.replay
-    ? updateHistoricalBattleReplay(battle, dt, lakeBattleMode.replay)
-    : updateHistoricalBattle(battle, dt, historicalBattleInputCommand());
+    ? updateHistoricalBattleReplay(battle, dt, lakeBattleMode.replay, playerRowingStaminaContext())
+    : updateHistoricalBattle(battle, dt, historicalBattleInputCommand(), playerRowingStaminaContext());
   lakeBattleMode.cannonSmokeBursts = advanceCannonSmokeBursts(
     lakeBattleMode.cannonSmokeBursts,
     dt
@@ -19153,6 +19168,7 @@ async function restoreSavedVoyage(payload, { isCurrent = () => true } = {}) {
   shipCombatEntryCollisionGrace.clear();
   shipCombatEntryOverlapGracePairs.clear();
   playerHaulBlockedSeconds = 0;
+  playerRowingStamina = createRowingStaminaState();
   playerBoundaryAssistContact = null;
   playerBoundaryProbeCache = null;
   playerNavigationRecoveryState = createPlayerShipRecoveryState();
@@ -34767,6 +34783,7 @@ function updateSailing(dt) {
     ship.velocity = [0, 0, 0];
     ship.rowing = false;
     ship.rowingMode = SHIP_ROWING_MODE_IDLE;
+    advancePlayerRowingStamina(dt, false);
     return recoveredFromDemoEscape;
   }
   const inputHeading = input.movementHeading;
@@ -34782,9 +34799,11 @@ function updateSailing(dt) {
   });
 
   const previousHeading = ship.heading;
+  const exertionAllowed = rowingStaminaAllowsExertion(playerRowingStamina);
+  const rowingMode = exertionAllowed ? input.rowingMode : SHIP_ROWING_MODE_IDLE;
   if (steeringHeading) {
     ship.targetHeading = steeringHeading;
-    const pivoting = shipRowingModeIsPivot(input.rowingMode);
+    const pivoting = shipRowingModeIsPivot(rowingMode);
     const turnRate = pivoting
       ? oarPivotTurnRate({
           turnRateRad: effectiveStats.turnRateRad,
@@ -34817,10 +34836,12 @@ function updateSailing(dt) {
     ship.targetHeading = ship.heading;
   }
 
-  applyWindAcceleration(dt, effectiveStats, input.rowingMode);
+  applyWindAcceleration(dt, effectiveStats, rowingMode);
   applyWhaleTowAcceleration(dt);
   applyPlayerBoundaryPushOff(inputHeading, boundaryContact);
-  applyShipHaulAcceleration(dt, inputHeading, haulMotionScale);
+  const hauled = exertionAllowed &&
+    applyShipHaulAcceleration(dt, inputHeading, haulMotionScale) === true;
+  advancePlayerRowingStamina(dt, ship.rowing === true || hauled);
   const previousPosition = ship.position;
   const preferredTravelHeading = shipPreferredTravelDirection({
     heading: ship.heading,
@@ -35561,6 +35582,35 @@ function pointerSteeringInputVector() {
   };
 }
 
+function playerRowingStaminaContext() {
+  return {
+    state: lakeBattleMode?.rowingStamina || playerRowingStamina,
+    capacitySeconds: playerRowingStaminaCapacitySeconds()
+  };
+}
+
+function playerRowingStaminaCapacitySeconds() {
+  if (!gameState?.ship || !Array.isArray(gameState.namedCrew)) {
+    return rowingStaminaCapacitySeconds({ activeCrew: 0, averageExperienceStars: 0 });
+  }
+  const crew = crewExperienceSummary(gameState);
+  const perks = gameStatePerkTotals(gameState);
+  return rowingStaminaCapacitySeconds({
+    activeCrew: crew.activeCrew,
+    averageExperienceStars: crew.averageStars,
+    staminaDurationMultiplier: perks.staminaDurationMultiplier,
+    staminaSecondsFlat: perks.staminaSecondsFlat
+  });
+}
+
+function advancePlayerRowingStamina(dt, exerting) {
+  applyRowingStaminaAdvance(playerRowingStamina, {
+    dt,
+    exerting,
+    capacitySeconds: playerRowingStaminaCapacitySeconds()
+  });
+}
+
 function applyWindAcceleration(
   dt,
   effectiveStats = currentPlayerEffectiveShipStats(),
@@ -35610,13 +35660,13 @@ function applyWindAcceleration(
 }
 
 function applyShipHaulAcceleration(dt, inputHeading, motionScale) {
-  if (!inputHeading || motionScale <= 0) return;
+  if (!inputHeading || motionScale <= 0) return false;
   const direction = normalizeOrNull(projectTangentVector(inputHeading, ship.position));
-  if (!direction) return;
+  if (!direction) return false;
 
   const currentSpeedTowardInput = dot3(ship.velocity, direction);
   const maxSpeed = SHIP_RIVER_HAUL_MAX_SPEED_RAD * motionScale;
-  if (currentSpeedTowardInput >= maxSpeed) return;
+  if (currentSpeedTowardInput >= maxSpeed) return false;
 
   const addSpeed = Math.min(
     SHIP_RIVER_HAUL_ACCEL_RAD * motionScale * dt,
@@ -35627,6 +35677,7 @@ function applyShipHaulAcceleration(dt, inputHeading, motionScale) {
     ship.velocity[1] + direction[1] * addSpeed,
     ship.velocity[2] + direction[2] * addSpeed
   ], ship.position);
+  return true;
 }
 
 function shipIsInRiverWater() {
@@ -56325,7 +56376,8 @@ function drawHistoricalBattleShip(battle, shipState, nowMs) {
     call.combatAllegiance,
     battle.wind
   );
-  if (!shipState.playerControlled || shipHullIsDamaged(shipState.hitPoints, shipState.maxHitPoints)) {
+  const hullVisible = shipHullIsDamaged(shipState.hitPoints, shipState.maxHitPoints);
+  if (!shipState.playerControlled || hullVisible) {
     drawHistoricalBattleShipHullBar(
       shipState,
       call,
@@ -56333,6 +56385,16 @@ function drawHistoricalBattleShip(battle, shipState, nowMs) {
         ? PLAYER_SHIP_COMBAT_COLOR
         : npcShipHullBarColor(call.combatAllegiance)
     );
+  }
+  if (shipState.playerControlled) {
+    const hull = shipHullBarLayout({
+      x: call.x,
+      y: call.y,
+      frameSize: SHIP_SHEET_FRAME_SIZE,
+      hitPoints: shipState.hitPoints,
+      maxHitPoints: shipState.maxHitPoints
+    });
+    drawCanvasRowingStaminaBar(hull.x, hull.y, hull.width, hull.height, hullVisible);
   }
   ctx.restore();
 }
@@ -56463,6 +56525,7 @@ function drawHistoricalBattlePlayerStatus(battle, x, y, width) {
     { font: PIXEL_FONT_LATIN_SMALL_8, align: "right", color: PIRATE_MENU_INK }
   );
   drawHistoricalBattlePlayerHullBar(player, x + 44, y + 6, width - 82);
+  drawCanvasRowingStaminaBar(x + 44, y + 6, width - 82, 5, true);
   drawHistoricalBattleCrewStatus(player, activeCrew, x + 4, y + 18, width - 8);
   drawOptionsText(
     fitPixelText(uiText("historical.wounded"), PIXEL_FONT_SMALL_8, width - 29),
@@ -56491,6 +56554,26 @@ function drawHistoricalBattlePlayerStatus(battle, x, y, width) {
     y + 53,
     Math.floor((width - 13) / 2)
   );
+}
+
+function drawCanvasRowingStaminaBar(hullX, hullY, hullWidth, hullHeight, hullVisible) {
+  const stamina = lakeBattleMode?.rowingStamina;
+  if (!stamina || hullWidth < 3 || hullHeight <= 0) return;
+  const capacitySeconds = playerRowingStaminaCapacitySeconds();
+  if (!rowingStaminaBarShouldDraw(stamina, capacitySeconds, lastFrameMs)) return;
+  const layout = rowingStaminaBarLayout({
+    hullX,
+    hullY,
+    hullWidth,
+    hullHeight,
+    hullVisible,
+    fraction: rowingStaminaFraction(stamina, capacitySeconds)
+  });
+  ctx.fillStyle = "#2e222f";
+  ctx.fillRect(layout.x, layout.y, layout.width, layout.height);
+  if (layout.fillWidth <= 0) return;
+  ctx.fillStyle = ROWING_STAMINA_BAR_COLOR;
+  ctx.fillRect(layout.x + 1, layout.y + 1, layout.fillWidth, 1);
 }
 
 function drawHistoricalBattlePlayerHullBar(player, x, y, width) {
@@ -57085,7 +57168,12 @@ function drawLakeBattleShip(shipState, nowMs) {
   const layers = shipWaterlineLayers(call.img, call.sinkDepthImg, call.frame, call.slug);
   drawShipCombatOutline(call, layers);
   drawFloatingShipSprite(call, layers, nowMs);
-  drawLakeBattleShipHullBar(shipState, call.x + 7, call.y + SHIP_SHEET_FRAME_SIZE - 1, 22);
+  const hullX = call.x + 7;
+  const hullY = call.y + SHIP_SHEET_FRAME_SIZE - 1;
+  drawLakeBattleShipHullBar(shipState, hullX, hullY, 22);
+  if (shipState.id === LAKE_BATTLE_PLAYER_ID) {
+    drawCanvasRowingStaminaBar(hullX, hullY, 22, 3, true);
+  }
 }
 
 function drawLakeBattleSinkEffects(battle, nowMs) {
@@ -64354,9 +64442,9 @@ function drawOverboardCrewLabels(nowMs) {
 
 function drawGpuPlayerShipDecorations(call, layers) {
   drawGpuShipLighting(call, layers);
-  if (shipHullIsDamaged(call.hitPoints, call.maxHitPoints)) {
-    drawGpuShipHullBar(call, PLAYER_SHIP_COMBAT_COLOR);
-  }
+  const hullVisible = shipHullIsDamaged(call.hitPoints, call.maxHitPoints);
+  if (hullVisible) drawGpuShipHullBar(call, PLAYER_SHIP_COMBAT_COLOR);
+  drawGpuPlayerRowingStaminaBar(call, hullVisible);
 }
 
 function drawGpuShipLighting(call, layers) {
@@ -64514,6 +64602,41 @@ function drawGpuNpcShipFlag(call, nowMs) {
       width: atlas.frameWidth,
       height: atlas.frameHeight
     }
+  });
+}
+
+function drawGpuPlayerRowingStaminaBar(call, hullVisible) {
+  if (!Number.isFinite(call.hitPoints) || !Number.isFinite(call.maxHitPoints)) return;
+  const capacitySeconds = playerRowingStaminaCapacitySeconds();
+  if (!rowingStaminaBarShouldDraw(playerRowingStamina, capacitySeconds, lastFrameMs)) return;
+  const hull = shipHullBarLayout({
+    x: call.x,
+    y: call.y,
+    frameSize: SHIP_SHEET_FRAME_SIZE,
+    hitPoints: call.hitPoints,
+    maxHitPoints: call.maxHitPoints
+  });
+  const layout = rowingStaminaBarLayout({
+    hullX: hull.x,
+    hullY: hull.y,
+    hullWidth: hull.width,
+    hullHeight: hull.height,
+    hullVisible,
+    fraction: rowingStaminaFraction(playerRowingStamina, capacitySeconds)
+  });
+  worldRenderer.drawSolidRect({
+    destinationRect: layout,
+    color: unitRgbaForCssColor("#2e222f")
+  });
+  if (layout.fillWidth <= 0) return;
+  worldRenderer.drawSolidRect({
+    destinationRect: {
+      x: layout.x + 1,
+      y: layout.y + 1,
+      width: layout.fillWidth,
+      height: 1
+    },
+    color: unitRgbaForCssColor(ROWING_STAMINA_BAR_COLOR)
   });
 }
 

@@ -1,4 +1,5 @@
 import { haulFlatBattleShipAlongShore } from "./flatBattleShoreHauling.js";
+import { applyRowingStaminaAdvance, rowingStaminaAllowsExertion } from "./rowingStamina.js";
 import {
   advanceCannonReload,
   NAVAL_CANNON_RANGE_PX as CANNON_RANGE_PX,
@@ -52,7 +53,8 @@ import {
 import {
   SHIP_ROWING_MODE_AHEAD,
   SHIP_ROWING_MODE_IDLE,
-  normalizeShipRowingMode
+  normalizeShipRowingMode,
+  shipRowingModeIsActive
 } from "./shipRowingAnimation.js";
 import {
   sailingEfficiencyForAlignment,
@@ -218,11 +220,11 @@ export function createLakeBattleArenaMap(width, height, seed = LAKE_BATTLE_DEFAU
   return createLakeBattleMap(width, height, seed ^ LAKE_BATTLE_MAP_SEED_SALT);
 }
 
-export function updateLakeBattle(state, dt, input = {}) {
+export function updateLakeBattle(state, dt, input = {}, exertion = null) {
   return updateLakeBattleWithControllers(state, dt, {
     player: { kind: "player-input", input },
     enemy: { kind: "npc", tacticId: NPC_COMBAT_CURRENT_TACTIC_ID }
-  });
+  }, exertion);
 }
 
 export function updateLakeBattleAiDuel(state, dt, { playerTacticId, enemyTacticId }) {
@@ -232,7 +234,7 @@ export function updateLakeBattleAiDuel(state, dt, { playerTacticId, enemyTacticI
   });
 }
 
-function updateLakeBattleWithControllers(state, dt, controllers) {
+function updateLakeBattleWithControllers(state, dt, controllers, exertion = null) {
   validateBattleState(state);
   if (!Number.isFinite(dt) || dt < 0 || dt > 0.1) throw new Error(`Invalid lake battle timestep: ${dt}`);
   if (state.phase !== LAKE_BATTLE_PHASE_ACTIVE || dt === 0) return false;
@@ -258,7 +260,11 @@ function updateLakeBattleWithControllers(state, dt, controllers) {
     playerDesiredHeading,
     lakeBattleControllerRowingMode(controllers.player, playerDesiredHeading),
     dt,
-    { hauling: controllers.player.kind === "player-input" }
+    {
+      hauling: controllers.player.kind === "player-input",
+      stamina: exertion?.state || null,
+      capacitySeconds: exertion?.capacitySeconds
+    }
   );
   updateBattleShipMotion(
     state,
@@ -678,13 +684,19 @@ function relocateShipToNavigableMapCell(state, ship) {
   ship.speedPx = 0;
 }
 
-function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingMode, dt, { hauling = false } = {}) {
+function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingMode, dt, {
+  hauling = false,
+  stamina = null,
+  capacitySeconds = null
+} = {}) {
   if (ship.kind === "city") return;
+  const exertionAllowed = stamina ? rowingStaminaAllowsExertion(stamina) : true;
+  const effectiveRowingMode = exertionAllowed ? rowingMode : SHIP_ROWING_MODE_IDLE;
   const kinematics = advanceFlatBattleShipKinematics({
     ship,
     dt,
     desiredHeadingRad,
-    rowingMode,
+    rowingMode: effectiveRowingMode,
     windDirectionRad: state.wind.directionRad,
     windStrength: state.wind.strength,
     autoPivot: true
@@ -693,10 +705,19 @@ function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingMode, dt, 
   const previousX = ship.x;
   const previousY = ship.y;
   let movedDistance = moveShipInsideLake(state, ship, kinematics.distancePx);
-  if (hauling) {
-    movedDistance += haulFlatBattleShipAlongShore({
+  let hauledDistance = 0;
+  if (hauling && exertionAllowed) {
+    hauledDistance = haulFlatBattleShipAlongShore({
       ship, dt, desiredHeadingRad, previousX, previousY,
       canOccupy: (x, y) => lakeBattleShipFitsInWater(state, ship, x, y)
+    });
+    movedDistance += hauledDistance;
+  }
+  if (stamina) {
+    applyRowingStaminaAdvance(stamina, {
+      dt,
+      exerting: exertionAllowed && (shipRowingModeIsActive(rowingMode) || hauledDistance > 0),
+      capacitySeconds
     });
   }
   if (ship.tackSide !== 0) {
