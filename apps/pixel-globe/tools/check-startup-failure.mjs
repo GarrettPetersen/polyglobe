@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { translate } from "../src/localization.js";
 import { loadPlaywright, browserExecutablePath, startStaticServer } from "./reachability/browser-runtime.mjs";
 
 const playwright = loadPlaywright();
@@ -31,7 +32,10 @@ try {
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.locator('#loading-screen[data-state="failed"]').waitFor();
     await page.locator("#crash-copy-button").waitFor({ state: "visible" });
-    assert.match(await page.locator("#loading-status-text").innerText(), /COULD NOT START/);
+    assert.equal(
+      await page.locator("#loading-status-text").innerText(),
+      translate("en", "recovery.startupFailed")
+    );
     if (stage !== "storage") {
       assert.match(await page.evaluate(() => localStorage.getItem("marque-and-reprisal.last-startup-failure")),
         /STARTUP FAILURE/);
@@ -64,7 +68,14 @@ try {
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     if (persistent) {
       await page.locator('#loading-screen[data-state="failed"]').waitFor({ timeout: 180000 });
-      assert.match(await page.locator("#loading-status-text").innerText(), /SHA-256 mismatch/);
+      assert.equal(
+        await page.locator("#loading-status-text").innerText(),
+        translate("en", "recovery.startupFailed")
+      );
+      assert.match(
+        await page.evaluate(() => localStorage.getItem("marque-and-reprisal.last-startup-failure")),
+        /SHA-256 mismatch/
+      );
       assert.equal(attempts, 5, "Persistent corruption must stop after bounded retries");
     } else {
       await page.waitForFunction(() => document.getElementById("loading-screen")?.hidden, null, { timeout: 180000 });
