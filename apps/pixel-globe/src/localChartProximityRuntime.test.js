@@ -133,7 +133,9 @@ test("overboard rescue follows the swimmer's visible position without rescuing a
   const context = runtime(["playerLocalDistanceToGlobeVector", "updateOverboardCrew"], {
     ...chartContext(), overboardCrew: [entry], OVERBOARD_RECOVERY_RADIUS_PX: 9,
     vectorArcDistance: (a, b) => Math.acos(a.reduce((sum, value, index) => sum + value * b[index], 0)),
-    restoreSweptCrewMember: () => rescued++, recordDrownedCrewMember: () => drowned++,
+    restoreSweptCrewMember: () => { rescued += 1; return true; },
+    reportRuntimeDiagnosticAssertion() {},
+    recordDrownedCrewMember: () => drowned++,
     playManOverboardSplashSound() {}, syncShipCargoFromGameState() {}, playCollectionDingSound() {},
     emitCaptureEvent() {}, showSurvivalNotice() {}, uiText: key => key, scheduleEventAutosave() {},
     playCrewDeathSound() {}, presentPendingNamedCrewDeathNotice() {}
