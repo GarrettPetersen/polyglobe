@@ -213,6 +213,7 @@ test("restoring a building canal publishes the saved clock before rebuilding que
       syncExeterCanalWorldState() {}, syncColonizationWorldState() {}, applyCurrentPortConquestOwnership() {},
       candidateCatalog: { cities: new Map(), ports: [] }, candidateWorld: { recoveredDerivedSystems: [] },
       ensureColonizationDefenseEncounter() {}, ensureTreasureCampaignEncounters() {},
+      forgetPurseFeedbackBaseline() {},
       pendingWineCaptainDialogues: [], pendingFetchQuestCaptainDialogues: [],
       initializeFetchQuestReadiness() {
         observed = exeterCanalQuestView(runtime.gameState, { cityId: TOPSHAM_CITY_ID }, runtime.weatherClockMinutes);
