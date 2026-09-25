@@ -24,7 +24,7 @@
     "src/characterReligion.js": "cd8ef2532801ca3434cacf9c5a413da70fb7bbaf3fb901bf2fdb8aeee9a2bcc8",
     "src/characterSkills.js": "b581c5ec7f48f9f0c0af714fc38b2117a3198dfcb446379b6ee104ff6a546eb3",
     "src/cityCatalogData.js": "4eae493676c04519cfd509415d2e3be3cef6f5234ab83d1fe5f803926bda1d5e",
-    "src/cityCatalogSelection.js": "740f053d4c2c8cb8fdcb0f084eb4df0e306cec2191b9868aabddcf26c83e149b",
+    "src/cityCatalogSelection.js": "50625d391be8643c3dbb52127568c40bcc5d85bd3d94fe935527041aa7fc41c6",
     "src/cityGeographyCorrections.js": "4a1011234ee505b35d34434d04d447e6045fa5eac7c7f5e3ae5e64bddf258076",
     "src/cityPortAccess.js": "72f63bd93036439373a78f2cabf9ed054bc925ef5937a56446ddebd378cc1081",
     "src/cityPortAccessPolicy.js": "f8f5e1268f1d69ddfe5d59b2519405b8258f337aa8ab0777bf24addb567d1b9b",
@@ -75,7 +75,7 @@
     "src/portAssaultGround.js": "12b6c6c020c9cc9fcc5e6b05aa99ccb701e9494dc35af92d99ba62f0fe5bba34",
     "src/portAssaultSteering.js": "06fc74cebc08d4afd6ba16ecc68446e83b97f234fd5981a0bfb3653b9b893655",
     "src/portAssaultTactics.js": "2d4698fd383cb1fd25f0ea5ff94f7ea286f9fc47acd976b2645fbd9341640dd6",
-    "src/portCatalogMigration.js": "e170419376e5eecc1a3c832269fae48f0978b34894e2856897419259651ff938",
+    "src/portCatalogMigration.js": "63c6609597fd871b854705385927a76da92c7b06c0136f4bd29f4e7b75a90735",
     "src/portCityServices.js": "06a2d8fc2eff17cfd2027a6229a88fb7a0d2205d10b4c6f0455a77ccb01252fa",
     "src/portDialoguePersonality.js": "376691d2bfb3af3791301463749929aa395f10db60534eec0999976247d6dbf6",
     "src/portGreetingStyle.js": "334245bdcbaafc705aa06383b54f1d6296f4096bf9377dbe0edd83a2a11a1286",
@@ -90,7 +90,7 @@
     "src/screenTextCatalog.js": "04e5841136486306ffdfb68bc631d4b5e510d9a24669ed8cbd17d70496809c0d",
     "src/screenTextLocalization.js": "f26ea3d888f39a65f7c119933146645c5abe33ccce07bd61c8d30c1a268671de",
     "src/settlementGeography.js": "c661f7eb79ac289de30344f4f7c2e8a33f1cddc5fd8fb3fe8699225990439858",
-    "src/settlementGeographyData.js": "48b4619e4f50c66ed2136d225d0339e6504937a9dd743f800f320d95631b4bd5",
+    "src/settlementGeographyData.js": "2c5f84528451ae1d76b4f9bab47c52fe25af4cd9f87f2194bc3faf69743aab39",
     "src/settlementTypes.js": "a3a7f05405d6db7a4c15e81f45365eaf30c935e583d9309c6441f4472a3f3942",
     "src/shipStats.js": "ea0f43b8ce3d1ac42a5373c43c9798db614bdb593a09b962cbf92af317f9f66d",
     "src/shipyardListingPresentation.js": "a8800d5d045975ad9c8d646df259bd863bb081244eb69b2368e32455543300ba",
@@ -106,6 +106,7 @@
     "src/test-fixtures/city-catalog-releases/13.json": "4d884f769b77dc01d140c479e328f93fb658f5fe1c5e4a8320ba45f91a156410",
     "src/test-fixtures/city-catalog-releases/14.json": "026043c0ca6a8cbc8a425f92e1fefa8091ed972c654d74e801a31e146e63aaeb",
     "src/test-fixtures/city-catalog-releases/15.json": "fb1f249c3ef4c673b88ac6992b209d5f46260a695c1171a3aee3dd3d57bc788c",
+    "src/test-fixtures/city-catalog-releases/16.json": "9e2e4dadba218c1ef2abe20c42a6e4d54ce08e8b256686714d5a5996acc853e3",
     "src/test-fixtures/city-catalog-releases/2.json": "ddccbb4ba9cdabed04477f55fa13afb8441bd7879a1c7a3ea0dc461ed8e4062e",
     "src/test-fixtures/city-catalog-releases/3.json": "e8dcd8dadf27c13c899b8440546d9368a235d8d2272be8c6cd842bce1fa5961b",
     "src/test-fixtures/city-catalog-releases/4.json": "55928c32486bd2447b567112c96c2a9a931f0f71bf64bb6e125c0aca9f54a0d4",
@@ -131,9 +132,9 @@
     "tools/update-city-catalog.mjs": "bcdbee55ab7a6f510e0e74a8ad0b84cc69c506c5956c80d3522baf72644a70f8"
   },
   "artifacts": {
-    "public/assets/data/port-sailing-distances.json": "b199b94badd29a679b2bf047f4d82102f9f860ca2dc870e8b94333855eb6346a",
-    "public/assets/data/land-roads.json": "98163fff1c2b420f074a5aa7ea6e45b991559141d6b9e64c1a44406166b393ff",
-    "city-visualizer/data/cities.json": "22dd3ddd505d48ea12c1a1d7de7c136a9caca1b86399f10f4f08962f8ab732ad",
+    "public/assets/data/port-sailing-distances.json": "1b60385169e3b4aa25c49d1df07f29d416b43cc7dafaf0737f490dd7af959d78",
+    "public/assets/data/land-roads.json": "3347cb4d99cc5c8e7d9f62220f3724b5295ce0403b3488af15cf4eb9f8c402d6",
+    "city-visualizer/data/cities.json": "fd6075404acb100731a05957a3d7bde9c483075c5407c14bc590ac340a220bb4",
     "src/colonySeasonalAccessData.js": "cc2ef146a4a6176c1156d58f3e9c0517d859f0b199c08194bc5d1732b8e2c2f9"
   }
 }

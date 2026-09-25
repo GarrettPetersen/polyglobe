@@ -108,6 +108,36 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     manualRegion: "iceland",
     marketGoods: ["fish", "salt", "cheese"]
   }),
+  // The urbanization set records Bergen in 1300 and 1769, and Oslo and
+  // Trondheim only from 1900, so the 1522 relevance window left the
+  // Norwegian coast empty. Bergen was the Hanseatic kontor, Nidaros the
+  // archbishop's see, and Oslo the royal town later refounded as Christiania.
+  // Populations are gameplay estimates, not a surviving census.
+  manualCity1522("bergen|norway", "Bergen", "Norway", 60.391264, 5.322053, 7000, {
+    cityType: "northern-european",
+    manualRegion: "norwegian-coast",
+    marketGoods: ["fish", "timber", "naval-stores"]
+  }),
+  manualCity1522("trondheim|norway", "Nidaros", "Norway", 63.43049, 10.39506, 3000, {
+    displayCity: "Nidaros",
+    // The Trondheim fjord is narrower than a hex, so the historical
+    // coordinate sits inland. Keep that coordinate and dock on the
+    // coastal tile to the west.
+    placementLat: 63.583,
+    placementLon: 9.588,
+    cityType: "northern-european",
+    manualRegion: "norwegian-coast",
+    marketGoods: ["fish", "hides", "timber"]
+  }),
+  manualCity1522("oslo|norway", "Oslo", "Norway", 59.913869, 10.752245, 2500, {
+    // The fjord head is inland at this resolution. Keep Oslo's
+    // coordinate and dock one hex south, on the Oslofjord.
+    placementLat: 59.607,
+    placementLon: 10.759,
+    cityType: "northern-european",
+    manualRegion: "norwegian-coast",
+    marketGoods: ["timber", "fish", "hides"]
+  }),
   manualCity1522("exeter|united kingdom", "Exeter", "United Kingdom", 50.7236, -3.52751, 6000, {
     // Schematic inland hex beyond normal docking reach. Preserve the actual
     // coordinates and identity; Topsham remains the accessible outport.

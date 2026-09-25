@@ -350,6 +350,29 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const hafnarfjordur = ports.find((city) => city.city === "Hafnarfjordur" && city.country === "Iceland");
   assert.ok(hafnarfjordur, "Hafnarfjordur should be a dockable Icelandic port");
   assert.equal(hafnarfjordur.cityType, "northern-european");
+  for (const expected of [
+    { cityId: "bergen|norway", displayCity: "Bergen", marketGoods: ["fish", "timber", "naval-stores"] },
+    { cityId: "trondheim|norway", displayCity: "Nidaros", marketGoods: ["fish", "hides", "timber"] },
+    { cityId: "oslo|norway", displayCity: "Oslo", marketGoods: ["timber", "fish", "hides"] }
+  ]) {
+    const city = ports.find((port) => port.cityId === expected.cityId);
+    assert.ok(city, `${expected.displayCity} should be a dockable Norwegian port`);
+    assert.equal(city.displayCity, expected.displayCity);
+    assert.equal(city.country, "Norway");
+    assert.equal(city.factionId, "denmark-norway");
+    assert.equal(city.cityType, "northern-european");
+    assert.deepEqual(city.marketGoods, expected.marketGoods);
+    assert.ok(
+      cityPortAccessRingDistance({
+        graph,
+        earthRows: earth.tiles,
+        reachableNavigationMask: reachable,
+        riverMasks: masks,
+        tileId: city.tileId
+      }) <= 1,
+      `${expected.displayCity} should sit beside navigable water`
+    );
+  }
   const sanSebastian = ports.find((city) => city.cityId === "san sebastian|spain");
   assert.ok(sanSebastian, "San Sebastián should fill Spain's Bay of Biscay port gap");
   assert.equal(sanSebastian.displayCity, "San Sebastián");

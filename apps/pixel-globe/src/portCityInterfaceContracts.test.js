@@ -178,7 +178,7 @@ test("landing after a successful bombardment preserves combat music for the assa
   assert.match(opening, /if \(continuingBombardment\) \{[\s\S]*startCombatMusicForThreat/);
   assert.match(
     opening,
-    /else \{[\s\S]*combatMusicUntilMs = 0;[\s\S]*setBackgroundMusicTrack\(musicTrackForCity/
+    /else \{[\s\S]*clearCombatMusicHolds\(\);[\s\S]*setBackgroundMusicTrack\(musicTrackForCity/
   );
 });
 

@@ -109,6 +109,18 @@ test("official delivery work stays inside the same faction and region", () => {
   assert.ok(quest.distanceKm >= 270 && quest.distanceKm <= 280);
 });
 
+test("delivery pay rises with voyage distance by more than the hash spread", () => {
+  const sealedPacket = (distanceKm) => deliveryWorkOptionsForCity(LISBON, [LISBON, PORTO], {
+    sailingDistanceKm: () => distanceKm
+  }).find(({ scenarioId }) => scenarioId === "sealed-packet");
+  const near = sealedPacket(240);
+  const far = sealedPacket(2400);
+  assert.equal(near.distanceKm, 240);
+  assert.equal(far.distanceKm, 2400);
+  assert.equal(far.reward - near.reward, Math.round(2400 / 12) - Math.round(240 / 12));
+  assert.ok(far.reward - near.reward > 95);
+});
+
 test("fragmented regions offer official, merchant, and private courier work", () => {
   const kyoto = port(20, "Kyoto", "Japan", "east-asian", "hosokawa", 35.01, 135.77);
   const osaka = port(21, "Osaka", "Japan", "east-asian", "hosokawa", 34.69, 135.5);

@@ -393,6 +393,8 @@ import {
   resolveRestrictedIllicitMarketAttempt
 } from "./tradePolicy.js";
 const TRADE_TIP_DISTANCE_SCALE_KM = 1500;
+const TRADE_TIP_MAX_ORDINARY_DISTANCE_KM = TRADE_TIP_DISTANCE_SCALE_KM * 3;
+const LONG_HAUL_TRADE_TIP_CATEGORIES = new Set(["spice", "luxury", "precious"]);
 const DEFAULT_EXPEDITION_SPONSOR_LABEL = "expedition sponsor";
 
 const DRUNK_PORT_EXCHANGES = Object.freeze([
@@ -8069,6 +8071,11 @@ export function bestPurchasedTradeRoute({
       if (!Number.isInteger(distanceKm) || distanceKm < 0) {
         throw new Error(`Trade-route sailing distance is invalid: ${distanceKm}`);
       }
+      // An 8,000 km gunpowder rumor is not useful advice from Cordoba.
+      // A profitable run inside 4,500 km still qualifies, as do spices,
+      // luxuries, and bullion at any distance.
+      if (!localMarket && distanceKm > TRADE_TIP_MAX_ORDINARY_DISTANCE_KM &&
+          !LONG_HAUL_TRADE_TIP_CATEGORIES.has(good.category)) continue;
       candidates.push({
         goodId: good.id,
         goodLabel: good.label,

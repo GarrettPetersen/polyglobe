@@ -3005,6 +3005,37 @@ test("trade advice prefers a useful regional price over a better transcontinenta
   assert.equal(recommended.goodLabel, "Silver");
 });
 
+test("trade advice keeps ordinary cargo off an ocean-length rumor", () => {
+  const cordoba = {
+    tileId: 201, cityId: "cordoba|spain", city: "Cordoba", country: "Spain",
+    cityType: "mediterranean", lat: 37.88, lon: -4.78, population: 30000, factionId: "neutral"
+  };
+  const quanzhou = {
+    tileId: 202, cityId: "quanzhou|china", city: "Quanzhou", country: "China",
+    cityType: "east-asian", lat: 24.87, lon: 118.67, population: 80000, factionId: "neutral"
+  };
+  const ports = [cordoba, quanzhou];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  economy.portStates.get(quanzhou.cityId).goods.get("gunpowder").stock = 0;
+  economy.portStates.get(quanzhou.cityId).goods.get("cloves").stock = 0;
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const route = (goodId, distanceKm) => {
+    gameState.cargo = { [goodId]: 1 };
+    return bestPurchasedTradeRoute({
+      purchases: { [goodId]: { goodId, quantity: 1, cost: 1 } },
+      originCity: cordoba,
+      gameState,
+      economy,
+      portCities: ports,
+      sailingDistanceKm: () => distanceKm
+    });
+  };
+
+  assert.equal(route("gunpowder", 1200).destinationName, "Quanzhou");
+  assert.equal(route("gunpowder", 8000), null);
+  assert.equal(route("cloves", 8000).destinationName, "Quanzhou");
+});
+
 test("leaving after reselling purchases only recommends the cargo still aboard", () => {
   const city = { cityId: "lisbon|portugal", tileId: 1, city: "Lisbon", country: "Portugal",
     cityType: "mediterranean", population: 100000, factionId: "neutral",

@@ -3546,6 +3546,10 @@ const MUSIC_TRACK_SPECS = Object.freeze({
     intro: "assets/music/combat-big-intro.ogg",
     loop: "assets/music/combat-big-loop.ogg"
   },
+  "combat-nearby": {
+    intro: "assets/music/combat-theme-intro.ogg",
+    loop: "assets/music/combat-theme-loop.ogg"
+  },
   gameOverSad: {
     loop: "assets/music/game-over-sad-loop.ogg"
   },
@@ -4336,6 +4340,7 @@ let sailingTutorialInputMode = window.matchMedia?.("(pointer: coarse)")?.matches
   : "keyboard";
 let backgroundMusicTrackKey = "ship";
 let combatMusicUntilMs = 0;
+let nearbyCombatMusicUntilMs = 0;
 let gameAudioActivationAllowed = false;
 let gameState = null;
 let playerPerkTotalsCache = null;
@@ -10730,14 +10735,38 @@ function musicTrackForCity(city) {
   return CITY_TYPE_MUSIC_TRACK_KEYS[city?.cityType] || "ship";
 }
 
+function clearCombatMusicHolds() {
+  combatMusicUntilMs = 0;
+  nearbyCombatMusicUntilMs = 0;
+}
+
 function startCombatMusicForThreat(threat) {
   const requested = combatMusicTrackForThreat(threat);
   const current = themeMusic?.requestedTrackKey;
   const trackKey = current === "combatBig" && combatMusicIsActive(lastFrameMs)
     ? current : requested;
   navalAfterActionQuietSinceMs = null;
+  nearbyCombatMusicUntilMs = 0;
   combatMusicUntilMs = Math.max(combatMusicUntilMs, lastFrameMs + COMBAT_MUSIC_HOLD_MS);
   playMusicTrack(trackKey, { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS, immediate: true });
+}
+
+function startNearbyCombatMusic() {
+  if (combatMusicIsActive(lastFrameMs)) return;
+  nearbyCombatMusicUntilMs = Math.max(nearbyCombatMusicUntilMs, lastFrameMs + COMBAT_MUSIC_HOLD_MS);
+  if (themeMusic?.requestedTrackKey === "combat-nearby") return;
+  playMusicTrack("combat-nearby", { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS, immediate: true });
+}
+
+function startObservedCombatMusic(threat, ownerId, targetId) {
+  if (typeof ownerId !== "string" || ownerId === "" || typeof targetId !== "string" || targetId === "") {
+    throw new Error(`Observed combat music requires participants: ${ownerId} -> ${targetId}`);
+  }
+  if (ownerId === PLAYER_COMBAT_ID || targetId === PLAYER_COMBAT_ID || playerHasCombatEngagement()) {
+    startCombatMusicForThreat(threat);
+    return;
+  }
+  startNearbyCombatMusic();
 }
 
 function combatMusicIsActive(nowMs) {
@@ -10752,7 +10781,7 @@ function combatMusicIsActive(nowMs) {
 }
 
 function isCombatMusicTrack(trackKey) {
-  return trackKey === "combatSmall" || trackKey === "combatBig";
+  return trackKey === "combatSmall" || trackKey === "combatBig" || trackKey === "combat-nearby";
 }
 
 function updateMusicContext(nowMs) {
@@ -10770,6 +10799,13 @@ function updateMusicContext(nowMs) {
   if (stormMusicActive) {
     if (themeMusic.currentTrackKey !== "storm" && themeMusic.requestedTrackKey !== "storm") {
       playMusicTrack("storm", { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS });
+    }
+    ensureThemeMusicContinuity();
+    return;
+  }
+  if (nowMs < nearbyCombatMusicUntilMs) {
+    if (themeMusic.currentTrackKey !== "combat-nearby" && themeMusic.requestedTrackKey !== "combat-nearby") {
+      playMusicTrack("combat-nearby", { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS });
     }
     ensureThemeMusicContinuity();
     return;
@@ -15980,7 +16016,7 @@ function returnHistoricalBattleToMap() {
     releaseDialogueSession({ destination: "handoff" });
   }
   clearHistoricalBattlePendingActions();
-  combatMusicUntilMs = 0;
+  clearCombatMusicHolds();
   keys.clear();
   clearPointerSteering();
   dirty = true;
@@ -16002,7 +16038,7 @@ function closeLakeBattleModeToStartMenu() {
   releaseDialogueSession({ destination: "sailing", animate: false });
   lakeBattleMode = null;
   clearLakeBattleTerrainCache();
-  combatMusicUntilMs = 0;
+  clearCombatMusicHolds();
   startMenu = createStartMenuState();
   syncCanvasAriaLabel();
   keys.clear();
@@ -16290,7 +16326,7 @@ function returnLakeBattleToSetup() {
   lakeBattleMode.resultReadyAtMs = null;
   lakeBattleMode.selectedIndex = LAKE_BATTLE_SETUP_PLAYER_ROW;
   lakeBattleMode.error = null;
-  combatMusicUntilMs = 0;
+  clearCombatMusicHolds();
   keys.clear();
   clearPointerSteering();
   dirty = true;
@@ -23896,7 +23932,7 @@ function openPortDialogue(cityCall) {
   if (continuingBombardment) {
     startCombatMusicForThreat(continuingBombardment);
   } else {
-    combatMusicUntilMs = 0;
+    clearCombatMusicHolds();
     setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
   }
   const approachStatus = portEntryStatus(gameState, cityCall, Math.floor(weatherClockMinutes));
@@ -28644,7 +28680,7 @@ function closeDialogue() {
     closeAutomaticQuestSiteAnchorOverlay(QUEST_SITE_OVERLAY_DIALOGUE);
   releaseDialogueSession({ destination: "sailing" });
   if (wasPortDialogue) {
-    combatMusicUntilMs = 0;
+    clearCombatMusicHolds();
     setBackgroundMusicTrack("ship", { force: true });
     if (!releasedAutomaticQuestSiteAnchor) playSailDeploySound();
     if (departureCity) {
@@ -35154,9 +35190,10 @@ function resetFrameClocksAfterVisibilityChange() {
 }
 
 function handleWindowBlur() {
+  // Clicking another window used to open the pause menu and stop the ship.
+  // A hidden page and an explicit Steam pause still do.
   suspendMainThreadFreezeMonitor(mainThreadFreezeMonitor);
   clearSessionHeldControls();
-  pauseActiveSteamGameplay("focus-lost");
 }
 
 function handleSteamPlatformPauseRequest(reason) {
@@ -39135,7 +39172,7 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   ship.wakeParticles = [];
   keys.clear();
   clearPointerSteering();
-  combatMusicUntilMs = 0;
+  clearCombatMusicHolds();
   stormMusicActive = false;
   try {
     abortPendingLocalSaveWrites();
@@ -41331,7 +41368,11 @@ function fireShoreBatteryAtNearestTarget(state) {
     recordOffscreenCannonShot(state.id, tileCenterVector(state.cityTileId), state.cityTileId);
     playShoreBatteryAttackSound(weapon, state.gunCount, distanceFromPlayerPoint(origin));
   }
-  startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
+  startObservedCombatMusic(
+    state.gunCount >= 2 ? "big" : "small",
+    state.id,
+    targetId
+  );
   const trueShotIndex = weapon.kind === NAVAL_WEAPON_CANNON
     ? accurateBroadsideShotIndex(state.gunCount)
     : -1;
@@ -41715,8 +41756,10 @@ function fireNpcWeaponAtTarget(state, targetId, targeting = null) {
     volleyCount,
     distanceFromPlayerPoint(state)
   );
-  startCombatMusicForThreat(
-    volleyCount >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small"
+  startObservedCombatMusic(
+    volleyCount >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small",
+    state.id,
+    targetId
   );
   const shotSeed = (index) => cannonSeed(
     state.weaponSequence,
@@ -41825,7 +41868,7 @@ function fireNpcPortableWeaponsAtTarget(state, targetId) {
       npcCombatProjectiles.push(projectile);
     }
   }
-  startCombatMusicForThreat("small");
+  startObservedCombatMusic("small", state.id, targetId);
   if (npcCombatProjectiles.length > NPC_COMBAT_MAX_PROJECTILES) {
     npcCombatProjectiles.splice(0, npcCombatProjectiles.length - NPC_COMBAT_MAX_PROJECTILES);
   }
@@ -68919,23 +68962,23 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
     drawPixelText(line, textX, y, { font: dialogueFont });
     y += dialogueLineHeight;
   }
-  if (view.feedback) {
+  const marketFooter = compactMarketSwitch
+    ? compactMarketFooterContent(view, optionGroups.regular)
+    : null;
+  if (view.feedback && marketFooter?.kind !== "context") {
     ctx.fillStyle = dialogueTextToneColor(view.feedbackTone, PIRATE_MENU_SUCCESS);
     for (const line of feedbackLines) {
       drawPixelText(line, textX, y, { font: dialogueFont });
       y += dialogueLineHeight;
     }
-  } else if (compactMarketSwitch) {
-    const marketContext = selectedMarketOptionContext(view, optionGroups.regular);
-    if (marketContext) {
-      ctx.fillStyle = dialogueTextToneColor(marketContext.tone, PIRATE_MENU_CHART_LINE);
-      drawPixelText(
-        fitPixelText(marketContext.text, PIXEL_FONT_SMALL_8, optionW),
-        textX,
-        compactMarketLayout?.contextY ?? textYOffset,
-        { font: PIXEL_FONT_SMALL_8 }
-      );
-    }
+  } else if (marketFooter?.kind === "context") {
+    ctx.fillStyle = dialogueTextToneColor(marketFooter.tone, PIRATE_MENU_CHART_LINE);
+    drawPixelText(
+      fitPixelText(marketFooter.text, PIXEL_FONT_SMALL_8, optionW),
+      textX,
+      compactMarketLayout?.contextY ?? textYOffset,
+      { font: PIXEL_FONT_SMALL_8 }
+    );
   }
 
   const optionX = textX;
@@ -68946,13 +68989,26 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   });
 }
 
-function selectedMarketOptionContext(view, regularEntries) {
+function compactMarketFooterContent(view, regularEntries) {
+  const hovered = selectedMarketOptionContext(view, regularEntries, { onlySelected: true });
+  if (hovered) return { kind: "context", text: hovered.text, tone: hovered.tone };
+  if (view.feedback) return { kind: "feedback" };
+  const fallback = selectedMarketOptionContext(view, regularEntries);
+  return fallback ? { kind: "context", text: fallback.text, tone: fallback.tone } : null;
+}
+
+function selectedMarketOptionContext(view, regularEntries, { onlySelected = false } = {}) {
   if (view.presentation?.kind !== "market") return null;
   if (!Array.isArray(regularEntries)) {
     throw new Error("Market option context requires regular option entries");
   }
+  if (typeof onlySelected !== "boolean") {
+    throw new Error(`Market option context selection flag must be boolean: ${onlySelected}`);
+  }
   const selected = regularEntries.find(({ index }) => index === dialogueState.selectedIndex);
-  const entry = selected || regularEntries.find(({ option }) => !option.disabled) || regularEntries[0];
+  const entry = onlySelected
+    ? selected
+    : selected || regularEntries.find(({ option }) => !option.disabled) || regularEntries[0];
   if (!entry) return null;
   const text = entry.option.disabled
     ? entry.option.disabledReason || entry.option.detail || ""

@@ -167,6 +167,7 @@ function musicHarness() {
   const context = {
     lakeBattleMode: null, LAKE_BATTLE_PHASE_ACTIVE: "active", LAKE_BATTLE_SCREEN_SINKING: "sinking",
     LAKE_BATTLE_SCREEN_PORT_ASSAULT: "assault", portAssaultState: null, combatMusicUntilMs: 100,
+    nearbyCombatMusicUntilMs: 0, MUSIC_COMBAT_CROSSFADE_SECONDS: 1,
     shipCombatState: { engagements: new Map() }, shoreBatteryStates: new Map(), PLAYER_COMBAT_ID: "player",
     themeMusic: { currentTrackKey: "combatBig", requestedTrackKey: "combatBig" },
     gameOverReason: null, dialogueState: null, ensureThemeMusicContinuity() {}, playerStormIntensity: () => 0,
@@ -232,7 +233,7 @@ test("city and naval reports pass distinct localized headings to their shared re
 
 test("a bombardment score does not alternate when player and battery volleys differ in size", () => {
   const played = [];
-  const context = { lastFrameMs: 100, combatMusicUntilMs: 0, COMBAT_MUSIC_HOLD_MS: 18000,
+  const context = { lastFrameMs: 100, combatMusicUntilMs: 0, nearbyCombatMusicUntilMs: 0, COMBAT_MUSIC_HOLD_MS: 18000,
     MUSIC_COMBAT_CROSSFADE_SECONDS: 1, navalAfterActionQuietSinceMs: 0,
     themeMusic: { requestedTrackKey: "ship" }, combatMusicIsActive: () => true,
     combatMusicTrackForThreat: threat => threat === "big" ? "combatBig" : "combatSmall",
@@ -241,6 +242,108 @@ test("a bombardment score does not alternate when player and battery volleys dif
   for (const threat of ["big", "small", "big", "small"]) h.startCombatMusicForThreat(threat);
   assert.deepEqual(played, ["combatBig", "combatBig", "combatBig", "combatBig"]);
   assert.equal(context.navalAfterActionQuietSinceMs, null);
+});
+
+test("a nearby fight plays the observer score and does not hold the player's battle music", () => {
+  const played = [];
+  const context = {
+    lastFrameMs: 1000, combatMusicUntilMs: 0, nearbyCombatMusicUntilMs: 0, COMBAT_MUSIC_HOLD_MS: 18000,
+    MUSIC_COMBAT_CROSSFADE_SECONDS: 1, navalAfterActionQuietSinceMs: 0, PLAYER_COMBAT_ID: "player",
+    lakeBattleMode: null, LAKE_BATTLE_PHASE_ACTIVE: "active", LAKE_BATTLE_SCREEN_SINKING: "sinking",
+    LAKE_BATTLE_SCREEN_PORT_ASSAULT: "assault", portAssaultState: null,
+    shipCombatState: { engagements: new Map() }, shoreBatteryStates: new Map(),
+    themeMusic: { currentTrackKey: "ship", requestedTrackKey: "ship" },
+    combatMusicTrackForThreat: (threat) => threat === "big" ? "combatBig" : "combatSmall",
+    playMusicTrack(key) {
+      context.themeMusic.requestedTrackKey = key;
+      context.themeMusic.currentTrackKey = key;
+      played.push(key);
+    }
+  };
+  const h = runtime([
+    "combatMusicIsActive", "playerHasCombatEngagement", "playerHasShoreBatteryEngagement",
+    "startCombatMusicForThreat", "startNearbyCombatMusic", "startObservedCombatMusic"
+  ], context);
+  h.startObservedCombatMusic("small", "npc-a", "npc-b");
+  assert.deepEqual(played, ["combat-nearby"]);
+  assert.equal(context.combatMusicUntilMs, 0);
+  assert.equal(context.nearbyCombatMusicUntilMs, 19000);
+  h.startObservedCombatMusic("big", "npc-a", "player");
+  assert.deepEqual(played, ["combat-nearby", "combatBig"]);
+  assert.equal(context.combatMusicUntilMs, 19000);
+  assert.equal(context.nearbyCombatMusicUntilMs, 0);
+  context.shipCombatState.engagements.set("duel", { aId: "enemy", bId: "player" });
+  h.startObservedCombatMusic("small", "npc-a", "npc-b");
+  assert.equal(played.at(-1), "combatBig");
+});
+
+test("nearby combat music yields to a storm, then returns to the voyage when the hold ends", () => {
+  const h = musicHarness();
+  h.context.combatMusicUntilMs = 0;
+  h.context.nearbyCombatMusicUntilMs = 5000;
+  h.context.themeMusic.currentTrackKey = "ship";
+  h.context.themeMusic.requestedTrackKey = "ship";
+  h.context.playerStormIntensity = () => 1;
+  h.updateMusicContext(1000);
+  assert.deepEqual(h.played, ["storm"]);
+  h.played.length = 0;
+  h.context.playerStormIntensity = () => 0;
+  h.context.stormMusicActive = true;
+  h.context.themeMusic.currentTrackKey = "storm";
+  h.context.themeMusic.requestedTrackKey = "storm";
+  h.updateMusicContext(2000);
+  assert.deepEqual(h.played, ["combat-nearby"]);
+  h.played.length = 0;
+  h.context.themeMusic.currentTrackKey = "combat-nearby";
+  h.context.themeMusic.requestedTrackKey = "combat-nearby";
+  h.updateMusicContext(5000);
+  assert.deepEqual(h.played, ["ship"]);
+});
+
+test("a hovered market row keeps its sale detail after the first sale", () => {
+  const regular = [
+    { index: 2, option: { detail: "Sold last voyage for 40 db", detailTone: "success", disabled: false } }
+  ];
+  const view = { presentation: { kind: "market" }, feedback: "Sold fish. P/L +12 db.", feedbackTone: "success" };
+  const context = {
+    dialogueState: { selectedIndex: 2 },
+    renderedUiText: (text) => text
+  };
+  const h = runtime(["compactMarketFooterContent", "selectedMarketOptionContext"], context);
+  const hovered = h.compactMarketFooterContent(view, regular);
+  assert.equal(hovered.kind, "context");
+  assert.equal(hovered.text, "Sold last voyage for 40 db");
+  assert.equal(hovered.tone, "success");
+  context.dialogueState.selectedIndex = 0;
+  assert.equal(h.compactMarketFooterContent(view, regular).kind, "feedback");
+  view.feedback = null;
+  assert.equal(h.compactMarketFooterContent(view, regular).text, "Sold last voyage for 40 db");
+});
+
+test("losing window focus clears held controls without pausing the voyage", () => {
+  const calls = [];
+  const context = {
+    mainThreadFreezeMonitor: {},
+    suspendMainThreadFreezeMonitor() { calls.push("suspend"); },
+    clearSessionHeldControls() { calls.push("clear"); },
+    pauseActiveSteamGameplay(reason) { calls.push(reason); }
+  };
+  runtime(["handleWindowBlur"], context).handleWindowBlur();
+  assert.deepEqual(calls, ["suspend", "clear"]);
+});
+
+test("a hidden page still pauses the voyage", () => {
+  const calls = [];
+  const context = {
+    performance: { now: () => 40 },
+    document: { visibilityState: "hidden" },
+    mainThreadFreezeMonitor: {},
+    suspendMainThreadFreezeMonitor() { calls.push("suspend"); },
+    clearSessionHeldControls() { calls.push("clear"); },
+    pauseActiveSteamGameplay(reason) { calls.push(reason); }
+  };
+  runtime(["resetFrameClocksAfterVisibilityChange"], context).resetFrameClocksAfterVisibilityChange();
+  assert.deepEqual(calls, ["suspend", "clear", "hidden"]);
 });
 
 test("silenced attacked shore batteries keep the player engaged until the bombardment ends", () => {

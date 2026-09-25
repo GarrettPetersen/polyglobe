@@ -74,6 +74,7 @@ test("departing an admitted port waits for movement input and activates protecti
     dialogueState: { kind: "port", admittedToPort: true, illicitTradeVisit: null },
     gameState: {},
     combatMusicUntilMs: 100,
+    clearCombatMusicHolds() {},
     dirty: false,
     cancelPendingCrewDismissal: () => {},
     currentDialogueCity: () => city,
@@ -282,6 +283,7 @@ test("a hostile toll offer intercepts attempted docking before opening the barre
     autoRowCommandState: {}, cancelAutoRowCommand: () => {},
     clearPortNavigationWaypointsAt: () => {}, ensureShoreBatteryState: () => battery,
     continuingPortBombardmentThreat: () => null, shoreBatteryIsDisabled: () => false,
+    clearCombatMusicHolds() {},
     setBackgroundMusicTrack: () => {}, musicTrackForCity: () => "port", citySiteIsRuined: () => false,
     portEntryStatus: () => ({ canPurchaseSafePassage: true }), playerPortAttackStatus: () => ({ commissioned: false }),
     openShoreBatteryCombatHail: () => calls.push("offer toll"), ensurePortCityView: () => { throw new Error("premature docking"); } };

@@ -7231,10 +7231,13 @@ function createDeliveryCommissionQuest({
     throw new Error(`Delivery commission requires a lawful regional origin: ${city.cityId}`);
   }
   const onboarding = onboardingIndex !== null;
+  const distanceKm = Math.round(travelSailingDistanceKm(city, destination, { sailingDistanceKm }));
+  // The hash only swings the fee by 95 db. One-twelfth of the distance
+  // overtakes that swing once the voyage is about 1,300 km longer, so a
+  // run to London cannot pay less than a short hop on the same offer.
   const reward = 65 + (hashString32(
     `reward|${scenario.id}|${cityKey(city)}|${cityKey(destination)}|${offerPeriod}`
-  ) % 96) + (onboarding ? 50 : scenario.rewardBonus);
-  const distanceKm = Math.round(travelSailingDistanceKm(city, destination, { sailingDistanceKm }));
+  ) % 96) + Math.round(distanceKm / 12) + (onboarding ? 50 : scenario.rewardBonus);
   const offerLead = onboarding
     ? scenario.offer
     : scenario.offer({ destinationName: cityLabel(destination) });
