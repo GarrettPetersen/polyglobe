@@ -7,6 +7,16 @@ const dataset = ANALYTICS_ENGINE_DATASET;
 const windowDays = integerArgument(process.argv.slice(2), "--days", 30);
 
 const sections = [
+  ["WEB DEPLOY", `
+    SELECT blob3 AS revision, blob15 AS message, max(timestamp) AS last_seen
+    FROM ${dataset}
+    WHERE blob1 = 'diagnostic'
+      AND blob14 = 'WebDeployFailed'
+      AND timestamp > NOW() - INTERVAL '${windowDays}' DAY
+    GROUP BY revision, message
+    ORDER BY last_seen DESC
+    LIMIT 20
+  `],
   ["ACTIVITY", `
     SELECT blob4 AS channel, blob1 AS event_type,
       round(SUM(_sample_interval)) AS events,

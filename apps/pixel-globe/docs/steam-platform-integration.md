@@ -102,8 +102,10 @@ repository target from its root:
 make pixel-globe-release
 ```
 
-It requires a clean working tree, pulls with `--ff-only`, runs source checks and
-the full test suite, builds both editions, creates signed/notarized universal
+It requires a clean working tree, pulls with `--ff-only`, runs source checks,
+the full node test suite, and `test:reachability:fast` before any package or
+upload. That browser gate is the same one the web deploy runs, including the
+production save-restore smoke. It then builds both editions, creates signed/notarized universal
 macOS packages plus Windows and Linux packages, runs the Steam and startup
 checks, uploads the demo to the configured itch channel, and uploads both Steam
 apps. Set `PIXEL_GLOBE_ITCH_TARGET` or `PIXEL_GLOBE_BUTLER` to override the itch

@@ -59,6 +59,10 @@ jobs:
       - name: Test, build, and deploy
         run: npm run --prefix apps/pixel-globe deploy
 
+      - name: Report a failed web deploy
+        if: failure()
+        run: node apps/pixel-globe/tools/report-web-deploy-failure.mjs
+
       - name: Preserve playtest reports and replays
         if: always()
         uses: actions/upload-artifact@v7

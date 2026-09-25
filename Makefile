@@ -28,7 +28,7 @@ help:
 	@echo "  make railways-preview   Preview built Railways app"
 	@echo "  make pixel-globe-dev    Run Pixel Globe locally on PIXEL_GLOBE_PORT (default: 5184)"
 	@echo "  make pixel-globe-demo-itch Build the Mediterranean HTML5 demo ZIP for itch.io"
-	@echo "  make pixel-globe-release   Pull, test, package, and upload Steam full+demo plus itch demo"
+	@echo "  make pixel-globe-release   Pull, test, run the production browser gate, package, and upload"
 	@echo "  make pixel-globe-capture Run a disposable 9:16 capture scenario"
 	@echo "  make pixel-globe-benchmark Run the deterministic busy-world performance benchmark"
 	@echo "  make pixel-globe-trailer-clips Record all scripted 9:16 trailer clips"
@@ -112,6 +112,9 @@ pixel-globe-release:
 	git pull --ff-only
 	npm --prefix $(PIXEL_GLOBE_DIR) run check:source
 	npm --prefix $(PIXEL_GLOBE_DIR) test
+	# Node tests do not open the production city scene. This is the same browser
+	# gate the web deploy runs, and it must fail the release before any upload.
+	npm --prefix $(PIXEL_GLOBE_DIR) run test:reachability:fast
 	npm --prefix $(PIXEL_GLOBE_DIR) run build
 	npm --prefix $(PIXEL_GLOBE_DIR) run build:demo
 	MARQUE_MAC_NOTARY_PROFILE=marque-notary MARQUE_MAC_SIGN_IDENTITY='Developer ID Application: Garrett Petersen (33PHJFY66Z)' npm --prefix $(PIXEL_GLOBE_DIR) run steam:package -- --edition=both --platform=darwin --arch=universal --notarize
