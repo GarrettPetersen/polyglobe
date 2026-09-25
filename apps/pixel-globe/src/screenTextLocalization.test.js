@@ -510,6 +510,28 @@ test("normal game text cannot be written to the screen in English-only form", ()
   }
 });
 
+test("a waypoint beyond current provisions is explained in every supported language", () => {
+  const source = "{0} is about {1} days' sail, and we only have enough provisions for {2} days. We'll need to change loadouts or plan to stop for supplies en route.";
+  assertReviewedTranslations(new Map([
+    [source, [
+      "{0}大约要航行{1}天，而我们的食物和淡水只够{2}天。我们得调整装载，或计划在途中靠港补给。",
+      "{0} — это около {1} суток хода, а провизии и воды нам хватит лишь на {2} суток. Придётся сменить загрузку трюма или зайти за припасами по пути.",
+      "{0} queda a unos {1} días de navegación, y solo tenemos víveres para {2} días. Habrá que cambiar la carga o hacer escala para avituallarnos.",
+      "{0} fica a cerca de {1} dias de navegação, e só temos provisões para {2} dias. Precisamos mudar a carga ou planejar uma escala para nos abastecer.",
+      "{0}まではおよそ{1}日の航海だ。糧食と水は{2}日分しかない。積み荷を変えるか、途中で補給する港を決める必要がある。",
+      "{0} liegt etwa {1} Tage unter Segeln, und Proviant und Wasser reichen uns nur für {2} Tage. Wir müssen den Ladeplan ändern oder unterwegs Vorräte fassen.",
+      "{0} est à environ {1} jours de navigation, et nous n'avons de vivres que pour {2} jours. Il faudra changer le chargement ou faire escale pour nous ravitailler.",
+      "{0} to około {1} dni żeglugi, a prowiantu i wody starczy nam tylko na {2} dni. Trzeba zmienić ładunek albo zawinąć po zapasy po drodze.",
+      "{0}大約要航行{1}天，而我們的食物和淡水只夠{2}天。我們得調整裝載，或計劃在途中靠港補給。",
+      "{0}까지는 대략 {1}일의 항해입니다. 식량과 물은 {2}일치뿐입니다. 적재를 바꾸거나, 도중에 보급할 항구를 정해야 합니다."
+    ]]
+  ]), "waypoint provision warning");
+  assert.equal(
+    localizeText("es", "Lisbon is about 5 days' sail, and we only have enough provisions for 3 days. We'll need to change loadouts or plan to stop for supplies en route."),
+    "Lisboa queda a unos 5 días de navegación, y solo tenemos víveres para 3 días. Habrá que cambiar la carga o hacer escala para avituallarnos."
+  );
+});
+
 test("whale tow feedback is localized in every supported language", () => {
   const source = "THE LINE HOLDS - PREPARE FOR THE TOW";
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {

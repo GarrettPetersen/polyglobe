@@ -177,6 +177,7 @@ export default Object.freeze({
   "{0} is aboard as an envoy returning from {1} to {2}; finish that voyage first.": "{0} 作为特使登船，从 {1} 返回到 {2}；先完成那趟航程。",
   "{0} is aboard as an envoy traveling from {1} to {2}; finish that voyage first.": "{0} 作为特使登船，从 {1} 前往 {2}；先完成那趟航程。",
   "{0} is aboard, waiting to sail to {1}.": "{0} 已在船上等候，准备驶往{1}。",
+  "{0} is about {1} days' sail, and we only have enough provisions for {2} days. We'll need to change loadouts or plan to stop for supplies en route.": "{0}大约要航行{1}天，而我们的食物和淡水只够{2}天。我们得调整装载，或计划在途中靠港补给。",
   "{0} IS ELECTED KING OF THE ROMANS": "{0} 被选为罗马国王",
   "{0} IS ELECTED ROMAN EMPEROR": "{0} 当选罗马皇帝",
   "{0} is freed from {1}'s rule.": "{0} 摆脱了 {1} 的统治。",

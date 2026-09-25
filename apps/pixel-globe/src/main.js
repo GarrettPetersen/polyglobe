@@ -382,6 +382,24 @@ import {
   windAtLatLonDeg
 } from "./weather.js";
 import {
+  chartWindArrows,
+  chartWindToggleRect
+} from "./chartWindOverlay.js";
+import {
+  QUEST_CHART_LINK_COLOR,
+  QUEST_CHART_LINK_SHADOW,
+  normalizeQuestChartId,
+  questChartIdsAssociate,
+  questChartHighlight,
+  questChartHoverKey,
+  questChartLinkSegments,
+  questChartMarkPixels,
+  questChartSelectableKeys,
+  questChartShapeForRole,
+  questChartTextRect,
+  stepQuestChartSelection
+} from "./questChartMarks.js";
+import {
   SURFACE_ICE_TRANSITION_STAGE_COUNT,
   createSurfaceIceTransition,
   surfaceIceStateForTile,
@@ -2290,6 +2308,13 @@ import {
   parsePortSailingDistances,
   portSailingDistanceKm
 } from "./portSailingDistances.js";
+import { npcCruisingKmPerGameDay } from "./npcRoutePacing.js";
+import {
+  provisionShortfallWarningText,
+  rememberWaypointProvisionWarning,
+  waypointProvisionShortfall,
+  waypointProvisionWarningSeen
+} from "./waypointProvisionWarning.js";
 import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import {
   LAND_CART_WALK_FRAME_COUNT,
@@ -3202,27 +3227,32 @@ const QUEST_ARROW_TOOLTIP_H = 14;
 const QUEST_NAVIGATION_STYLE = Object.freeze({
   light: "#f9c22b",
   dark: "#e6904e",
-  shadow: "rgba(33, 24, 20, 0.72)"
+  shadow: "rgba(33, 24, 20, 0.72)",
+  shape: questChartShapeForRole("quest")
 });
 const CAMPAIGN_NAVIGATION_STYLE = Object.freeze({
   light: "#30e1b9",
   dark: "#0eaf9b",
-  shadow: "rgba(19, 45, 48, 0.78)"
+  shadow: "rgba(19, 45, 48, 0.78)",
+  shape: questChartShapeForRole("campaign")
 });
 const COLONIZATION_NAVIGATION_STYLE = Object.freeze({
   light: "#8bd5ff",
   dark: "#277bb8",
-  shadow: "rgba(14, 35, 56, 0.78)"
+  shadow: "rgba(14, 35, 56, 0.78)",
+  shape: questChartShapeForRole("colonization")
 });
 const OPTIONAL_NAVIGATION_STYLE = Object.freeze({
   light: "#94b0c2",
   dark: "#566c86",
-  shadow: "rgba(26, 28, 44, 0.78)"
+  shadow: "rgba(26, 28, 44, 0.78)",
+  shape: questChartShapeForRole("optional")
 });
 const NATURALIST_NAVIGATION_STYLE = Object.freeze({
   light: "#91db69",
   dark: "#4f8f5b",
-  shadow: "rgba(24, 47, 37, 0.78)"
+  shadow: "rgba(24, 47, 37, 0.78)",
+  shape: questChartShapeForRole("naturalist")
 });
 const MOUNTAIN_DISCOVERY_PANEL_W = 230;
 const MOUNTAIN_DISCOVERY_PANEL_H = 24;
@@ -7862,6 +7892,12 @@ function createCaptainMenuState() {
     journalRect: null,
     journalPreviousRect: null,
     journalNextRect: null,
+    journalHitRows: [],
+    questHoverKey: null,
+    questSelectionKey: null,
+    chartMarks: [],
+    windOverlay: false,
+    mapWindRect: null,
     mapZoomIndex: 0,
     mapCenterX: null,
     mapCenterY: null,
@@ -8174,6 +8210,50 @@ function openCrewAlertModal(message, expressionId = "neutral") {
     message,
     expressionId
   );
+}
+
+function maybeWarnWaypointProvisionShortfall(action) {
+  if (!gameState || waypointProvisionWarningSeen(gameState.memory.decisions)) return false;
+  let distanceKm = null;
+  try {
+    const origin = currentDialogueCity();
+    const destination = {
+      cityId: action.destinationCityId,
+      tileId: action.destinationTileId
+    };
+    const exeterUnfinished = (port) => (
+      port.cityId === EXETER_CITY_ID && !portCitiesByTileId.has(port.tileId)
+    );
+    if (exeterUnfinished(origin) || exeterUnfinished(destination)) return false;
+    distanceKm = sailingDistanceBetweenPorts(origin, destination);
+  } catch (error) {
+    reportRuntimeDiagnosticAssertion(
+      `Waypoint provision estimate has no sailing distance to ${action.destinationCityId}: ${error?.message || error}`,
+      "waypoint-provision-distance"
+    );
+    return false;
+  }
+  if (distanceKm === null || !ship?.stats) return false;
+  const status = survivalStatus(gameState);
+  const shortfall = waypointProvisionShortfall({
+    distanceKm,
+    cruisingKmPerGameDay: npcCruisingKmPerGameDay(currentPlayerEffectiveShipStats()),
+    foodDays: status.foodDays,
+    drinkDays: status.drinkDays,
+    alreadyWarned: false
+  });
+  if (!shortfall) return false;
+  const opened = openCrewAlertModal(
+    renderedUiText(provisionShortfallWarningText(
+      action.destinationName,
+      shortfall.sailDays,
+      shortfall.provisionDays
+    )),
+    "thoughtful"
+  );
+  if (!opened) return false;
+  rememberWaypointProvisionWarning(gameState.memory.decisions);
+  return true;
 }
 
 let navalAfterActionQuietSinceMs = null;
@@ -20598,6 +20678,8 @@ function openCaptainMenu() {
   captainMenu.returnError = null;
   captainMenu.itemRects = [];
   captainMenu.journalScrollLine = 0;
+  captainMenu.questSelectionKey = null;
+  captainMenu.questHoverKey = null;
   resetCaptainChartView();
   dirty = true;
 }
@@ -20672,6 +20754,11 @@ function closeCaptainMenu() {
   captainMenu.journalRect = null;
   captainMenu.journalPreviousRect = null;
   captainMenu.journalNextRect = null;
+  captainMenu.journalHitRows = [];
+  captainMenu.questHoverKey = null;
+  captainMenu.questSelectionKey = null;
+  captainMenu.chartMarks = [];
+  captainMenu.mapWindRect = null;
   captainMenu.mapRect = null;
   captainMenu.mapZoomOutRect = null;
   captainMenu.mapZoomInRect = null;
@@ -20719,6 +20806,11 @@ function handleCaptainMenuKeyDown(event) {
     stepCaptainJournalScroll(event.key === "PageDown" ? 1 : -1, true);
     return;
   }
+  if ((event.key === "ArrowUp" || event.key === "ArrowDown") &&
+      captainMenu.selectedIndex === 0 &&
+      stepCaptainQuestChartSelection(event.key === "ArrowDown" ? 1 : -1)) {
+    return;
+  }
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
     const direction = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
     captainMenu.selectedIndex = stepMenuIndex(
@@ -20744,6 +20836,36 @@ function stepCaptainJournalScroll(direction, page = false) {
   captainMenu.journalScrollLine = nextScrollLine;
   dirty = true;
   return true;
+}
+
+function stepCaptainQuestChartSelection(direction) {
+  const journalIds = questJournalEntries().map((entry) => entry.id);
+  const navigationIds = navigationMenuEntries()
+    .filter((entry) => entry.targetVector)
+    .map((entry) => entry.id);
+  const nextKey = stepQuestChartSelection(
+    questChartSelectableKeys(journalIds, navigationIds),
+    captainMenu.questSelectionKey,
+    direction
+  );
+  if (!nextKey) return false;
+  captainMenu.questSelectionKey = nextKey;
+  revealCaptainQuestChartLine(nextKey);
+  dirty = true;
+  return true;
+}
+
+function revealCaptainQuestChartLine(key) {
+  const panel = captainMenu.panelRect;
+  if (!panel || !key) return;
+  const lines = questJournalDisplayLines(questJournalEntries(), panel.w - 43);
+  const lineIndex = lines.findIndex((line) => line.key === key && line.marker);
+  if (lineIndex < 0) return;
+  const visible = Math.max(1, captainMenu.journalVisibleLineCount);
+  if (lineIndex < captainMenu.journalScrollLine) captainMenu.journalScrollLine = lineIndex;
+  else if (lineIndex >= captainMenu.journalScrollLine + visible) {
+    captainMenu.journalScrollLine = lineIndex - visible + 1;
+  }
 }
 
 function captainChartDisplayViewport() {
@@ -21435,7 +21557,8 @@ function handlePointerMove(event) {
       (
         pointInRect(point, captainMenu.closeButtonRect) ||
         pointInRect(point, captainMenu.returnButtonRect) ||
-        captainMenu.itemRects.some((rect) => pointInRect(point, rect))
+        captainMenu.itemRects.some((rect) => pointInRect(point, rect)) ||
+        captainChartPointerIsActionable(point)
       )
     ) ||
     (
@@ -21483,6 +21606,10 @@ function handlePointerLeave(event) {
   statusHudHoverPoint = null;
   achievementNoticeHoverPoint = null;
   if (portCityRuntime && portCityRootNavigationIsActive()) portCityRuntime.setPointer(null, null);
+  if (captainMenu.isOpen) {
+    captainMenu.hoverPoint = null;
+    captainMenu.questHoverKey = null;
+  }
   canvas.style.cursor = controllerOwnsCursor ? "none" : "default";
   dirty = true;
 }
@@ -21519,6 +21646,11 @@ function handleCaptainMenuPointerDown(event, point) {
   if (captainMenu.returnButtonRect && pointInRect(point, captainMenu.returnButtonRect)) {
     captainMenu.selectedIndex = CAPTAIN_MENU_RETURN_INDEX;
     returnToStartMenuFromCaptain();
+    return;
+  }
+  if (captainMenu.mapWindRect && pointInRect(point, expandedRect(captainMenu.mapWindRect, 3))) {
+    captainMenu.windOverlay = !captainMenu.windOverlay;
+    dirty = true;
     return;
   }
   if (captainMenu.mapZoomOutRect && pointInRect(point, expandedRect(captainMenu.mapZoomOutRect, 3))) {
@@ -28990,7 +29122,10 @@ function performDialogueOption(optionIndex, displayedOption) {
     }
     if (result.action?.type === "set-port-heading") {
       addPortNavigationWaypoint(gameState, result.action);
-      saveVoyageNow("set port navigation heading");
+      const warned = maybeWarnWaypointProvisionShortfall(result.action);
+      saveVoyageNow(warned
+        ? "set a port heading beyond current provisions"
+        : "set port navigation heading");
     }
     if (dialogueState.nodeId === "shipyard" && previousNodeId !== "shipyard" &&
         maybeOpenShipyardArrivalDialogue(currentDialogueCity(), { allowShipyardNode: true })) {
@@ -49742,7 +49877,7 @@ function minimapPixelForProjectedPoint(projectedX, projectedY, raster = minimap)
   });
 }
 
-function drawMinimapNavigationMarkers(x, y, raster) {
+function drawMinimapNavigationMarkers(x, y, raster, marks = null) {
   if (!raster?.renderedViewport || !gameState) return;
   ctx.save();
   ctx.beginPath();
@@ -49759,7 +49894,14 @@ function drawMinimapNavigationMarkers(x, y, raster) {
     if (!point) continue;
     const markerX = x + point.x;
     const markerY = y + point.y;
-    drawMinimapNavigationDiamond(markerX, markerY, entry.style);
+    drawQuestChartMark(markerX, markerY, entry.style);
+    if (marks) {
+      marks.push({
+        key: normalizeQuestChartId(entry.id),
+        x: markerX,
+        y: markerY
+      });
+    }
   }
   ctx.restore();
 }
@@ -49794,15 +49936,14 @@ function drawMinimapSettlementMarkers(x, y, raster, markerSize = 1) {
   ctx.restore();
 }
 
-function drawMinimapNavigationDiamond(centerX, centerY, style) {
+function drawQuestChartMark(centerX, centerY, style) {
+  if (!style?.shape) throw new Error("Quest chart mark is missing a shape");
   const left = centerX - 2;
   const top = centerY - 2;
-  ctx.fillStyle = style.light;
-  ctx.fillRect(left + 1, top, 2, 1);
-  ctx.fillRect(left, top + 1, 4, 1);
-  ctx.fillStyle = style.dark;
-  ctx.fillRect(left, top + 2, 4, 1);
-  ctx.fillRect(left + 1, top + 3, 2, 1);
+  for (const pixel of questChartMarkPixels(style.shape)) {
+    ctx.fillStyle = pixel.tone === "light" ? style.light : style.dark;
+    ctx.fillRect(left + pixel.x, top + pixel.y, 1, 1);
+  }
 }
 
 function paintMinimapPixel(raster, pixel) {
@@ -50961,14 +51102,18 @@ function drawCaptainChart(panel, nowMs) {
     }))
     : 1;
   drawMinimapSettlementMarkers(mapX, mapY, chartMinimap, settlementMarkerSize);
+  if (captainMenu.windOverlay && displayViewport) {
+    drawCaptainChartWindOverlay(captainMenu.mapRect, displayViewport);
+  }
 
   const mapped = minimap ? minimap.seenTileCount / graph.tileCount : 0;
   drawOptionsText(`${uiText("status.mapped")} ${(mapped * 100).toFixed(2)}%`, mapX, header.mappedY, {
     color: PIRATE_MENU_INK_MUTED
   });
 
+  captainMenu.chartMarks = [];
   if (displayViewport) {
-    drawMinimapNavigationMarkers(mapX, mapY, chartMinimap);
+    drawMinimapNavigationMarkers(mapX, mapY, chartMinimap, captainMenu.chartMarks);
     const marker = minimapPixelForTile(centerTileId, chartMinimap);
     if (marker) {
       const markerX = mapX + marker.x;
@@ -50980,6 +51125,14 @@ function drawCaptainChart(panel, nowMs) {
   drawCaptainChartMapControls(captainMenu.mapRect);
 
   drawQuestJournal(panel, journalLines, mapY + mapH + localizedLineHeight(10));
+  captainMenu.questHoverKey = captainChartControlContains(captainMenu.hoverPoint)
+    ? null
+    : questChartHoverKey(
+      captainMenu.hoverPoint,
+      captainMenu.journalHitRows,
+      captainMenu.chartMarks
+    );
+  drawQuestChartLinkOverlay();
 }
 
 function questJournalDisplayLines(entries, textWidth) {
@@ -50994,6 +51147,7 @@ function questJournalDisplayLines(entries, textWidth) {
     const text = entry.title ? `${entry.title}: ${entry.nextStep}` : entry.nextStep;
     return wrapPixelTextAll(text, PIXEL_FONT_SMALL_8, textWidth).map((line, index) => ({
       id: `${entry.id}:${index}`,
+      key: normalizeQuestChartId(entry.id),
       text: line,
       style: entry.style,
       marker: index === 0
@@ -51020,6 +51174,7 @@ function drawQuestJournal(panel, lines, y) {
   captainMenu.journalLineCount = lines.length;
   captainMenu.journalVisibleLineCount = visibleLineCount;
   captainMenu.journalRect = { x, y: contentY, w: width, h: viewportHeight };
+  captainMenu.journalHitRows = [];
 
   ctx.save();
   ctx.beginPath();
@@ -51027,9 +51182,17 @@ function drawQuestJournal(panel, lines, y) {
   ctx.clip();
   lines.slice(journalWindow.firstLine, journalWindow.lastLine).forEach((line, index) => {
     const rowY = contentY + lineHeight * index;
+    const rowWidth = width - scrollGutterWidth;
+    captainMenu.journalHitRows.push({
+      key: line.key,
+      x,
+      y: rowY,
+      w: rowWidth,
+      h: lineHeight
+    });
     if (line.marker) {
-      ctx.fillStyle = line.style.dark;
-      ctx.fillRect(x, rowY + Math.floor((pixelFontSizePx(PIXEL_FONT_SMALL_8) - 3) / 2), 3, 3);
+      const centerY = rowY + Math.floor(pixelFontSizePx(PIXEL_FONT_SMALL_8) / 2);
+      drawQuestChartMark(x + 2, centerY, line.style);
     }
     drawOptionsText(line.text, x + 7, rowY, {
       color: PIRATE_MENU_INK_MUTED
@@ -51161,6 +51324,180 @@ function drawCaptainChartMapControls(mapRect) {
   drawOptionsText(zoomLabel, mapRect.x + 6, mapRect.y + mapRect.h - 12, {
     color: PIRATE_MENU_INK_MUTED
   });
+  drawCaptainChartWindToggle(mapRect);
+}
+
+function drawCaptainChartWindToggle(mapRect) {
+  const maxLabelWidth = Math.max(18, mapRect.w - 16);
+  const label = fitPixelText(uiText("tutorial.wind"), PIXEL_FONT_SMALL_8, maxLabelWidth, {
+    containerId: "captain-chart-wind"
+  });
+  captainMenu.mapWindRect = chartWindToggleRect({
+    mapX: mapRect.x,
+    mapY: mapRect.y,
+    mapWidth: mapRect.w,
+    mapHeight: mapRect.h,
+    labelWidth: measurePixelTextWidth(label, PIXEL_FONT_SMALL_8),
+    obstacleRect: captainMenu.mapPanRects?.down || null
+  });
+  const rect = captainMenu.mapWindRect;
+  const hovered = pointInRect(captainMenu.hoverPoint, rect);
+  drawPirateHudButton(rect, hovered || captainMenu.windOverlay);
+  drawOptionsText(label, rect.x + 4, controlTextY(rect, PIXEL_FONT_SMALL_8), {
+    color: PIRATE_MENU_INK
+  });
+}
+
+let captainChartWindCache = null;
+
+function drawCaptainChartWindOverlay(mapRect, viewport) {
+  const width = Math.floor(mapRect.w);
+  const height = Math.floor(mapRect.h);
+  if (width < 8 || height < 8) return;
+  const arrows = captainChartWindArrows(width, height, viewport);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(mapRect.x, mapRect.y, mapRect.w, mapRect.h);
+  ctx.clip();
+  for (const arrow of arrows) {
+    drawChartArrow(
+      mapRect.x + arrow.x,
+      mapRect.y + arrow.y,
+      mapRect.x + arrow.x + arrow.dx * arrow.length,
+      mapRect.y + arrow.y + arrow.dy * arrow.length,
+      arrow.alpha,
+      "#bfefff",
+      "lighter"
+    );
+  }
+  ctx.restore();
+}
+
+function captainChartWindArrows(width, height, viewport) {
+  const day = Math.floor(Math.max(0, weatherClockMinutes) / WEATHER_MINUTES_PER_DAY);
+  const key = [
+    width,
+    height,
+    viewport.startX.toFixed(2),
+    viewport.startY.toFixed(2),
+    viewport.spanX.toFixed(2),
+    viewport.spanY.toFixed(2),
+    day
+  ].join(":");
+  if (captainChartWindCache?.key === key) return captainChartWindCache.arrows;
+  const subsolarLatDeg = dateToSubsolarLatDeg(weatherParts.date);
+  const simMinute = day * WEATHER_MINUTES_PER_DAY;
+  const arrows = chartWindArrows({
+    width,
+    height,
+    sampleWind(pixelX, pixelY) {
+      const projected = minimapViewportSample({
+        viewport,
+        pixelX: Math.min(width - 1, Math.max(0, Math.floor(pixelX))),
+        pixelY: Math.min(height - 1, Math.max(0, Math.floor(pixelY))),
+        sampleX: 0.5,
+        sampleY: 0.5,
+        worldWidth: MINIMAP_W,
+        pixelWidth: width,
+        pixelHeight: height
+      });
+      return windAtLatLonDeg(
+        minimapUnprojectLatitude(projected.y, MINIMAP_MAX_LAT_DEG, MINIMAP_H),
+        minimapUnprojectLongitude(projected.x, MINIMAP_W),
+        subsolarLatDeg,
+        {
+          seed: WEATHER_WIND_SEED,
+          simMinute,
+          noiseDirectionRad: 0,
+          noiseStrength: 0
+        }
+      );
+    }
+  });
+  captainChartWindCache = { key, arrows };
+  return arrows;
+}
+
+function drawQuestChartLinkOverlay() {
+  const highlightKey = questChartHighlight(captainMenu.questHoverKey, captainMenu.questSelectionKey);
+  if (!highlightKey) return;
+  const marks = captainMenu.chartMarks || [];
+  const textRect = questChartTextRect(captainMenu.journalHitRows || [], highlightKey);
+  for (const mark of marks) {
+    if (questChartIdsAssociate(mark.key, highlightKey)) drawQuestChartFocusRing(mark.x, mark.y);
+  }
+  if (textRect) drawPixelFrame(textRect, QUEST_CHART_LINK_COLOR);
+  for (const segment of questChartLinkSegments(textRect, marks, highlightKey)) {
+    drawChartArrow(segment.x0, segment.y0, segment.x1, segment.y1, 1, QUEST_CHART_LINK_COLOR);
+  }
+}
+
+function drawQuestChartFocusRing(centerX, centerY) {
+  drawPixelFrame({ x: centerX - 4, y: centerY - 4, w: 9, h: 9 }, QUEST_CHART_LINK_COLOR);
+}
+
+function drawPixelFrame(rect, color) {
+  const outer = { x: rect.x - 1, y: rect.y - 1, w: rect.w + 2, h: rect.h + 2 };
+  ctx.fillStyle = QUEST_CHART_LINK_SHADOW;
+  ctx.fillRect(outer.x, outer.y, outer.w, 1);
+  ctx.fillRect(outer.x, outer.y + outer.h - 1, outer.w, 1);
+  ctx.fillRect(outer.x, outer.y, 1, outer.h);
+  ctx.fillRect(outer.x + outer.w - 1, outer.y, 1, outer.h);
+  ctx.fillStyle = color;
+  ctx.fillRect(rect.x, rect.y, rect.w, 1);
+  ctx.fillRect(rect.x, rect.y + rect.h - 1, rect.w, 1);
+  ctx.fillRect(rect.x, rect.y, 1, rect.h);
+  ctx.fillRect(rect.x + rect.w - 1, rect.y, 1, rect.h);
+}
+
+function drawChartArrow(x0, y0, x1, y1, alpha, color, composite = "source-over") {
+  const span = Math.hypot(x1 - x0, y1 - y0);
+  const steps = Math.max(1, Math.round(span));
+  const dx = (x1 - x0) / steps;
+  const dy = (y1 - y0) / steps;
+  const sideScale = span > 0 ? steps / span : 0;
+  const sideX = -dy * sideScale;
+  const sideY = dx * sideScale;
+  ctx.save();
+  ctx.globalCompositeOperation = composite;
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  for (let step = 0; step <= steps; step += 1) {
+    ctx.fillRect(Math.round(x0 + dx * step), Math.round(y0 + dy * step), 1, 1);
+  }
+  const backX = x1 - dx * 3;
+  const backY = y1 - dy * 3;
+  ctx.fillRect(Math.round(backX + sideX * 2), Math.round(backY + sideY * 2), 1, 1);
+  ctx.fillRect(Math.round(backX - sideX * 2), Math.round(backY - sideY * 2), 1, 1);
+  ctx.fillRect(Math.round(backX + sideX), Math.round(backY + sideY), 1, 1);
+  ctx.fillRect(Math.round(backX - sideX), Math.round(backY - sideY), 1, 1);
+  ctx.fillRect(Math.round(x1), Math.round(y1), 1, 1);
+  ctx.restore();
+}
+
+function captainChartControlContains(point) {
+  if (!point) return false;
+  const rects = [
+    captainMenu.mapWindRect,
+    captainMenu.mapZoomInRect,
+    captainMenu.mapZoomOutRect,
+    captainMenu.mapRecenterRect,
+    captainMenu.mapPanRects?.left,
+    captainMenu.mapPanRects?.right,
+    captainMenu.mapPanRects?.up,
+    captainMenu.mapPanRects?.down
+  ];
+  return rects.some((rect) => rect && pointInRect(point, rect));
+}
+
+function captainChartPointerIsActionable(point) {
+  if (!captainMenu.isOpen || !point) return false;
+  if (captainMenu.mapWindRect && pointInRect(point, captainMenu.mapWindRect)) return true;
+  return questChartHoverKey(
+    point,
+    captainMenu.journalHitRows || [],
+    captainMenu.chartMarks || []
+  ) !== null;
 }
 
 function drawCaptainMapRecenterButton(rect, hovered) {

@@ -177,6 +177,7 @@ export default Object.freeze({
   "{0} is aboard as an envoy returning from {1} to {2}; finish that voyage first.": "{0}은 {1}에서 {2}로 돌아오는 특사로 탑승했습니다. 그 항해를 먼저 끝내라.",
   "{0} is aboard as an envoy traveling from {1} to {2}; finish that voyage first.": "{0}은 {1}에서 {2}까지 여행하는 특사로 탑승했습니다. 그 항해를 먼저 끝내라.",
   "{0} is aboard, waiting to sail to {1}.": "{0}이(가) 승선해 {1}(으)로 출항하기를 기다리고 있습니다.",
+  "{0} is about {1} days' sail, and we only have enough provisions for {2} days. We'll need to change loadouts or plan to stop for supplies en route.": "{0}까지는 대략 {1}일의 항해입니다. 식량과 물은 {2}일치뿐입니다. 적재를 바꾸거나, 도중에 보급할 항구를 정해야 합니다.",
   "{0} IS ELECTED KING OF THE ROMANS": "{0}이 로마인의 왕으로 선출됨",
   "{0} IS ELECTED ROMAN EMPEROR": "{0}이 로마 황제로 선출됨",
   "{0} is freed from {1}'s rule.": "{0}이(가) {1}의 지배에서 벗어났습니다.",

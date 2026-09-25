@@ -177,6 +177,7 @@ export default Object.freeze({
   "{0} is aboard as an envoy returning from {1} to {2}; finish that voyage first.": "{0} está a bordo como enviado que regresa de {1} a {2}; terminar ese viaje primero.",
   "{0} is aboard as an envoy traveling from {1} to {2}; finish that voyage first.": "{0} está a bordo como enviado que viaja desde {1} a {2}; terminar ese viaje primero.",
   "{0} is aboard, waiting to sail to {1}.": "{0} está a bordo, a la espera de zarpar hacia {1}.",
+  "{0} is about {1} days' sail, and we only have enough provisions for {2} days. We'll need to change loadouts or plan to stop for supplies en route.": "{0} queda a unos {1} días de navegación, y solo tenemos víveres para {2} días. Habrá que cambiar la carga o hacer escala para avituallarnos.",
   "{0} IS ELECTED KING OF THE ROMANS": "{0} ES ELEGIDO REY DE LOS ROMANOS",
   "{0} IS ELECTED ROMAN EMPEROR": "{0} ES ELEGIDO EMPERADOR ROMANO",
   "{0} is freed from {1}'s rule.": "{0} queda libre del dominio de {1}.",

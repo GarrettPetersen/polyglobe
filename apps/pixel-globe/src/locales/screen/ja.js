@@ -177,6 +177,7 @@ export default Object.freeze({
   "{0} is aboard as an envoy returning from {1} to {2}; finish that voyage first.": "{0} は {1} から {2} に戻る特使として乗船しています。まずその航海を終えてください。",
   "{0} is aboard as an envoy traveling from {1} to {2}; finish that voyage first.": "{0} は {1} から {2} へ向かう特使として乗船しています。まずその航海を終えてください。",
   "{0} is aboard, waiting to sail to {1}.": "{0}は乗船し、{1}へ向けて出航するのを待っています。",
+  "{0} is about {1} days' sail, and we only have enough provisions for {2} days. We'll need to change loadouts or plan to stop for supplies en route.": "{0}まではおよそ{1}日の航海だ。糧食と水は{2}日分しかない。積み荷を変えるか、途中で補給する港を決める必要がある。",
   "{0} IS ELECTED KING OF THE ROMANS": "{0} がローマ人の王に選出される",
   "{0} IS ELECTED ROMAN EMPEROR": "{0} がローマ皇帝に選出される",
   "{0} is freed from {1}'s rule.": "{0} は{1}の支配から解放されました。",
