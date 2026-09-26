@@ -145,16 +145,16 @@ const WORLD: Item[] = [
     status: "Open",
     detail: "Crew are hired sailors. There is no galley-slave complement. This needs a design decision before any implementation.",
     note: "First"
-  },
-  {
-    action: "Push ship combat toward period practice",
-    status: "Open",
-    detail: "The note accepts the current mechanics and asks for more historical gunnery and conduct, as education rather than a bugfix.",
-    note: "First"
   }
 ];
 
 const SHIPPED: Item[] = [
+  {
+    action: "Push ship combat toward period practice",
+    status: "Shipped",
+    detail: "The Mediterranean galley, fusta, and penjajap mount their guns at the bow. Other armed ships still fire a broadside.",
+    note: "First"
+  },
   {
     action: "Play a different song for a nearby fight",
     status: "Shipped",
@@ -269,7 +269,7 @@ export default function PlaytesterActionList() {
       <Stack gap={8}>
         <H1>Playtester action list</H1>
         <Text tone="secondary">
-          Deduped from the first note ({FIRST}) and the second ({SECOND}). Status checked against master on 25 Sep 2026, including the port status bar, daily family-debt interest, the chart wind overlay, and the provision warning.
+          Deduped from the first note ({FIRST}) and the second ({SECOND}). Status checked against master on 25 Sep 2026, including the port status bar, daily family-debt interest, the chart wind overlay, the provision warning, and bow guns on the galley, fusta, and penjajap.
         </Text>
       </Stack>
 
