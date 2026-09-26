@@ -27,6 +27,7 @@ import {
   marketPurseFeedbackLayerOpacity,
   marketPurseFeedbackEntries,
   purseChangeFromDisplayedTotal,
+  purseChangeLabelOriginY,
   recordMarketPurseTransaction
 } from "./marketPurseFeedback.js";
 import { modalStatusBarLayout } from "./modalStatusBar.js";
@@ -69653,11 +69654,12 @@ function drawModalStatusBar(nowMs) {
     } else if (icon) {
       ctx.drawImage(icon, placed.x, placed.y + 4);
     }
-    drawPixelText(item.text, textX, placed.y + 3, { font: PIXEL_FONT_LATIN_SMALL_8 });
+    const textY = placed.y + 3;
+    drawPixelText(item.text, textX, textY, { font: PIXEL_FONT_LATIN_SMALL_8 });
     if (placed.id === "doubloons") {
       doubloonAnchor = {
         x: textX,
-        y: layout.y + layout.h + 2
+        y: purseChangeLabelOriginY(textY)
       };
     }
   }

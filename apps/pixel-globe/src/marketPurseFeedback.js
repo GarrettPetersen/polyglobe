@@ -1,4 +1,7 @@
 export const MARKET_PURSE_FEEDBACK_DURATION_MS = 1050;
+// Silkscreen digits are 5px tall and share the change label's face, so this
+// offset puts the label's ink against the count before the downward drift.
+export const PURSE_CHANGE_DIGIT_INK_HEIGHT_PX = 5;
 const MARKET_PURSE_FEEDBACK_LIMIT = 8;
 
 export function purseChangeFromDisplayedTotal(previousTotal, nextTotal) {
@@ -12,6 +15,13 @@ export function purseChangeFromDisplayedTotal(previousTotal, nextTotal) {
   if (previousTotal === null) return Object.freeze({ baseline: next, delta: null });
   const delta = next - Math.round(previousTotal);
   return Object.freeze({ baseline: next, delta: delta === 0 ? null : delta });
+}
+
+export function purseChangeLabelOriginY(countTextY) {
+  if (!Number.isFinite(countTextY)) {
+    throw new Error(`Purse change label requires the doubloon text origin: ${countTextY}`);
+  }
+  return countTextY + PURSE_CHANGE_DIGIT_INK_HEIGHT_PX;
 }
 
 export function marketPurseFeedbackLabelPosition(anchor, entry) {

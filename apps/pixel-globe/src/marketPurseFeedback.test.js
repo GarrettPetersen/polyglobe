@@ -8,12 +8,32 @@ import {
   marketPurseFeedbackLabelPosition,
   marketPurseFeedbackEntries,
   purseChangeFromDisplayedTotal,
+  purseChangeLabelOriginY,
   recordMarketPurseTransaction
 } from "./marketPurseFeedback.js";
 
 test("fading feedback keeps glyph rasters opaque and applies transparency while drawing", () => {
   assert.deepEqual(marketPurseFeedbackLayerOpacity(0.01), { shadow: 0.004, text: 0.01 });
   assert.throws(() => marketPurseFeedbackLayerOpacity(-0.01), /Invalid market purse feedback opacity/);
+});
+
+test("a purse change starts against the doubloon count and then drifts down", () => {
+  const countTextY = 7;
+  assert.equal(purseChangeLabelOriginY(countTextY), 12);
+  assert.throws(() => purseChangeLabelOriginY(Number.NaN), /doubloon text origin/);
+  const state = createMarketPurseFeedbackState();
+  recordMarketPurseTransaction(state, { deltaDoubloons: -42, startedAtMs: 0 });
+  const anchor = { x: 40, y: purseChangeLabelOriginY(countTextY) };
+  const start = marketPurseFeedbackLabelPosition(
+    anchor,
+    marketPurseFeedbackEntries(state, { nowMs: 0 })[0]
+  );
+  assert.equal(start.y, countTextY + 5);
+  const drifted = marketPurseFeedbackLabelPosition(
+    anchor,
+    marketPurseFeedbackEntries(state, { nowMs: 400 })[0]
+  );
+  assert.ok(drifted.y > start.y);
 });
 
 test("the first displayed total arms the purse without a popup", () => {
